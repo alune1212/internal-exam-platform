@@ -84,15 +84,20 @@ def import_candidates_from_workbook(
     parsed = parse_workbook(file_obj)
     failures: list[ImportFailure] = []
     imported_candidates: list[Candidate] = []
-    seen_employee_numbers: set[str] = set()
-    seen_names_without_employee_no: set[str] = set()
+
+    # 预加载已有数据，避免逐行查询 DB
+    existing_employee_numbers: set[str] = set(
+        row[0] for row in db.query(Candidate.employee_no).filter(Candidate.employee_no.isnot(None)).all()
+    )
+    existing_names_without_no: set[str] = set(
+        row[0] for row in db.query(Candidate.name).filter(Candidate.employee_no.is_(None)).all()
+    )
 
     for row_number, row in enumerate(parsed.rows, start=2):
         reason = _validate_candidate_import_row(
-            db=db,
             row=row,
-            seen_employee_numbers=seen_employee_numbers,
-            seen_names_without_employee_no=seen_names_without_employee_no,
+            existing_employee_numbers=existing_employee_numbers,
+            existing_names_without_no=existing_names_without_no,
         )
         if reason:
             failures.append(ImportFailure(row_number=row_number, reason=reason))
@@ -101,9 +106,9 @@ def import_candidates_from_workbook(
         candidate = _build_candidate(row)
         imported_candidates.append(candidate)
         if candidate.employee_no:
-            seen_employee_numbers.add(candidate.employee_no)
+            existing_employee_numbers.add(candidate.employee_no)
         else:
-            seen_names_without_employee_no.add(candidate.name)
+            existing_names_without_no.add(candidate.name)
 
     db.add_all(imported_candidates)
     db.add(
@@ -187,10 +192,9 @@ def _build_question(row: dict[str, Any]) -> Question:
 
 
 def _validate_candidate_import_row(
-    db: Session,
     row: dict[str, Any],
-    seen_employee_numbers: set[str],
-    seen_names_without_employee_no: set[str],
+    existing_employee_numbers: set[str],
+    existing_names_without_no: set[str],
 ) -> str | None:
     name = _optional_text(row.get("name"))
     employee_no = _optional_text(row.get("employee_no"))
@@ -201,15 +205,11 @@ def _validate_candidate_import_row(
     if status not in VALID_STATUSES:
         return "status 只能是 active 或 inactive"
     if employee_no:
-        if employee_no in seen_employee_numbers:
-            return "员工号已存在"
-        if db.query(Candidate.id).filter(Candidate.employee_no == employee_no).first():
+        if employee_no in existing_employee_numbers:
             return "员工号已存在"
         return None
 
-    if name in seen_names_without_employee_no:
-        return "姓名已存在"
-    if db.query(Candidate.id).filter(Candidate.employee_no.is_(None), Candidate.name == name).first():
+    if name in existing_names_without_no:
         return "姓名已存在"
     return None
 
@@ -255,10 +255,6 @@ def _optional_text(value: Any) -> str | None:
 def _parse_bool(value: Any, default: bool) -> bool:
     if value is None or value == "":
         return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int | float):
-        return value != 0
     text = str(value).strip().lower()
     if text in {"true", "yes", "y", "1", "是"}:
         return True

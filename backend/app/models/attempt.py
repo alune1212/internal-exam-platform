@@ -26,7 +26,12 @@ class ExamAttempt(TimestampMixin, Base):
 
     exam = relationship("Exam", back_populates="attempts")
     candidate = relationship("Candidate", back_populates="attempts")
-    questions = relationship("ExamAttemptQuestion", back_populates="attempt", cascade="all, delete-orphan")
+    questions = relationship(
+        "ExamAttemptQuestion",
+        back_populates="attempt",
+        cascade="all, delete-orphan",
+        order_by="ExamAttemptQuestion.sort_order",
+    )
 
 
 class ExamAttemptQuestion(TimestampMixin, Base):

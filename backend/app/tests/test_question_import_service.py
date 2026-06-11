@@ -1,16 +1,21 @@
-from io import BytesIO
-
-from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ImportBatch, Question, QuestionOption
 from app.services.import_service import import_questions_from_workbook
 from app.services.question_service import list_questions
+from app.tests.conftest import build_workbook
+
+QUESTION_HEADERS = [
+    "category_1", "category_2", "question_type", "stem",
+    "option_a", "option_b", "option_c", "option_d", "option_e", "option_f",
+    "correct_answer", "analysis", "difficulty", "score", "status", "source", "source_no", "remark",
+]
 
 
 def test_import_questions_persists_valid_rows_and_import_batch(db: Session) -> None:
-    workbook = _build_workbook(
+    workbook = build_workbook(
+        QUESTION_HEADERS,
         [
             {
                 "category_1": "制度",
@@ -38,7 +43,7 @@ def test_import_questions_persists_valid_rows_and_import_batch(db: Session) -> N
                 "score": 3,
                 "status": "active",
             },
-        ]
+        ],
     )
 
     result = import_questions_from_workbook(db, workbook, file_name="questions.xlsx")
@@ -62,7 +67,8 @@ def test_import_questions_persists_valid_rows_and_import_batch(db: Session) -> N
 
 
 def test_import_questions_skips_invalid_rows_and_records_failures(db: Session) -> None:
-    workbook = _build_workbook(
+    workbook = build_workbook(
+        QUESTION_HEADERS,
         [
             {
                 "question_type": "single",
@@ -81,7 +87,7 @@ def test_import_questions_skips_invalid_rows_and_records_failures(db: Session) -
                 "score": 1,
                 "status": "active",
             },
-        ]
+        ],
     )
 
     result = import_questions_from_workbook(db, workbook, file_name="mixed.xlsx")
@@ -101,7 +107,8 @@ def test_import_questions_skips_invalid_rows_and_records_failures(db: Session) -
 
 
 def test_list_questions_returns_imported_questions_with_options(db: Session) -> None:
-    workbook = _build_workbook(
+    workbook = build_workbook(
+        QUESTION_HEADERS,
         [
             {
                 "question_type": "single",
@@ -112,7 +119,7 @@ def test_list_questions_returns_imported_questions_with_options(db: Session) -> 
                 "score": 1,
                 "status": "active",
             }
-        ]
+        ],
     )
     import_questions_from_workbook(db, workbook, file_name="questions.xlsx")
 
@@ -122,35 +129,3 @@ def test_list_questions_returns_imported_questions_with_options(db: Session) -> 
     assert questions[0].stem == "列表可见题目"
     assert [option.label for option in questions[0].options] == ["A", "B"]
     assert [option.label for option in questions[0].options if option.is_correct] == ["B"]
-
-
-def _build_workbook(rows: list[dict[str, object]]) -> BytesIO:
-    headers = [
-        "category_1",
-        "category_2",
-        "question_type",
-        "stem",
-        "option_a",
-        "option_b",
-        "option_c",
-        "option_d",
-        "option_e",
-        "option_f",
-        "correct_answer",
-        "analysis",
-        "difficulty",
-        "score",
-        "status",
-        "source",
-        "source_no",
-        "remark",
-    ]
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.append(headers)
-    for row in rows:
-        sheet.append([row.get(header) for header in headers])
-    file_obj = BytesIO()
-    workbook.save(file_obj)
-    file_obj.seek(0)
-    return file_obj

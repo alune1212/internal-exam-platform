@@ -15,37 +15,53 @@ from app.schemas.exam import ExamCreate, ExamRead, ExamStartResponse, ExamUpdate
 from app.services.scoring_service import score_answer
 
 
-class ExamNotFoundError(Exception):
+class DomainError(Exception):
+    """业务领域异常基类，status_code 用于 API 层统一映射。"""
+
+    status_code: int = 400
+
+
+class ExamNotFoundError(DomainError):
+    status_code = 404
+
     def __init__(self, exam_id: int) -> None:
         self.exam_id = exam_id
         super().__init__(f"考试 #{exam_id} 不存在")
 
 
-class ExamNotActiveError(Exception):
+class ExamNotActiveError(DomainError):
     def __init__(self, exam_id: int) -> None:
         self.exam_id = exam_id
         super().__init__(f"考试 #{exam_id} 未处于 active 状态")
 
 
-class CandidateNotFoundError(Exception):
+class CandidateNotFoundError(DomainError):
+    status_code = 404
+
     def __init__(self, candidate_id: int) -> None:
         self.candidate_id = candidate_id
         super().__init__(f"考生 #{candidate_id} 不存在")
 
 
-class AttemptAlreadyExistsError(Exception):
+class AttemptAlreadyExistsError(DomainError):
+    status_code = 409
+
     def __init__(self, attempt_id: int) -> None:
         self.attempt_id = attempt_id
         super().__init__(f"考生已有进行中的考试记录 #{attempt_id}")
 
 
-class AttemptNotFoundError(Exception):
+class AttemptNotFoundError(DomainError):
+    status_code = 404
+
     def __init__(self, attempt_id: int) -> None:
         self.attempt_id = attempt_id
         super().__init__(f"考试记录 #{attempt_id} 不存在")
 
 
-class AttemptQuestionNotFoundError(Exception):
+class AttemptQuestionNotFoundError(DomainError):
+    status_code = 404
+
     def __init__(self, attempt_question_id: int) -> None:
         self.attempt_question_id = attempt_question_id
         super().__init__(f"考试题目 #{attempt_question_id} 不存在")
@@ -79,7 +95,7 @@ def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
 
 def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
     questions = []
-    for question in sorted(attempt.questions, key=lambda q: q.sort_order):
+    for question in attempt.questions:
         answer = question.answer
         questions.append(
             {
@@ -104,14 +120,19 @@ def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
     )
 
 
+def _list_exams(db: Session, *, status: str | None = None) -> list[ExamRead]:
+    query = db.query(Exam)
+    if status is not None:
+        query = query.filter(Exam.status == status)
+    return [ExamRead.model_validate(exam) for exam in query.order_by(Exam.id).all()]
+
+
 def list_active_exams(db: Session) -> list[ExamRead]:
-    exams = db.query(Exam).filter(Exam.status == "active").order_by(Exam.id).all()
-    return [ExamRead.model_validate(exam) for exam in exams]
+    return _list_exams(db, status="active")
 
 
 def list_admin_exams(db: Session) -> list[ExamRead]:
-    exams = db.query(Exam).order_by(Exam.id).all()
-    return [ExamRead.model_validate(exam) for exam in exams]
+    return _list_exams(db)
 
 
 def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
@@ -181,6 +202,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     db.flush()  # 获取 attempt.id
 
     # 生成题目快照
+    snapshots: list[ExamAttemptQuestion] = []
     for idx, question in enumerate(questions):
         snapshot = ExamAttemptQuestion(
             attempt_id=attempt.id,
@@ -194,16 +216,30 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
             sort_order=idx,
         )
         db.add(snapshot)
+        snapshots.append(snapshot)
+
+    db.flush()  # 确保所有 snapshot 获得 ID
+
+    # 在 commit 前构建响应，避免额外的 DB 查询
+    question_reads = [
+        AttemptQuestionRead(
+            id=snapshot.id,
+            question_type=snapshot.question_type,
+            stem_snapshot=snapshot.stem_snapshot,
+            options_snapshot=snapshot.options_snapshot,
+            score=float(snapshot.score),
+            sort_order=snapshot.sort_order,
+            selected_answer=None,
+        )
+        for snapshot in snapshots
+    ]
 
     db.commit()
-
-    # 通过 get_attempt 获取含 ID 的快照数据
-    attempt_read = get_attempt(db, attempt.id)
 
     return ExamStartResponse(
         attempt_id=attempt.id,
         exam=ExamRead.model_validate(exam),
-        questions=attempt_read.questions,
+        questions=question_reads,
         started_at=now,
         ends_at=now + timedelta(minutes=exam.duration_minutes),
     )
@@ -223,7 +259,7 @@ def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
             sort_order=q.sort_order,
             selected_answer=q.answer.selected_answer if q.answer else None,
         )
-        for q in sorted(attempt.questions, key=lambda q: q.sort_order)
+        for q in attempt.questions
     ]
 
     return AttemptRead(

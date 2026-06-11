@@ -1,15 +1,19 @@
-from io import BytesIO
-
-from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Candidate, ImportBatch
 from app.services.import_service import import_candidates_from_workbook
+from app.tests.conftest import build_workbook
+
+CANDIDATE_HEADERS = [
+    "name", "employee_no", "department", "position",
+    "phone_suffix", "email", "exam_group", "should_attend", "status", "remark",
+]
 
 
 def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> None:
-    workbook = _build_workbook(
+    workbook = build_workbook(
+        CANDIDATE_HEADERS,
         [
             {
                 "name": "张三",
@@ -29,7 +33,7 @@ def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> 
                 "should_attend": "false",
                 "status": "inactive",
             },
-        ]
+        ],
     )
 
     result = import_candidates_from_workbook(db, workbook, file_name="candidates.xlsx")
@@ -56,13 +60,14 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(db: Session
     db.add(existing)
     db.commit()
 
-    workbook = _build_workbook(
+    workbook = build_workbook(
+        CANDIDATE_HEADERS,
         [
             {"name": "赵六", "employee_no": "E100", "should_attend": True, "status": "active"},
             {"name": "", "employee_no": "E200", "should_attend": True, "status": "active"},
             {"name": "无号人员", "should_attend": True, "status": "active"},
             {"name": "无号人员", "should_attend": True, "status": "active"},
-        ]
+        ],
     )
 
     result = import_candidates_from_workbook(db, workbook, file_name="mixed.xlsx")
@@ -83,27 +88,3 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(db: Session
         {"row_number": 3, "reason": "姓名不能为空"},
         {"row_number": 5, "reason": "姓名已存在"},
     ]
-
-
-def _build_workbook(rows: list[dict[str, object]]) -> BytesIO:
-    headers = [
-        "name",
-        "employee_no",
-        "department",
-        "position",
-        "phone_suffix",
-        "email",
-        "exam_group",
-        "should_attend",
-        "status",
-        "remark",
-    ]
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.append(headers)
-    for row in rows:
-        sheet.append([row.get(header) for header in headers])
-    file_obj = BytesIO()
-    workbook.save(file_obj)
-    file_obj.seek(0)
-    return file_obj
