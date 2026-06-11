@@ -6,8 +6,5 @@ export function importQuestions(file: File) {
 }
 
 export function importCandidates(examId: string, file: File) {
-  return uploadRequest<{ exam_id: number; success_count: number; failed_count: number }>(
-    `/api/admin/exams/${examId}/candidates/import`,
-    file,
-  );
+  return uploadRequest<QuestionImportResult>(`/api/admin/exams/${examId}/candidates/import`, file);
 }

@@ -12,6 +12,7 @@ Implemented foundations:
 - Candidate-facing and admin-facing API route skeletons.
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
+- Candidate Excel import persistence for valid candidates and import batches.
 - React/Vite frontend with candidate and admin layouts.
 - Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
@@ -34,7 +35,7 @@ curl -I http://localhost:8080/docs
 
 Observed results:
 
-- Backend tests: 8 passed, with one Starlette TestClient deprecation warning.
+- Backend tests: 10 passed, with one Starlette TestClient deprecation warning.
 - Frontend build: passed, with one Vite chunk size warning.
 - Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
 - `/api/health`: returned `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`.
@@ -42,7 +43,7 @@ Observed results:
 ## Known Gaps
 
 - Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
-- Candidate import endpoint is present but does not yet parse or persist candidates.
+- Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
 - Exam creation/update/list services currently return skeleton data.
 - Exam start returns a response shape but does not yet persist attempt snapshots.
 - Answer autosave, submit scoring across persisted attempt questions, ranking, and reports still need real database queries.
@@ -52,7 +53,7 @@ Observed results:
 ## Recommended Next Work
 
 1. Add question import failure report download.
-2. Implement candidate import persistence and identity rules.
+2. Define how an exam is scoped to imported candidates.
 3. Implement active exam listing and exam CRUD persistence.
 4. Implement exam start snapshot creation from active questions.
 5. Implement answer autosave and submit scoring from snapshots.

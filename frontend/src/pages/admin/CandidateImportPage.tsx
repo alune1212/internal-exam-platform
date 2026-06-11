@@ -25,6 +25,11 @@ export function CandidateImportPage() {
           <FileUp data-icon="inline-start" />
           上传应参人员
         </Button>
+        {mutation.data ? (
+          <div className="rounded-md border p-4 text-sm">
+            成功 {mutation.data.success_count} 行，失败 {mutation.data.failed_count} 行
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
