@@ -42,9 +42,10 @@ GET  /api/exams/{exam_id}/ranking
 说明：
 
 - `/api/exams/active` 已从 `exam` 表读取 `active` 状态考试，按 `id` 排序返回。
-- `/api/exams/{exam_id}/start` 的目标语义是创建正式考试记录和题目快照；第一阶段已保留 route/schema/service 边界，持久化逻辑后续补齐。
-- `/api/attempts/{attempt_id}/answers/save` 的目标语义是自动暂存答案，不暂停倒计时。
-- `/api/attempts/{attempt_id}/submit` 的目标语义是支持提前交卷和自动提交，通过 `submit_type` 区分。
+- `/api/exams/{exam_id}/start` 已创建正式考试记录和题目快照，后续题库修改不影响该 attempt。
+- `/api/attempts/{attempt_id}/answers/save` 已将答案暂存到 `exam_attempt_answer`，暂存不暂停倒计时。
+- `/api/attempts/{attempt_id}/submit` 已支持按题目快照自动判分，通过 `submit_type` 区分提前交卷和自动提交。
+- `/api/attempts/{attempt_id}/result` 已从已保存的 attempt、快照题和答案读取成绩结果，不重新提交。
 
 ## 管理员端
 

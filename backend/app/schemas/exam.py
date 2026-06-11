@@ -3,8 +3,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.attempt import AttemptQuestionRead
 from app.schemas.common import ORMModel
-from app.schemas.question import QuestionRead
 
 
 class ExamBase(BaseModel):
@@ -42,7 +42,7 @@ class ExamStartRequest(BaseModel):
 class ExamStartResponse(BaseModel):
     attempt_id: int
     exam: ExamRead
-    questions: list[QuestionRead]
+    questions: list[AttemptQuestionRead]
     started_at: datetime
     ends_at: datetime
 

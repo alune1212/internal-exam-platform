@@ -6,7 +6,12 @@ from app.schemas.common import ApiResponse
 from app.schemas.exam import ExamCreate, ExamRead, ExamStartRequest, ExamStartResponse, ExamUpdate, RankingRow
 from app.schemas.question import QuestionImportResult
 from app.services import exam_service, import_service
-from app.services.exam_service import ExamNotFoundError
+from app.services.exam_service import (
+    AttemptAlreadyExistsError,
+    CandidateNotFoundError,
+    ExamNotActiveError,
+    ExamNotFoundError,
+)
 
 
 router = APIRouter(prefix="/exams", tags=["exams"])
@@ -24,7 +29,16 @@ def start_exam(
     payload: ExamStartRequest,
     db: Session = Depends(get_db),
 ) -> ApiResponse[ExamStartResponse]:
-    return ApiResponse(data=exam_service.start_exam(db, exam_id, payload.candidate_id))
+    try:
+        return ApiResponse(data=exam_service.start_exam(db, exam_id, payload.candidate_id))
+    except ExamNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ExamNotActiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except CandidateNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AttemptAlreadyExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/{exam_id}/ranking", response_model=ApiResponse[list[RankingRow]])
