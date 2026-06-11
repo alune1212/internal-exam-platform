@@ -1,27 +1,7 @@
-from collections.abc import Iterator
+from sqlalchemy.orm import Session
 
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.core.database import Base
 from app.schemas.exam import ExamCreate, ExamUpdate
 from app.services.exam_service import create_exam, list_active_exams, list_admin_exams, update_exam
-
-
-@pytest.fixture()
-def db() -> Iterator[Session]:
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with SessionLocal() as session:
-        yield session
-    Base.metadata.drop_all(engine)
 
 
 def test_create_exam_persists_configuration(db: Session) -> None:

@@ -1,29 +1,11 @@
-from collections.abc import Iterator
 from io import BytesIO
 
-import pytest
 from openpyxl import Workbook
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from app.core.database import Base
 from app.models import Candidate, ImportBatch
 from app.services.import_service import import_candidates_from_workbook
-
-
-@pytest.fixture()
-def db() -> Iterator[Session]:
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
-    with SessionLocal() as session:
-        yield session
-    Base.metadata.drop_all(engine)
 
 
 def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> None:

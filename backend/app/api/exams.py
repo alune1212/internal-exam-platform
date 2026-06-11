@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -6,6 +6,7 @@ from app.schemas.common import ApiResponse
 from app.schemas.exam import ExamCreate, ExamRead, ExamStartRequest, ExamStartResponse, ExamUpdate, RankingRow
 from app.schemas.question import QuestionImportResult
 from app.services import exam_service, import_service
+from app.services.exam_service import ExamNotFoundError
 
 
 router = APIRouter(prefix="/exams", tags=["exams"])
@@ -43,7 +44,10 @@ def list_admin_exams(db: Session = Depends(get_db)) -> ApiResponse[list[ExamRead
 
 @admin_router.put("/{exam_id}", response_model=ApiResponse[ExamRead])
 def update_exam(exam_id: int, payload: ExamUpdate, db: Session = Depends(get_db)) -> ApiResponse[ExamRead]:
-    return ApiResponse(data=exam_service.update_exam(db, exam_id, payload))
+    try:
+        return ApiResponse(data=exam_service.update_exam(db, exam_id, payload))
+    except ExamNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @admin_router.post("/{exam_id}/candidates/import", response_model=ApiResponse[QuestionImportResult])

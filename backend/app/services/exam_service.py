@@ -1,9 +1,14 @@
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models import Exam
+
+
+class ExamNotFoundError(Exception):
+    def __init__(self, exam_id: int) -> None:
+        self.exam_id = exam_id
+        super().__init__(f"考试 #{exam_id} 不存在")
 from app.schemas.attempt import AnswerSaveRequest, AnswerSaveResponse, AttemptRead, AttemptResultRead
 from app.schemas.exam import ExamCreate, ExamRead, ExamStartResponse, ExamUpdate, RankingRow
 
@@ -29,13 +34,12 @@ def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
 def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
     exam = db.get(Exam, exam_id)
     if exam is None:
-        raise HTTPException(status_code=404, detail="Exam not found")
+        raise ExamNotFoundError(exam_id)
 
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(exam, field, value)
 
     db.commit()
-    db.refresh(exam)
     return ExamRead.model_validate(exam)
 
 
