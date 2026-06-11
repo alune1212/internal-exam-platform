@@ -86,7 +86,8 @@ def upgrade() -> None:
         sa.Column("failed_count", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(length=20), nullable=False),
         sa.Column("error_report", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
     op.create_index("ix_import_batch_import_type", "import_batch", ["import_type"])
     op.create_index("ix_import_batch_status", "import_batch", ["status"])
