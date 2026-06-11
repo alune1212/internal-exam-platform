@@ -11,6 +11,7 @@ Implemented foundations:
 - Alembic initial migration `202606110001_initial_schema.py`.
 - Candidate-facing and admin-facing API route skeletons.
 - Scoring service with tested multiple-choice set comparison.
+- Question Excel import persistence for valid questions, options, and import batches.
 - React/Vite frontend with candidate and admin layouts.
 - Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
@@ -33,14 +34,14 @@ curl -I http://localhost:8080/docs
 
 Observed results:
 
-- Backend tests: 5 passed, with one Starlette TestClient deprecation warning.
+- Backend tests: 8 passed, with one Starlette TestClient deprecation warning.
 - Frontend build: passed, with one Vite chunk size warning.
 - Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
 - `/api/health`: returned `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`.
 
 ## Known Gaps
 
-- Question import validates Excel rows but does not yet persist imported questions.
+- Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
 - Candidate import endpoint is present but does not yet parse or persist candidates.
 - Exam creation/update/list services currently return skeleton data.
 - Exam start returns a response shape but does not yet persist attempt snapshots.
@@ -50,7 +51,7 @@ Observed results:
 
 ## Recommended Next Work
 
-1. Implement question Excel import persistence and error report storage.
+1. Add question import failure report download.
 2. Implement candidate import persistence and identity rules.
 3. Implement active exam listing and exam CRUD persistence.
 4. Implement exam start snapshot creation from active questions.

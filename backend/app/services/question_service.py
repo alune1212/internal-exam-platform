@@ -1,14 +1,17 @@
 from sqlalchemy.orm import Session
 
+from app.models import Question
 from app.schemas.question import QuestionCreate, QuestionOptionRead, QuestionRead, QuestionUpdate
 
 
 def list_questions(db: Session) -> list[QuestionRead]:
-    return []
+    questions = db.query(Question).order_by(Question.id).all()
+    return [_question_to_read(question) for question in questions]
 
 
 def list_active_questions(db: Session) -> list[QuestionRead]:
-    return []
+    questions = db.query(Question).filter(Question.status == "active").order_by(Question.id).all()
+    return [_question_to_read(question) for question in questions]
 
 
 def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:
@@ -43,3 +46,30 @@ def update_question(db: Session, question_id: int, payload: QuestionUpdate) -> Q
 
 def delete_question(db: Session, question_id: int) -> None:
     return None
+
+
+def _question_to_read(question: Question) -> QuestionRead:
+    return QuestionRead(
+        id=question.id,
+        question_type=question.question_type,
+        stem=question.stem,
+        analysis=question.analysis,
+        category_1=question.category_1,
+        category_2=question.category_2,
+        difficulty=question.difficulty,
+        score=float(question.score),
+        status=question.status,
+        source=question.source,
+        source_no=question.source_no,
+        remark=question.remark,
+        options=[
+            QuestionOptionRead(
+                id=option.id,
+                label=option.label,
+                content=option.content,
+                is_correct=option.is_correct,
+                sort_order=option.sort_order,
+            )
+            for option in sorted(question.options, key=lambda item: item.sort_order)
+        ],
+    )

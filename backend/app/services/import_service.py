@@ -1,8 +1,12 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from openpyxl import load_workbook
+from sqlalchemy.orm import Session
 
+from app.models import ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
 
 
@@ -81,6 +85,94 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
         if missing:
             return "正确答案必须存在于选项中"
     return None
+
+
+def import_questions_from_workbook(
+    db: Session,
+    file_obj: Any,
+    file_name: str,
+) -> QuestionImportResult:
+    parsed = parse_workbook(file_obj)
+    failures: list[ImportFailure] = []
+    imported_questions: list[Question] = []
+
+    for row_number, row in enumerate(parsed.rows, start=2):
+        reason = validate_question_import_row(row)
+        if reason:
+            failures.append(ImportFailure(row_number=row_number, reason=reason))
+            continue
+        imported_questions.append(_build_question(row))
+
+    db.add_all(imported_questions)
+    db.add(
+        ImportBatch(
+            import_type="questions",
+            file_name=file_name,
+            total_count=parsed.total_count,
+            success_count=len(imported_questions),
+            failed_count=len(failures),
+            status="completed",
+            error_report=[failure.model_dump() for failure in failures],
+            created_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+
+    return QuestionImportResult(
+        success_count=len(imported_questions),
+        failed_count=len(failures),
+        failures=failures,
+    )
+
+
+def _build_question(row: dict[str, Any]) -> Question:
+    correct_answers = {
+        item.strip().upper()
+        for item in str(row.get("correct_answer") or "").split(",")
+        if item.strip()
+    }
+    question = Question(
+        question_type=_text(row.get("question_type")).lower(),
+        stem=_text(row.get("stem")),
+        analysis=_optional_text(row.get("analysis")),
+        category_1=_optional_text(row.get("category_1")),
+        category_2=_optional_text(row.get("category_2")),
+        difficulty=_optional_text(row.get("difficulty")),
+        score=Decimal(str(row.get("score"))),
+        status=_text(row.get("status") or "active").lower(),
+        source=_optional_text(row.get("source")),
+        source_no=_optional_text(row.get("source_no")),
+        remark=_optional_text(row.get("remark")),
+    )
+    question.options = [
+        QuestionOption(
+            label=label,
+            content=content,
+            is_correct=label in correct_answers,
+            sort_order=index,
+        )
+        for index, (label, content) in enumerate(_extract_options(row), start=1)
+    ]
+    return question
+
+
+def _extract_options(row: dict[str, Any]) -> list[tuple[str, str]]:
+    return [
+        (label, content)
+        for label in OPTION_LABELS
+        if (content := _optional_text(row.get(f"option_{label.lower()}"))) is not None
+    ]
+
+
+def _text(value: Any) -> str:
+    return str(value).strip()
+
+
+def _optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _is_number(value: Any) -> bool:

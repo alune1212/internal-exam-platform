@@ -11,9 +11,8 @@ router = APIRouter(prefix="/admin/questions", tags=["admin-questions"])
 
 
 @router.post("/import", response_model=ApiResponse[QuestionImportResult])
-def import_questions(file: UploadFile) -> ApiResponse[QuestionImportResult]:
-    parsed = import_service.parse_workbook(file.file)
-    result = import_service.validate_question_import_rows(parsed.rows)
+def import_questions(file: UploadFile, db: Session = Depends(get_db)) -> ApiResponse[QuestionImportResult]:
+    result = import_service.import_questions_from_workbook(db, file.file, file.filename or "questions.xlsx")
     return ApiResponse(data=result)
 
 

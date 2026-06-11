@@ -72,5 +72,5 @@ GET /api/admin/reports/export
 说明：
 
 - 第一阶段管理员登录是简单口令占位，不是完整权限系统。
-- 题库导入接口当前执行标准 Excel 行级校验，后续补入库和错误报告归档。
+- 题库导入接口执行标准 Excel 行级校验，合法行写入 `question` / `question_option`，并写入 `import_batch` 记录失败行号和原因。
 - 应参人员导入、报表导出和统计查询第一阶段保留路由和 schema，后续补真实 SQL 查询和文件输出。
