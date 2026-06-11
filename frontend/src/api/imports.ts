@@ -1,15 +1,5 @@
 import { uploadRequest } from "@/api/client";
-
-export type ImportFailure = {
-  row_number: number;
-  reason: string;
-};
-
-export type QuestionImportResult = {
-  success_count: number;
-  failed_count: number;
-  failures: ImportFailure[];
-};
+import type { QuestionImportResult } from "@/types/imports";
 
 export function importQuestions(file: File) {
   return uploadRequest<QuestionImportResult>("/api/admin/questions/import", file);

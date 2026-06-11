@@ -16,7 +16,7 @@
 internal-exam-platform/
   backend/       FastAPI 后端、SQLAlchemy 模型、Alembic 迁移
   frontend/      React/Vite 前端、页面骨架、API client
-  docs/          需求、数据库、API、导入模板文档
+  docs/          需求、数据库、API、导入模板、交接文档
   nginx/         统一入口反向代理配置
   docker-compose.yml
 ```
@@ -145,6 +145,10 @@ docker-compose config
 - 用户端与管理员端 React 路由页面骨架
 - 题库/考试/报表代表性 TanStack Table 页面
 - 登录/导入/考试编辑代表性 React Hook Form + Zod 表单
+
+## 当前边界
+
+第一阶段的路由、页面和 service 边界已经建立，但题库导入入库、应参人员导入入库、考试快照持久化、答案提交判分落库、排名和报表 SQL 仍是后续工作。接手实现真实业务时优先查看 `docs/handoff.md`。
 
 ## 后续开发计划
 

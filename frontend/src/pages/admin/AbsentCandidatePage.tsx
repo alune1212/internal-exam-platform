@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { getAbsentCandidates } from "@/api/reports";
-import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReportPage } from "@/components/admin/ReportPage";
 import type { AbsentCandidateRow } from "@/types/report";
 
 const columns: ColumnDef<AbsentCandidateRow>[] = [
@@ -15,16 +13,5 @@ const columns: ColumnDef<AbsentCandidateRow>[] = [
 ];
 
 export function AbsentCandidatePage() {
-  const { data = [] } = useQuery({ queryKey: ["absent-candidates"], queryFn: getAbsentCandidates });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>未参加人员</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <SimpleDataTable columns={columns} data={data} />
-      </CardContent>
-    </Card>
-  );
+  return <ReportPage title="未参加人员" queryKey="absent-candidates" queryFn={getAbsentCandidates} columns={columns} />;
 }

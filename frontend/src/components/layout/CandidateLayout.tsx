@@ -1,7 +1,7 @@
 import { BookOpenCheck, ClipboardList, LogIn, Trophy } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
-import { cn } from "@/lib/utils";
+import { navLinkClassName } from "@/lib/utils";
 
 const navItems = [
   { to: "/login", label: "进入考试", icon: LogIn },
@@ -21,16 +21,7 @@ export function CandidateLayout() {
           </div>
           <nav className="flex flex-wrap gap-2">
             {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                    isActive && "bg-accent text-accent-foreground",
-                  )
-                }
-              >
+              <NavLink key={item.to} to={item.to} className={(props) => navLinkClassName(props, "sm")}>
                 <item.icon data-icon="inline-start" />
                 {item.label}
               </NavLink>

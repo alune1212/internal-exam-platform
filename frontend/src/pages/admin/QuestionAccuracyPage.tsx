@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { getQuestionAccuracy } from "@/api/reports";
-import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReportPage } from "@/components/admin/ReportPage";
 import type { QuestionAccuracyRow } from "@/types/report";
 
 const columns: ColumnDef<QuestionAccuracyRow>[] = [
@@ -15,16 +13,5 @@ const columns: ColumnDef<QuestionAccuracyRow>[] = [
 ];
 
 export function QuestionAccuracyPage() {
-  const { data = [] } = useQuery({ queryKey: ["question-accuracy"], queryFn: getQuestionAccuracy });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>题目正确率</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <SimpleDataTable columns={columns} data={data} />
-      </CardContent>
-    </Card>
-  );
+  return <ReportPage title="题目正确率" queryKey="question-accuracy" queryFn={getQuestionAccuracy} columns={columns} />;
 }

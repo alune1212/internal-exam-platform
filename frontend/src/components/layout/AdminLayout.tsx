@@ -1,7 +1,7 @@
 import { BarChart3, FileUp, Gauge, ListChecks, UsersRound } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
-import { cn } from "@/lib/utils";
+import { navLinkClassName } from "@/lib/utils";
 
 const navItems = [
   { to: "/admin/dashboard", label: "仪表盘", icon: Gauge },
@@ -22,16 +22,7 @@ export function AdminLayout() {
           </div>
           <nav className="flex flex-wrap gap-2 md:flex-col">
             {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  cn(
-                    "inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                    isActive && "bg-accent text-accent-foreground",
-                  )
-                }
-              >
+              <NavLink key={item.to} to={item.to} className={navLinkClassName}>
                 <item.icon data-icon="inline-start" />
                 {item.label}
               </NavLink>

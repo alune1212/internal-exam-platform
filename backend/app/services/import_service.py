@@ -7,26 +7,6 @@ from app.schemas.question import ImportFailure, QuestionImportResult
 
 
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
-QUESTION_IMPORT_COLUMNS = [
-    "category_1",
-    "category_2",
-    "question_type",
-    "stem",
-    "option_a",
-    "option_b",
-    "option_c",
-    "option_d",
-    "option_e",
-    "option_f",
-    "correct_answer",
-    "analysis",
-    "difficulty",
-    "score",
-    "status",
-    "source",
-    "source_no",
-    "remark",
-]
 
 
 @dataclass(frozen=True)
@@ -37,16 +17,20 @@ class ParsedWorkbook:
 
 def parse_workbook(file_obj: Any) -> ParsedWorkbook:
     workbook = load_workbook(file_obj, read_only=True, data_only=True)
-    sheet = workbook.active
-    rows = list(sheet.iter_rows(values_only=True))
-    if not rows:
-        return ParsedWorkbook(rows=[], total_count=0)
+    try:
+        sheet = workbook.active
+        it = sheet.iter_rows(values_only=True)
+        headers_row = next(it, None)
+        if headers_row is None:
+            return ParsedWorkbook(rows=[], total_count=0)
 
-    headers = [str(cell).strip() if cell is not None else "" for cell in rows[0]]
-    parsed_rows: list[dict[str, Any]] = []
-    for row in rows[1:]:
-        parsed_rows.append({headers[index]: value for index, value in enumerate(row) if index < len(headers)})
-    return ParsedWorkbook(rows=parsed_rows, total_count=len(parsed_rows))
+        headers = [str(cell).strip() if cell is not None else "" for cell in headers_row]
+        parsed_rows: list[dict[str, Any]] = []
+        for row in it:
+            parsed_rows.append({headers[i]: v for i, v in enumerate(row) if i < len(headers)})
+        return ParsedWorkbook(rows=parsed_rows, total_count=len(parsed_rows))
+    finally:
+        workbook.close()
 
 
 def validate_question_import_rows(rows: list[dict[str, Any]]) -> QuestionImportResult:

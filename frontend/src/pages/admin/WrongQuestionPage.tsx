@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { getWrongQuestions } from "@/api/reports";
-import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReportPage } from "@/components/admin/ReportPage";
 import type { WrongQuestionRow } from "@/types/report";
 
 const columns: ColumnDef<WrongQuestionRow>[] = [
@@ -15,16 +13,5 @@ const columns: ColumnDef<WrongQuestionRow>[] = [
 ];
 
 export function WrongQuestionPage() {
-  const { data = [] } = useQuery({ queryKey: ["wrong-questions"], queryFn: getWrongQuestions });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>错题排行</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <SimpleDataTable columns={columns} data={data} />
-      </CardContent>
-    </Card>
-  );
+  return <ReportPage title="错题排行" queryKey="wrong-questions" queryFn={getWrongQuestions} columns={columns} />;
 }
