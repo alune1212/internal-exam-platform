@@ -55,4 +55,4 @@ curl http://localhost:8080/api/health
 
 ## Current Stage
 
-The scaffold is runnable. Question Excel import and candidate Excel import both validate rows and persist records plus import batches. Exam CRUD persistence, exam start persistence, auto-submit scheduling, and ranking/report SQL are still service stubs. Treat remaining route existence as API shape coverage, not full business completion.
+The scaffold is runnable. Question Excel import and candidate Excel import both validate rows and persist records plus import batches. Exam configuration create/update/list and candidate-facing active exam listing persist to the database. Exam start persistence, auto-submit scheduling, and ranking/report SQL are still service stubs. Treat remaining route existence as API shape coverage, not full business completion.

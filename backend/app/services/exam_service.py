@@ -1,35 +1,42 @@
 from datetime import UTC, datetime, timedelta
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.models import Exam
 from app.schemas.attempt import AnswerSaveRequest, AnswerSaveResponse, AttemptRead, AttemptResultRead
 from app.schemas.exam import ExamCreate, ExamRead, ExamStartResponse, ExamUpdate, RankingRow
 
 
 def list_active_exams(db: Session) -> list[ExamRead]:
-    return []
+    exams = db.query(Exam).filter(Exam.status == "active").order_by(Exam.id).all()
+    return [ExamRead.model_validate(exam) for exam in exams]
 
 
 def list_admin_exams(db: Session) -> list[ExamRead]:
-    return []
+    exams = db.query(Exam).order_by(Exam.id).all()
+    return [ExamRead.model_validate(exam) for exam in exams]
 
 
 def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
-    return ExamRead(id=0, **payload.model_dump())
+    exam = Exam(**payload.model_dump())
+    db.add(exam)
+    db.commit()
+    db.refresh(exam)
+    return ExamRead.model_validate(exam)
 
 
 def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
-    data = payload.model_dump(exclude_unset=True)
-    return ExamRead(
-        id=exam_id,
-        title=data.get("title", "待配置考试"),
-        description=data.get("description"),
-        duration_minutes=data.get("duration_minutes", 60),
-        question_rule=data.get("question_rule", {}),
-        status=data.get("status", "draft"),
-        show_answer_after_submit=data.get("show_answer_after_submit", True),
-        show_ranking=data.get("show_ranking", True),
-    )
+    exam = db.get(Exam, exam_id)
+    if exam is None:
+        raise HTTPException(status_code=404, detail="Exam not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(exam, field, value)
+
+    db.commit()
+    db.refresh(exam)
+    return ExamRead.model_validate(exam)
 
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:

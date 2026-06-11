@@ -13,6 +13,7 @@ Implemented foundations:
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
+- Exam configuration create/update/list persistence and candidate-facing active exam listing.
 - React/Vite frontend with candidate and admin layouts.
 - Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
@@ -35,7 +36,7 @@ curl -I http://localhost:8080/docs
 
 Observed results:
 
-- Backend tests: 10 passed, with one Starlette TestClient deprecation warning.
+- Backend tests: 13 passed, with one Starlette TestClient deprecation warning.
 - Frontend build: passed, with one Vite chunk size warning.
 - Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
 - `/api/health`: returned `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`.
@@ -44,7 +45,7 @@ Observed results:
 
 - Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
-- Exam creation/update/list services currently return skeleton data.
+- Exam configuration create/update/list services persist to the `exam` table, and active listing returns only `active` exams.
 - Exam start returns a response shape but does not yet persist attempt snapshots.
 - Answer autosave, submit scoring across persisted attempt questions, ranking, and reports still need real database queries.
 - Admin authentication is a simple configured username/password placeholder.
@@ -54,7 +55,6 @@ Observed results:
 
 1. Add question import failure report download.
 2. Define how an exam is scoped to imported candidates.
-3. Implement active exam listing and exam CRUD persistence.
-4. Implement exam start snapshot creation from active questions.
-5. Implement answer autosave and submit scoring from snapshots.
-6. Implement score, accuracy, wrong-question, and absent-candidate reports.
+3. Implement exam start snapshot creation from active questions.
+4. Implement answer autosave and submit scoring from snapshots.
+5. Implement score, accuracy, wrong-question, and absent-candidate reports.
