@@ -1,0 +1,42 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "-c",
+              "file=\"$CLAUDE_FILE_PATH\"; case \"$file\" in *.py) cd \"$CLAUDE_PROJECT_DIR/backend\" && uv run ruff check --fix \"$file\" 2>/dev/null; uv run ruff format \"$file\" 2>/dev/null ;; *.ts|*.tsx|*.css|*.json) cd \"$CLAUDE_PROJECT_DIR/frontend\" && npx prettier --write \"$file\" 2>/dev/null && npx eslint --fix \"$file\" 2>/dev/null ;; esac; true"
+            ],
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "if": "Bash(rm -rf /*)|Bash(rm -fr /*)|Bash(:(){ :|:& };:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '危险命令已拦截' >&2; exit 2"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "if": "Bash(git commit --no-verify)|Bash(git push --force*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '警告：绕过 hook 的提交/强制推送，请确认操作' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}

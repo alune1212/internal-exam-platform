@@ -33,6 +33,21 @@ npm run format:check # Prettier 格式检查
 npx tsc --noEmit     # 类型检查
 ```
 
+## 代码质量 Hooks
+
+- **Claude Code Hooks** (`.claude/settings.json`)：Write/Edit 后自动 ruff/prettier/eslint --fix
+- **Git Hooks** (`.pre-commit-config.yaml`)：commit 时 ruff + prettier + eslint 全量检查
+- **CI**：建议使用 `pre-commit run --all-files` 兜底
+
+```bash
+# 安装 git hook
+cd backend && uv run pre-commit install
+# 手动运行
+cd backend && uv run pre-commit run --all-files
+# 跳过 hook（紧急情况）
+git commit --no-verify
+```
+
 Docker：
 
 ```bash
