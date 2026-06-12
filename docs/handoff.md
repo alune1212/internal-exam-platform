@@ -50,7 +50,8 @@ Observed results:
 - Exam configuration create/update/list services persist to the `exam` table, and active listing returns only `active` exams.
 - Exam start creates an in-progress attempt and stores question snapshots.
 - Answer autosave writes to `exam_attempt_answer`; submit scoring updates persisted answers and attempt totals.
-- Time-based auto-submit scheduling, ranking, and reports still need real database queries.
+- Time-based auto-submit runs as an asyncio background task, checking every 30 seconds.
+- Ranking and reports (score, accuracy, wrong questions, absent candidates) use real SQL queries.
 - Admin authentication is a simple configured username/password placeholder.
 - No frontend auth/session guard exists yet.
 
@@ -58,5 +59,4 @@ Observed results:
 
 1. Add question import failure report download.
 2. Define how an exam is scoped to imported candidates.
-3. Implement time-based auto-submit scheduling.
-4. Implement score ranking, accuracy, wrong-question, and absent-candidate reports.
+3. Add frontend auth/session guard for candidate and admin pages.

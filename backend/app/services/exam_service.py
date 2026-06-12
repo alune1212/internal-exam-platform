@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Candidate, Exam, ExamAttempt, ExamAttemptAnswer, ExamAttemptQuestion, Question
+from app.models.attempt import SUBMITTED_STATUSES
 from app.schemas.attempt import (
     AnswerSaveRequest,
     AnswerSaveResponse,
@@ -11,14 +12,10 @@ from app.schemas.attempt import (
     AttemptRead,
     AttemptResultRead,
 )
+from app.core.exceptions import DomainError
+from app.core.time import ensure_aware
 from app.schemas.exam import ExamCreate, ExamRead, ExamStartResponse, ExamUpdate, RankingRow
 from app.services.scoring_service import score_answer
-
-
-class DomainError(Exception):
-    """业务领域异常基类，status_code 用于 API 层统一映射。"""
-
-    status_code: int = 400
 
 
 class ExamNotFoundError(DomainError):
@@ -65,6 +62,12 @@ class AttemptQuestionNotFoundError(DomainError):
     def __init__(self, attempt_question_id: int) -> None:
         self.attempt_question_id = attempt_question_id
         super().__init__(f"考试题目 #{attempt_question_id} 不存在")
+
+
+class AttemptAlreadySubmittedError(DomainError):
+    def __init__(self, attempt_id: int) -> None:
+        self.attempt_id = attempt_id
+        super().__init__(f"考试记录 #{attempt_id} 已提交")
 
 
 def _build_correct_answer_snapshot(options: list) -> str:
@@ -303,14 +306,14 @@ def save_answers(db: Session, attempt_id: int, payload: AnswerSaveRequest) -> An
 
 def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptResultRead:
     attempt = _load_attempt_with_snapshots(db, attempt_id)
+    if attempt.status != "in_progress":
+        raise AttemptAlreadySubmittedError(attempt_id)
     submitted_at = datetime.now(UTC)
-    total_score = 0.0
     score = 0.0
     correct_count = 0
 
     for question in attempt.questions:
         question_score = float(question.score)
-        total_score += question_score
         answer = question.answer
         selected_answer = answer.selected_answer if answer else None
         scoring = score_answer(
@@ -337,16 +340,13 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
     attempt.submitted_at = submitted_at
     attempt.submit_type = submit_type
     attempt.score = score
-    attempt.total_score = total_score
     attempt.correct_count = correct_count
     attempt.wrong_count = len(attempt.questions) - correct_count
-    attempt.duration_seconds = int(
-        (submitted_at.replace(tzinfo=None) - attempt.started_at.replace(tzinfo=None)).total_seconds()
-    )
+    attempt.duration_seconds = int((submitted_at - ensure_aware(attempt.started_at)).total_seconds())
 
+    result = _build_attempt_result(attempt)
     db.commit()
-    db.refresh(attempt)
-    return _build_attempt_result(attempt)
+    return result
 
 
 def get_attempt_result(db: Session, attempt_id: int) -> AttemptResultRead:
@@ -354,4 +354,26 @@ def get_attempt_result(db: Session, attempt_id: int) -> AttemptResultRead:
 
 
 def get_ranking(db: Session, exam_id: int) -> list[RankingRow]:
-    return []
+    """获取考试排名：按分数降序、提交时间升序。"""
+    rows = (
+        db.query(ExamAttempt, Candidate.name, Candidate.department)
+        .join(Candidate, ExamAttempt.candidate_id == Candidate.id)
+        .filter(
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.status.in_(SUBMITTED_STATUSES),
+        )
+        .order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc())
+        .all()
+    )
+
+    return [
+        RankingRow(
+            rank=idx + 1,
+            candidate_name=name,
+            department=department,
+            score=float(attempt.score),
+            total_score=float(attempt.total_score),
+            submitted_at=attempt.submitted_at,
+        )
+        for idx, (attempt, name, department) in enumerate(rows)
+    ]

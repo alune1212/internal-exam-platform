@@ -7,47 +7,13 @@ from app.schemas.exam import ExamCreate, ExamUpdate
 from app.services import exam_service
 from app.services.exam_service import (
     AttemptAlreadyExistsError,
+    AttemptAlreadySubmittedError,
     CandidateNotFoundError,
     ExamNotActiveError,
     ExamNotFoundError,
     AttemptNotFoundError,
 )
-
-
-def _create_exam(db: Session, **kwargs) -> Exam:
-    defaults = {"title": "默认考试", "duration_minutes": 60, "status": "active"}
-    defaults.update(kwargs)
-    exam = Exam(**defaults)
-    db.add(exam)
-    db.commit()
-    db.refresh(exam)
-    return exam
-
-
-def _create_candidate(db: Session, **kwargs) -> Candidate:
-    defaults = {"name": "张三"}
-    defaults.update(kwargs)
-    candidate = Candidate(**defaults)
-    db.add(candidate)
-    db.commit()
-    db.refresh(candidate)
-    return candidate
-
-
-def _create_question_with_options(db: Session, **kwargs) -> Question:
-    defaults = {"question_type": "single", "stem": "题目内容", "score": 2, "status": "active"}
-    defaults.update(kwargs)
-    question = Question(**defaults)
-    db.add(question)
-    db.flush()
-    options = [
-        QuestionOption(question_id=question.id, label="A", content="选项A", is_correct=True, sort_order=0),
-        QuestionOption(question_id=question.id, label="B", content="选项B", is_correct=False, sort_order=1),
-    ]
-    db.add_all(options)
-    db.commit()
-    db.refresh(question)
-    return question
+from app.tests.conftest import create_exam, create_candidate, create_question_with_options
 
 
 # --- CRUD 测试 ---
@@ -85,10 +51,10 @@ def test_update_exam_not_found(db: Session) -> None:
 
 
 def test_start_exam_creates_attempt_and_snapshots(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db, stem="题目1", score=2)
-    _create_question_with_options(db, stem="题目2", score=3)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="题目1", score=2)
+    create_question_with_options(db, stem="题目2", score=3)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
 
@@ -101,9 +67,9 @@ def test_start_exam_creates_attempt_and_snapshots(db: Session) -> None:
 
 
 def test_start_exam_snapshot_preserves_options(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
     q = result.questions[0]
@@ -116,37 +82,37 @@ def test_start_exam_snapshot_preserves_options(db: Session) -> None:
 
 
 def test_start_exam_exam_not_found(db: Session) -> None:
-    candidate = _create_candidate(db)
+    candidate = create_candidate(db)
     with pytest.raises(ExamNotFoundError):
         exam_service.start_exam(db, 999, candidate.id)
 
 
 def test_start_exam_exam_not_active(db: Session) -> None:
-    exam = _create_exam(db, status="draft")
-    candidate = _create_candidate(db)
+    exam = create_exam(db, status="draft")
+    candidate = create_candidate(db)
     with pytest.raises(ExamNotActiveError):
         exam_service.start_exam(db, exam.id, candidate.id)
 
 
 def test_start_exam_candidate_not_found(db: Session) -> None:
-    exam = _create_exam(db)
+    exam = create_exam(db)
     with pytest.raises(CandidateNotFoundError):
         exam_service.start_exam(db, exam.id, 999)
 
 
 def test_start_exam_prevents_duplicate_attempt(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
     exam_service.start_exam(db, exam.id, candidate.id)
     with pytest.raises(AttemptAlreadyExistsError):
         exam_service.start_exam(db, exam.id, candidate.id)
 
 
 def test_start_exam_total_score_matches_questions(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db, score=2)
-    _create_question_with_options(db, score=5)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db, score=2)
+    create_question_with_options(db, score=5)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
     # total_score 通过 get_attempt 验证
@@ -158,9 +124,9 @@ def test_start_exam_total_score_matches_questions(db: Session) -> None:
 
 
 def test_get_attempt_returns_snapshot_questions(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db, stem="快照题")
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="快照题")
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
 
     attempt = exam_service.get_attempt(db, start_result.attempt_id)
@@ -181,9 +147,9 @@ def test_get_attempt_not_found(db: Session) -> None:
 
 
 def test_save_answers_persists_selected_answer(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     attempt_question_id = start_result.questions[0].id
 
@@ -200,9 +166,9 @@ def test_save_answers_persists_selected_answer(db: Session) -> None:
 
 
 def test_save_answers_updates_existing_answer(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     attempt_question_id = start_result.questions[0].id
 
@@ -225,10 +191,10 @@ def test_save_answers_updates_existing_answer(db: Session) -> None:
 
 
 def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db, stem="单选题", score=2)
-    _create_question_with_options(db, stem="错题", score=3)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="单选题", score=2)
+    create_question_with_options(db, stem="错题", score=3)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
 
     exam_service.save_answers(
@@ -258,8 +224,8 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
 
 
 def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
     question = Question(question_type="multiple", stem="多选题", score=4, status="active")
     db.add(question)
     db.flush()
@@ -286,9 +252,9 @@ def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
 
 
 def test_get_attempt_result_reads_submitted_result_without_mutating_submit_type(db: Session) -> None:
-    exam = _create_exam(db)
-    candidate = _create_candidate(db)
-    _create_question_with_options(db)
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     exam_service.submit_attempt(db, start_result.attempt_id, "auto")
 
@@ -297,3 +263,65 @@ def test_get_attempt_result_reads_submitted_result_without_mutating_submit_type(
 
     assert result.attempt_id == start_result.attempt_id
     assert attempt.status == "auto_submitted"
+
+
+# --- ranking 测试 ---
+
+
+def test_get_ranking_orders_by_score_desc(db: Session) -> None:
+    exam = create_exam(db)
+    c1 = create_candidate(db, name="甲", employee_no="E001")
+    c2 = create_candidate(db, name="乙", employee_no="E002")
+    create_question_with_options(db, score=10)
+
+    # 考生1答对
+    r1 = exam_service.start_exam(db, exam.id, c1.id)
+    exam_service.save_answers(
+        db, r1.attempt_id,
+        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=r1.questions[0].id, selected_answer="A")]),
+    )
+    exam_service.submit_attempt(db, r1.attempt_id, "manual")
+
+    # 考生2答错
+    r2 = exam_service.start_exam(db, exam.id, c2.id)
+    exam_service.save_answers(
+        db, r2.attempt_id,
+        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=r2.questions[0].id, selected_answer="B")]),
+    )
+    exam_service.submit_attempt(db, r2.attempt_id, "manual")
+
+    ranking = exam_service.get_ranking(db, exam.id)
+
+    assert len(ranking) == 2
+    assert ranking[0].rank == 1
+    assert ranking[0].candidate_name == "甲"
+    assert ranking[0].score == 10
+    assert ranking[1].rank == 2
+    assert ranking[1].candidate_name == "乙"
+    assert ranking[1].score == 0
+
+
+def test_get_ranking_excludes_in_progress(db: Session) -> None:
+    exam = create_exam(db)
+    c1 = create_candidate(db, name="进行中", employee_no="E001")
+    create_question_with_options(db)
+    exam_service.start_exam(db, exam.id, c1.id)
+
+    ranking = exam_service.get_ranking(db, exam.id)
+    assert len(ranking) == 0
+
+
+def test_get_ranking_empty_for_no_attempts(db: Session) -> None:
+    exam = create_exam(db)
+    assert exam_service.get_ranking(db, exam.id) == []
+
+
+def test_submit_attempt_rejects_already_submitted(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db)
+    start_result = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, start_result.attempt_id, "manual")
+
+    with pytest.raises(AttemptAlreadySubmittedError):
+        exam_service.submit_attempt(db, start_result.attempt_id, "manual")

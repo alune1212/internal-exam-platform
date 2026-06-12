@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin
 
+SUBMITTED_STATUSES = ("submitted", "auto_submitted")
+
 
 class ExamAttempt(TimestampMixin, Base):
     __tablename__ = "exam_attempt"
