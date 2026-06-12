@@ -18,7 +18,9 @@ export function AdminDashboardPage() {
         {metrics.map((metric) => (
           <Card key={metric.label}>
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-muted-foreground">{metric.label}</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {metric.label}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-3xl font-semibold">{metric.value}</p>

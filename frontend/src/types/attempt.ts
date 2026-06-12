@@ -2,7 +2,11 @@ export type AttemptQuestion = {
   id: number;
   question_type: string;
   stem_snapshot: string;
-  options_snapshot: Array<Record<string, unknown>>;
+  options_snapshot: Array<{
+    label: string;
+    content: string;
+    sort_order: number;
+  }>;
   score: number;
   sort_order: number;
   selected_answer?: string | null;
@@ -38,4 +42,23 @@ export type AttemptResult = {
     score_awarded: number;
     score: number;
   }>;
+};
+
+export type ExamStartResponse = {
+  attempt_id: number;
+  exam: {
+    id: number;
+    title: string;
+    duration_minutes: number;
+    show_answer_after_submit: boolean;
+    show_ranking: boolean;
+  };
+  questions: AttemptQuestion[];
+  started_at: string;
+  ends_at: string;
+};
+
+export type AnswerSaveItem = {
+  attempt_question_id: number;
+  selected_answer?: string | null;
 };

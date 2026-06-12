@@ -1,5 +1,10 @@
 import { apiRequest } from "@/api/client";
-import type { AbsentCandidateRow, QuestionAccuracyRow, ScoreReportRow, WrongQuestionRow } from "@/types/report";
+import type {
+  AbsentCandidateRow,
+  QuestionAccuracyRow,
+  ScoreReportRow,
+  WrongQuestionRow,
+} from "@/types/report";
 
 export function getScoreReport() {
   return apiRequest<ScoreReportRow[]>("/api/admin/reports/scores");

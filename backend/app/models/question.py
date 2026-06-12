@@ -1,6 +1,14 @@
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -22,21 +30,29 @@ class Question(TimestampMixin, Base):
     category_2: Mapped[str | None] = mapped_column(String(100))
     difficulty: Mapped[str | None] = mapped_column(String(50))
     score: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=1)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="active", index=True
+    )
     source: Mapped[str | None] = mapped_column(String(200))
     source_no: Mapped[str | None] = mapped_column(String(100))
     remark: Mapped[str | None] = mapped_column(Text)
 
-    options = relationship("QuestionOption", back_populates="question", cascade="all, delete-orphan")
+    options = relationship(
+        "QuestionOption", back_populates="question", cascade="all, delete-orphan"
+    )
     practice_answers = relationship("PracticeAnswer", back_populates="question")
 
 
 class QuestionOption(TimestampMixin, Base):
     __tablename__ = "question_option"
-    __table_args__ = (UniqueConstraint("question_id", "label", name="uq_question_option_label"),)
+    __table_args__ = (
+        UniqueConstraint("question_id", "label", name="uq_question_option_label"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    question_id: Mapped[int] = mapped_column(ForeignKey("question.id", ondelete="CASCADE"), nullable=False, index=True)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     label: Mapped[str] = mapped_column(String(10), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     is_correct: Mapped[bool] = mapped_column(nullable=False, default=False)

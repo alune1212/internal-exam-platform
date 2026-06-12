@@ -25,7 +25,13 @@ def score_answer(
 ) -> ScoringResult:
     normalized_type = question_type.strip().lower()
     if normalized_type == "multiple":
-        is_correct = normalize_answer_set(correct_answer) == normalize_answer_set(selected_answer)
+        is_correct = normalize_answer_set(correct_answer) == normalize_answer_set(
+            selected_answer
+        )
     else:
-        is_correct = normalize_single_answer(correct_answer) == normalize_single_answer(selected_answer)
-    return ScoringResult(is_correct=is_correct, score_awarded=score if is_correct else 0)
+        is_correct = normalize_single_answer(correct_answer) == normalize_single_answer(
+            selected_answer
+        )
+    return ScoringResult(
+        is_correct=is_correct, score_awarded=score if is_correct else 0
+    )

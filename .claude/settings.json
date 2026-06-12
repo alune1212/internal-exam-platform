@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "-c",
+              "file=\"$CLAUDE_FILE_PATH\"; case \"$file\" in *.py) cd \"$CLAUDE_PROJECT_DIR/backend\" && uv run ruff check --fix \"$file\" && uv run ruff format \"$file\" ;; *.ts|*.tsx|*.css|*.json) cd \"$CLAUDE_PROJECT_DIR/frontend\" && ./node_modules/.bin/prettier --write \"$file\" && ./node_modules/.bin/eslint --fix \"$file\" ;; esac"
+            ],
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

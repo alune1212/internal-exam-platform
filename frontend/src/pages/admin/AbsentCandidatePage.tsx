@@ -13,5 +13,12 @@ const columns: ColumnDef<AbsentCandidateRow>[] = [
 ];
 
 export function AbsentCandidatePage() {
-  return <ReportPage title="未参加人员" queryKey="absent-candidates" queryFn={getAbsentCandidates} columns={columns} />;
+  return (
+    <ReportPage
+      title="未参加人员"
+      queryKey="absent-candidates"
+      queryFn={getAbsentCandidates}
+      columns={columns}
+    />
+  );
 }

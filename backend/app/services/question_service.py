@@ -1,14 +1,24 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.schemas.question import QuestionCreate, QuestionOptionRead, QuestionRead, QuestionUpdate
+from app.models import Question
+from app.schemas.question import (
+    QuestionCreate,
+    QuestionOptionRead,
+    QuestionRead,
+    QuestionUpdate,
+)
 
 
-def list_questions(db: Session) -> list[QuestionRead]:
-    return []
+def list_questions(db: Session, *, status: str | None = None) -> list[QuestionRead]:
+    query = db.query(Question).options(selectinload(Question.options))
+    if status is not None:
+        query = query.filter(Question.status == status)
+    questions = query.order_by(Question.id).all()
+    return [QuestionRead.model_validate(q) for q in questions]
 
 
 def list_active_questions(db: Session) -> list[QuestionRead]:
-    return []
+    return list_questions(db, status="active")
 
 
 def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:
@@ -22,7 +32,9 @@ def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:
     )
 
 
-def update_question(db: Session, question_id: int, payload: QuestionUpdate) -> QuestionRead:
+def update_question(
+    db: Session, question_id: int, payload: QuestionUpdate
+) -> QuestionRead:
     data = payload.model_dump(exclude_unset=True)
     return QuestionRead(
         id=question_id,

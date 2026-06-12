@@ -14,5 +14,12 @@ const columns: ColumnDef<ScoreReportRow>[] = [
 ];
 
 export function ScoreReportPage() {
-  return <ReportPage title="个人成绩" queryKey="score-report" queryFn={getScoreReport} columns={columns} />;
+  return (
+    <ReportPage
+      title="个人成绩"
+      queryKey="score-report"
+      queryFn={getScoreReport}
+      columns={columns}
+    />
+  );
 }

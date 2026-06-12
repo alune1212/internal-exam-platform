@@ -1,12 +1,20 @@
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from openpyxl import load_workbook
+from sqlalchemy.orm import Session
 
+from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
-
+from app.services.scoring_service import normalize_answer_set
 
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
+VALID_QUESTION_TYPES = {"single", "multiple", "judge"}
+VALID_STATUSES = {"active", "inactive"}
+DEFAULT_STATUS = "active"
+JUDGE_OPTIONS = [("A", "正确"), ("B", "错误")]
+JUDGE_ANSWER_MAP = {"true": "A", "false": "B"}
 
 
 @dataclass(frozen=True)
@@ -24,46 +32,133 @@ def parse_workbook(file_obj: Any) -> ParsedWorkbook:
         if headers_row is None:
             return ParsedWorkbook(rows=[], total_count=0)
 
-        headers = [str(cell).strip() if cell is not None else "" for cell in headers_row]
-        parsed_rows: list[dict[str, Any]] = []
-        for row in it:
-            parsed_rows.append({headers[i]: v for i, v in enumerate(row) if i < len(headers)})
+        headers = [
+            str(cell).strip() if cell is not None else "" for cell in headers_row
+        ]
+        parsed_rows = [
+            {headers[i]: v for i, v in enumerate(row) if i < len(headers)} for row in it
+        ]
         return ParsedWorkbook(rows=parsed_rows, total_count=len(parsed_rows))
     finally:
         workbook.close()
 
 
-def validate_question_import_rows(rows: list[dict[str, Any]]) -> QuestionImportResult:
+def import_questions_from_workbook(
+    db: Session,
+    file_obj: Any,
+    file_name: str,
+) -> QuestionImportResult:
+    parsed = parse_workbook(file_obj)
     failures: list[ImportFailure] = []
-    for index, row in enumerate(rows, start=2):
+    imported_questions: list[Question] = []
+
+    for row_number, row in enumerate(parsed.rows, start=2):
         reason = validate_question_import_row(row)
         if reason:
-            failures.append(ImportFailure(row_number=index, reason=reason))
+            failures.append(ImportFailure(row_number=row_number, reason=reason))
+            continue
+        imported_questions.append(_build_question(row))
+
+    db.add_all(imported_questions)
+    db.add(
+        ImportBatch(
+            import_type="questions",
+            file_name=file_name,
+            total_count=parsed.total_count,
+            success_count=len(imported_questions),
+            failed_count=len(failures),
+            status="completed",
+            error_report=[failure.model_dump() for failure in failures],
+        )
+    )
+    db.commit()
+
     return QuestionImportResult(
-        success_count=len(rows) - len(failures),
+        success_count=len(imported_questions),
+        failed_count=len(failures),
+        failures=failures,
+    )
+
+
+def import_candidates_from_workbook(
+    db: Session,
+    file_obj: Any,
+    file_name: str,
+) -> QuestionImportResult:
+    parsed = parse_workbook(file_obj)
+    failures: list[ImportFailure] = []
+    imported_candidates: list[Candidate] = []
+
+    # 预加载已有数据，避免逐行查询 DB
+    existing_employee_numbers: set[str] = {
+        row[0]
+        for row in db.query(Candidate.employee_no)
+        .filter(Candidate.employee_no.isnot(None))
+        .all()
+    }
+    existing_names_without_no: set[str] = {
+        row[0]
+        for row in db.query(Candidate.name)
+        .filter(Candidate.employee_no.is_(None))
+        .all()
+    }
+
+    for row_number, row in enumerate(parsed.rows, start=2):
+        reason = _validate_candidate_import_row(
+            row=row,
+            existing_employee_numbers=existing_employee_numbers,
+            existing_names_without_no=existing_names_without_no,
+        )
+        if reason:
+            failures.append(ImportFailure(row_number=row_number, reason=reason))
+            continue
+
+        candidate = _build_candidate(row)
+        imported_candidates.append(candidate)
+        if candidate.employee_no:
+            existing_employee_numbers.add(candidate.employee_no)
+        else:
+            existing_names_without_no.add(candidate.name)
+
+    db.add_all(imported_candidates)
+    db.add(
+        ImportBatch(
+            import_type="candidates",
+            file_name=file_name,
+            total_count=parsed.total_count,
+            success_count=len(imported_candidates),
+            failed_count=len(failures),
+            status="completed",
+            error_report=[failure.model_dump() for failure in failures],
+        )
+    )
+    db.commit()
+
+    return QuestionImportResult(
+        success_count=len(imported_candidates),
         failed_count=len(failures),
         failures=failures,
     )
 
 
 def validate_question_import_row(row: dict[str, Any]) -> str | None:
-    question_type = str(row.get("question_type") or "").strip().lower()
-    stem = str(row.get("stem") or "").strip()
-    status = str(row.get("status") or "active").strip().lower()
-    correct_answer = str(row.get("correct_answer") or "").strip()
+    question_type = _text(row.get("question_type")).lower()
+    stem = _text(row.get("stem"))
+    status = _text(row.get("status") or DEFAULT_STATUS).lower()
+    correct_answer = _text(row.get("correct_answer"))
 
     if not question_type:
         return "题型不能为空"
-    if question_type not in {"single", "multiple", "judge"}:
+    if question_type not in VALID_QUESTION_TYPES:
         return "题型只能是 single、multiple 或 judge"
     if not stem:
         return "题干不能为空"
-    if status not in {"active", "inactive"}:
+    if status not in VALID_STATUSES:
         return "status 只能是 active 或 inactive"
     if not _is_number(row.get("score")):
         return "分值必须是数字"
 
-    answers = [item.strip().upper() for item in correct_answer.split(",") if item.strip()]
+    answers = _parse_correct_option_labels(question_type, correct_answer)
     if question_type == "single" and len(answers) != 1:
         return "单选题只能有一个正确答案"
     if question_type == "multiple" and len(answers) < 2:
@@ -75,12 +170,123 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
         existing_labels = {
             label
             for label in OPTION_LABELS
-            if str(row.get(f"option_{label.lower()}") or "").strip()
+            if _optional_text(row.get(f"option_{label.lower()}"))
         }
         missing = [answer for answer in answers if answer not in existing_labels]
         if missing:
             return "正确答案必须存在于选项中"
     return None
+
+
+def _build_question(row: dict[str, Any]) -> Question:
+    question_type = _text(row.get("question_type")).lower()
+    correct_answers = _parse_correct_option_labels(
+        question_type, _text(row.get("correct_answer"))
+    )
+    question = Question(
+        question_type=question_type,
+        stem=_text(row.get("stem")),
+        analysis=_optional_text(row.get("analysis")),
+        category_1=_optional_text(row.get("category_1")),
+        category_2=_optional_text(row.get("category_2")),
+        difficulty=_optional_text(row.get("difficulty")),
+        score=Decimal(_text(row.get("score"))),
+        status=_text(row.get("status") or DEFAULT_STATUS).lower(),
+        source=_optional_text(row.get("source")),
+        source_no=_optional_text(row.get("source_no")),
+        remark=_optional_text(row.get("remark")),
+    )
+    question.options = [
+        QuestionOption(
+            label=label,
+            content=content,
+            is_correct=label in correct_answers,
+            sort_order=index,
+        )
+        for index, (label, content) in enumerate(
+            _extract_options(row, question_type), start=1
+        )
+    ]
+    return question
+
+
+def _validate_candidate_import_row(
+    row: dict[str, Any],
+    existing_employee_numbers: set[str],
+    existing_names_without_no: set[str],
+) -> str | None:
+    name = _optional_text(row.get("name"))
+    employee_no = _optional_text(row.get("employee_no"))
+    status = _text(row.get("status") or DEFAULT_STATUS).lower()
+
+    if not name:
+        return "姓名不能为空"
+    if status not in VALID_STATUSES:
+        return "status 只能是 active 或 inactive"
+    if employee_no:
+        if employee_no in existing_employee_numbers:
+            return "员工号已存在"
+        return None
+
+    if name in existing_names_without_no:
+        return "姓名已存在"
+    return None
+
+
+def _build_candidate(row: dict[str, Any]) -> Candidate:
+    return Candidate(
+        name=_text(row.get("name")),
+        employee_no=_optional_text(row.get("employee_no")),
+        department=_optional_text(row.get("department")),
+        position=_optional_text(row.get("position")),
+        phone_suffix=_optional_text(row.get("phone_suffix")),
+        email=_optional_text(row.get("email")),
+        exam_group=_optional_text(row.get("exam_group")),
+        should_attend=_parse_bool(row.get("should_attend"), default=True),
+        status=_text(row.get("status") or DEFAULT_STATUS).lower(),
+        remark=_optional_text(row.get("remark")),
+    )
+
+
+def _parse_correct_option_labels(question_type: str, raw: str) -> set[str]:
+    if question_type == "judge":
+        label = JUDGE_ANSWER_MAP.get(raw.strip().lower())
+        if label is not None:
+            return {label}
+    return normalize_answer_set(raw)
+
+
+def _extract_options(row: dict[str, Any], question_type: str) -> list[tuple[str, str]]:
+    options = [
+        (label, content)
+        for label in OPTION_LABELS
+        if (content := _optional_text(row.get(f"option_{label.lower()}"))) is not None
+    ]
+    if question_type == "judge" and not options:
+        return list(JUDGE_OPTIONS)
+    return options
+
+
+def _text(value: Any) -> str:
+    return str(value).strip()
+
+
+def _optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _parse_bool(value: Any, default: bool) -> bool:
+    if value is None or value == "":
+        return default
+    text = str(value).strip().lower()
+    if text in {"true", "yes", "y", "1", "是"}:
+        return True
+    if text in {"false", "no", "n", "0", "否"}:
+        return False
+    return default
 
 
 def _is_number(value: Any) -> bool:

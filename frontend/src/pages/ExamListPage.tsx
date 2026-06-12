@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function ExamListPage() {
-  const { data = [], isLoading } = useQuery({ queryKey: ["active-exams"], queryFn: getActiveExams });
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["active-exams"],
+    queryFn: getActiveExams,
+  });
 
   return (
     <div className="flex flex-col gap-4">

@@ -14,14 +14,18 @@ class Candidate(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    employee_no: Mapped[str | None] = mapped_column(String(100), unique=True, index=True)
+    employee_no: Mapped[str | None] = mapped_column(
+        String(100), unique=True, index=True
+    )
     department: Mapped[str | None] = mapped_column(String(100))
     position: Mapped[str | None] = mapped_column(String(100))
     phone_suffix: Mapped[str | None] = mapped_column(String(20))
     email: Mapped[str | None] = mapped_column(String(255))
     exam_group: Mapped[str | None] = mapped_column(String(100))
     should_attend: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active", index=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="active", index=True
+    )
     remark: Mapped[str | None] = mapped_column(Text)
 
     attempts = relationship("ExamAttempt", back_populates="candidate")
