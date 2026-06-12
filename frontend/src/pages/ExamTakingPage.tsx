@@ -5,9 +5,10 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
 import { getActiveExams } from "@/api/exams";
-import { buildQuestionNavItems, QuestionNavigator } from "@/components/QuestionNavigator";
+import { QuestionNavigator } from "@/components/QuestionNavigator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildQuestionNavItems } from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
@@ -207,8 +208,8 @@ export function ExamTakingPage() {
           ) : null}
         </CardContent>
       </Card>
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
-        <Card>
+      <aside className="flex min-h-0 flex-col gap-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:self-start">
+        <Card className="shrink-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock data-icon="inline-start" />
@@ -222,11 +223,11 @@ export function ExamTakingPage() {
             </p>
           </CardContent>
         </Card>
-        <div className="hidden lg:block">
+        <div className="hidden min-h-0 flex-1 lg:block">
           <QuestionNavigator
             items={navItems}
             activeId={activeQuestionId}
-            className="lg:max-h-[calc(100vh-14rem)]"
+            className="h-full"
             onJump={handleJump}
           />
         </div>

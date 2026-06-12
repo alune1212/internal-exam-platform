@@ -3,15 +3,12 @@ import { useMemo, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
-import {
-  buildQuestionNavItems,
-  getQuestionTypeLabel,
-  QuestionNavigator,
-} from "@/components/QuestionNavigator";
+import { QuestionNavigator } from "@/components/QuestionNavigator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
 
@@ -198,9 +195,14 @@ export function PracticePage() {
             </CardContent>
           </Card>
         </div>
-        <aside className="hidden lg:block">
-          <div className="sticky top-4">
-            <QuestionNavigator items={navItems} activeId={activeQuestionId} onJump={handleJump} />
+        <aside className="hidden self-start lg:block">
+          <div className="sticky top-4 h-[calc(100vh-2rem)]">
+            <QuestionNavigator
+              items={navItems}
+              activeId={activeQuestionId}
+              className="h-full"
+              onJump={handleJump}
+            />
           </div>
         </aside>
       </div>
