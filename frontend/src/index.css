@@ -57,7 +57,7 @@
   }
 
   body {
-    @apply bg-canvas text-ink min-h-screen antialiased;
+    @apply min-h-screen bg-canvas text-ink antialiased;
     font-family: var(--font-body);
     font-feature-settings: "ss01", "cv11";
     line-height: 1.7;
