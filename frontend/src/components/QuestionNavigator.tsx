@@ -37,7 +37,7 @@ export function QuestionNavigator({ items, activeId, className, onJump }: Questi
             未作答
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-full bg-primary/60" />
+            <span className="size-2 rounded-full bg-primary" />
             已作答
           </span>
           {hasSubmittedResult ? (
@@ -70,11 +70,11 @@ export function QuestionNavigator({ items, activeId, className, onJump }: Questi
                     className={cn(
                       "h-8 min-w-0 rounded-md border px-2 text-xs font-medium transition-colors",
                       "hover:border-primary hover:text-primary",
-                      item.answered && "border-primary/60 bg-primary/10 text-primary",
+                      item.answered && "border-primary bg-surface-card text-primary",
                       item.submittedResult === "correct" &&
                         "border-emerald-600 bg-emerald-50 text-emerald-700",
                       item.submittedResult === "wrong" &&
-                        "border-destructive bg-destructive/10 text-destructive",
+                        "border-destructive bg-surface-card text-destructive",
                       activeId === item.id && "ring-2 ring-ring ring-offset-2",
                     )}
                     aria-label={`跳转到第 ${item.displayIndex} 题`}
