@@ -6,40 +6,60 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+        canvas: "var(--canvas)",
+        "canvas-warm": "var(--canvas-warm)",
+        "surface-card": "var(--surface-card)",
+        "surface-elev": "var(--surface-elev)",
+        ink: {
+          DEFAULT: "var(--ink)",
+          soft: "var(--ink-soft)",
         },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+        body: "var(--body)",
+        muted: "var(--muted)",
+        hairline: {
+          DEFAULT: "var(--hairline)",
+          soft: "var(--hairline-soft)",
         },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+        footer: {
+          DEFAULT: "var(--footer)",
+          soft: "var(--footer-soft)",
         },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
+        success: "var(--success)",
+        warning: "var(--warning)",
+        error: "var(--error)",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        pill: "var(--radius-pill)",
+        lg: "var(--radius-lg)",
+        md: "var(--radius-md)",
+        sm: "var(--radius-sm)",
+      },
+      fontFamily: {
+        display: ["var(--font-display)"],
+        body: ["var(--font-body)"],
+        mono: ["var(--font-mono)"],
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        pop: "var(--shadow-pop)",
+        elevate: "var(--shadow-elevate)",
+      },
+      fontSize: {
+        "display-2xl": ["72px", { lineHeight: "1.05", letterSpacing: "-0.04em" }],
+        "display-xl": ["56px", { lineHeight: "1.08", letterSpacing: "-0.04em" }],
+        "display-lg": ["40px", { lineHeight: "1.1", letterSpacing: "-0.03em" }],
+        "display-md": ["28px", { lineHeight: "1.2", letterSpacing: "-0.02em" }],
+        "display-sm": ["22px", { lineHeight: "1.3", letterSpacing: "-0.02em" }],
+        "body-lg": ["17px", { lineHeight: "1.7" }],
+        body: ["15px", { lineHeight: "1.7" }],
+        "body-sm": ["13px", { lineHeight: "1.6" }],
+        caption: [
+          "11px",
+          {
+            lineHeight: "1.4",
+            letterSpacing: "0.16em",
+          },
+        ],
       },
     },
   },
