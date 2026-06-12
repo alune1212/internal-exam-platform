@@ -7,12 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
+from app.services.scoring_service import normalize_answer_set
 
 
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
 VALID_QUESTION_TYPES = {"single", "multiple", "judge"}
 VALID_STATUSES = {"active", "inactive"}
 DEFAULT_STATUS = "active"
+JUDGE_OPTIONS = [("A", "正确"), ("B", "错误")]
+JUDGE_ANSWER_MAP = {"true": "A", "false": "B"}
 
 
 @dataclass(frozen=True)
@@ -148,7 +151,7 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
     if not _is_number(row.get("score")):
         return "分值必须是数字"
 
-    answers = _parse_correct_answers(correct_answer)
+    answers = _parse_correct_option_labels(question_type, correct_answer)
     if question_type == "single" and len(answers) != 1:
         return "单选题只能有一个正确答案"
     if question_type == "multiple" and len(answers) < 2:
@@ -165,15 +168,16 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
 
 
 def _build_question(row: dict[str, Any]) -> Question:
-    correct_answers = _parse_correct_answers(_text(row.get("correct_answer")))
+    question_type = _text(row.get("question_type")).lower()
+    correct_answers = _parse_correct_option_labels(question_type, _text(row.get("correct_answer")))
     question = Question(
-        question_type=_text(row.get("question_type")).lower(),
+        question_type=question_type,
         stem=_text(row.get("stem")),
         analysis=_optional_text(row.get("analysis")),
         category_1=_optional_text(row.get("category_1")),
         category_2=_optional_text(row.get("category_2")),
         difficulty=_optional_text(row.get("difficulty")),
-        score=Decimal(str(row.get("score"))),
+        score=Decimal(_text(row.get("score"))),
         status=_text(row.get("status") or DEFAULT_STATUS).lower(),
         source=_optional_text(row.get("source")),
         source_no=_optional_text(row.get("source_no")),
@@ -186,7 +190,7 @@ def _build_question(row: dict[str, Any]) -> Question:
             is_correct=label in correct_answers,
             sort_order=index,
         )
-        for index, (label, content) in enumerate(_extract_options(row), start=1)
+        for index, (label, content) in enumerate(_extract_options(row, question_type), start=1)
     ]
     return question
 
@@ -229,16 +233,23 @@ def _build_candidate(row: dict[str, Any]) -> Candidate:
     )
 
 
-def _parse_correct_answers(raw: str) -> set[str]:
-    return {item.strip().upper() for item in raw.split(",") if item.strip()}
+def _parse_correct_option_labels(question_type: str, raw: str) -> set[str]:
+    if question_type == "judge":
+        label = JUDGE_ANSWER_MAP.get(raw.strip().lower())
+        if label is not None:
+            return {label}
+    return normalize_answer_set(raw)
 
 
-def _extract_options(row: dict[str, Any]) -> list[tuple[str, str]]:
-    return [
+def _extract_options(row: dict[str, Any], question_type: str) -> list[tuple[str, str]]:
+    options = [
         (label, content)
         for label in OPTION_LABELS
         if (content := _optional_text(row.get(f"option_{label.lower()}"))) is not None
     ]
+    if question_type == "judge" and not options:
+        return list(JUDGE_OPTIONS)
+    return options
 
 
 def _text(value: Any) -> str:

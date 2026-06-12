@@ -106,6 +106,38 @@ def test_import_questions_skips_invalid_rows_and_records_failures(db: Session) -
     assert batch.error_report == [{"row_number": 3, "reason": "正确答案必须存在于选项中"}]
 
 
+def test_import_questions_marks_judge_answer_from_true_false(db: Session) -> None:
+    workbook = build_workbook(
+        QUESTION_HEADERS,
+        [
+            {
+                "question_type": "judge",
+                "stem": "安全生产月是每年六月。",
+                "correct_answer": "true",
+                "score": 1,
+                "status": "active",
+            },
+            {
+                "question_type": "judge",
+                "stem": "应急预案制定后永远不用修改。",
+                "correct_answer": "false",
+                "score": 1,
+                "status": "active",
+            },
+        ],
+    )
+
+    result = import_questions_from_workbook(db, workbook, file_name="judge.xlsx")
+
+    questions = db.scalars(select(Question).order_by(Question.id)).all()
+    options = db.scalars(select(QuestionOption).order_by(QuestionOption.question_id, QuestionOption.sort_order)).all()
+
+    assert result.success_count == 2
+    assert result.failed_count == 0
+    assert [option.label for option in options if option.question_id == questions[0].id and option.is_correct] == ["A"]
+    assert [option.label for option in options if option.question_id == questions[1].id and option.is_correct] == ["B"]
+
+
 def test_list_questions_returns_imported_questions_with_options(db: Session) -> None:
     workbook = build_workbook(
         QUESTION_HEADERS,

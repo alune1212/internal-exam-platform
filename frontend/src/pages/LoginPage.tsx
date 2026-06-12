@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { LogIn } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { loginCandidate } from "@/api/auth";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { setCurrentCandidate } from "@/lib/candidateSession";
 
 const schema = z.object({
   name: z.string().min(1, "请输入姓名"),
@@ -18,11 +20,18 @@ const schema = z.object({
 type LoginForm = z.infer<typeof schema>;
 
 export function LoginPage() {
+  const navigate = useNavigate();
   const form = useForm<LoginForm>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", employee_no: "" },
   });
-  const mutation = useMutation({ mutationFn: loginCandidate });
+  const mutation = useMutation({
+    mutationFn: loginCandidate,
+    onSuccess: (candidate) => {
+      setCurrentCandidate(candidate);
+      navigate("/exams");
+    },
+  });
 
   return (
     <Card className="max-w-xl">
@@ -47,6 +56,7 @@ export function LoginPage() {
             <LogIn data-icon="inline-start" />
             进入系统
           </Button>
+          {mutation.isError ? <p className="text-sm text-destructive">未找到匹配的考试人员，请核对姓名或员工号。</p> : null}
           {mutation.data ? <p className="text-sm text-muted-foreground">已识别：{mutation.data.name}</p> : null}
         </form>
       </CardContent>
