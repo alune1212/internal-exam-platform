@@ -1,17 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useOutletContext } from "react-router-dom";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentCandidate } from "@/lib/candidateSession";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
-import { useState } from "react";
 
 export function PracticePage() {
-  const candidate = getCurrentCandidate();
+  const { candidate } = useOutletContext<CandidateSessionContext>();
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [results, setResults] = useState<Record<number, PracticeAnswerResult>>({});
   const { data = [], isLoading } = useQuery({ queryKey: ["practice-questions"], queryFn: getPracticeQuestions });

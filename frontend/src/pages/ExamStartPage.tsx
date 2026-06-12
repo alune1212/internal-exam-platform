@@ -1,16 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
 import { ClipboardCheck } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 
 import { startExam } from "@/api/exams";
+import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentCandidate } from "@/lib/candidateSession";
 
 export function ExamStartPage() {
   const { examId = "1" } = useParams();
   const navigate = useNavigate();
-  const candidate = getCurrentCandidate();
+  const { candidate } = useOutletContext<CandidateSessionContext>();
   const mutation = useMutation({
     mutationFn: () => startExam(examId, candidate?.id ?? 0),
     onSuccess: (result) => {

@@ -2,15 +2,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { LogIn } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useOutletContext } from "react-router-dom";
 import { z } from "zod";
 
-import { loginCandidate } from "@/api/auth";
+import { loginCandidate as requestCandidateLogin } from "@/api/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { setCurrentCandidate } from "@/lib/candidateSession";
+import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 
 const schema = z.object({
   name: z.string().min(1, "请输入姓名"),
@@ -21,17 +21,22 @@ type LoginForm = z.infer<typeof schema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { candidate, loginCandidate } = useOutletContext<CandidateSessionContext>();
   const form = useForm<LoginForm>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", employee_no: "" },
   });
   const mutation = useMutation({
-    mutationFn: loginCandidate,
+    mutationFn: requestCandidateLogin,
     onSuccess: (candidate) => {
-      setCurrentCandidate(candidate);
-      navigate("/exams");
+      loginCandidate(candidate);
+      navigate("/exams", { replace: true });
     },
   });
+
+  if (candidate) {
+    return <Navigate to="/exams" replace />;
+  }
 
   return (
     <Card className="max-w-xl">

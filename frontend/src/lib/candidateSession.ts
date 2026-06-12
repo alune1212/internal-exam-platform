@@ -18,3 +18,7 @@ export function getCurrentCandidate(): Candidate | null {
 export function setCurrentCandidate(candidate: Candidate) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate));
 }
+
+export function clearCurrentCandidate() {
+  window.localStorage.removeItem(STORAGE_KEY);
+}
