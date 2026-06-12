@@ -55,7 +55,7 @@ export function QuestionNavigator({ items, activeId, className, onJump }: Questi
         </div>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [scrollbar-color:hsl(var(--border))_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-2">
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain p-4 [scrollbar-color:var(--hairline)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-2">
           {groups.map((group) => (
             <div key={group.type} className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
