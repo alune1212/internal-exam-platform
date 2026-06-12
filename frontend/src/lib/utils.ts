@@ -14,7 +14,11 @@ export function splitAnswer(answer: string | undefined): string[] {
 }
 
 /** 多选题切换选项：返回新的逗号分隔答案字符串。 */
-export function toggleMultipleAnswer(current: string | undefined, label: string, checked: boolean): string {
+export function toggleMultipleAnswer(
+  current: string | undefined,
+  label: string,
+  checked: boolean,
+): string {
   const selected = new Set(splitAnswer(current));
   if (checked) {
     selected.add(label);
@@ -26,7 +30,11 @@ export function toggleMultipleAnswer(current: string | undefined, label: string,
 
 export function navLinkClassName({ isActive }: { isActive: boolean }, size: "sm" | "md" = "md") {
   return cn(
-    "inline-flex items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+    `
+      inline-flex items-center gap-2 rounded-md px-3 text-sm font-medium
+      text-muted-foreground
+      hover:bg-accent hover:text-accent-foreground
+    `,
     size === "sm" ? "h-9" : "h-10",
     isActive && "bg-accent text-accent-foreground",
   );

@@ -50,7 +50,11 @@ export function ExamTakingPage() {
     if (!attempt) {
       return;
     }
-    setAnswers(Object.fromEntries(attempt.questions.map((question) => [question.id, question.selected_answer ?? ""])));
+    setAnswers(
+      Object.fromEntries(
+        attempt.questions.map((question) => [question.id, question.selected_answer ?? ""]),
+      ),
+    );
   }, [attempt]);
 
   useEffect(() => {
@@ -126,7 +130,10 @@ export function ExamTakingPage() {
                     ? splitAnswer(answers[question.id]).includes(option.label)
                     : answers[question.id] === option.label;
                   return (
-                    <label key={option.label} className="flex items-center gap-2 rounded-md border p-3 text-sm">
+                    <label
+                      key={option.label}
+                      className="flex items-center gap-2 rounded-md border p-3 text-sm"
+                    >
                       <input
                         type={isMultiple ? "checkbox" : "radio"}
                         name={`question-${question.id}`}
@@ -147,17 +154,30 @@ export function ExamTakingPage() {
             </div>
           ))}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" disabled={!attempt || saveMutation.isPending} onClick={handleSaveAll}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!attempt || saveMutation.isPending}
+              onClick={handleSaveAll}
+            >
               <Save data-icon="inline-start" />
               {saveMutation.isPending ? "正在暂存" : "暂存答案"}
             </Button>
-            <Button type="button" disabled={!attempt || submitMutation.isPending} onClick={() => submitMutation.mutate()}>
+            <Button
+              type="button"
+              disabled={!attempt || submitMutation.isPending}
+              onClick={() => submitMutation.mutate()}
+            >
               <Send data-icon="inline-start" />
               {submitMutation.isPending ? "正在交卷" : "提前交卷"}
             </Button>
           </div>
-          {saveMutation.isError ? <p className="text-sm text-destructive">暂存失败，请稍后重试。</p> : null}
-          {submitMutation.isError ? <p className="text-sm text-destructive">交卷失败，请确认考试仍在进行中。</p> : null}
+          {saveMutation.isError ? (
+            <p className="text-sm text-destructive">暂存失败，请稍后重试。</p>
+          ) : null}
+          {submitMutation.isError ? (
+            <p className="text-sm text-destructive">交卷失败，请确认考试仍在进行中。</p>
+          ) : null}
         </CardContent>
       </Card>
       <Card>
@@ -169,7 +189,9 @@ export function ExamTakingPage() {
         </CardHeader>
         <CardContent>
           <p className="text-3xl font-semibold">{remainingText}</p>
-          <p className="mt-2 text-sm text-muted-foreground">暂存不会暂停倒计时，到时间后自动提交。</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            暂存不会暂停倒计时，到时间后自动提交。
+          </p>
         </CardContent>
       </Card>
     </div>

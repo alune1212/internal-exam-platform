@@ -17,7 +17,10 @@ const columns: ColumnDef<RankingRow>[] = [
 
 export function RankingPage() {
   const { examId = "1" } = useParams();
-  const { data = [] } = useQuery({ queryKey: ["ranking", examId], queryFn: () => getExamRanking(examId) });
+  const { data = [] } = useQuery({
+    queryKey: ["ranking", examId],
+    queryFn: () => getExamRanking(examId),
+  });
 
   return (
     <Card>

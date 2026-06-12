@@ -19,14 +19,11 @@ CHECK_INTERVAL_SECONDS = 30
 def _find_expired_attempts(db) -> list[int]:
     """查找已超时的 in_progress attempt。"""
     now = datetime.now(UTC)
-    rows = (
-        db.execute(
-            select(ExamAttempt.id, ExamAttempt.started_at, Exam.duration_minutes)
-            .join(Exam, Exam.id == ExamAttempt.exam_id)
-            .where(ExamAttempt.status == "in_progress")
-        )
-        .all()
-    )
+    rows = db.execute(
+        select(ExamAttempt.id, ExamAttempt.started_at, Exam.duration_minutes)
+        .join(Exam, Exam.id == ExamAttempt.exam_id)
+        .where(ExamAttempt.status == "in_progress")
+    ).all()
     return [
         attempt_id
         for attempt_id, started_at, duration_minutes in rows

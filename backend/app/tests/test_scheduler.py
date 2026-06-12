@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 from app.core.scheduler import _find_expired_attempts
 from app.models import ExamAttempt
 from app.services import exam_service
-from app.tests.conftest import create_candidate, create_exam, create_question_with_options
+from app.tests.conftest import (
+    create_candidate,
+    create_exam,
+    create_question_with_options,
+)
 
 
 def _make_started_attempt(db: Session, duration_minutes: int = 60):

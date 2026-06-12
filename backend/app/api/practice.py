@@ -7,12 +7,13 @@ from app.schemas.practice import PracticeAnswerResult, PracticeAnswerSubmitReque
 from app.schemas.question import QuestionRead
 from app.services import practice_service, question_service
 
-
 router = APIRouter(prefix="/practice", tags=["practice"])
 
 
 @router.get("/questions", response_model=ApiResponse[list[QuestionRead]])
-def list_practice_questions(db: Session = Depends(get_db)) -> ApiResponse[list[QuestionRead]]:
+def list_practice_questions(
+    db: Session = Depends(get_db),
+) -> ApiResponse[list[QuestionRead]]:
     return ApiResponse(data=question_service.list_active_questions(db))
 
 

@@ -3,7 +3,16 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Candidate, Exam, ExamAttempt, ExamAttemptAnswer, ExamAttemptQuestion, Question
+from app.core.exceptions import DomainError
+from app.core.time import ensure_aware
+from app.models import (
+    Candidate,
+    Exam,
+    ExamAttempt,
+    ExamAttemptAnswer,
+    ExamAttemptQuestion,
+    Question,
+)
 from app.models.attempt import SUBMITTED_STATUSES
 from app.schemas.attempt import (
     AnswerSaveRequest,
@@ -12,9 +21,13 @@ from app.schemas.attempt import (
     AttemptRead,
     AttemptResultRead,
 )
-from app.core.exceptions import DomainError
-from app.core.time import ensure_aware
-from app.schemas.exam import ExamCreate, ExamRead, ExamStartResponse, ExamUpdate, RankingRow
+from app.schemas.exam import (
+    ExamCreate,
+    ExamRead,
+    ExamStartResponse,
+    ExamUpdate,
+    RankingRow,
+)
 from app.services.scoring_service import score_answer
 
 
@@ -87,7 +100,9 @@ def _build_options_snapshot(options: list) -> list[dict]:
 def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
     attempt = (
         db.query(ExamAttempt)
-        .options(selectinload(ExamAttempt.questions).selectinload(ExamAttemptQuestion.answer))
+        .options(
+            selectinload(ExamAttempt.questions).selectinload(ExamAttemptQuestion.answer)
+        )
         .filter(ExamAttempt.id == attempt_id)
         .one_or_none()
     )
@@ -280,7 +295,9 @@ def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
     )
 
 
-def save_answers(db: Session, attempt_id: int, payload: AnswerSaveRequest) -> AnswerSaveResponse:
+def save_answers(
+    db: Session, attempt_id: int, payload: AnswerSaveRequest
+) -> AnswerSaveResponse:
     attempt = _load_attempt_with_snapshots(db, attempt_id)
     questions_by_id = {question.id: question for question in attempt.questions}
     now = datetime.now(UTC)
@@ -342,7 +359,9 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
     attempt.score = score
     attempt.correct_count = correct_count
     attempt.wrong_count = len(attempt.questions) - correct_count
-    attempt.duration_seconds = int((submitted_at - ensure_aware(attempt.started_at)).total_seconds())
+    attempt.duration_seconds = int(
+        (submitted_at - ensure_aware(attempt.started_at)).total_seconds()
+    )
 
     result = _build_attempt_result(attempt)
     db.commit()

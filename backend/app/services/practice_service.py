@@ -22,7 +22,9 @@ class PracticeQuestionNotFoundError(DomainError):
         super().__init__(f"练习题目 #{question_id} 不存在")
 
 
-def submit_practice_answer(db: Session, payload: PracticeAnswerSubmitRequest) -> PracticeAnswerResult:
+def submit_practice_answer(
+    db: Session, payload: PracticeAnswerSubmitRequest
+) -> PracticeAnswerResult:
     candidate = db.get(Candidate, payload.candidate_id)
     if candidate is None or candidate.status != "active":
         raise PracticeCandidateNotFoundError(payload.candidate_id)
@@ -37,7 +39,12 @@ def submit_practice_answer(db: Session, payload: PracticeAnswerSubmitRequest) ->
         raise PracticeQuestionNotFoundError(payload.question_id)
 
     correct_answer = _build_correct_answer(question)
-    scoring = score_answer(question.question_type, correct_answer, payload.selected_answer, float(question.score))
+    scoring = score_answer(
+        question.question_type,
+        correct_answer,
+        payload.selected_answer,
+        float(question.score),
+    )
     db.add(
         PracticeAnswer(
             candidate_id=candidate.id,

@@ -6,8 +6,16 @@ from app.services.import_service import import_candidates_from_workbook
 from app.tests.conftest import build_workbook
 
 CANDIDATE_HEADERS = [
-    "name", "employee_no", "department", "position",
-    "phone_suffix", "email", "exam_group", "should_attend", "status", "remark",
+    "name",
+    "employee_no",
+    "department",
+    "position",
+    "phone_suffix",
+    "email",
+    "exam_group",
+    "should_attend",
+    "status",
+    "remark",
 ]
 
 
@@ -43,7 +51,10 @@ def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> 
 
     assert result.success_count == 2
     assert result.failed_count == 0
-    assert [(candidate.name, candidate.employee_no) for candidate in candidates] == [("张三", "E001"), ("李四", None)]
+    assert [(candidate.name, candidate.employee_no) for candidate in candidates] == [
+        ("张三", "E001"),
+        ("李四", None),
+    ]
     assert candidates[0].should_attend is True
     assert candidates[1].should_attend is False
     assert candidates[0].department == "研发部"
@@ -55,16 +66,30 @@ def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> 
     assert batch.error_report == []
 
 
-def test_import_candidates_skips_missing_name_and_duplicate_identity(db: Session) -> None:
-    existing = Candidate(name="王五", employee_no="E100", should_attend=True, status="active")
+def test_import_candidates_skips_missing_name_and_duplicate_identity(
+    db: Session,
+) -> None:
+    existing = Candidate(
+        name="王五", employee_no="E100", should_attend=True, status="active"
+    )
     db.add(existing)
     db.commit()
 
     workbook = build_workbook(
         CANDIDATE_HEADERS,
         [
-            {"name": "赵六", "employee_no": "E100", "should_attend": True, "status": "active"},
-            {"name": "", "employee_no": "E200", "should_attend": True, "status": "active"},
+            {
+                "name": "赵六",
+                "employee_no": "E100",
+                "should_attend": True,
+                "status": "active",
+            },
+            {
+                "name": "",
+                "employee_no": "E200",
+                "should_attend": True,
+                "status": "active",
+            },
             {"name": "无号人员", "should_attend": True, "status": "active"},
             {"name": "无号人员", "should_attend": True, "status": "active"},
         ],
@@ -78,7 +103,11 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(db: Session
     assert result.success_count == 1
     assert result.failed_count == 3
     assert [failure.row_number for failure in result.failures] == [2, 3, 5]
-    assert [failure.reason for failure in result.failures] == ["员工号已存在", "姓名不能为空", "姓名已存在"]
+    assert [failure.reason for failure in result.failures] == [
+        "员工号已存在",
+        "姓名不能为空",
+        "姓名已存在",
+    ]
     assert [(candidate.name, candidate.employee_no) for candidate in candidates] == [
         ("王五", "E100"),
         ("无号人员", None),

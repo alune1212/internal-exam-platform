@@ -13,5 +13,12 @@ const columns: ColumnDef<QuestionAccuracyRow>[] = [
 ];
 
 export function QuestionAccuracyPage() {
-  return <ReportPage title="题目正确率" queryKey="question-accuracy" queryFn={getQuestionAccuracy} columns={columns} />;
+  return (
+    <ReportPage
+      title="题目正确率"
+      queryKey="question-accuracy"
+      queryFn={getQuestionAccuracy}
+      columns={columns}
+    />
+  );
 }

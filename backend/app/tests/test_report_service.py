@@ -1,8 +1,12 @@
 from sqlalchemy.orm import Session
 
-from app.models import Candidate, Exam, Question, QuestionOption
 from app.services import exam_service, report_service
-from app.tests.conftest import create_candidate, create_exam, create_question_with_options, submit_answers
+from app.tests.conftest import (
+    create_candidate,
+    create_exam,
+    create_question_with_options,
+    submit_answers,
+)
 
 
 def _setup_exam_with_candidates(db: Session):
@@ -88,7 +92,7 @@ def test_absent_candidates_finds_non_attempters(db: Session) -> None:
     # c2 没有 submit，但有 in_progress attempt，不算缺考
 
     # 创建一个真正缺考的考生
-    c3 = create_candidate(db, name="王五", employee_no="E003")
+    _c3 = create_candidate(db, name="王五", employee_no="E003")
 
     report = report_service.get_absent_candidates(db)
 

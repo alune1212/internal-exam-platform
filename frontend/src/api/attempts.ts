@@ -10,10 +10,13 @@ export function getAttemptResult(attemptId: string) {
 }
 
 export function saveAttemptAnswers(attemptId: string, answers: AnswerSaveItem[]) {
-  return apiRequest<{ saved_count: number; saved_at: string }>(`/api/attempts/${attemptId}/answers/save`, {
-    method: "POST",
-    body: JSON.stringify({ answers }),
-  });
+  return apiRequest<{ saved_count: number; saved_at: string }>(
+    `/api/attempts/${attemptId}/answers/save`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    },
+  );
 }
 
 export function submitAttempt(attemptId: string, submitType: "manual" | "auto" = "manual") {

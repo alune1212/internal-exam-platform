@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 export function CandidateImportPage() {
   const { examId = "1" } = useParams();
   const [file, setFile] = useState<File | null>(null);
-  const mutation = useMutation({ mutationFn: (selectedFile: File) => importCandidates(examId, selectedFile) });
+  const mutation = useMutation({
+    mutationFn: (selectedFile: File) => importCandidates(examId, selectedFile),
+  });
 
   return (
     <Card className="max-w-2xl">
@@ -20,8 +22,16 @@ export function CandidateImportPage() {
         <CardDescription>未参加人员名单基于应参人员减去已提交考试人员计算。</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <Input type="file" accept=".xlsx,.xls" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        <Button type="button" disabled={!file || mutation.isPending} onClick={() => file && mutation.mutate(file)}>
+        <Input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        />
+        <Button
+          type="button"
+          disabled={!file || mutation.isPending}
+          onClick={() => file && mutation.mutate(file)}
+        >
           <FileUp data-icon="inline-start" />
           上传应参人员
         </Button>

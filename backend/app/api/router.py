@@ -1,9 +1,17 @@
 from fastapi import APIRouter
 
-from app.api import attempts, auth, candidates, exams, imports, practice, questions, reports
+from app.api import (
+    attempts,
+    auth,
+    candidates,
+    exams,
+    imports,
+    practice,
+    questions,
+    reports,
+)
 from app.core.config import settings
 from app.schemas.common import ApiResponse
-
 
 router = APIRouter(prefix="/api")
 

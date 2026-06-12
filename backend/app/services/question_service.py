@@ -1,7 +1,12 @@
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import Question, QuestionOption
-from app.schemas.question import QuestionCreate, QuestionOptionRead, QuestionRead, QuestionUpdate
+from app.models import Question
+from app.schemas.question import (
+    QuestionCreate,
+    QuestionOptionRead,
+    QuestionRead,
+    QuestionUpdate,
+)
 
 
 def list_questions(db: Session, *, status: str | None = None) -> list[QuestionRead]:
@@ -27,7 +32,9 @@ def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:
     )
 
 
-def update_question(db: Session, question_id: int, payload: QuestionUpdate) -> QuestionRead:
+def update_question(
+    db: Session, question_id: int, payload: QuestionUpdate
+) -> QuestionRead:
     data = payload.model_dump(exclude_unset=True)
     return QuestionRead(
         id=question_id,

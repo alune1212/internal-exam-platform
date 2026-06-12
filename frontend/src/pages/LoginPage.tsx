@@ -45,10 +45,17 @@ export function LoginPage() {
         <CardDescription>输入姓名进入练习或考试；有员工号时优先用于识别。</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="flex flex-col gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+        >
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">姓名</Label>
-            <Input id="name" {...form.register("name")} aria-invalid={Boolean(form.formState.errors.name)} />
+            <Input
+              id="name"
+              {...form.register("name")}
+              aria-invalid={Boolean(form.formState.errors.name)}
+            />
             {form.formState.errors.name ? (
               <p className="text-sm text-destructive">{form.formState.errors.name.message}</p>
             ) : null}
@@ -61,8 +68,12 @@ export function LoginPage() {
             <LogIn data-icon="inline-start" />
             进入系统
           </Button>
-          {mutation.isError ? <p className="text-sm text-destructive">未找到匹配的考试人员，请核对姓名或员工号。</p> : null}
-          {mutation.data ? <p className="text-sm text-muted-foreground">已识别：{mutation.data.name}</p> : null}
+          {mutation.isError ? (
+            <p className="text-sm text-destructive">未找到匹配的考试人员，请核对姓名或员工号。</p>
+          ) : null}
+          {mutation.data ? (
+            <p className="text-sm text-muted-foreground">已识别：{mutation.data.name}</p>
+          ) : null}
         </form>
       </CardContent>
     </Card>

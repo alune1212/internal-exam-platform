@@ -23,7 +23,10 @@ def login_candidate(db: Session, payload: CandidateLoginRequest) -> CandidateRea
     if payload.employee_no:
         candidate = (
             db.query(Candidate)
-            .filter(Candidate.employee_no == payload.employee_no, Candidate.status == "active")
+            .filter(
+                Candidate.employee_no == payload.employee_no,
+                Candidate.status == "active",
+            )
             .one_or_none()
         )
         if candidate is None:

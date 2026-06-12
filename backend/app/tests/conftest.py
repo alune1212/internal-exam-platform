@@ -13,7 +13,7 @@ from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.services import exam_service
 
 
-@pytest.fixture()
+@pytest.fixture
 def db() -> Iterator[Session]:
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
@@ -21,8 +21,8 @@ def db() -> Iterator[Session]:
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    with SessionLocal() as session:
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    with session_factory() as session:
         yield session
     Base.metadata.drop_all(engine)
 
@@ -51,14 +51,31 @@ def create_candidate(db: Session, **kwargs) -> Candidate:
 
 def create_question_with_options(db: Session, **kwargs) -> Question:
     """创建题目及选项的测试辅助函数。"""
-    defaults = {"question_type": "single", "stem": "题目内容", "score": 2, "status": "active"}
+    defaults = {
+        "question_type": "single",
+        "stem": "题目内容",
+        "score": 2,
+        "status": "active",
+    }
     defaults.update(kwargs)
     question = Question(**defaults)
     db.add(question)
     db.flush()
     options = [
-        QuestionOption(question_id=question.id, label="A", content="选项A", is_correct=True, sort_order=0),
-        QuestionOption(question_id=question.id, label="B", content="选项B", is_correct=False, sort_order=1),
+        QuestionOption(
+            question_id=question.id,
+            label="A",
+            content="选项A",
+            is_correct=True,
+            sort_order=0,
+        ),
+        QuestionOption(
+            question_id=question.id,
+            label="B",
+            content="选项B",
+            is_correct=False,
+            sort_order=1,
+        ),
     ]
     db.add_all(options)
     db.commit()
@@ -66,15 +83,19 @@ def create_question_with_options(db: Session, **kwargs) -> Question:
     return question
 
 
-def submit_answers(db: Session, attempt_id: int, questions: list, answers: list[str]) -> None:
+def submit_answers(
+    db: Session, attempt_id: int, questions: list, answers: list[str]
+) -> None:
     """快捷提交答案并交卷的测试辅助函数。"""
     exam_service.save_answers(
         db,
         attempt_id,
-        AnswerSaveRequest(answers=[
-            AnswerSaveItem(attempt_question_id=q.id, selected_answer=a)
-            for q, a in zip(questions, answers)
-        ]),
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(attempt_question_id=q.id, selected_answer=a)
+                for q, a in zip(questions, answers, strict=True)
+            ]
+        ),
     )
     exam_service.submit_attempt(db, attempt_id, "manual")
 

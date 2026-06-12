@@ -32,7 +32,10 @@ export function AdminLoginPage() {
           <CardDescription>第一阶段使用简单管理员口令，后续可替换为正式认证。</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          >
             <div className="flex flex-col gap-2">
               <Label htmlFor="username">账号</Label>
               <Input id="username" {...form.register("username")} />
@@ -45,7 +48,9 @@ export function AdminLoginPage() {
               <ShieldCheck data-icon="inline-start" />
               登录管理后台
             </Button>
-            {mutation.data ? <p className="text-sm text-muted-foreground">已获取管理会话。</p> : null}
+            {mutation.data ? (
+              <p className="text-sm text-muted-foreground">已获取管理会话。</p>
+            ) : null}
           </form>
         </CardContent>
       </Card>

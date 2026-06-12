@@ -3,7 +3,11 @@ import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { clearCurrentCandidate, getCurrentCandidate, setCurrentCandidate } from "@/lib/candidateSession";
+import {
+  clearCurrentCandidate,
+  getCurrentCandidate,
+  setCurrentCandidate,
+} from "@/lib/candidateSession";
 import { navLinkClassName } from "@/lib/utils";
 import type { Candidate } from "@/types/candidate";
 
@@ -45,7 +49,11 @@ export function CandidateLayout() {
           <div className="flex flex-col gap-3 md:items-end">
             <nav className="flex flex-wrap gap-2">
               {navItems.map((item) => (
-                <NavLink key={item.to} to={item.to} className={(props) => navLinkClassName(props, "sm")}>
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={(props) => navLinkClassName(props, "sm")}
+                >
                   <item.icon data-icon="inline-start" />
                   {item.label}
                 </NavLink>
@@ -81,7 +89,9 @@ export function CandidateLayout() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-4 py-6">
-        <Outlet context={{ candidate, loginCandidate, logoutCandidate } satisfies CandidateSessionContext} />
+        <Outlet
+          context={{ candidate, loginCandidate, logoutCandidate } satisfies CandidateSessionContext}
+        />
       </main>
     </div>
   );

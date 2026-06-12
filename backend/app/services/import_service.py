@@ -9,7 +9,6 @@ from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
 from app.services.scoring_service import normalize_answer_set
 
-
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
 VALID_QUESTION_TYPES = {"single", "multiple", "judge"}
 VALID_STATUSES = {"active", "inactive"}
@@ -33,10 +32,12 @@ def parse_workbook(file_obj: Any) -> ParsedWorkbook:
         if headers_row is None:
             return ParsedWorkbook(rows=[], total_count=0)
 
-        headers = [str(cell).strip() if cell is not None else "" for cell in headers_row]
-        parsed_rows: list[dict[str, Any]] = []
-        for row in it:
-            parsed_rows.append({headers[i]: v for i, v in enumerate(row) if i < len(headers)})
+        headers = [
+            str(cell).strip() if cell is not None else "" for cell in headers_row
+        ]
+        parsed_rows = [
+            {headers[i]: v for i, v in enumerate(row) if i < len(headers)} for row in it
+        ]
         return ParsedWorkbook(rows=parsed_rows, total_count=len(parsed_rows))
     finally:
         workbook.close()
@@ -89,12 +90,18 @@ def import_candidates_from_workbook(
     imported_candidates: list[Candidate] = []
 
     # 预加载已有数据，避免逐行查询 DB
-    existing_employee_numbers: set[str] = set(
-        row[0] for row in db.query(Candidate.employee_no).filter(Candidate.employee_no.isnot(None)).all()
-    )
-    existing_names_without_no: set[str] = set(
-        row[0] for row in db.query(Candidate.name).filter(Candidate.employee_no.is_(None)).all()
-    )
+    existing_employee_numbers: set[str] = {
+        row[0]
+        for row in db.query(Candidate.employee_no)
+        .filter(Candidate.employee_no.isnot(None))
+        .all()
+    }
+    existing_names_without_no: set[str] = {
+        row[0]
+        for row in db.query(Candidate.name)
+        .filter(Candidate.employee_no.is_(None))
+        .all()
+    }
 
     for row_number, row in enumerate(parsed.rows, start=2):
         reason = _validate_candidate_import_row(
@@ -160,7 +167,11 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
         return "判断题答案只能是 true 或 false"
 
     if question_type in {"single", "multiple"}:
-        existing_labels = {label for label in OPTION_LABELS if _optional_text(row.get(f"option_{label.lower()}"))}
+        existing_labels = {
+            label
+            for label in OPTION_LABELS
+            if _optional_text(row.get(f"option_{label.lower()}"))
+        }
         missing = [answer for answer in answers if answer not in existing_labels]
         if missing:
             return "正确答案必须存在于选项中"
@@ -169,7 +180,9 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
 
 def _build_question(row: dict[str, Any]) -> Question:
     question_type = _text(row.get("question_type")).lower()
-    correct_answers = _parse_correct_option_labels(question_type, _text(row.get("correct_answer")))
+    correct_answers = _parse_correct_option_labels(
+        question_type, _text(row.get("correct_answer"))
+    )
     question = Question(
         question_type=question_type,
         stem=_text(row.get("stem")),
@@ -190,7 +203,9 @@ def _build_question(row: dict[str, Any]) -> Question:
             is_correct=label in correct_answers,
             sort_order=index,
         )
-        for index, (label, content) in enumerate(_extract_options(row, question_type), start=1)
+        for index, (label, content) in enumerate(
+            _extract_options(row, question_type), start=1
+        )
     ]
     return question
 

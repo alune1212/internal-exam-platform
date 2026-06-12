@@ -18,8 +18,16 @@ export function QuestionImportPage() {
         <CardDescription>仅支持标准 Excel，不解析 Word。</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <Input type="file" accept=".xlsx,.xls" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        <Button type="button" disabled={!file || mutation.isPending} onClick={() => file && mutation.mutate(file)}>
+        <Input
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+        />
+        <Button
+          type="button"
+          disabled={!file || mutation.isPending}
+          onClick={() => file && mutation.mutate(file)}
+        >
           <FileUp data-icon="inline-start" />
           上传并校验
         </Button>

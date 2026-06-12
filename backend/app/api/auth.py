@@ -5,7 +5,6 @@ from app.core.security import constant_time_equals, create_session_token
 from app.schemas.auth import AdminLoginRequest, LoginResponse
 from app.schemas.common import ApiResponse
 
-
 router = APIRouter(tags=["auth"])
 
 

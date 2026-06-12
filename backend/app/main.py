@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,14 +19,14 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(auto_submit_loop())
     yield
     task.cancel()
-    try:
+    with suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Internal Exam Platform API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Internal Exam Platform API", version="0.1.0", lifespan=lifespan
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

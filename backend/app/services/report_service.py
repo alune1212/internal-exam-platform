@@ -1,9 +1,21 @@
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
-from app.models import Candidate, Exam, ExamAttempt, ExamAttemptAnswer, ExamAttemptQuestion, Question
+from app.models import (
+    Candidate,
+    Exam,
+    ExamAttempt,
+    ExamAttemptAnswer,
+    ExamAttemptQuestion,
+    Question,
+)
 from app.models.attempt import SUBMITTED_STATUSES
-from app.schemas.report import AbsentCandidateRow, QuestionAccuracyRow, ScoreReportRow, WrongQuestionRow
+from app.schemas.report import (
+    AbsentCandidateRow,
+    QuestionAccuracyRow,
+    ScoreReportRow,
+    WrongQuestionRow,
+)
 
 
 def get_score_report(db: Session) -> list[ScoreReportRow]:
@@ -50,10 +62,15 @@ def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
             func.count(ExamAttemptAnswer.id).label("total_count"),
             func.sum(correct_expr).label("correct_count"),
         )
-        .join(ExamAttemptAnswer, ExamAttemptAnswer.attempt_question_id == ExamAttemptQuestion.id)
+        .join(
+            ExamAttemptAnswer,
+            ExamAttemptAnswer.attempt_question_id == ExamAttemptQuestion.id,
+        )
         .join(ExamAttempt, ExamAttempt.id == ExamAttemptQuestion.attempt_id)
         .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
-        .group_by(ExamAttemptQuestion.original_question_id, ExamAttemptQuestion.stem_snapshot)
+        .group_by(
+            ExamAttemptQuestion.original_question_id, ExamAttemptQuestion.stem_snapshot
+        )
         .all()
     )
 
@@ -63,7 +80,9 @@ def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
             stem=stem,
             correct_count=correct_count_val or 0,
             total_count=total_count_val,
-            accuracy_rate=round((correct_count_val or 0) / total_count_val, 4) if total_count_val > 0 else 0.0,
+            accuracy_rate=round((correct_count_val or 0) / total_count_val, 4)
+            if total_count_val > 0
+            else 0.0,
         )
         for original_id, stem, total_count_val, correct_count_val in stats
     ]
@@ -81,7 +100,10 @@ def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
             Question.category_1,
             Question.category_2,
         )
-        .join(ExamAttemptAnswer, ExamAttemptAnswer.attempt_question_id == ExamAttemptQuestion.id)
+        .join(
+            ExamAttemptAnswer,
+            ExamAttemptAnswer.attempt_question_id == ExamAttemptQuestion.id,
+        )
         .join(ExamAttempt, ExamAttempt.id == ExamAttemptQuestion.attempt_id)
         .outerjoin(Question, Question.id == ExamAttemptQuestion.original_question_id)
         .filter(

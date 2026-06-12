@@ -13,7 +13,13 @@ interface ReportPageProps<TData> {
   actions?: ReactNode;
 }
 
-export function ReportPage<TData>({ title, queryKey, queryFn, columns, actions }: ReportPageProps<TData>) {
+export function ReportPage<TData>({
+  title,
+  queryKey,
+  queryFn,
+  columns,
+  actions,
+}: ReportPageProps<TData>) {
   const { data = [] } = useQuery({ queryKey: [queryKey], queryFn });
 
   return (

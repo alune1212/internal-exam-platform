@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Integer, JSON, String, Text
+from sqlalchemy import JSON, Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,8 +13,12 @@ class Exam(TimestampMixin, Base):
     description: Mapped[str | None] = mapped_column(Text)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     question_rule: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft", index=True)
-    show_answer_after_submit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="draft", index=True
+    )
+    show_answer_after_submit: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
     show_ranking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     attempts = relationship("ExamAttempt", back_populates="exam")

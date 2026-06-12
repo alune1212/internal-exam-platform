@@ -13,5 +13,12 @@ const columns: ColumnDef<WrongQuestionRow>[] = [
 ];
 
 export function WrongQuestionPage() {
-  return <ReportPage title="错题排行" queryKey="wrong-questions" queryFn={getWrongQuestions} columns={columns} />;
+  return (
+    <ReportPage
+      title="错题排行"
+      queryKey="wrong-questions"
+      queryFn={getWrongQuestions}
+      columns={columns}
+    />
+  );
 }

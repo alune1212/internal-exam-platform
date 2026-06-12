@@ -10,6 +10,10 @@
 cd backend
 uv sync                              # 安装依赖
 uv run pytest                        # 运行测试
+uv run ruff check .                  # lint 检查
+uv run ruff check --fix .            # lint 自动修复
+uv run ruff format .                 # 代码格式化
+uv run ty check                      # 类型检查
 uv run alembic upgrade head          # 执行迁移
 uv run alembic revision --autogenerate -m "描述"  # 生成迁移
 uv run uvicorn app.main:app --reload # 启动开发服务器 (localhost:8000)
@@ -20,9 +24,13 @@ uv run uvicorn app.main:app --reload # 启动开发服务器 (localhost:8000)
 ```bash
 cd frontend
 npm install
-npm run dev      # 开发服务器 (localhost:5173)
-npm run build    # 生产构建
-npx tsc --noEmit # 类型检查
+npm run dev          # 开发服务器 (localhost:5173)
+npm run build        # 生产构建
+npm run lint         # ESLint 检查
+npm run lint:fix     # ESLint 自动修复
+npm run format       # Prettier 格式化
+npm run format:check # Prettier 格式检查
+npx tsc --noEmit     # 类型检查
 ```
 
 Docker：

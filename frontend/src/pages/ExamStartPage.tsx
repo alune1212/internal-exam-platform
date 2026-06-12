@@ -30,7 +30,9 @@ export function ExamStartPage() {
           <li>可以提前交卷，到时间系统自动提交。</li>
           <li>提交后自动判分，并按配置展示答案和排名。</li>
         </ul>
-        {candidate ? <p className="text-sm text-muted-foreground">当前考试人：{candidate.name}</p> : null}
+        {candidate ? (
+          <p className="text-sm text-muted-foreground">当前考试人：{candidate.name}</p>
+        ) : null}
         {candidate ? (
           <Button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
             <ClipboardCheck data-icon="inline-start" />
@@ -41,7 +43,9 @@ export function ExamStartPage() {
             <Link to="/login">先登录考试人</Link>
           </Button>
         )}
-        {mutation.isError ? <p className="text-sm text-destructive">开始考试失败，请确认考试仍处于发布状态。</p> : null}
+        {mutation.isError ? (
+          <p className="text-sm text-destructive">开始考试失败，请确认考试仍处于发布状态。</p>
+        ) : null}
       </CardContent>
     </Card>
   );

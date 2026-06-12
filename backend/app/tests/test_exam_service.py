@@ -1,20 +1,23 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models import Candidate, Exam, ExamAttemptAnswer, Question, QuestionOption
+from app.models import ExamAttemptAnswer, Question, QuestionOption
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamCreate, ExamUpdate
 from app.services import exam_service
 from app.services.exam_service import (
     AttemptAlreadyExistsError,
     AttemptAlreadySubmittedError,
+    AttemptNotFoundError,
     CandidateNotFoundError,
     ExamNotActiveError,
     ExamNotFoundError,
-    AttemptNotFoundError,
 )
-from app.tests.conftest import create_exam, create_candidate, create_question_with_options
-
+from app.tests.conftest import (
+    create_candidate,
+    create_exam,
+    create_question_with_options,
+)
 
 # --- CRUD 测试 ---
 
@@ -28,15 +31,21 @@ def test_create_exam_persists(db: Session) -> None:
 
 
 def test_list_active_exams_filters(db: Session) -> None:
-    exam_service.create_exam(db, ExamCreate(title="草稿", duration_minutes=60, status="draft"))
-    exam_service.create_exam(db, ExamCreate(title="上线", duration_minutes=60, status="active"))
+    exam_service.create_exam(
+        db, ExamCreate(title="草稿", duration_minutes=60, status="draft")
+    )
+    exam_service.create_exam(
+        db, ExamCreate(title="上线", duration_minutes=60, status="active")
+    )
     active = exam_service.list_active_exams(db)
     assert len(active) == 1
     assert active[0].title == "上线"
 
 
 def test_update_exam_partial(db: Session) -> None:
-    exam = exam_service.create_exam(db, ExamCreate(title="原始标题", duration_minutes=60))
+    exam = exam_service.create_exam(
+        db, ExamCreate(title="原始标题", duration_minutes=60)
+    )
     updated = exam_service.update_exam(db, exam.id, ExamUpdate(title="新标题"))
     assert updated.title == "新标题"
     assert updated.duration_minutes == 60
@@ -156,7 +165,13 @@ def test_save_answers_persists_selected_answer(db: Session) -> None:
     result = exam_service.save_answers(
         db,
         start_result.attempt_id,
-        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=attempt_question_id, selected_answer="A")]),
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=attempt_question_id, selected_answer="A"
+                )
+            ]
+        ),
     )
 
     attempt = exam_service.get_attempt(db, start_result.attempt_id)
@@ -175,12 +190,24 @@ def test_save_answers_updates_existing_answer(db: Session) -> None:
     exam_service.save_answers(
         db,
         start_result.attempt_id,
-        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=attempt_question_id, selected_answer="B")]),
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=attempt_question_id, selected_answer="B"
+                )
+            ]
+        ),
     )
     exam_service.save_answers(
         db,
         start_result.attempt_id,
-        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=attempt_question_id, selected_answer="A")]),
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=attempt_question_id, selected_answer="A"
+                )
+            ]
+        ),
     )
 
     answers = db.query(ExamAttemptAnswer).all()
@@ -202,8 +229,14 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
         start_result.attempt_id,
         AnswerSaveRequest(
             answers=[
-                AnswerSaveItem(attempt_question_id=start_result.questions[0].id, selected_answer="A"),
-                AnswerSaveItem(attempt_question_id=start_result.questions[1].id, selected_answer="B"),
+                AnswerSaveItem(
+                    attempt_question_id=start_result.questions[0].id,
+                    selected_answer="A",
+                ),
+                AnswerSaveItem(
+                    attempt_question_id=start_result.questions[1].id,
+                    selected_answer="B",
+                ),
             ]
         ),
     )
@@ -226,14 +259,34 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
 def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
-    question = Question(question_type="multiple", stem="多选题", score=4, status="active")
+    question = Question(
+        question_type="multiple", stem="多选题", score=4, status="active"
+    )
     db.add(question)
     db.flush()
     db.add_all(
         [
-            QuestionOption(question_id=question.id, label="A", content="选项A", is_correct=True, sort_order=0),
-            QuestionOption(question_id=question.id, label="B", content="选项B", is_correct=False, sort_order=1),
-            QuestionOption(question_id=question.id, label="C", content="选项C", is_correct=True, sort_order=2),
+            QuestionOption(
+                question_id=question.id,
+                label="A",
+                content="选项A",
+                is_correct=True,
+                sort_order=0,
+            ),
+            QuestionOption(
+                question_id=question.id,
+                label="B",
+                content="选项B",
+                is_correct=False,
+                sort_order=1,
+            ),
+            QuestionOption(
+                question_id=question.id,
+                label="C",
+                content="选项C",
+                is_correct=True,
+                sort_order=2,
+            ),
         ]
     )
     db.commit()
@@ -242,7 +295,14 @@ def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
     exam_service.save_answers(
         db,
         start_result.attempt_id,
-        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=start_result.questions[0].id, selected_answer="C,A")]),
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=start_result.questions[0].id,
+                    selected_answer="C,A",
+                )
+            ]
+        ),
     )
     result = exam_service.submit_attempt(db, start_result.attempt_id, "manual")
 
@@ -251,7 +311,9 @@ def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
     assert result.wrong_count == 0
 
 
-def test_get_attempt_result_reads_submitted_result_without_mutating_submit_type(db: Session) -> None:
+def test_get_attempt_result_reads_submitted_result_without_mutating_submit_type(
+    db: Session,
+) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
     create_question_with_options(db)
@@ -277,16 +339,30 @@ def test_get_ranking_orders_by_score_desc(db: Session) -> None:
     # 考生1答对
     r1 = exam_service.start_exam(db, exam.id, c1.id)
     exam_service.save_answers(
-        db, r1.attempt_id,
-        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=r1.questions[0].id, selected_answer="A")]),
+        db,
+        r1.attempt_id,
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=r1.questions[0].id, selected_answer="A"
+                )
+            ]
+        ),
     )
     exam_service.submit_attempt(db, r1.attempt_id, "manual")
 
     # 考生2答错
     r2 = exam_service.start_exam(db, exam.id, c2.id)
     exam_service.save_answers(
-        db, r2.attempt_id,
-        AnswerSaveRequest(answers=[AnswerSaveItem(attempt_question_id=r2.questions[0].id, selected_answer="B")]),
+        db,
+        r2.attempt_id,
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=r2.questions[0].id, selected_answer="B"
+                )
+            ]
+        ),
     )
     exam_service.submit_attempt(db, r2.attempt_id, "manual")
 

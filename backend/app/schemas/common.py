@@ -1,12 +1,7 @@
-from typing import Generic, TypeVar
-
 from pydantic import BaseModel, ConfigDict
 
 
-T = TypeVar("T")
-
-
-class ApiResponse(BaseModel, Generic[T]):
+class ApiResponse[T](BaseModel):
     success: bool = True
     data: T
     message: str = "ok"
