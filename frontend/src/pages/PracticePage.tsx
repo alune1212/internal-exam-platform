@@ -196,7 +196,7 @@ export function PracticePage() {
           </Card>
         </div>
         <aside className="hidden self-start lg:block">
-          <div className="sticky top-4 h-[calc(100vh-2rem)]">
+          <div className="fixed right-4 top-24 z-20 h-[calc(100vh-7rem)] w-[300px]">
             <QuestionNavigator
               items={navItems}
               activeId={activeQuestionId}

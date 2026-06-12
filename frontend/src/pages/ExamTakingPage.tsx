@@ -208,7 +208,7 @@ export function ExamTakingPage() {
           ) : null}
         </CardContent>
       </Card>
-      <aside className="flex min-h-0 flex-col gap-4 lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:self-start">
+      <aside className="flex min-h-0 flex-col gap-4 lg:fixed lg:right-4 lg:top-24 lg:z-20 lg:h-[calc(100vh-7rem)] lg:w-[280px]">
         <Card className="shrink-0">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
