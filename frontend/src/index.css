@@ -4,44 +4,89 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 220 30% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 220 30% 10%;
-    --primary: 176 60% 28%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 43 95% 94%;
-    --secondary-foreground: 38 45% 20%;
-    --muted: 210 18% 94%;
-    --muted-foreground: 215 14% 42%;
-    --accent: 211 84% 95%;
-    --accent-foreground: 213 56% 24%;
-    --destructive: 0 72% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214 18% 84%;
-    --input: 214 18% 84%;
-    --ring: 176 60% 28%;
-    --radius: 0.5rem;
+    /* Surfaces */
+    --canvas: #ffffff;
+    --canvas-warm: #fafaf7;
+    --surface-card: #f5f3ee;
+    --surface-elev: #ffffff;
+
+    /* Ink */
+    --ink: #111111;
+    --ink-soft: #2a2a2a;
+    --body: #374151;
+    --muted: #6b7280;
+
+    /* Lines */
+    --hairline: #e5e7eb;
+    --hairline-soft: #f3f4f6;
+
+    /* Footer */
+    --footer: #0a0a0a;
+    --footer-soft: #a1a1aa;
+
+    /* Status */
+    --success: #166534;
+    --warning: #b45309;
+    --error: #b91c1c;
+
+    /* Radius */
+    --radius-pill: 9999px;
+    --radius-lg: 16px;
+    --radius-md: 8px;
+    --radius-sm: 4px;
+
+    /* Shadows */
+    --shadow-card: 0 1px 2px rgba(17, 17, 17, 0.04), 0 4px 12px rgba(17, 17, 17, 0.04);
+    --shadow-pop: 0 8px 24px rgba(17, 17, 17, 0.08);
+    --shadow-elevate: 0 16px 40px rgba(17, 17, 17, 0.1);
+
+    /* Fonts */
+    --font-display: "Manrope", "Inter", system-ui, sans-serif;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
   }
 
   * {
-    @apply border-border;
+    @apply border-hairline;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
   }
 
   body {
-    @apply min-h-screen bg-background text-foreground antialiased;
-    font-family:
-      Inter,
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      sans-serif;
+    @apply bg-canvas text-ink min-h-screen antialiased;
+    font-family: var(--font-body);
+    font-feature-settings: "ss01", "cv11";
+    line-height: 1.7;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.04em;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
   [data-icon] {
     width: 1rem;
     height: 1rem;
+  }
+
+  /* Focus ring: WCAG-friendly 2px ink ring with 2px offset */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 }
