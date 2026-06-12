@@ -28,6 +28,7 @@ spec-version: 1.0
 | 9 | 考生身份验证 | 保持「填名字就能进」的信任制 |
 | 10 | 品牌名 | 知试（Zhishi）· wordmark「知试」+ 28×28 黑色 Z 圈 |
 | 11 | 整体方向 | C · 现代学术（Cal.com 骨架 + 学术 / 编辑感细节） |
+| 12 | 新增依赖 | `@radix-ui/react-dialog`（用于 Dialog / Sheet 弹层） |
 
 ## 3. 品牌系统
 
@@ -44,6 +45,7 @@ spec-version: 1.0
 | `--hairline` | `#e5e7eb` | 边线 |
 | `--hairline-soft` | `#f3f4f6` | 隔断 |
 | `--surface-card` | `#f5f3ee` | 浅米色，feature card |
+| `--surface-elev` | `#ffffff` | 弹层、modal 背景 |
 | `--footer` | `#0a0a0a` | 页脚、admin 侧栏 |
 | `--footer-soft` | `#a1a1aa` | 页脚文字 |
 | `--success` | `#166534` | 答对、考试进行中 |
@@ -110,10 +112,10 @@ spec-version: 1.0
   - `lg` — h-12, px-8, 15px
   - `icon` — 36×36 圆形
 - **variant**：
-  - `default` — bg `#111`, text `#fff`, hover `#0a0a0a`
-  - `outline` — bg `#fff`, border `1px #111`, hover bg `#fafaf7`
-  - `ghost` — 透明，hover bg `#f5f3ee`
-  - `link` — text `#111`, underline-offset 4
+  - `default` — bg `var(--ink)`, text `#fff`, hover `#0a0a0a`
+  - `outline` — bg `var(--canvas)`, border `1px var(--ink)`, hover bg `var(--canvas-warm)`
+  - `ghost` — 透明，hover bg `var(--surface-card)`
+  - `link` — text `var(--ink)`, underline-offset 4
 - **detail**：按钮内 icon 用 `data-icon="inline-start"`；不引入 drop shadow。
 - 沿用 `asChild` + Radix `Slot`（已是当前实现）。
 
@@ -147,9 +149,9 @@ spec-version: 1.0
 
 #### Dialog / Sheet — 新增
 
-- 弹层用 `--surface-elev` + `--shadow-pop` + 16px 圆角。
+- 弹层用 `var(--surface-elev)` + `var(--shadow-pop)` + 16px 圆角。
 - 手机端默认 `sheet`（底部滑出），桌面端 `dialog`（居中弹层）。
-- 基于 Radix UI Primitives（如已安装 `@radix-ui/react-dialog` 可直接用，未安装则安装）。
+- 基于 Radix UI Primitives。需新增依赖：`@radix-ui/react-dialog`（已确认未在当前 `package.json`）。
 
 #### Skeleton — 新增
 
@@ -167,7 +169,7 @@ spec-version: 1.0
 
 - 形态：`圆形头像（含 Z 圈或姓名首字）+ 姓名（font-display 600）+ 副标（employee_no · department，italic caption）`。
 - 用于顶栏右侧、登录成功后、考试结果页。
-- 替身头像用 pastel 圆圈 + 大写首字。
+- 替身头像用 pastel 圆圈 + 大写首字。pastel 配色：`#fef3c7` (黄) / `#dbeafe` (蓝) / `#dcfce7` (绿) / `#fce7f3` (粉) / `#e0e7ff` (靛)。
 
 #### `Timer` — 倒计时
 
@@ -189,7 +191,7 @@ spec-version: 1.0
 #### `StatusPill` — 状态徽章
 
 - 替换 shadcn Badge 圆胶囊形态；用印章感 badge。
-- 颜色语义：`#166534` 答对 / 进行中、`#b45309` 即将开始、`#b91c1c` 答错 / 必填、`#111` 默认。
+- 颜色语义：`var(--success)` 答对 / 进行中、`var(--warning)` 即将开始、`var(--error)` 答错 / 必填、`var(--ink)` 默认。
 
 #### `QuestionNavigator` — 题号导航
 
@@ -263,12 +265,12 @@ spec-version: 1.0
 - 主体布局：单列居中（手机）/ 单列居中 + 左侧 chapter 头（桌面）。
 - 内容：
   - `ChapterNumber` `CHAPTER 01 · WELCOME`
-  - h1（Manrope 600 italic 48–72px）"坐下来，开始考试。"
-  - 描述段（font-body-lg 16–17px / 1.7 行距 / muted）
-  - 卡片（米色 `--canvas-warm` + 16px 圆角 + 1px hairline）：
+  - h1（Manrope 600 italic，使用 `text-display-2xl`——桌面 72px / 手机 40px）"坐下来，开始考试。"
+  - 描述段（`text-body-lg` 16–17px / 1.7 行距 / `text-muted`）
+  - 卡片（米色 `var(--canvas-warm)` + 16px 圆角 + 1px hairline）：
     - 姓名（必填）· 中英双语 label
     - 员工号（可选）· 中英双语 label
-    - 提交按钮（pill 高 48px，bg `#111`）
+    - 提交按钮（pill 高 48px，bg `var(--ink)`）
   - 错误态：卡片底部红色 caption 段
   - 成功后：导航到 `/exams`
 
@@ -523,6 +525,7 @@ frontend/src/
   --radius-sm: 4px;
   --shadow-card: 0 1px 2px rgba(17,17,17,.04), 0 4px 12px rgba(17,17,17,.04);
   --shadow-pop: 0 8px 24px rgba(17,17,17,.08);
+  --shadow-elevate: 0 16px 40px rgba(17,17,17,.10);
   --font-display: "Manrope", "Inter", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -618,8 +621,8 @@ theme: {
 
 ## 13. 风险与开放问题
 
-1. **字体加载抖动**：Manrope / Inter / JetBrains Mono 同时引入可能拖慢首屏。缓解：`font-display: swap` + 关键页面 h1 用 `font-display: optional` 让浏览器决定是否替换。
-2. **手机端 Bottom sheet 与 iOS Safari 滑动冲突**：用 `overscroll-contain` 限制；首次唤起时短暂禁用 body scroll。
-3. **考试作答页键盘快捷键与浏览器冲突**：← / → 在输入框聚焦时禁用；切换到题目视图时启用。
+1. **字体加载抖动**：Manrope / Inter / JetBrains Mono 同时引入可能拖慢首屏。缓解：Google Fonts URL 自带 `display=swap`（FOIT → FOUT 替换），关键 h1 在 `<link>` 用 `rel="preload" as="font"` 提前加载。
+2. **手机端 Bottom sheet 与 iOS Safari 滑动冲突**：sheet 容器用 `overscroll-contain` 限制滚动链；唤起时用 `document.body.style.overflow = 'hidden'` 锁住 body scroll（关闭时恢复）。
+3. **考试作答页键盘快捷键与浏览器冲突**：← / → 在 input/textarea/select 聚焦时禁用；切换到题目视图时启用。监听 `e.target` 标签判断。
 4. **数据快照兼容性**：不动后端，必须保证新 UI 渲染 `attempt.questions[].*_snapshot` 字段不变；如果某些字段缺失需要 EmptyState。
-5. **TanStack Table mobile renderer 与 column 顺序**：需要在 `SimpleDataTable` 内置"desktop / mobile" 两种渲染分支，而不是改每张报表的 column 定义。
+5. **TanStack Table mobile renderer 与 column 顺序**：需要在 `SimpleDataTable` 内置"desktop / mobile" 两种渲染分支，而不是改每张报表的 column 定义。每张报表的 column 需额外声明 `meta.mobilePriority` 决定手机端显示哪些字段。
