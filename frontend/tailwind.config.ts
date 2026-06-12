@@ -61,6 +61,15 @@ export default {
         pop: "var(--shadow-pop)",
         elevate: "var(--shadow-elevate)",
       },
+      keyframes: {
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+      },
+      animation: {
+        shimmer: "shimmer 1500ms linear infinite",
+      },
       fontSize: {
         "display-2xl": ["72px", { lineHeight: "1.05", letterSpacing: "-0.04em" }],
         "display-xl": ["56px", { lineHeight: "1.08", letterSpacing: "-0.04em" }],
