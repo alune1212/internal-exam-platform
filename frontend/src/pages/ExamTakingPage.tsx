@@ -5,9 +5,10 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
 import { getActiveExams } from "@/api/exams";
+import { buildQuestionNavItems, QuestionNavigator } from "@/components/QuestionNavigator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
+import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
 export function ExamTakingPage() {
@@ -17,6 +18,7 @@ export function ExamTakingPage() {
   const attemptId = searchParams.get("attemptId");
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [now, setNow] = useState(() => Date.now());
+  const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
   const { data: attempt, isLoading } = useQuery({
     queryKey: ["attempt", attemptId],
     queryFn: () => getAttempt(attemptId ?? ""),
@@ -73,8 +75,23 @@ export function ExamTakingPage() {
     const seconds = remainingSeconds % 60;
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }, [attempt, durationMinutes, now]);
+  const navItems = useMemo(
+    () =>
+      buildQuestionNavItems({
+        questions: attempt?.questions ?? [],
+        answers,
+        getTargetId: (question) => `exam-question-${question.id}`,
+      }),
+    [answers, attempt?.questions],
+  );
+
+  function handleJump(targetId: string, itemId: number) {
+    setActiveQuestionId(itemId);
+    document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function handleAnswerChange(question: AttemptQuestion, value: string) {
+    setActiveQuestionId(question.id);
     setAnswers((current) => ({ ...current, [question.id]: value }));
     saveMutation.mutate([{ attempt_question_id: question.id, selected_answer: value }]);
   }
@@ -118,8 +135,18 @@ export function ExamTakingPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {isLoading ? <p className="text-sm text-muted-foreground">正在加载题目</p> : null}
+          <div className="lg:hidden">
+            <QuestionNavigator items={navItems} activeId={activeQuestionId} onJump={handleJump} />
+          </div>
           {attempt?.questions.map((question, index) => (
-            <div key={question.id} className="rounded-md border p-4">
+            <div
+              key={question.id}
+              id={`exam-question-${question.id}`}
+              className={cn(
+                "scroll-mt-24 rounded-md border p-4",
+                activeQuestionId === question.id && "ring-2 ring-ring ring-offset-2",
+              )}
+            >
               <p className="mb-3 font-medium">
                 {index + 1}. {question.stem_snapshot}
               </p>
@@ -180,20 +207,30 @@ export function ExamTakingPage() {
           ) : null}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock data-icon="inline-start" />
-            倒计时
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-3xl font-semibold">{remainingText}</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            暂存不会暂停倒计时，到时间后自动提交。
-          </p>
-        </CardContent>
-      </Card>
+      <aside className="flex flex-col gap-4 lg:sticky lg:top-4 lg:self-start">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock data-icon="inline-start" />
+              倒计时
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold">{remainingText}</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              暂存不会暂停倒计时，到时间后自动提交。
+            </p>
+          </CardContent>
+        </Card>
+        <div className="hidden lg:block">
+          <QuestionNavigator
+            items={navItems}
+            activeId={activeQuestionId}
+            className="lg:max-h-[calc(100vh-14rem)]"
+            onJump={handleJump}
+          />
+        </div>
+      </aside>
     </div>
   );
 }
