@@ -14,7 +14,21 @@ export {
 export { Input } from "./input";
 export { Label } from "./label";
 export { Badge, badgeVariants, type BadgeProps } from "./badge";
-export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, DataCard } from "./table";
+export {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  DataCard,
+  type TableProps,
+  type TableSectionProps,
+  type TableRowProps,
+  type TableHeadProps,
+  type TableCellProps,
+  type DataCardProps,
+} from "./table";
 export {
   Dialog,
   DialogTrigger,
@@ -26,6 +40,12 @@ export {
   DialogClose,
   DialogOverlay,
   DialogPortal,
+  type DialogOverlayProps,
+  type DialogContentProps,
+  type DialogHeaderProps,
+  type DialogFooterProps,
+  type DialogTitleProps,
+  type DialogDescriptionProps,
 } from "./dialog";
 export {
   Sheet,
@@ -35,5 +55,10 @@ export {
   SheetTitle,
   SheetDescription,
   SheetClose,
+  type SheetOverlayProps,
+  type SheetContentProps,
+  type SheetHeaderProps,
+  type SheetTitleProps,
+  type SheetDescriptionProps,
 } from "./sheet";
 export { Skeleton } from "./skeleton";

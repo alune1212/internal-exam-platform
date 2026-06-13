@@ -2,13 +2,14 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-type TableProps = React.TableHTMLAttributes<HTMLTableElement>;
-type SectionProps = React.HTMLAttributes<HTMLTableSectionElement>;
-type RowProps = React.HTMLAttributes<HTMLTableRowElement>;
-type CellProps = React.TdHTMLAttributes<HTMLTableCellElement> & {
+export type TableProps = React.TableHTMLAttributes<HTMLTableElement>;
+export type TableSectionProps = React.HTMLAttributes<HTMLTableSectionElement>;
+export type TableRowProps = React.HTMLAttributes<HTMLTableRowElement>;
+export type TableCellProps = React.TdHTMLAttributes<HTMLTableCellElement> & {
   numeric?: boolean;
 };
-type HeadProps = React.ThHTMLAttributes<HTMLTableCellElement>;
+export type TableHeadProps = React.ThHTMLAttributes<HTMLTableCellElement>;
+export type DataCardProps = React.HTMLAttributes<HTMLDivElement>;
 
 export const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, ...props }, ref) => (
@@ -19,7 +20,7 @@ export const Table = React.forwardRef<HTMLTableElement, TableProps>(
 );
 Table.displayName = "Table";
 
-export const TableHeader = React.forwardRef<HTMLTableSectionElement, SectionProps>(
+export const TableHeader = React.forwardRef<HTMLTableSectionElement, TableSectionProps>(
   ({ className, ...props }, ref) => (
     <thead
       ref={ref}
@@ -30,14 +31,14 @@ export const TableHeader = React.forwardRef<HTMLTableSectionElement, SectionProp
 );
 TableHeader.displayName = "TableHeader";
 
-export const TableBody = React.forwardRef<HTMLTableSectionElement, SectionProps>(
+export const TableBody = React.forwardRef<HTMLTableSectionElement, TableSectionProps>(
   ({ className, ...props }, ref) => (
     <tbody ref={ref} className={cn("[&_tr:last-child]:border-0", className)} {...props} />
   ),
 );
 TableBody.displayName = "TableBody";
 
-export const TableRow = React.forwardRef<HTMLTableRowElement, RowProps>(
+export const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
   ({ className, ...props }, ref) => (
     <tr
       ref={ref}
@@ -48,7 +49,7 @@ export const TableRow = React.forwardRef<HTMLTableRowElement, RowProps>(
 );
 TableRow.displayName = "TableRow";
 
-export const TableHead = React.forwardRef<HTMLTableCellElement, HeadProps>(
+export const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
@@ -62,7 +63,7 @@ export const TableHead = React.forwardRef<HTMLTableCellElement, HeadProps>(
 );
 TableHead.displayName = "TableHead";
 
-export const TableCell = React.forwardRef<HTMLTableCellElement, CellProps>(
+export const TableCell = React.forwardRef<HTMLTableCellElement, TableCellProps>(
   ({ className, numeric, ...props }, ref) => (
     <td
       ref={ref}
@@ -77,7 +78,7 @@ export const TableCell = React.forwardRef<HTMLTableCellElement, CellProps>(
 );
 TableCell.displayName = "TableCell";
 
-export const DataCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+export const DataCard = React.forwardRef<HTMLDivElement, DataCardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}

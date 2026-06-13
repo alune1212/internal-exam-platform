@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { TableBody, TableCell, TableHead, TableRow } from "../table";
+import { DataCard, TableBody, TableCell, TableHead, TableRow } from "../table";
 
 describe("Table primitives", () => {
   it("TableHead uses caption uppercase tracking", () => {
@@ -49,5 +49,14 @@ describe("Table primitives", () => {
     const cell = screen.getByText("85");
     expect(cell.className).toContain("tabular-nums");
     expect(cell.className).toContain("font-mono");
+  });
+
+  it("DataCard renders the mobile card surface helper", () => {
+    render(<DataCard data-testid="mobile-row">移动端行</DataCard>);
+    const card = screen.getByTestId("mobile-row");
+    expect(card.className).toContain("rounded-md");
+    expect(card.className).toContain("border-hairline");
+    expect(card.className).toContain("bg-canvas");
+    expect(card.className).toContain("shadow-card");
   });
 });
