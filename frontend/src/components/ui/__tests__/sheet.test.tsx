@@ -2,7 +2,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "../sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../sheet";
 
 describe("Sheet", () => {
   it("renders content when opened", async () => {
@@ -13,6 +20,7 @@ describe("Sheet", () => {
         <SheetContent side="bottom">
           <SheetHeader chapter="CHAPTER">
             <SheetTitle>导航</SheetTitle>
+            <SheetDescription>移动端导航</SheetDescription>
           </SheetHeader>
         </SheetContent>
       </Sheet>,
@@ -29,6 +37,7 @@ describe("Sheet", () => {
         <SheetTrigger>唤起</SheetTrigger>
         <SheetContent side="bottom" data-testid="sc">
           <SheetTitle>x</SheetTitle>
+          <SheetDescription>描述</SheetDescription>
         </SheetContent>
       </Sheet>,
     );
@@ -44,6 +53,7 @@ describe("Sheet", () => {
         <SheetTrigger>唤起</SheetTrigger>
         <SheetContent side="right" data-testid="sc">
           <SheetTitle>x</SheetTitle>
+          <SheetDescription>描述</SheetDescription>
         </SheetContent>
       </Sheet>,
     );

@@ -52,6 +52,7 @@ describe("Dialog", () => {
       <Dialog defaultOpen>
         <DialogContent data-testid="dc">
           <DialogTitle>x</DialogTitle>
+          <DialogDescription>描述</DialogDescription>
         </DialogContent>
       </Dialog>,
     );
