@@ -1,38 +1,20 @@
-import { BarChart3, FileUp, Gauge, ListChecks, UsersRound } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Outlet } from "react-router-dom";
 
-import { navLinkClassName } from "@/lib/utils";
-
-const navItems = [
-  { to: "/admin/dashboard", label: "仪表盘", icon: Gauge },
-  { to: "/admin/questions", label: "题库", icon: ListChecks },
-  { to: "/admin/questions/import", label: "导入", icon: FileUp },
-  { to: "/admin/exams", label: "考试", icon: UsersRound },
-  { to: "/admin/reports/scores", label: "报表", icon: BarChart3 },
-];
+import { AdminSideRail } from "@/components/layout/AdminSideRail";
+import { Footer } from "@/components/layout/Footer";
 
 export function AdminLayout() {
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[240px_1fr]">
-      <aside className="border-b bg-card md:min-h-screen md:border-b-0 md:border-r">
-        <div className="flex flex-col gap-5 p-4">
-          <div>
-            <h1 className="text-lg font-semibold">考试管理</h1>
-            <p className="text-sm text-muted-foreground">题库、人员、成绩</p>
+    <div className="flex min-h-screen flex-col bg-canvas-warm">
+      <div className="flex flex-1 flex-col lg:flex-row">
+        <AdminSideRail />
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-10">
+          <div className="mx-auto w-full max-w-6xl">
+            <Outlet />
           </div>
-          <nav className="flex flex-wrap gap-2 md:flex-col">
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} className={navLinkClassName}>
-                <item.icon data-icon="inline-start" />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-      </aside>
-      <main className="px-4 py-6 md:px-8">
-        <Outlet />
-      </main>
+        </main>
+      </div>
+      <Footer />
     </div>
   );
 }
