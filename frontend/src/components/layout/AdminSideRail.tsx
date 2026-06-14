@@ -27,7 +27,13 @@ const navItems: NavItem[] = [
   { to: "/admin/reports/scores", label: "报表" },
 ];
 
-function SidebarList({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarList({
+  onNavigate,
+  tone = "dark",
+}: {
+  onNavigate?: () => void;
+  tone?: "dark" | "light";
+}) {
   return (
     <nav className="flex flex-col gap-1">
       {navItems.map((item) => (
@@ -38,9 +44,13 @@ function SidebarList({ onNavigate }: { onNavigate?: () => void }) {
           className={({ isActive }) =>
             cn(
               "flex h-11 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
-              isActive
-                ? "bg-white text-ink"
-                : "text-footer-soft hover:bg-white/10 hover:text-white",
+              tone === "dark"
+                ? isActive
+                  ? "bg-white text-ink"
+                  : "text-footer-soft hover:bg-white/10 hover:text-white"
+                : isActive
+                  ? "bg-surface-card text-ink"
+                  : "text-body hover:bg-surface-card hover:text-ink",
             )
           }
         >
@@ -90,7 +100,7 @@ export function AdminSideRail() {
             <SheetDescription className="sr-only">管理后台导航菜单</SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-6">
-            <SidebarList onNavigate={() => setMobileOpen(false)} />
+            <SidebarList tone="light" onNavigate={() => setMobileOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>

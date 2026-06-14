@@ -1,4 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
 
 import { useMediaQuery } from "@/lib/use-media-query";
 
@@ -62,13 +64,18 @@ describe("useMediaQuery", () => {
     expect(listeners).toHaveLength(0);
   });
 
-  it("returns false when matchMedia is unavailable", () => {
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: undefined,
-    });
+  it("returns false during SSR when window is undefined", () => {
+    const originalWindow = globalThis.window;
 
-    const { result } = renderHook(() => useMediaQuery("(min-width: 1024px)"));
-    expect(result.current).toBe(false);
+    try {
+      delete (globalThis as { window?: Window }).window;
+      function Probe() {
+        return createElement("span", null, String(useMediaQuery("(min-width: 1024px)")));
+      }
+
+      expect(renderToString(createElement(Probe))).toContain(">false<");
+    } finally {
+      (globalThis as { window: Window }).window = originalWindow;
+    }
   });
 });

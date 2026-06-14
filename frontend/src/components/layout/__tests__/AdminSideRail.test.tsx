@@ -66,4 +66,18 @@ describe("AdminSideRail", () => {
 
     expect(await screen.findByText("导航")).toBeInTheDocument();
   });
+
+  it("uses high-contrast light link colors inside the mobile sheet", async () => {
+    const user = userEvent.setup();
+    renderSideRail("/admin/dashboard", false);
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+
+    const inactiveLink = await screen.findByRole("link", { name: "题库" });
+    expect(inactiveLink).toHaveClass("text-body");
+    expect(inactiveLink).toHaveClass("hover:bg-surface-card");
+    expect(inactiveLink).toHaveClass("hover:text-ink");
+    expect(inactiveLink).not.toHaveClass("text-footer-soft");
+    expect(inactiveLink).not.toHaveClass("hover:text-white");
+  });
 });
