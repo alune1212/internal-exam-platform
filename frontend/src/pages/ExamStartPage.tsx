@@ -1,11 +1,19 @@
 import { useMutation } from "@tanstack/react-query";
-import { ClipboardCheck } from "lucide-react";
+import { ArrowRight, ClipboardCheck } from "lucide-react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 
 import { startExam } from "@/api/exams";
+import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const RULES: { text: string }[] = [
+  { text: "考试中答案会自动暂存，但倒计时不会暂停。" },
+  { text: "可以提前交卷，到时间系统会自动提交。" },
+  { text: "提交后自动判分，并按配置展示答案与排名。" },
+  { text: "系统会在开始时生成题目快照，后续题库修改不影响本次结果。" },
+];
 
 export function ExamStartPage() {
   const { examId = "1" } = useParams();
@@ -19,34 +27,70 @@ export function ExamStartPage() {
   });
 
   return (
-    <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>考试开始确认</CardTitle>
-        <CardDescription>系统会在开始时生成题目快照，后续题库修改不影响本次结果。</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <ul className="list-disc pl-5 text-sm text-muted-foreground">
-          <li>考试中答案会自动暂存，但倒计时不会暂停。</li>
-          <li>可以提前交卷，到时间系统自动提交。</li>
-          <li>提交后自动判分，并按配置展示答案和排名。</li>
-        </ul>
+    <div className="mx-auto flex max-w-3xl flex-col gap-8">
+      <header className="flex flex-col gap-3">
+        <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
+        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+          坐下来，开始考试。
+        </h1>
+        <p className="text-body text-body-lg">
+          仔细阅读下面的规则，然后开始倒计时。开始后系统会立即生成题目快照。
+        </p>
+      </header>
+
+      <section className="rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
+        <ol className="flex flex-col gap-3 text-body italic text-ink">
+          {RULES.map((rule, index) => (
+            <li key={rule.text} className="flex gap-3">
+              <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span>{rule.text}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {candidate ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5">
+          <p className="text-caption uppercase tracking-[0.16em] text-muted">当前考试人</p>
+          <NamePlate
+            candidate={{
+              name: candidate.name,
+              employeeNo: candidate.employee_no ?? undefined,
+              department: candidate.department ?? undefined,
+            }}
+          />
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-3">
         {candidate ? (
-          <p className="text-sm text-muted-foreground">当前考试人：{candidate.name}</p>
-        ) : null}
-        {candidate ? (
-          <Button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
+          <Button
+            type="button"
+            size="lg"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+            className="self-start"
+          >
             <ClipboardCheck data-icon="inline-start" />
-            {mutation.isPending ? "正在开始" : "开始考试"}
+            {mutation.isPending ? "正在开始..." : "开始考试"}
+            <ArrowRight data-icon="inline-end" />
           </Button>
         ) : (
-          <Button asChild>
-            <Link to="/login">先登录考试人</Link>
+          <Button asChild size="lg" className="self-start">
+            <Link to="/login">
+              先登录考试人
+              <ArrowRight data-icon="inline-end" />
+            </Link>
           </Button>
         )}
         {mutation.isError ? (
-          <p className="text-sm text-destructive">开始考试失败，请确认考试仍处于发布状态。</p>
+          <p className="text-caption text-error" role="alert">
+            开始考试失败，请确认考试仍处于发布状态。
+          </p>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
