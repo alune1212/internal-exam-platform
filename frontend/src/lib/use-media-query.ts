@@ -29,3 +29,8 @@ export function useMediaQuery(query: string): boolean {
 
   return matches;
 }
+
+export const MD = {
+  md: "(min-width: 768px)",
+  lg: "(min-width: 1024px)",
+} as const;
