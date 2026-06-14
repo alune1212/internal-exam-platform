@@ -45,6 +45,25 @@ describe("EmptyState", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  it("renders and invokes a secondary action when provided", async () => {
+    const user = userEvent.setup();
+    const onSecondary = vi.fn();
+
+    render(
+      <EmptyState
+        action={{ label: "返回", onClick: () => undefined }}
+        secondaryAction={{ label: "重试", onClick: onSecondary }}
+        chapter="CHAPTER 99 · OOPS"
+        description="请稍后再试。"
+        title="出了点小问题。"
+        tone="error"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "重试" }));
+    expect(onSecondary).toHaveBeenCalledTimes(1);
+  });
+
   it("omits the action button when action is not provided", () => {
     render(<EmptyState chapter="CHAPTER 00" description="x" title="暂无内容" />);
 

@@ -12,3 +12,5 @@ export type { StatusPillProps, StatusPillVariant } from "./StatusPill";
 
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateAction, EmptyStateProps, EmptyStateTone } from "./EmptyState";
+
+export { ContentSkeleton } from "./ContentSkeleton";

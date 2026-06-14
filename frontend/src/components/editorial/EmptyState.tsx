@@ -17,6 +17,7 @@ export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
   description: string;
   action?: EmptyStateAction;
+  secondaryAction?: EmptyStateAction;
   tone?: EmptyStateTone;
 }
 
@@ -25,6 +26,7 @@ export function EmptyState({
   title,
   description,
   action,
+  secondaryAction,
   tone = "default",
   className,
   ...props
@@ -42,10 +44,19 @@ export function EmptyState({
       </ChapterNumber>
       <h2 className="font-display text-display-md italic text-ink">{title}</h2>
       <p className="text-body text-muted">{description}</p>
-      {action ? (
-        <Button size="lg" type="button" onClick={action.onClick}>
-          {action.label}
-        </Button>
+      {action || secondaryAction ? (
+        <div className="flex flex-wrap justify-center gap-3">
+          {action ? (
+            <Button size="lg" type="button" onClick={action.onClick}>
+              {action.label}
+            </Button>
+          ) : null}
+          {secondaryAction ? (
+            <Button size="lg" type="button" variant="outline" onClick={secondaryAction.onClick}>
+              {secondaryAction.label}
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
