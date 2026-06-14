@@ -1,0 +1,204 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import type React from "react";
+import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getAttempt, getAttemptResult } from "@/api/attempts";
+import { getActiveExams } from "@/api/exams";
+import { getPracticeQuestions } from "@/api/questions";
+import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { ExamResultPage } from "@/pages/ExamResultPage";
+import { ExamTakingPage } from "@/pages/ExamTakingPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { PracticePage } from "@/pages/PracticePage";
+import type { Attempt, AttemptResult } from "@/types/attempt";
+import type { Candidate } from "@/types/candidate";
+import type { Exam } from "@/types/exam";
+import type { Question } from "@/types/question";
+
+vi.mock("@/api/auth", () => ({
+  loginCandidate: vi.fn(),
+}));
+
+vi.mock("@/api/attempts", () => ({
+  getAttempt: vi.fn(),
+  getAttemptResult: vi.fn(),
+  saveAttemptAnswers: vi.fn(),
+  submitAttempt: vi.fn(),
+}));
+
+vi.mock("@/api/exams", () => ({
+  getActiveExams: vi.fn(),
+}));
+
+vi.mock("@/api/questions", () => ({
+  getPracticeQuestions: vi.fn(),
+  submitPracticeAnswer: vi.fn(),
+}));
+
+const candidate: Candidate = {
+  id: 1,
+  name: "张敏",
+  employee_no: "E1001",
+  department: "产品部",
+  should_attend: true,
+  status: "active",
+};
+
+const attempt: Attempt = {
+  id: 10,
+  exam_id: 1,
+  candidate_id: 1,
+  status: "in_progress",
+  started_at: new Date(Date.now() - 60_000).toISOString(),
+  score: 0,
+  total_score: 4,
+  correct_count: 0,
+  wrong_count: 0,
+  questions: [
+    {
+      id: 101,
+      question_type: "single",
+      stem_snapshot: "首都是哪里？",
+      options_snapshot: [
+        { label: "A", content: "北京", sort_order: 1 },
+        { label: "B", content: "上海", sort_order: 2 },
+      ],
+      score: 2,
+      sort_order: 1,
+      selected_answer: "A",
+    },
+  ],
+};
+
+const result: AttemptResult = {
+  attempt_id: 10,
+  score: 2,
+  total_score: 4,
+  correct_count: 1,
+  wrong_count: 1,
+  questions: [
+    {
+      attempt_question_id: 101,
+      stem_snapshot: "首都是哪里？",
+      selected_answer: "A",
+      correct_answer_snapshot: "A",
+      analysis_snapshot: "北京是首都。",
+      is_correct: true,
+      score_awarded: 2,
+      score: 2,
+    },
+  ],
+};
+
+const exam: Exam = {
+  id: 1,
+  title: "内部考试",
+  description: "考试说明",
+  duration_minutes: 30,
+  question_rule: {},
+  status: "published",
+  show_answer_after_submit: true,
+  show_ranking: true,
+};
+
+const practiceQuestions: Question[] = [
+  {
+    id: 201,
+    question_type: "single",
+    stem: "练习题题干",
+    score: 2,
+    status: "active",
+    options: [
+      { id: 1, label: "A", content: "选项 A", is_correct: true, sort_order: 1 },
+      { id: 2, label: "B", content: "选项 B", is_correct: false, sort_order: 2 },
+    ],
+  },
+];
+
+function renderPage(
+  path: string,
+  element: React.ReactElement,
+  context?: CandidateSessionContext,
+  initialEntry = path,
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/",
+        element: <Outlet context={context ?? null} />,
+        children: [{ path, element }],
+      },
+    ],
+    { initialEntries: [`/${initialEntry}`] },
+  );
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+}
+
+describe("P0 pages", () => {
+  beforeEach(() => {
+    vi.mocked(getAttempt).mockResolvedValue(attempt);
+    vi.mocked(getAttemptResult).mockResolvedValue(result);
+    vi.mocked(getActiveExams).mockResolvedValue([exam]);
+    vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
+  });
+
+  it("renders the Phase 5 login chapter and bilingual name label", () => {
+    renderPage("login", <LoginPage />, {
+      candidate: null,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(screen.getByText("CHAPTER 01 · WELCOME")).toBeInTheDocument();
+    expect(screen.getByText("坐下来，开始考试。")).toBeInTheDocument();
+    expect(screen.getByText(/姓名 ·/)).toBeInTheDocument();
+  });
+
+  it("renders the exam taking page with focus-mode progress and option cards", async () => {
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    expect((await screen.findAllByText(/Q\s*01\s*\/\s*01/)).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /选项 A：北京/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/CHAPTER 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
+  });
+
+  it("renders the exam result page black-card result copy and filter controls", async () => {
+    renderPage(
+      "exams/:examId/result",
+      <ExamResultPage />,
+      undefined,
+      "exams/1/result?attemptId=10",
+    );
+
+    expect(await screen.findByText("考试结束。")).toBeInTheDocument();
+    expect(screen.getByText("YOUR SCORE · 你的分数")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
+  });
+
+  it("renders the practice focus page with submit affordance", async () => {
+    renderPage("practice", <PracticePage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(await screen.findByText("刷一遍，记一遍。")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
+  });
+});

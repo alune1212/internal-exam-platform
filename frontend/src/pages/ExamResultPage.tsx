@@ -1,80 +1,177 @@
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { getAttemptResult } from "@/api/attempts";
+import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export function ExamResultPage() {
   const { examId = "1" } = useParams();
   const [searchParams] = useSearchParams();
   const attemptId = searchParams.get("attemptId");
+  const [filter, setFilter] = useState<"all" | "wrong">("all");
+
   const { data: result, isLoading } = useQuery({
     queryKey: ["attempt-result", attemptId],
     queryFn: () => getAttemptResult(attemptId ?? ""),
     enabled: Boolean(attemptId),
   });
 
+  const visibleQuestions =
+    result?.questions.filter((question) => (filter === "wrong" ? !question.is_correct : true)) ??
+    [];
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>考试结果</CardTitle>
-          <CardDescription>提交后自动判分</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <p className="text-4xl font-semibold">
-            {result ? `${result.score} / ${result.total_score}` : isLoading ? "加载中" : "--"}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {result
-              ? `正确 ${result.correct_count} 题，错误 ${result.wrong_count} 题`
-              : "提交后显示成绩"}
-          </p>
-          <Button asChild variant="outline">
-            <Link to={`/exams/${examId}/ranking`}>查看排名</Link>
-          </Button>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>答案与解析</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {result?.questions.length ? (
-            result.questions.map((question, index) => (
-              <div key={question.attempt_question_id} className="rounded-md border p-4">
-                <p className="font-medium">
-                  {index + 1}. {question.stem_snapshot}
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  你的答案：{question.selected_answer || "未作答"}；正确答案：
-                  {question.correct_answer_snapshot}
-                </p>
-                <p
-                  className={
-                    question.is_correct
-                      ? `mt-1 text-sm text-emerald-700`
-                      : `mt-1 text-sm text-destructive`
-                  }
-                >
-                  {question.is_correct ? "回答正确" : "回答错误"}，得分 {question.score_awarded} /{" "}
-                  {question.score}
-                </p>
-                {question.analysis_snapshot ? (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    解析：{question.analysis_snapshot}
-                  </p>
-                ) : null}
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
+        <Wordmark subtitle="— 结果" />
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/exams">返回考试列表</Link>
+        </Button>
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+        <Card className="border-0 bg-footer text-canvas shadow-pop">
+          <CardContent className="flex flex-col gap-6 p-6 md:p-8">
+            <ChapterNumber className="text-footer-soft">CHAPTER 99 · RESULT</ChapterNumber>
+            <h1 className="font-display text-[40px] font-semibold italic leading-[1.05] text-canvas md:text-[48px]">
+              考试结束。
+            </h1>
+
+            <div className="flex flex-col gap-2 border-t border-footer-soft pt-6">
+              <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
+                YOUR SCORE · 你的分数
+              </span>
+              <p className="font-display text-[56px] font-semibold tabular-nums leading-none text-canvas md:text-[64px]">
+                {result ? `${result.score}` : "—"}
+                <span className="ml-2 text-body-lg text-footer-soft">
+                  / {result ? result.total_score : "—"}
+                </span>
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-6 border-t border-footer-soft pt-6 text-body">
+              <div className="flex flex-col gap-1">
+                <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
+                  正确
+                </span>
+                <span className="font-display text-display-md font-semibold tabular-nums text-success">
+                  {result?.correct_count ?? "—"}
+                </span>
               </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {isLoading ? "正在加载结果" : "暂无结果，请先完成考试。"}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+              <div className="flex flex-col gap-1">
+                <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
+                  错误
+                </span>
+                <span className="font-display text-display-md font-semibold tabular-nums text-error">
+                  {result?.wrong_count ?? "—"}
+                </span>
+              </div>
+            </div>
+
+            <Button asChild className="w-full bg-canvas text-ink hover:bg-canvas-warm">
+              <Link to={`/exams/${examId}/ranking`}>
+                查看排名
+                <ChevronRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <section className="flex flex-col gap-4">
+          <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
+            <div className="flex flex-col gap-1">
+              <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
+                CHAPTER R · REVIEW
+              </span>
+              <h2 className="font-display text-display-md font-semibold text-ink">答案与解析</h2>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas p-1 text-body-sm">
+              <button
+                type="button"
+                onClick={() => setFilter("all")}
+                className={cn(
+                  "rounded-pill px-4 py-1",
+                  filter === "all" ? "bg-ink text-canvas" : "text-muted",
+                )}
+              >
+                全部 ({result?.questions.length ?? 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilter("wrong")}
+                className={cn(
+                  "rounded-pill px-4 py-1",
+                  filter === "wrong" ? "bg-ink text-canvas" : "text-muted",
+                )}
+              >
+                只看错题 ({result?.wrong_count ?? 0})
+              </button>
+            </div>
+          </header>
+
+          <div className="flex flex-col gap-4">
+            {visibleQuestions.length ? (
+              visibleQuestions.map((question, index) => (
+                <article
+                  key={question.attempt_question_id}
+                  className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5 shadow-card"
+                >
+                  <header className="flex items-baseline justify-between gap-3">
+                    <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
+                      Q {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-caption uppercase tracking-[0.16em]",
+                        question.is_correct ? "text-success" : "text-error",
+                      )}
+                    >
+                      {question.is_correct ? "CORRECT · 正确" : "WRONG · 错误"}
+                    </span>
+                  </header>
+                  <p className="text-body text-ink">{question.stem_snapshot}</p>
+                  <dl className="grid gap-1 border-t border-hairline pt-3 text-body-sm">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <dt className="text-caption uppercase tracking-[0.16em] text-muted">
+                        你的答案
+                      </dt>
+                      <dd className="text-ink">{question.selected_answer || "未作答"}</dd>
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <dt className="text-caption uppercase tracking-[0.16em] text-muted">
+                        正确答案
+                      </dt>
+                      <dd className="text-ink">{question.correct_answer_snapshot}</dd>
+                    </div>
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <dt className="text-caption uppercase tracking-[0.16em] text-muted">得分</dt>
+                      <dd className="font-mono tabular-nums text-ink">
+                        {question.score_awarded} / {question.score}
+                      </dd>
+                    </div>
+                  </dl>
+                  {question.analysis_snapshot ? (
+                    <p className="text-body-sm text-muted">
+                      <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
+                      {question.analysis_snapshot}
+                    </p>
+                  ) : null}
+                </article>
+              ))
+            ) : (
+              <p className="text-body-sm text-muted">
+                {isLoading ? "正在加载结果" : "暂无结果，请先完成考试。"}
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

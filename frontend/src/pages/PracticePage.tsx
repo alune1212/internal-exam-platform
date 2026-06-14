@@ -1,32 +1,53 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { CheckCircle2, List, Send, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useOutletContext } from "react-router-dom";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
-import { QuestionNavigator } from "@/components/QuestionNavigator";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
+import { ExamNavigator } from "@/components/exam/ExamNavigator";
+import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
+import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
 
+type AnswerMap = Record<number, string>;
+type ResultMap = Record<number, PracticeAnswerResult>;
+
 export function PracticePage() {
   const { candidate } = useOutletContext<CandidateSessionContext>();
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [results, setResults] = useState<Record<number, PracticeAnswerResult>>({});
+  const [answers, setAnswers] = useState<AnswerMap>({});
+  const [results, setResults] = useState<ResultMap>({});
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
   const { data = [], isLoading } = useQuery({
     queryKey: ["practice-questions"],
     queryFn: getPracticeQuestions,
   });
+
   const mutation = useMutation({
     mutationFn: submitPracticeAnswer,
     onSuccess: (result) => {
       setResults((current) => ({ ...current, [result.question_id]: result }));
     },
   });
-  const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
+
+  const total = data.length;
+  const activeQuestion: Question | undefined = data[activeIndex];
+  const activeResult = activeQuestion ? results[activeQuestion.id] : undefined;
+
+  const answeredCount = useMemo(
+    () => data.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0),
+    [answers, data],
+  );
+
   const navItems = useMemo(
     () =>
       buildQuestionNavItems({
@@ -36,24 +57,19 @@ export function PracticePage() {
           const result = results[question.id];
           return result ? (result.is_correct ? "correct" : "wrong") : undefined;
         },
-        getTargetId: (question) => `practice-question-${question.id}`,
+        getTargetId: () => "practice-question-focus",
       }),
     [answers, data, results],
   );
 
-  function handleJump(targetId: string, itemId: number) {
-    setActiveQuestionId(itemId);
-    document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function handleSingleChange(question: Question, label: string) {
+    setAnswers((current) => ({ ...current, [question.id]: label }));
   }
 
-  function handleSingleChange(questionId: number, label: string) {
-    setAnswers((current) => ({ ...current, [questionId]: label }));
-  }
-
-  function handleMultipleChange(questionId: number, label: string, checked: boolean) {
+  function handleMultipleChange(question: Question, label: string, checked: boolean) {
     setAnswers((current) => ({
       ...current,
-      [questionId]: toggleMultipleAnswer(current[questionId], label, checked),
+      [question.id]: toggleMultipleAnswer(current[question.id], label, checked),
     }));
   }
 
@@ -68,143 +84,304 @@ export function PracticePage() {
     });
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-2xl font-semibold">练习模式</h2>
-        <p className="text-muted-foreground">刷全部 active 题目，练习结果不计入正式成绩。</p>
-      </div>
-      {!candidate ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>请先登录考试人</CardTitle>
-            <CardDescription>登录后可提交练习答案并记录练习结果。</CardDescription>
-          </CardHeader>
-          <CardContent>
+  const goPrev = useCallback(() => setActiveIndex((index) => Math.max(0, index - 1)), []);
+  const goNext = useCallback(
+    () => setActiveIndex((index) => Math.min(data.length - 1, index + 1)),
+    [data.length],
+  );
+
+  useEffect(() => {
+    function handleKeydown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        if (tag === "input" || tag === "textarea" || target.isContentEditable) {
+          return;
+        }
+      }
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goPrev();
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        goNext();
+      }
+    }
+    window.addEventListener("keydown", handleKeydown);
+    return () => window.removeEventListener("keydown", handleKeydown);
+  }, [goNext, goPrev]);
+
+  if (!candidate) {
+    return (
+      <div className="mx-auto max-w-3xl py-12">
+        <Card className="bg-surface-card">
+          <CardContent className="flex flex-col gap-4 p-8">
+            <ChapterNumber>CHAPTER 00 · NOT LOGGED IN</ChapterNumber>
+            <h1 className="font-display text-display-lg font-semibold italic text-ink">
+              请先登录考试人。
+            </h1>
+            <p className="text-body text-muted">登录后可提交练习答案并记录练习结果。</p>
             <Button asChild>
               <Link to="/login">去登录</Link>
             </Button>
           </CardContent>
         </Card>
-      ) : null}
-      <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-        <div className="flex flex-col gap-4">
-          <div className="lg:hidden">
-            <QuestionNavigator items={navItems} activeId={activeQuestionId} onJump={handleJump} />
+      </div>
+    );
+  }
+
+  if (isLoading || total === 0 || !activeQuestion) {
+    return (
+      <div className="mx-auto max-w-3xl py-12">
+        <Card className="bg-surface-card">
+          <CardContent className="flex flex-col gap-4 p-8">
+            <ChapterNumber>CHAPTER PR · PRACTICE</ChapterNumber>
+            <h1 className="font-display text-display-lg font-semibold italic text-ink">
+              {total === 0 ? "暂无题目" : "练习模式"}
+            </h1>
+            <p className="text-body text-muted">
+              {total === 0
+                ? "管理员导入题库后会显示在这里。"
+                : `当前 ${total} 道题，可逐题提交并查看对错。`}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const isMultiple = activeQuestion.question_type === "multiple";
+  const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
+  const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
+  const stemChapterLabel = `CHAPTER ${String(activeIndex + 1).padStart(2, "0")} · ${getQuestionTypeLabel(
+    activeQuestion.question_type,
+  )} · ${activeQuestion.score} 分`;
+
+  const options = activeQuestion.options.map((option) => ({
+    label: option.label,
+    content: option.content,
+    selected: isMultiple ? selectedLabels.includes(option.label) : singleValue === option.label,
+  }));
+
+  const handleSelectOption = (label: string) => {
+    if (isMultiple) {
+      handleMultipleChange(activeQuestion, label, !selectedLabels.includes(label));
+    } else {
+      handleSingleChange(activeQuestion, label);
+    }
+  };
+
+  const jumpToQuestion = (id: number) => {
+    const nextIndex = data.findIndex((question) => question.id === id);
+    if (nextIndex >= 0) {
+      setActiveIndex(nextIndex);
+    }
+  };
+
+  const answerFeedback = activeResult ? (
+    <span
+      className={cn(
+        "inline-flex items-center gap-2 text-body",
+        activeResult.is_correct ? "text-success" : "text-error",
+      )}
+    >
+      {activeResult.is_correct ? <CheckCircle2 /> : <XCircle />}
+      {activeResult.is_correct ? "回答正确" : "回答错误"}，正确答案：{activeResult.correct_answer}
+    </span>
+  ) : (
+    <span className="text-body-sm text-muted">提交后显示正确答案和解析。</span>
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="sticky top-0 z-30 -mx-4 border-b border-hairline-soft bg-canvas px-4 py-3 md:-mx-8 md:px-8">
+        <div className="flex items-center justify-between gap-4">
+          <Wordmark subtitle="— 练习" />
+          <div className="hidden items-center gap-3 md:flex">
+            <ProgressCapsule current={activeIndex + 1} total={total} answered={answeredCount} />
           </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>题目列表</CardTitle>
-              <CardDescription>
-                {isLoading ? "正在加载题目" : `当前 ${data.length} 道题`}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              {data.length ? (
-                data.map((question, index) => {
-                  const result = results[question.id];
-                  return (
-                    <div
-                      key={question.id}
-                      id={`practice-question-${question.id}`}
-                      className={cn(
-                        "scroll-mt-24 rounded-md border p-4",
-                        activeQuestionId === question.id && "ring-2 ring-ring ring-offset-2",
-                      )}
-                    >
-                      <div className="mb-2 flex items-center gap-2">
-                        <Badge variant="outline">
-                          {getQuestionTypeLabel(question.question_type)}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">{question.score} 分</span>
-                      </div>
-                      <p className="font-medium">
-                        {index + 1}. {question.stem}
-                      </p>
-                      <div className="mt-3 grid gap-2">
-                        {question.options.map((option) => {
-                          const isMultiple = question.question_type === "multiple";
-                          const checked = isMultiple
-                            ? splitAnswer(answers[question.id]).includes(option.label)
-                            : answers[question.id] === option.label;
-                          return (
-                            <label
-                              key={option.id}
-                              className="flex items-center gap-2 rounded-md border p-3 text-sm"
-                            >
-                              <input
-                                type={isMultiple ? "checkbox" : "radio"}
-                                name={`practice-question-${question.id}`}
-                                checked={checked}
-                                onChange={(event) =>
-                                  isMultiple
-                                    ? handleMultipleChange(
-                                        question.id,
-                                        option.label,
-                                        event.target.checked,
-                                      )
-                                    : handleSingleChange(question.id, option.label)
-                                }
-                              />
-                              <span>
-                                {option.label}. {option.content}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={!candidate || !answers[question.id] || mutation.isPending}
-                          onClick={() => handleSubmit(question)}
-                        >
-                          提交本题
-                        </Button>
-                        {result ? (
-                          <span
-                            className={
-                              result.is_correct
-                                ? `text-sm text-emerald-700`
-                                : `text-sm text-destructive`
-                            }
-                          >
-                            {result.is_correct ? "回答正确" : "回答错误"}，正确答案：
-                            {result.correct_answer}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            提交后显示正确答案和解析。
-                          </span>
-                        )}
-                      </div>
-                      {result?.analysis ? (
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          解析：{result.analysis}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  暂无题目，管理员导入题库后会显示在这里。
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/exams">返回考试</Link>
+          </Button>
         </div>
-        <aside className="hidden self-start lg:block">
-          <div className="fixed right-4 top-24 z-20 h-[calc(100vh-7rem)] w-[300px]">
-            <QuestionNavigator
-              items={navItems}
-              activeId={activeQuestionId}
-              className="h-full"
-              onJump={handleJump}
-            />
-          </div>
+      </header>
+
+      <div className="flex flex-col gap-3 border-b border-hairline pb-4">
+        <ChapterNumber>CHAPTER PR · PRACTICE</ChapterNumber>
+        <h1 className="font-display text-display-lg font-semibold italic text-ink md:text-display-xl">
+          刷一遍，记一遍。
+        </h1>
+        <p className="max-w-2xl text-body-lg text-muted">
+          练习结果不计入正式成绩。提交后即时显示对错与解析。
+        </p>
+      </div>
+
+      <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
+        <div id="practice-question-focus" className="flex flex-col gap-4">
+          <ExamFocusMode
+            progress={{ current: activeIndex + 1, total, answered: answeredCount }}
+            remainingSeconds={Number.POSITIVE_INFINITY}
+            stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
+            options={options}
+            onSelectOption={handleSelectOption}
+            nav={{
+              onPrev: goPrev,
+              onNext: goNext,
+              prevDisabled: activeIndex === 0,
+              nextDisabled: activeIndex === total - 1,
+            }}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => handleSubmit(activeQuestion)}
+                disabled={!answers[activeQuestion.id] || mutation.isPending}
+                aria-label="提交本题"
+              >
+                <Send data-icon="inline-start" />
+                {mutation.isPending ? "正在提交" : "提交本题"}
+              </Button>
+              {answerFeedback}
+            </div>
+            {activeResult?.analysis ? (
+              <p className="text-body-sm text-muted">
+                <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
+                {activeResult.analysis}
+              </p>
+            ) : null}
+          </ExamFocusMode>
+        </div>
+
+        <aside className="sticky top-24 self-start">
+          <ExamNavigator
+            items={navItems}
+            activeId={activeQuestion.id}
+            desktopLayout
+            onJump={(_targetId, id) => jumpToQuestion(id)}
+          />
         </aside>
+      </div>
+
+      <div className="flex flex-1 flex-col pb-24 lg:hidden">
+        <ExamFocusMode
+          progress={{ current: activeIndex + 1, total, answered: answeredCount }}
+          remainingSeconds={Number.POSITIVE_INFINITY}
+          stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
+          options={options}
+          onSelectOption={handleSelectOption}
+          nav={{
+            onPrev: goPrev,
+            onNext: goNext,
+            prevDisabled: activeIndex === 0,
+            nextDisabled: activeIndex === total - 1,
+          }}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => handleSubmit(activeQuestion)}
+              disabled={!answers[activeQuestion.id] || mutation.isPending}
+              aria-label="提交本题"
+            >
+              <Send data-icon="inline-start" />
+              {mutation.isPending ? "正在提交" : "提交本题"}
+            </Button>
+            {activeResult ? answerFeedback : null}
+          </div>
+          {activeResult?.analysis ? (
+            <p className="text-body-sm text-muted">
+              <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
+              {activeResult.analysis}
+            </p>
+          ) : null}
+        </ExamFocusMode>
+
+        <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
+          <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
+            <ProgressCapsule
+              current={activeIndex + 1}
+              total={total}
+              answered={answeredCount}
+              variant="dark"
+              className="flex-1"
+            />
+            <button
+              type="button"
+              aria-label="打开题号导航"
+              onClick={() => setSheetOpen(true)}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-canvas"
+            >
+              <List />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {sheetOpen
+        ? createPortal(
+            <MobileSheet
+              items={navItems}
+              activeId={activeQuestion.id}
+              onJump={(id) => {
+                jumpToQuestion(id);
+                setSheetOpen(false);
+              }}
+              onClose={() => setSheetOpen(false)}
+            />,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+function MobileSheet({
+  items,
+  activeId,
+  onJump,
+  onClose,
+}: {
+  items: ReturnType<typeof buildQuestionNavItems>;
+  activeId: number;
+  onJump: (id: number) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end bg-ink"
+      style={{ backgroundColor: "color-mix(in srgb, var(--ink) 40%, transparent)" }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="题号导航"
+      onClick={onClose}
+    >
+      <div
+        className="flex h-[80vh] w-full flex-col gap-4 rounded-t-lg bg-canvas p-5 shadow-elevate"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="flex items-center justify-between border-b border-hairline pb-3">
+          <span className="font-display text-display-sm font-semibold text-ink">题号导航</span>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="关闭">
+            关闭
+          </Button>
+        </header>
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <ExamNavigator
+            items={items}
+            activeId={activeId}
+            sheetLayout
+            desktopLayout={false}
+            onJump={(_targetId, id) => onJump(id)}
+          />
+        </div>
       </div>
     </div>
   );
