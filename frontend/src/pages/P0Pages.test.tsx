@@ -219,6 +219,26 @@ describe("P0 pages", () => {
     ]);
   });
 
+  it("selects the current exam option with an A-D keyboard shortcut", async () => {
+    const user = userEvent.setup();
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    await user.keyboard("b");
+
+    await waitFor(() =>
+      expect(saveAttemptAnswers).toHaveBeenCalledWith("10", [
+        { attempt_question_id: 101, selected_answer: "B" },
+      ]),
+    );
+  });
+
   it("renders the exam result page black-card result copy and filter controls", async () => {
     renderPage(
       "exams/:examId/result",
@@ -253,7 +273,8 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByText("正在加载题目")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.getByText(/Loading/)).toBeInTheDocument();
     expect(screen.queryByText("暂无题目")).not.toBeInTheDocument();
   });
 });

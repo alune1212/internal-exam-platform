@@ -4,6 +4,7 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 
 import { startExam } from "@/api/exams";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { EmptyState } from "@/components/editorial/EmptyState";
 import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
@@ -86,9 +87,15 @@ export function ExamStartPage() {
           </Button>
         )}
         {mutation.isError ? (
-          <p className="text-caption text-error" role="alert">
-            开始考试失败，请确认考试仍处于发布状态。
-          </p>
+          <EmptyState
+            tone="error"
+            chapter="CHAPTER 99 · OOPS"
+            title="开始考试失败。"
+            description="请确认考试仍处于发布状态。"
+            secondaryAction={{ label: "重试", onClick: () => mutation.reset() }}
+            className="items-start py-4 text-left"
+            role="alert"
+          />
         ) : null}
       </div>
     </div>

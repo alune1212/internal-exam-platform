@@ -5,7 +5,8 @@ import { getAdminQuestions } from "@/api/questions";
 import { getAbsentCandidates, getScoreReport } from "@/api/reports";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
+import { EmptyState } from "@/components/editorial/EmptyState";
 import { cn } from "@/lib/utils";
 
 type ActivityTone = "success" | "warning" | "error";
@@ -113,11 +114,7 @@ export function AdminDashboardPage() {
           </h2>
         </header>
         {questions.isLoading || exams.isLoading || scores.isLoading || absent.isLoading ? (
-          <div className="flex flex-col gap-2" aria-busy="true">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
+          <ContentSkeleton rows={3} className="p-0" />
         ) : activity.length ? (
           <ul className="flex flex-col">
             {activity.map((item) => (
@@ -125,7 +122,12 @@ export function AdminDashboardPage() {
             ))}
           </ul>
         ) : (
-          <p className="text-caption italic text-muted">暂无活动记录。</p>
+          <EmptyState
+            chapter="CHAPTER 00 · EMPTY"
+            title="暂无活动记录。"
+            description="当有人交卷或缺席名单产生后，最近活动会显示在这里。"
+            className="py-8"
+          />
         )}
       </section>
     </div>

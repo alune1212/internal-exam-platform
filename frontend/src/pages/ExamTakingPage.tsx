@@ -10,6 +10,7 @@ import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import { Timer } from "@/components/exam/Timer";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -159,16 +160,22 @@ export function ExamTakingPage() {
     [answers, attempt?.questions],
   );
 
-  function handleSingleChange(question: AttemptQuestion, label: string) {
-    setAnswers((current) => ({ ...current, [question.id]: label }));
-    void queueSave([{ attempt_question_id: question.id, selected_answer: label }]);
-  }
+  const handleSingleChange = useCallback(
+    (question: AttemptQuestion, label: string) => {
+      setAnswers((current) => ({ ...current, [question.id]: label }));
+      void queueSave([{ attempt_question_id: question.id, selected_answer: label }]);
+    },
+    [queueSave],
+  );
 
-  function handleMultipleChange(question: AttemptQuestion, label: string, checked: boolean) {
-    const next = toggleMultipleAnswer(answers[question.id], label, checked);
-    setAnswers((current) => ({ ...current, [question.id]: next }));
-    void queueSave([{ attempt_question_id: question.id, selected_answer: next }]);
-  }
+  const handleMultipleChange = useCallback(
+    (question: AttemptQuestion, label: string, checked: boolean) => {
+      const next = toggleMultipleAnswer(answers[question.id], label, checked);
+      setAnswers((current) => ({ ...current, [question.id]: next }));
+      void queueSave([{ attempt_question_id: question.id, selected_answer: next }]);
+    },
+    [answers, queueSave],
+  );
 
   function handleSave() {
     if (!attempt) {
@@ -209,10 +216,46 @@ export function ExamTakingPage() {
         event.preventDefault();
         goNext();
       }
+
+      if (!activeQuestion || submitMutation.isPending || submitStartedRef.current) {
+        return;
+      }
+
+      const key = event.key.toUpperCase();
+      const numericIndex = Number.parseInt(event.key, 10);
+      const label =
+        Number.isInteger(numericIndex) && numericIndex >= 1 && numericIndex <= 9
+          ? String.fromCharCode(64 + numericIndex)
+          : ["A", "B", "C", "D", "E", "F", "G", "H", "I"].includes(key)
+            ? key
+            : null;
+
+      if (!label || !activeQuestion.options_snapshot.some((option) => option.label === label)) {
+        return;
+      }
+
+      event.preventDefault();
+      if (activeQuestion.question_type === "multiple") {
+        handleMultipleChange(
+          activeQuestion,
+          label,
+          !splitAnswer(answers[activeQuestion.id]).includes(label),
+        );
+      } else {
+        handleSingleChange(activeQuestion, label);
+      }
     }
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
-  }, [goNext, goPrev]);
+  }, [
+    activeQuestion,
+    answers,
+    goNext,
+    goPrev,
+    handleMultipleChange,
+    handleSingleChange,
+    submitMutation.isPending,
+  ]);
 
   if (!attemptId) {
     return (
@@ -237,7 +280,7 @@ export function ExamTakingPage() {
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">
           <CardContent className="p-8">
-            <p className="text-body text-muted">正在加载题目</p>
+            <ContentSkeleton rows={4} className="p-0" />
           </CardContent>
         </Card>
       </div>

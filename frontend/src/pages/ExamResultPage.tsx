@@ -5,6 +5,8 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { getAttemptResult } from "@/api/attempts";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
+import { EmptyState } from "@/components/editorial/EmptyState";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -165,9 +167,18 @@ export function ExamResultPage() {
                 </article>
               ))
             ) : (
-              <p className="text-body-sm text-muted">
-                {isLoading ? "正在加载结果" : "暂无结果，请先完成考试。"}
-              </p>
+              <div className="rounded-lg border border-hairline bg-canvas">
+                {isLoading ? (
+                  <ContentSkeleton rows={4} />
+                ) : (
+                  <EmptyState
+                    chapter="CHAPTER 00 · EMPTY"
+                    title="暂无结果，请先完成考试。"
+                    description="提交考试后，这里会显示答案、得分与解析。"
+                    className="py-10"
+                  />
+                )}
+              </div>
             )}
           </div>
         </section>

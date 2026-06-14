@@ -8,6 +8,8 @@ import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
+import { EmptyState } from "@/components/editorial/EmptyState";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
@@ -137,22 +139,26 @@ export function PracticePage() {
     );
   }
 
-  if (isLoading || total === 0 || !activeQuestion) {
-    const empty = !isLoading && total === 0;
-
+  if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">
-          <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>CHAPTER PR · PRACTICE</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold italic text-ink">
-              {empty ? "暂无题目" : "正在加载题目"}
-            </h1>
-            <p className="text-body text-muted">
-              {empty ? "管理员导入题库后会显示在这里。" : "正在读取可练习题目，请稍候。"}
-            </p>
+          <CardContent className="p-8">
+            <ContentSkeleton rows={4} className="p-0" />
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (total === 0 || !activeQuestion) {
+    return (
+      <div className="mx-auto max-w-3xl py-12">
+        <EmptyState
+          chapter="CHAPTER 00 · EMPTY"
+          title="题库为空。"
+          description="管理员导入题库后会显示在这里。"
+        />
       </div>
     );
   }
