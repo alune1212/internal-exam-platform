@@ -61,7 +61,7 @@ function defaultMobileRow<TData>(row: Row<TData>): ReactNode {
             key={cell.id}
             className={cn(
               "flex items-baseline justify-between gap-3 py-1 text-body",
-              priority === "primary" && "font-display text-lg font-semibold text-ink",
+              priority === "primary" && "font-display text-lg font-semibold",
             )}
           >
             <span className="text-caption uppercase tracking-[0.16em] text-muted">{label}</span>

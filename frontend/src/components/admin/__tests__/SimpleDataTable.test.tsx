@@ -81,6 +81,21 @@ describe("SimpleDataTable", () => {
     expect(within(adaCard).getByText("Ada")).toBeInTheDocument();
   });
 
+  it("lets mobile primary values inherit dark card text colour", () => {
+    setMatchMedia(false);
+    render(
+      <SimpleDataTable
+        columns={columns}
+        data={rows}
+        mobileRowClassName={(row) => (row.id === 1 ? "bg-ink text-white" : undefined)}
+      />,
+    );
+
+    const adaCard = screen.getAllByTestId("mobile-row-card")[0]!;
+    expect(adaCard).toHaveClass("text-white");
+    expect(within(adaCard).getByText("98").parentElement).not.toHaveClass("text-ink");
+  });
+
   it("respects a custom emptyText", () => {
     render(<SimpleDataTable columns={columns} data={[]} emptyText="空空如也" />);
 

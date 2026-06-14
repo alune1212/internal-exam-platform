@@ -22,7 +22,7 @@ export function QuestionImportPage() {
     <div className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 03 · LIBRARY</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold tracking-[-0.04em] text-ink lg:text-[40px]">
+        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
           题库导入
         </h1>
         <p className="text-body text-body-lg">
