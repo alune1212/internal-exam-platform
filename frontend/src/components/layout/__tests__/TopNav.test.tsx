@@ -28,11 +28,15 @@ function mockDesktopMediaQuery() {
   });
 }
 
-function renderTopNav(props: { candidate: Candidate | null; onLogout: () => void }) {
+function renderTopNav(props: {
+  candidate: Candidate | null;
+  onLogout: () => void;
+  initialEntry?: string;
+}) {
   mockDesktopMediaQuery();
 
   return render(
-    <MemoryRouter initialEntries={["/practice"]}>
+    <MemoryRouter initialEntries={[props.initialEntry ?? "/practice"]}>
       <TopNav candidate={props.candidate} onLogout={props.onLogout} />
     </MemoryRouter>,
   );
@@ -57,6 +61,13 @@ describe("TopNav", () => {
     const activeLink = screen.getByRole("link", { name: "练习" });
     expect(activeLink).toHaveClass("text-ink");
     expect(activeLink.querySelector("[aria-hidden='true']")).toHaveClass("bg-ink");
+  });
+
+  it("keeps ranking active without also highlighting the exam list item", () => {
+    renderTopNav({ candidate, onLogout: () => {}, initialEntry: "/exams/1/ranking" });
+
+    expect(screen.getByRole("link", { name: "排名" })).toHaveClass("text-ink");
+    expect(screen.getByRole("link", { name: "考试" })).toHaveClass("text-muted");
   });
 
   it("renders the candidate NamePlate when a candidate is logged in", () => {

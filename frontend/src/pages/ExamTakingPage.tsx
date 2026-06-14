@@ -11,7 +11,6 @@ import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import { Timer } from "@/components/exam/Timer";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -323,7 +322,14 @@ export function ExamTakingPage() {
     <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-6">
       <header className="sticky top-0 z-30 -mx-4 border-b border-hairline-soft bg-canvas px-4 py-3 md:-mx-8 md:px-8">
         <div className="flex items-center justify-between gap-4">
-          <Wordmark subtitle={`— ${attempt.questions.length} 题`} />
+          <div className="flex flex-col leading-none">
+            <span className="text-caption uppercase italic tracking-[0.18em] text-muted">
+              EXAM IN PROGRESS
+            </span>
+            <span className="font-display text-display-sm font-semibold text-ink">
+              {attempt.questions.length} 题
+            </span>
+          </div>
           <div className="hidden items-center gap-3 md:flex">
             <ProgressCapsule current={activeIndex + 1} total={total} answered={answeredCount} />
             <Timer remainingSeconds={remainingSeconds} />
@@ -355,7 +361,7 @@ export function ExamTakingPage() {
             }}
           />
         </div>
-        <aside className="sticky top-24 self-start">
+        <aside className="self-start lg:fixed lg:right-8 lg:top-24 lg:z-30 lg:w-60">
           <ExamNavigator
             items={navItems}
             activeId={activeQuestion.id}

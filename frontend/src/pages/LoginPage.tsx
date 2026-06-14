@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { loginCandidate as requestCandidateLogin } from "@/api/auth";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,7 +42,6 @@ export function LoginPage() {
   return (
     <div className="flex min-h-[calc(100vh-10rem)] flex-col justify-center gap-8">
       <div className="flex flex-col gap-6">
-        <Wordmark subtitle="— internal exam platform" />
         <ChapterNumber>CHAPTER 01 · WELCOME</ChapterNumber>
         <h1 className="font-display text-[40px] font-semibold italic leading-[1.05] text-ink md:text-[72px]">
           坐下来，开始考试。

@@ -7,7 +7,6 @@ import { getAttemptResult } from "@/api/attempts";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { EmptyState } from "@/components/editorial/EmptyState";
-import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -31,7 +30,10 @@ export function ExamResultPage() {
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
-        <Wordmark subtitle="— 结果" />
+        <div className="flex flex-col gap-1">
+          <ChapterNumber>CHAPTER 99 · RESULT</ChapterNumber>
+          <h1 className="font-display text-display-md font-semibold italic text-ink">考试结果</h1>
+        </div>
         <Button asChild variant="ghost" size="sm">
           <Link to="/exams">返回考试列表</Link>
         </Button>

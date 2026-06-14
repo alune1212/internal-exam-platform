@@ -6,13 +6,14 @@ import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
-import { getActiveExams } from "@/api/exams";
+import { getActiveExams, getExamRanking } from "@/api/exams";
 import { getPracticeQuestions } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { ExamResultPage } from "@/pages/ExamResultPage";
 import { ExamTakingPage } from "@/pages/ExamTakingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PracticePage } from "@/pages/PracticePage";
+import { RankingPage } from "@/pages/RankingPage";
 import type { Attempt, AttemptResult } from "@/types/attempt";
 import type { Candidate } from "@/types/candidate";
 import type { Exam } from "@/types/exam";
@@ -31,6 +32,7 @@ vi.mock("@/api/attempts", () => ({
 
 vi.mock("@/api/exams", () => ({
   getActiveExams: vi.fn(),
+  getExamRanking: vi.fn(),
 }));
 
 vi.mock("@/api/questions", () => ({
@@ -104,6 +106,30 @@ const exam: Exam = {
   show_ranking: true,
 };
 
+const rankingRows = [
+  {
+    rank: 1,
+    candidate_name: "张三",
+    department: "综合管理部",
+    score: 3,
+    total_score: 749,
+  },
+  {
+    rank: 2,
+    candidate_name: "李四",
+    department: "财务部",
+    score: 0,
+    total_score: 749,
+  },
+  {
+    rank: 3,
+    candidate_name: "王五",
+    department: "运营部",
+    score: 0,
+    total_score: 749,
+  },
+];
+
 const practiceQuestions: Question[] = [
   {
     id: 201,
@@ -151,6 +177,7 @@ describe("P0 pages", () => {
     vi.mocked(getAttempt).mockResolvedValue(attempt);
     vi.mocked(getAttemptResult).mockResolvedValue(result);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
+    vi.mocked(getExamRanking).mockResolvedValue(rankingRows);
     vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
     vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
     vi.mocked(submitAttempt).mockResolvedValue(result);
@@ -252,6 +279,16 @@ describe("P0 pages", () => {
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
   });
 
+  it("renders ranking summary cards before the detailed ranking table", async () => {
+    renderPage("exams/:examId/ranking", <RankingPage />, undefined, "exams/1/ranking");
+
+    expect(await screen.findByText("榜单概览")).toBeInTheDocument();
+    expect(screen.getByText("最高分")).toBeInTheDocument();
+    expect(screen.getByText("平均分")).toBeInTheDocument();
+    expect(screen.getByText("TOP 3")).toBeInTheDocument();
+    expect(screen.getByText("明细排名")).toBeInTheDocument();
+  });
+
   it("renders the practice focus page with submit affordance", async () => {
     renderPage("practice", <PracticePage />, {
       candidate,
@@ -262,6 +299,10 @@ describe("P0 pages", () => {
     expect(await screen.findByText("刷一遍，记一遍。")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("region", { name: "题号导航" })[0].parentElement).toHaveClass(
+      "lg:fixed",
+      "lg:top-24",
+    );
   });
 
   it("shows practice loading copy before empty copy while questions are loading", async () => {

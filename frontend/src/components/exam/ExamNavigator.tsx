@@ -63,7 +63,8 @@ export function ExamNavigator({
       aria-label="题号导航"
       className={cn(
         "flex flex-col gap-4",
-        desktopLayout && "rounded-lg border border-hairline bg-surface-card p-5 shadow-card",
+        desktopLayout &&
+          "max-h-[calc(100vh-7rem)] rounded-lg border border-hairline bg-surface-card p-5 shadow-card",
         sheetLayout && "bg-canvas p-5",
         className,
       )}
@@ -75,7 +76,10 @@ export function ExamNavigator({
         </span>
       </header>
 
-      <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain">
+      <div
+        data-testid="exam-navigator-list"
+        className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain p-1"
+      >
         {groups.map((group) => (
           <div key={group.type} className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between">
@@ -100,7 +104,7 @@ export function ExamNavigator({
                       item.answered && !item.submittedResult && "border-ink bg-ink text-canvas",
                       item.submittedResult === "correct" && "border-success bg-success text-canvas",
                       item.submittedResult === "wrong" && "border-error bg-error text-canvas",
-                      activeId === item.id && "ring-2 ring-ink ring-offset-2",
+                      activeId === item.id && "outline outline-2 outline-offset-[-3px] outline-ink",
                     )}
                   >
                     {item.displayIndex}

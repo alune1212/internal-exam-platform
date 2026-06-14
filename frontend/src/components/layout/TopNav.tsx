@@ -20,6 +20,7 @@ import type { Candidate } from "@/types/candidate";
 type NavItem = {
   to: string;
   label: string;
+  end?: boolean;
 };
 
 type TopNavProps = {
@@ -29,7 +30,7 @@ type TopNavProps = {
 
 const navItems: NavItem[] = [
   { to: "/practice", label: "练习" },
-  { to: "/exams", label: "考试" },
+  { to: "/exams", label: "考试", end: true },
   { to: "/exams/1/ranking", label: "排名" },
 ];
 
@@ -41,6 +42,7 @@ function NavLinkItem({ item }: { item: NavItem }) {
   return (
     <NavLink
       to={item.to}
+      end={item.end}
       className={({ isActive }) =>
         cn(
           "relative inline-flex h-10 items-center px-1 text-body-sm font-medium transition-colors",
