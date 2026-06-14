@@ -18,6 +18,7 @@ This project is a lightweight internal exam and practice platform. Keep changes 
 - Preserve exam snapshot semantics: historical attempts must use saved question, option, answer, analysis, score, and order snapshots.
 - Multiple-choice scoring must compare answer sets, not raw strings.
 - Keep frontend API calls in `frontend/src/api/`; pages should not hand-roll fetch details.
+- Preserve the frontend redesign system: use `frontend/src/index.css` tokens, Tailwind aliases, local UI primitives, and editorial components instead of reintroducing HSL shadcn tokens or ad hoc page styling.
 
 ## Commands
 
@@ -55,4 +56,4 @@ curl http://localhost:8080/api/health
 
 ## Current Stage
 
-The scaffold is runnable. Question Excel import and candidate Excel import both validate rows and persist records plus import batches. Exam configuration create/update/list, candidate-facing active exam listing, exam start snapshots, answer autosave, and submit scoring persist to the database. Time-based auto-submit scheduling and ranking/report SQL are still service stubs. Treat remaining route existence as API shape coverage, not full business completion.
+The scaffold is runnable and the first-phase business loop is implemented. Question Excel import and candidate Excel import validate rows and persist records plus import batches. Exam configuration create/update/list, candidate-facing active exam listing, exam start snapshots, answer autosave, submit scoring, time-based auto-submit checks, ranking, and basic report SQL persist/query real database state. Remaining first-phase gaps are import failure report download, explicit exam-to-candidate scoping, report file export, and frontend/admin session guards. The frontend has completed the Academic Editorial redesign across tokens, primitives, layouts, P0/P1/P2 pages, states, polish, and Docker rebuild verification.

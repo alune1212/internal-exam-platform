@@ -2,24 +2,26 @@
 
 ## Current State
 
-The project is at first-phase scaffold completion. It has a runnable backend, frontend, database migration, Docker Compose stack, and documentation set.
+The project has a runnable first-phase business loop and completed frontend redesign. It has a backend, frontend, database migration, Docker Compose stack, and documentation set.
 
 Implemented foundations:
 
 - FastAPI app with `/api/health`.
 - SQLAlchemy models for candidates, questions, options, exams, attempts, attempt question snapshots, answers, practice answers, and import batches.
 - Alembic initial migration `202606110001_initial_schema.py`.
-- Candidate-facing and admin-facing API route skeletons.
+- Candidate-facing and admin-facing API routes.
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
 - Exam configuration create/update/list persistence and candidate-facing active exam listing.
 - Exam start persistence with attempt creation and question snapshots.
 - Answer autosave persistence and submit scoring from persisted attempt snapshots.
-- React/Vite frontend with candidate and admin layouts.
+- React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
 - Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
+- Time-based auto-submit background check.
+- Ranking and basic admin report SQL queries.
 
 ## Verified Commands
 
@@ -43,7 +45,7 @@ Observed results:
 - Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
 - `/api/health`: returned `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`.
 
-## Known Gaps
+## Implemented Business Loop
 
 - Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
@@ -53,6 +55,14 @@ Observed results:
 - Time-based auto-submit runs as an asyncio background task, checking every 30 seconds.
 - Ranking and reports (score, accuracy, wrong questions, absent candidates) use real SQL queries.
 - Admin authentication is a simple configured username/password placeholder.
+- No frontend auth/session guard exists yet.
+
+## Known Gaps
+
+- Question import failure report download is not implemented.
+- Exam scope is not explicitly linked to imported candidate groups yet.
+- Report export keeps the route/schema shape but does not generate a file yet.
+- Admin authentication remains a simple configured username/password placeholder.
 - No frontend auth/session guard exists yet.
 
 ## Recommended Next Work
@@ -70,3 +80,11 @@ Observed results:
 - **键盘快捷键**：考试作答页支持 `←/→` 切题、`1-9` 与 `A-D` 选择当前题选项；input / textarea / contenteditable 聚焦时不拦截快捷键。
 - **可访问性**：移动端题号导航使用 Radix Sheet；选项卡暴露 radio / checkbox 语义；图标按钮均保留可访问名称。
 - **当前验证口径**：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run format:check`、`npm run build` 均需通过。`npm run lint` 当前为 0 errors，仍有 `badge.tsx` / `button.tsx` 两个 Fast Refresh export warnings。
+
+## Docker Rebuild — 2026-06-14
+
+- `docker compose up -d --build` 已完成，backend 与 frontend 容器已重新创建。
+- Frontend image: `internal-exam-platform-frontend`, created `2026-06-14T07:15:36.464843091Z`, image id `sha256:2dbbd0623ac4d44f356ee29e74a38d21165ec56dddd0521da41d1f4d30b84762`.
+- `http://localhost:5173` 与 `http://localhost:8080` 的前端响应 `Last-Modified` 均为 `Sun, 14 Jun 2026 07:15:36 GMT`。
+- `http://localhost:8000/api/health` 与 `http://localhost:8080/api/health` 均返回 `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`。
+- Docker build 期间 `npm ci` 报告 `5 vulnerabilities (1 moderate, 3 high, 1 critical)`；这不是本次 redesign 阻断项，但后续应单独审计依赖升级。

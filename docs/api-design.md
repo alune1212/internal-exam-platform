@@ -77,4 +77,4 @@ GET /api/admin/reports/export
 - `/api/admin/exams` 的创建、列表和更新已持久化到 `exam` 表。
 - 题库导入接口执行标准 Excel 行级校验，合法行写入 `question` / `question_option`，并写入 `import_batch` 记录失败行号和原因。
 - 应参人员导入接口执行标准 Excel 行级校验，合法行写入 `candidate`，并写入 `import_batch` 记录失败行号和原因。
-- 报表导出和统计查询第一阶段保留路由和 schema，后续补真实 SQL 查询和文件输出。
+- 报表统计查询已使用真实 SQL；报表导出仍保留路由和 schema，后续补文件输出。
