@@ -60,3 +60,13 @@ Observed results:
 1. Add question import failure report download.
 2. Define how an exam is scoped to imported candidates.
 3. Add frontend auth/session guard for candidate and admin pages.
+
+## Phase 7 — States & Polish（完成日期 2026-06-14）
+
+- **视觉系统**：前端已完成 Academic Editorial redesign。设计令牌、UI primitives、editorial components、candidate/admin layouts、P0/P1/P2 页面和报表容器均已接入。
+- **空态 / 错态**：共享 `EmptyState` 支持 `tone="error"` 和主/次操作按钮；页面级空态、加载态和部分操作错误已统一到 shared primitives。
+- **加载态**：新增 `ContentSkeleton`，基于 `Skeleton` shimmer 和 `role="status"` / `aria-busy`。
+- **倒计时 pulse**：`Timer.tsx` 在剩余时间小于等于 5 分钟时使用 `text-error` + pulse，并保留 `aria-live="polite"`。
+- **键盘快捷键**：考试作答页支持 `←/→` 切题、`1-9` 与 `A-D` 选择当前题选项；input / textarea / contenteditable 聚焦时不拦截快捷键。
+- **可访问性**：移动端题号导航使用 Radix Sheet；选项卡暴露 radio / checkbox 语义；图标按钮均保留可访问名称。
+- **当前验证口径**：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run format:check`、`npm run build` 均需通过。`npm run lint` 当前为 0 errors，仍有 `badge.tsx` / `button.tsx` 两个 Fast Refresh export warnings。
