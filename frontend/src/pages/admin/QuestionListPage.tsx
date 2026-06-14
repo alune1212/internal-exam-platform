@@ -1,35 +1,60 @@
-import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { getAdminQuestions } from "@/api/questions";
-import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
+import { ReportPage } from "@/components/admin/ReportPage";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Question } from "@/types/question";
 
 const columns: ColumnDef<Question>[] = [
-  { accessorKey: "id", header: "ID" },
-  { accessorKey: "question_type", header: "题型" },
-  { accessorKey: "stem", header: "题干" },
-  { accessorKey: "score", header: "分值" },
-  { accessorKey: "status", header: "状态" },
+  {
+    accessorKey: "id",
+    header: "ID",
+    cell: ({ row }) => <span className="font-mono text-sm">{row.original.id}</span>,
+    meta: { mobilePriority: false },
+  },
+  {
+    accessorKey: "question_type",
+    header: "TYPE",
+    meta: { mobileLabel: "TYPE" },
+  },
+  {
+    accessorKey: "stem",
+    header: "STEM",
+    cell: ({ row }) => <span className="line-clamp-1 max-w-md">{row.original.stem}</span>,
+    meta: { mobilePriority: "primary", mobileLabel: "STEM" },
+  },
+  {
+    accessorKey: "score",
+    header: "SCORE",
+    cell: ({ row }) => <span className="font-mono text-sm tabular-nums">{row.original.score}</span>,
+    meta: { mobileLabel: "SCORE" },
+  },
+  {
+    accessorKey: "status",
+    header: "STATUS",
+    meta: { mobileLabel: "STATUS" },
+  },
 ];
 
 export function QuestionListPage() {
-  const { data = [] } = useQuery({ queryKey: ["admin-questions"], queryFn: getAdminQuestions });
-
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <CardTitle>题库管理</CardTitle>
-        <Button asChild variant="outline">
-          <Link to="/admin/questions/import">导入题库 Excel</Link>
+    <ReportPage
+      title="题库管理"
+      chapterLabel="CHAPTER 03 · LIBRARY"
+      description="所有题目的列表与状态。点击右上「导入题库」批量上传 Excel。"
+      queryKey="admin-questions"
+      queryFn={getAdminQuestions}
+      columns={columns}
+      actions={
+        <Button asChild size="sm">
+          <Link to="/admin/questions/import">
+            导入题库
+            <ArrowUpRight data-icon="inline-end" />
+          </Link>
         </Button>
-      </CardHeader>
-      <CardContent>
-        <SimpleDataTable columns={columns} data={data} />
-      </CardContent>
-    </Card>
+      }
+    />
   );
 }

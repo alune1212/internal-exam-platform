@@ -1,46 +1,73 @@
-import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FileUp } from "lucide-react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { importCandidates } from "@/api/imports";
+import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import type { ImportFailure } from "@/types/imports";
 
 export function CandidateImportPage() {
   const { examId = "1" } = useParams();
   const [file, setFile] = useState<File | null>(null);
+  const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (selectedFile: File) => importCandidates(examId, selectedFile),
+    mutationFn: (selected: File) => importCandidates(examId, selected),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["absent-candidates"] });
+    },
   });
 
   return (
-    <Card className="max-w-2xl">
-      <CardHeader>
-        <CardTitle>应参人员导入</CardTitle>
-        <CardDescription>未参加人员名单基于应参人员减去已提交考试人员计算。</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <div className="flex max-w-3xl flex-col gap-8">
+      <header className="flex flex-col gap-3">
+        <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
+        <h1 className="font-display text-[28px] font-semibold tracking-[-0.04em] text-ink lg:text-[40px]">
+          应考人员导入
+        </h1>
+        <p className="text-body text-body-lg">
+          未参加人员名单 = 应考人员 - 已提交考试人员。导入前请按模板填写。
+        </p>
+      </header>
+
+      <section className="flex flex-col gap-5 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
         <Input
           type="file"
           accept=".xlsx,.xls"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          aria-label="选择 Excel 文件"
         />
         <Button
           type="button"
+          size="lg"
+          className="self-start"
           disabled={!file || mutation.isPending}
           onClick={() => file && mutation.mutate(file)}
         >
           <FileUp data-icon="inline-start" />
-          上传应参人员
+          {mutation.isPending ? "正在导入..." : "上传应考人员"}
         </Button>
-        {mutation.data ? (
-          <div className="rounded-md border p-4 text-sm">
-            成功 {mutation.data.success_count} 行，失败 {mutation.data.failed_count} 行
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+      </section>
+
+      {mutation.data ? (
+        <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-6 shadow-card">
+          <p className="text-body text-ink">
+            成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
+            <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
+          </p>
+          {mutation.data.failures.length ? (
+            <ul className="flex flex-col gap-1 border-t border-hairline-soft pt-3 text-caption text-muted">
+              {mutation.data.failures.map((failure: ImportFailure) => (
+                <li key={failure.row_number} className="font-mono">
+                  行 {failure.row_number} · {failure.reason}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
   );
 }
