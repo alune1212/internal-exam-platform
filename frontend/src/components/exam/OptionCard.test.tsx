@@ -13,28 +13,42 @@ describe("OptionCard", () => {
 
   it("applies unselected surface (canvas + hairline) when not selected", () => {
     render(<OptionCard label="A" content="Beijing" selected={false} onSelect={() => undefined} />);
-    const card = screen.getByRole("button");
+    const card = screen.getByRole("radio");
     expect(card.className).toContain("bg-canvas");
     expect(card.className).toContain("border-hairline");
   });
 
   it("applies selected surface (surface-card + ink) when selected", () => {
     render(<OptionCard label="A" content="Beijing" selected={true} onSelect={() => undefined} />);
-    const card = screen.getByRole("button");
+    const card = screen.getByRole("radio");
     expect(card.className).toContain("bg-surface-card");
     expect(card.className).toContain("border-ink");
   });
 
-  it("exposes aria-checked reflecting selected state", () => {
+  it("exposes radio semantics with aria-checked reflecting selected state", () => {
     render(<OptionCard label="A" content="Beijing" selected={true} onSelect={() => undefined} />);
-    expect(screen.getByRole("button")).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio")).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("can expose checkbox semantics for multiple-choice options", () => {
+    render(
+      <OptionCard
+        label="A"
+        content="Beijing"
+        selected={true}
+        selectionRole="checkbox"
+        onSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox")).toHaveAttribute("aria-checked", "true");
   });
 
   it("calls onSelect with the label exactly once on click", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     render(<OptionCard label="B" content="Shanghai" selected={false} onSelect={onSelect} />);
-    await user.click(screen.getByRole("button"));
+    await user.click(screen.getByRole("radio"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith("B");
   });

@@ -15,6 +15,7 @@ export type ExamNavigatorProps = {
   onJump: (targetId: string, itemId: number) => void;
   onSubmit?: () => void;
   submitLabel?: string;
+  submitDisabled?: boolean;
 };
 
 function groupNavItems(items: QuestionNavItem[]) {
@@ -48,6 +49,7 @@ export function ExamNavigator({
   onJump,
   onSubmit,
   submitLabel = "提前交卷",
+  submitDisabled = false,
 }: ExamNavigatorProps) {
   const groups = groupNavItems(items);
   const hasSubmittedResult = items.some((item) => item.submittedResult);
@@ -132,7 +134,7 @@ export function ExamNavigator({
       ) : null}
 
       {onSubmit ? (
-        <Button type="button" onClick={onSubmit} className="w-full">
+        <Button type="button" onClick={onSubmit} disabled={submitDisabled} className="w-full">
           {submitLabel}
           <ChevronRight data-icon="inline-end" />
         </Button>

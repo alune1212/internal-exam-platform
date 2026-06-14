@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getAttempt, getAttemptResult } from "@/api/attempts";
+import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
 import { getActiveExams } from "@/api/exams";
 import { getPracticeQuestions } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
@@ -146,10 +147,13 @@ function renderPage(
 
 describe("P0 pages", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(getAttempt).mockResolvedValue(attempt);
     vi.mocked(getAttemptResult).mockResolvedValue(result);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
     vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
+    vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
+    vi.mocked(submitAttempt).mockResolvedValue(result);
   });
 
   it("renders the Phase 5 login chapter and bilingual name label", () => {
@@ -173,8 +177,46 @@ describe("P0 pages", () => {
     );
 
     expect((await screen.findAllByText(/Q\s*01\s*\/\s*01/)).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /选项 A：北京/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("radio", { name: /选项 A：北京/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/CHAPTER 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
+  });
+
+  it("waits for queued autosave before final exam submit and ignores duplicate submits", async () => {
+    const user = userEvent.setup();
+    let resolveFirstSave: (value: { saved_count: number; saved_at: string }) => void = () => {};
+    const firstSave = new Promise<{ saved_count: number; saved_at: string }>((resolve) => {
+      resolveFirstSave = resolve;
+    });
+    vi.mocked(saveAttemptAnswers)
+      .mockImplementationOnce(() => firstSave)
+      .mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
+    vi.mocked(submitAttempt).mockReturnValue(new Promise(() => {}));
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    const optionB = await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    await user.click(optionB[0]);
+
+    await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(1));
+    const submitButton = screen.getByRole("button", { name: /提前交卷/ });
+    await user.click(submitButton);
+    await user.click(submitButton);
+
+    expect(submitAttempt).not.toHaveBeenCalled();
+    expect(saveAttemptAnswers).toHaveBeenCalledTimes(1);
+
+    resolveFirstSave({ saved_count: 1, saved_at: "2026-06-14" });
+
+    await waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
+    expect(submitAttempt).toHaveBeenCalledWith("10", "manual");
+    expect(saveAttemptAnswers).toHaveBeenLastCalledWith("10", [
+      { attempt_question_id: 101, selected_answer: "B" },
+    ]);
   });
 
   it("renders the exam result page black-card result copy and filter controls", async () => {
@@ -199,6 +241,19 @@ describe("P0 pages", () => {
 
     expect(await screen.findByText("刷一遍，记一遍。")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
+  });
+
+  it("shows practice loading copy before empty copy while questions are loading", async () => {
+    vi.mocked(getPracticeQuestions).mockReturnValue(new Promise(() => {}));
+
+    renderPage("practice", <PracticePage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(await screen.findByText("正在加载题目")).toBeInTheDocument();
+    expect(screen.queryByText("暂无题目")).not.toBeInTheDocument();
   });
 });

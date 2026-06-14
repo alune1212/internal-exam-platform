@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, List, Send, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, useOutletContext } from "react-router-dom";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
@@ -13,6 +12,14 @@ import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
@@ -131,18 +138,18 @@ export function PracticePage() {
   }
 
   if (isLoading || total === 0 || !activeQuestion) {
+    const empty = !isLoading && total === 0;
+
     return (
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">
           <CardContent className="flex flex-col gap-4 p-8">
             <ChapterNumber>CHAPTER PR · PRACTICE</ChapterNumber>
             <h1 className="font-display text-display-lg font-semibold italic text-ink">
-              {total === 0 ? "暂无题目" : "练习模式"}
+              {empty ? "暂无题目" : "正在加载题目"}
             </h1>
             <p className="text-body text-muted">
-              {total === 0
-                ? "管理员导入题库后会显示在这里。"
-                : `当前 ${total} 道题，可逐题提交并查看对错。`}
+              {empty ? "管理员导入题库后会显示在这里。" : "正在读取可练习题目，请稍候。"}
             </p>
           </CardContent>
         </Card>
@@ -161,9 +168,13 @@ export function PracticePage() {
     label: option.label,
     content: option.content,
     selected: isMultiple ? selectedLabels.includes(option.label) : singleValue === option.label,
+    disabled: mutation.isPending,
   }));
 
   const handleSelectOption = (label: string) => {
+    if (mutation.isPending) {
+      return;
+    }
     if (isMultiple) {
       handleMultipleChange(activeQuestion, label, !selectedLabels.includes(label));
     } else {
@@ -223,6 +234,7 @@ export function PracticePage() {
             remainingSeconds={Number.POSITIVE_INFINITY}
             stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
             options={options}
+            selectionType={isMultiple ? "multiple" : "single"}
             onSelectOption={handleSelectOption}
             nav={{
               onPrev: goPrev,
@@ -268,6 +280,7 @@ export function PracticePage() {
           remainingSeconds={Number.POSITIVE_INFINITY}
           stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
           options={options}
+          selectionType={isMultiple ? "multiple" : "single"}
           onSelectOption={handleSelectOption}
           nav={{
             onPrev: goPrev,
@@ -296,92 +309,42 @@ export function PracticePage() {
           ) : null}
         </ExamFocusMode>
 
-        <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
-          <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
-            <ProgressCapsule
-              current={activeIndex + 1}
-              total={total}
-              answered={answeredCount}
-              variant="dark"
-              className="flex-1"
-            />
-            <button
-              type="button"
-              aria-label="打开题号导航"
-              onClick={() => setSheetOpen(true)}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-canvas"
-            >
-              <List />
-            </button>
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+          <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
+            <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
+              <ProgressCapsule
+                current={activeIndex + 1}
+                total={total}
+                answered={answeredCount}
+                variant="dark"
+                className="flex-1"
+              />
+              <SheetTrigger className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-canvas">
+                <List aria-hidden="true" />
+                <span className="sr-only">打开题号导航</span>
+              </SheetTrigger>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {sheetOpen
-        ? createPortal(
-            <MobileSheet
-              items={navItems}
-              activeId={activeQuestion.id}
-              onJump={(id) => {
-                jumpToQuestion(id);
-                setSheetOpen(false);
-              }}
-              onClose={() => setSheetOpen(false)}
-            />,
-            document.body,
-          )
-        : null}
-    </div>
-  );
-}
-
-function MobileSheet({
-  items,
-  activeId,
-  onJump,
-  onClose,
-}: {
-  items: ReturnType<typeof buildQuestionNavItems>;
-  activeId: number;
-  onJump: (id: number) => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end bg-ink"
-      style={{ backgroundColor: "color-mix(in srgb, var(--ink) 40%, transparent)" }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="题号导航"
-      onClick={onClose}
-    >
-      <div
-        className="flex h-[80vh] w-full flex-col gap-4 rounded-t-lg bg-canvas p-5 shadow-elevate"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="flex items-center justify-between border-b border-hairline pb-3">
-          <span className="font-display text-display-sm font-semibold text-ink">题号导航</span>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="关闭">
-            关闭
-          </Button>
-        </header>
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          <ExamNavigator
-            items={items}
-            activeId={activeId}
-            sheetLayout
-            desktopLayout={false}
-            onJump={(_targetId, id) => onJump(id)}
-          />
-        </div>
+          <SheetContent side="bottom" className="flex h-[80vh] flex-col gap-4 bg-canvas p-5">
+            <SheetHeader className="border-b border-hairline pb-3">
+              <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
+              <SheetDescription className="sr-only">选择练习题号。</SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <ExamNavigator
+                items={navItems}
+                activeId={activeQuestion.id}
+                sheetLayout
+                desktopLayout={false}
+                onJump={(_targetId, id) => {
+                  jumpToQuestion(id);
+                  setSheetOpen(false);
+                }}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </div>
   );

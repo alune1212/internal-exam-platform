@@ -23,8 +23,10 @@ export type ExamFocusModeProps = {
     label: string;
     content: string;
     selected: boolean;
+    disabled?: boolean;
   }>;
   onSelectOption: (label: string) => void;
+  selectionType?: "single" | "multiple";
   nav: {
     onPrev?: () => void;
     onSave?: () => void;
@@ -45,6 +47,7 @@ export function ExamFocusMode({
   stem,
   options,
   onSelectOption,
+  selectionType = "single",
   nav,
   className,
   children,
@@ -70,13 +73,19 @@ export function ExamFocusMode({
           </h2>
         </header>
 
-        <div className="flex flex-col gap-3">
+        <div
+          className="flex flex-col gap-3"
+          role={selectionType === "single" ? "radiogroup" : "group"}
+          aria-label="选项列表"
+        >
           {options.map((option) => (
             <OptionCard
               key={option.label}
               label={option.label}
               content={option.content}
               selected={option.selected}
+              disabled={option.disabled}
+              selectionRole={selectionType === "multiple" ? "checkbox" : "radio"}
               onSelect={onSelectOption}
             />
           ))}

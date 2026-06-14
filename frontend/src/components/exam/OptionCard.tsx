@@ -6,12 +6,21 @@ export type OptionCardProps = {
   selected: boolean;
   onSelect: (label: string) => void;
   disabled?: boolean;
+  selectionRole?: "radio" | "checkbox";
 };
 
-export function OptionCard({ label, content, selected, onSelect, disabled }: OptionCardProps) {
+export function OptionCard({
+  label,
+  content,
+  selected,
+  onSelect,
+  disabled,
+  selectionRole = "radio",
+}: OptionCardProps) {
   return (
     <button
       type="button"
+      role={selectionRole}
       aria-checked={selected}
       aria-label={`选项 ${label}：${content}`}
       disabled={disabled}

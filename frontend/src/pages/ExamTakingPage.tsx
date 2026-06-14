@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { List, LogOut, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
@@ -14,8 +13,16 @@ import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
-import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
+import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
 type AnswerMap = Record<number, string>;
@@ -30,6 +37,8 @@ export function ExamTakingPage() {
   const [now, setNow] = useState(() => Date.now());
   const [activeIndex, setActiveIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const submitStartedRef = useRef(false);
 
   const { data: attempt, isLoading } = useQuery({
     queryKey: ["attempt", attemptId],
@@ -53,6 +62,7 @@ export function ExamTakingPage() {
         attempt_question_id: question.id,
         selected_answer: answers[question.id] ?? "",
       }));
+      await saveQueueRef.current.catch(() => undefined);
       await saveAttemptAnswers(String(attempt.id), items);
       return submitAttempt(String(attempt.id), submitType);
     },
@@ -62,6 +72,32 @@ export function ExamTakingPage() {
       }
     },
   });
+
+  const queueSave = useCallback(
+    (items: Array<{ attempt_question_id: number; selected_answer: string }>) => {
+      const nextSave = saveQueueRef.current
+        .catch(() => undefined)
+        .then(() => saveMutation.mutateAsync(items));
+      saveQueueRef.current = nextSave;
+      return nextSave;
+    },
+    [saveMutation],
+  );
+
+  const requestSubmit = useCallback(
+    (submitType: "manual" | "auto") => {
+      if (submitStartedRef.current || submitMutation.isPending) {
+        return;
+      }
+      submitStartedRef.current = true;
+      submitMutation.mutate(submitType, {
+        onError: () => {
+          submitStartedRef.current = false;
+        },
+      });
+    },
+    [submitMutation],
+  );
 
   useEffect(() => {
     if (!attempt) {
@@ -100,8 +136,8 @@ export function ExamTakingPage() {
       return;
     }
     autoSubmittedRef.current = true;
-    submitMutation.mutate("auto");
-  }, [attempt, remainingSeconds, submitMutation]);
+    requestSubmit("auto");
+  }, [attempt, remainingSeconds, requestSubmit, submitMutation.isPending]);
 
   const total = attempt?.questions.length ?? 0;
   const activeQuestion: AttemptQuestion | undefined = attempt?.questions[activeIndex];
@@ -125,20 +161,20 @@ export function ExamTakingPage() {
 
   function handleSingleChange(question: AttemptQuestion, label: string) {
     setAnswers((current) => ({ ...current, [question.id]: label }));
-    saveMutation.mutate([{ attempt_question_id: question.id, selected_answer: label }]);
+    void queueSave([{ attempt_question_id: question.id, selected_answer: label }]);
   }
 
   function handleMultipleChange(question: AttemptQuestion, label: string, checked: boolean) {
     const next = toggleMultipleAnswer(answers[question.id], label, checked);
     setAnswers((current) => ({ ...current, [question.id]: next }));
-    saveMutation.mutate([{ attempt_question_id: question.id, selected_answer: next }]);
+    void queueSave([{ attempt_question_id: question.id, selected_answer: next }]);
   }
 
   function handleSave() {
     if (!attempt) {
       return;
     }
-    saveMutation.mutate(
+    void queueSave(
       attempt.questions.map((question) => ({
         attempt_question_id: question.id,
         selected_answer: answers[question.id] ?? "",
@@ -219,9 +255,13 @@ export function ExamTakingPage() {
     label: option.label,
     content: option.content,
     selected: isMultiple ? selectedLabels.includes(option.label) : singleValue === option.label,
+    disabled: submitMutation.isPending,
   }));
 
   const handleSelectOption = (label: string) => {
+    if (submitMutation.isPending || submitStartedRef.current) {
+      return;
+    }
     if (isMultiple) {
       handleMultipleChange(activeQuestion, label, !selectedLabels.includes(label));
     } else {
@@ -260,6 +300,7 @@ export function ExamTakingPage() {
             remainingSeconds={remainingSeconds}
             stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem_snapshot }}
             options={options}
+            selectionType={isMultiple ? "multiple" : "single"}
             onSelectOption={handleSelectOption}
             nav={{
               onPrev: goPrev,
@@ -277,8 +318,9 @@ export function ExamTakingPage() {
             activeId={activeQuestion.id}
             desktopLayout
             onJump={(_targetId, id) => jumpToQuestion(id)}
-            onSubmit={() => submitMutation.mutate("manual")}
+            onSubmit={() => requestSubmit("manual")}
             submitLabel={submitMutation.isPending ? "正在交卷" : "提前交卷"}
+            submitDisabled={submitMutation.isPending}
           />
         </aside>
       </div>
@@ -289,6 +331,7 @@ export function ExamTakingPage() {
           remainingSeconds={remainingSeconds}
           stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem_snapshot }}
           options={options}
+          selectionType={isMultiple ? "multiple" : "single"}
           onSelectOption={handleSelectOption}
           nav={{
             onPrev: goPrev,
@@ -298,46 +341,55 @@ export function ExamTakingPage() {
           }}
         />
 
-        <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
-          <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
-            <ProgressCapsule
-              current={activeIndex + 1}
-              total={total}
-              answered={answeredCount}
-              variant="dark"
-              className="flex-1"
-            />
-            <button
-              type="button"
-              aria-label="打开题号导航"
-              onClick={() => setSheetOpen(true)}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-canvas"
-            >
-              <List />
-            </button>
+        <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+          <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
+            <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
+              <ProgressCapsule
+                current={activeIndex + 1}
+                total={total}
+                answered={answeredCount}
+                variant="dark"
+                className="flex-1"
+              />
+              <SheetTrigger className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-canvas">
+                <List aria-hidden="true" />
+                <span className="sr-only">打开题号导航</span>
+              </SheetTrigger>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {sheetOpen
-        ? createPortal(
-            <MobileNavigatorSheet
-              items={navItems}
-              activeId={activeQuestion.id}
-              onJump={(id) => {
-                jumpToQuestion(id);
+          <SheetContent side="bottom" className="flex h-[80vh] flex-col gap-4 bg-canvas p-5">
+            <SheetHeader className="border-b border-hairline pb-3">
+              <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
+              <SheetDescription className="sr-only">选择题号或提前交卷。</SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <ExamNavigator
+                items={navItems}
+                activeId={activeQuestion.id}
+                sheetLayout
+                desktopLayout={false}
+                onJump={(_targetId, id) => {
+                  jumpToQuestion(id);
+                  setSheetOpen(false);
+                }}
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={() => {
                 setSheetOpen(false);
+                requestSubmit("manual");
               }}
-              onSubmit={() => {
-                setSheetOpen(false);
-                submitMutation.mutate("manual");
-              }}
-              submitting={submitMutation.isPending}
-              onClose={() => setSheetOpen(false)}
-            />,
-            document.body,
-          )
-        : null}
+              disabled={submitMutation.isPending}
+              className="w-full"
+            >
+              <Send data-icon="inline-start" />
+              {submitMutation.isPending ? "正在交卷" : "提前交卷"}
+            </Button>
+          </SheetContent>
+        </Sheet>
+      </div>
 
       {saveMutation.isError ? (
         <p className="sr-only" role="alert">
@@ -349,68 +401,6 @@ export function ExamTakingPage() {
           交卷失败，请确认考试仍在进行中。
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function MobileNavigatorSheet({
-  items,
-  activeId,
-  onJump,
-  onSubmit,
-  submitting,
-  onClose,
-}: {
-  items: ReturnType<typeof buildQuestionNavItems>;
-  activeId: number;
-  onJump: (id: number) => void;
-  onSubmit: () => void;
-  submitting: boolean;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end bg-ink"
-      style={{ backgroundColor: "color-mix(in srgb, var(--ink) 40%, transparent)" }}
-      role="dialog"
-      aria-modal="true"
-      aria-label="题号导航"
-      onClick={onClose}
-    >
-      <div
-        className={cn(
-          "flex h-[80vh] w-full flex-col gap-4 rounded-t-lg bg-canvas p-5 shadow-elevate",
-        )}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header className="flex items-center justify-between border-b border-hairline pb-3">
-          <span className="font-display text-display-sm font-semibold text-ink">题号导航</span>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="关闭">
-            关闭
-          </Button>
-        </header>
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          <ExamNavigator
-            items={items}
-            activeId={activeId}
-            sheetLayout
-            desktopLayout={false}
-            onJump={(_targetId, id) => onJump(id)}
-          />
-        </div>
-        <Button type="button" onClick={onSubmit} disabled={submitting} className="w-full">
-          <Send data-icon="inline-start" />
-          {submitting ? "正在交卷" : "提前交卷"}
-        </Button>
-      </div>
     </div>
   );
 }
