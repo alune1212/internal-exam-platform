@@ -53,6 +53,8 @@ class ExamNotFoundError(DomainError):
 
 
 class ExamNotActiveError(DomainError):
+    status_code = 409
+
     def __init__(self, exam_id: int) -> None:
         self.exam_id = exam_id
         super().__init__(f"考试 #{exam_id} 未处于 active 状态")
@@ -91,12 +93,16 @@ class AttemptQuestionNotFoundError(DomainError):
 
 
 class AttemptAlreadySubmittedError(DomainError):
+    status_code = 409
+
     def __init__(self, attempt_id: int) -> None:
         self.attempt_id = attempt_id
         super().__init__(f"考试记录 #{attempt_id} 已提交")
 
 
 class InsufficientQuestionsError(DomainError):
+    status_code = 422
+
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(reason)
