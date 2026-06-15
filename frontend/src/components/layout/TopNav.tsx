@@ -56,7 +56,7 @@ function NavLinkItem({ item }: { item: NavItem }) {
           <span
             aria-hidden="true"
             className={cn(
-              "font-mono text-caption uppercase tracking-[0.16em] transition-opacity",
+              "inline-block w-7 text-right font-mono text-[11px] uppercase tracking-[0.16em] transition-opacity",
               isActive ? "text-ink opacity-100" : "opacity-0",
             )}
           >
