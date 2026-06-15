@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 
 import { loginAdmin } from "@/api/auth";
+import { setAdminToken } from "@/lib/adminSession";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,10 @@ export function AdminLoginPage() {
   });
   const mutation = useMutation({
     mutationFn: loginAdmin,
-    onSuccess: () => navigate("/admin/dashboard"),
+    onSuccess: (_data, variables) => {
+      setAdminToken(variables.password);
+      navigate("/admin/dashboard");
+    },
   });
 
   return (
