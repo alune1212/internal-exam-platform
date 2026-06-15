@@ -47,3 +47,15 @@ def test_judge_answer_normalizes_case() -> None:
 
     assert result.is_correct is True
     assert result.score_awarded == 1.0
+
+
+def test_multiple_choice_empty_correct_answer() -> None:
+    result = score_answer("multiple", "", None, 5.0)
+    assert result.is_correct is True
+    assert result.score_awarded == 5.0
+
+
+def test_score_zero_value_awarded_zero() -> None:
+    result = score_answer("single", "A", "A", 0)
+    assert result.is_correct is True
+    assert result.score_awarded == 0

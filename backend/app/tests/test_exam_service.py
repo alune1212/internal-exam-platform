@@ -1,7 +1,13 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models import ExamAttemptAnswer, ExamAttemptQuestion, Question, QuestionOption
+from app.models import (
+    Candidate,
+    ExamAttemptAnswer,
+    ExamAttemptQuestion,
+    Question,
+    QuestionOption,
+)
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamCreate, ExamUpdate
 from app.services import exam_service
@@ -9,6 +15,7 @@ from app.services.exam_service import (
     AttemptAlreadyExistsError,
     AttemptAlreadySubmittedError,
     AttemptNotFoundError,
+    CandidateNotEligibleError,
     CandidateNotFoundError,
     ExamNotActiveError,
     ExamNotFoundError,
@@ -556,3 +563,53 @@ def test_submit_attempt_rejects_already_submitted(db: Session) -> None:
 
     with pytest.raises(AttemptAlreadySubmittedError):
         exam_service.submit_attempt(db, start_result.attempt_id, "manual")
+
+
+def test_save_answers_rejects_after_submit(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="题目", score=5)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    with pytest.raises(AttemptAlreadySubmittedError):
+        exam_service.save_answers(
+            db,
+            start.attempt_id,
+            AnswerSaveRequest(
+                answers=[
+                    AnswerSaveItem(
+                        attempt_question_id=start.questions[0].id,
+                        selected_answer="A",
+                    )
+                ]
+            ),
+        )
+
+
+def test_submit_attempt_with_no_answers_zeros_score(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="题目1", score=2)
+    create_question_with_options(db, stem="题目2", score=3)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+
+    result = exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    assert result.score == 0
+    assert result.total_score == 5
+    assert result.correct_count == 0
+    assert result.wrong_count == 2
+
+
+def test_start_exam_rejects_inactive_candidate(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = Candidate(
+        name="禁用人", employee_no="E999", status="inactive", should_attend=True
+    )
+    db.add(candidate)
+    db.commit()
+    create_question_with_options(db)
+
+    with pytest.raises(CandidateNotEligibleError):
+        exam_service.start_exam(db, exam.id, candidate.id)

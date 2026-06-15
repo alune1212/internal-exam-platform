@@ -2,15 +2,22 @@ from collections.abc import Iterator
 from io import BytesIO
 
 import pytest
+from fastapi.testclient import TestClient
 from openpyxl import Workbook
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
+from app.main import app
 from app.models import Candidate, Exam, Question, QuestionOption
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.services import exam_service
+
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
 
 
 @pytest.fixture
