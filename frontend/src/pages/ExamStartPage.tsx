@@ -24,7 +24,7 @@ export function ExamStartPage() {
   const navigate = useNavigate();
   const { candidate } = useOutletContext<CandidateSessionContext>();
   const mutation = useMutation({
-    mutationFn: () => startExam(examId, candidate?.id ?? 0),
+    mutationFn: () => startExam(examId),
     onSuccess: (result) => {
       navigate(`/exams/${examId}/taking?attemptId=${result.attempt_id}`);
     },

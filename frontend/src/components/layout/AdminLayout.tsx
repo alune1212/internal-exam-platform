@@ -1,9 +1,20 @@
-import { Outlet } from "react-router-dom";
+import { useEffect } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
+
+import { getAdminToken } from "@/lib/adminSession";
 
 import { AdminSideRail } from "@/components/layout/AdminSideRail";
 import { Footer } from "@/components/layout/Footer";
 
 export function AdminLayout() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!getAdminToken()) {
+      navigate("/admin/login", { replace: true });
+    }
+  }, [navigate]);
+
   return (
     <div className="flex min-h-screen flex-col bg-canvas-warm">
       <div className="flex flex-1 flex-col lg:flex-row">

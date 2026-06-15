@@ -28,9 +28,8 @@ export function getExamRanking(examId: string) {
   return apiRequest<RankingRow[]>(`/api/exams/${examId}/ranking`);
 }
 
-export function startExam(examId: string, candidateId: number) {
+export function startExam(examId: string) {
   return apiRequest<ExamStartResponse>(`/api/exams/${examId}/start`, {
     method: "POST",
-    body: JSON.stringify({ candidate_id: candidateId }),
   });
 }
