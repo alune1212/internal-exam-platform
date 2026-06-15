@@ -20,6 +20,7 @@ import type { Candidate } from "@/types/candidate";
 type NavItem = {
   to: string;
   label: string;
+  mark: string;
   end?: boolean;
 };
 
@@ -29,17 +30,16 @@ type TopNavProps = {
 };
 
 const navItems: NavItem[] = [
-  { to: "/practice", label: "练习" },
-  { to: "/exams", label: "考试", end: true },
-  { to: "/exams/1/ranking", label: "排名" },
+  { to: "/practice", label: "练习", mark: "I." },
+  { to: "/exams", label: "考试", mark: "II.", end: true },
+  { to: "/exams/1/ranking", label: "排名", mark: "III." },
 ];
 
 function candidateSubtitle(candidate: Candidate) {
   return [candidate.employee_no, candidate.department].filter(Boolean).join(" · ") || undefined;
 }
 
-function NavLinkItem({ item, index }: { item: NavItem; index: number }) {
-  const sectionNumber = String(index + 1).padStart(2, "0");
+function NavLinkItem({ item }: { item: NavItem }) {
   return (
     <NavLink
       to={item.to}
@@ -60,7 +60,7 @@ function NavLinkItem({ item, index }: { item: NavItem; index: number }) {
               isActive ? "text-ink opacity-100" : "opacity-0",
             )}
           >
-            §{sectionNumber}
+            {item.mark}
           </span>
           <span>{item.label}</span>
           <span
@@ -93,8 +93,8 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
 
         {isDesktop ? (
           <nav className="flex flex-1 items-center justify-center gap-8">
-            {navItems.map((item, index) => (
-              <NavLinkItem key={item.to} index={index} item={item} />
+            {navItems.map((item) => (
+              <NavLinkItem key={item.to} item={item} />
             ))}
           </nav>
         ) : null}
