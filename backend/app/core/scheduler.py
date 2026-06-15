@@ -27,22 +27,32 @@ def _find_expired_attempts(db) -> list[int]:
     return [
         attempt_id
         for attempt_id, started_at, duration_minutes in rows
-        if ensure_aware(started_at) + timedelta(minutes=duration_minutes) < now
+        if ensure_aware(started_at) + timedelta(minutes=duration_minutes) <= now
     ]
 
 
 async def auto_submit_loop() -> None:
-    """定时检查并自动提交超时考试。"""
+    """定时检查并自动提交超时考试。
+
+    每条 attempt 使用独立的数据库会话：
+    - 查询过期列表用一个 session
+    - 每条 submit 用一个独立 session（失败自动回滚，不影响下一条）
+    """
     while True:
         try:
-            with SessionLocal() as db:
-                expired_ids = _find_expired_attempts(db)
-                for attempt_id in expired_ids:
-                    try:
-                        submit_attempt(db, attempt_id, "auto")
-                        logger.info("自动提交考试记录 #%d", attempt_id)
-                    except Exception:
-                        logger.exception("自动提交 #%d 失败", attempt_id)
+            with SessionLocal() as scan_db:
+                expired_ids = _find_expired_attempts(scan_db)
         except Exception:
-            logger.exception("自动提交检查循环异常")
+            logger.exception("过期 attempt 扫描异常")
+            await asyncio.sleep(CHECK_INTERVAL_SECONDS)
+            continue
+
+        for attempt_id in expired_ids:
+            try:
+                with SessionLocal() as submit_db:
+                    submit_attempt(submit_db, attempt_id, "auto")
+                    logger.info("自动提交考试记录 #%d", attempt_id)
+            except Exception:
+                logger.exception("自动提交 #%d 失败", attempt_id)
+
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
