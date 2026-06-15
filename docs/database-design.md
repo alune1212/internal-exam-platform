@@ -51,15 +51,15 @@
 
 关键字段：`id`、`title`、`description`、`duration_minutes`、`question_rule`、`status`、`show_answer_after_submit`、`show_ranking`、`created_at`、`updated_at`。
 
-`question_rule` 当前支持固定 60 题试卷规则：
+`question_rule` 当前支持固定 50 题试卷规则：
 
 ```json
 {
-  "question_count": 60,
+  "question_count": 50,
   "total_score": 100,
   "pass_score": 60,
   "mode": "fixed_paper",
-  "type_counts": { "single": 15, "multiple": 40, "judge": 5 },
+  "type_counts": { "single": 30, "multiple": 10, "judge": 10 },
   "fixed_question_ids": [1, 2, 3]
 }
 ```

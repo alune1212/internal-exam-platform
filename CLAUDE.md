@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-公司内部轻量级临时考试与刷题平台。第一阶段核心功能已实现，含题库导入、固定 60 题考试快照、判分、及格状态、排名、报表查询、自动提交和 Academic Editorial 前端 redesign。
+公司内部轻量级临时考试与刷题平台。第一阶段核心功能已实现，含题库导入、固定 50 题考试快照、判分、及格状态、排名、报表查询、自动提交和 Academic Editorial 前端 redesign。
 
 ## 命令
 
@@ -106,7 +106,7 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 
 领域异常体系：所有业务异常继承 `app.core.exceptions.DomainError`（含 `status_code` 属性），API 路由层通过 `main.py` 的统一异常处理器映射为 HTTP 响应。新增异常时在 service 层定义，无需在路由层逐一捕获。
 
-考试抽题：非空 `exam.question_rule` 且包含 `question_count` 时走固定试卷逻辑。默认规则为 60 题、总分 100、及格线 60，题型配比 `single: 15`、`multiple: 40`、`judge: 5`；首次开考会写入 `fixed_question_ids`，同一考试后续考生复用同一批原题生成各自快照。空 `{}` 保留旧的全量 active 入卷行为。
+考试抽题：非空 `exam.question_rule` 且包含 `question_count` 时走固定试卷逻辑。默认规则为 50 题、总分 100、及格线 60，题型配比 `single: 30`、`multiple: 10`、`judge: 10`；首次开考会写入 `fixed_question_ids`，同一考试后续考生复用同一批原题生成各自快照。空 `{}` 保留旧的全量 active 入卷行为。
 
 ## 硬边界
 
@@ -146,7 +146,7 @@ uv run alembic downgrade -1  # 回滚一步
 
 ## 当前阶段
 
-第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 60 题试卷，结果页显示及格线和通过状态。剩余工作：导入失败报告下载、考试与应参人员范围关联、报表导出文件、正式会话保护。详细交接文档见 `docs/handoff.md`。
+第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题试卷，结果页显示及格线和通过状态。剩余工作：导入失败报告下载、考试与应参人员范围关联、报表导出文件、正式会话保护。详细交接文档见 `docs/handoff.md`。
 
 ## 与 AGENTS.md 的关系
 

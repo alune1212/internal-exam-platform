@@ -140,13 +140,13 @@ def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None
     if not question_rule or "question_count" not in question_rule:
         return None
 
-    question_count = int(question_rule.get("question_count", 60))
+    question_count = int(question_rule.get("question_count", 50))
     total_score = Decimal(str(question_rule.get("total_score", 100)))
     raw_type_counts = question_rule.get("type_counts")
     if raw_type_counts is None:
-        total_parts = 12
+        total_parts = 5
         single = max(1, round(question_count * 3 / total_parts))
-        multiple = max(1, round(question_count * 8 / total_parts))
+        multiple = max(1, round(question_count * 1 / total_parts))
         judge = max(1, question_count - single - multiple)
         raw_type_counts = {
             "single": single,
@@ -226,38 +226,38 @@ def _select_questions_by_type(
     for question in questions:
         by_combo[(_category_key(question), question.question_type)].append(question)
 
-    for category in categories:
-        multiple_bucket = by_combo.get((category, "multiple"), [])
-        if multiple_bucket:
-            _take_from_bucket(
-                selected,
-                multiple_bucket,
-                used_ids,
-                min(5, len(multiple_bucket)),
-                reason=f"{category} 的多选题数量不足，无法生成考试试卷",
-            )
+    # 按目标数量分配每种题型到各 category，确保不超过目标
+    for question_type, target_count in rule.type_counts.items():
+        per_category = max(1, target_count // len(categories))
+        remaining = target_count
+        for category in categories:
+            if remaining <= 0:
+                break
+            bucket = by_combo.get((category, question_type), [])
+            if bucket:
+                count = min(per_category, remaining, len(bucket))
+                _take_from_bucket(
+                    selected,
+                    bucket,
+                    used_ids,
+                    count,
+                    reason=f"{category} 的{question_type}题目数量不足，无法生成考试试卷",
+                )
+                remaining -= count
 
-    for category in categories:
-        judge_bucket = by_combo.get((category, "judge"), [])
-        if judge_bucket:
-            _take_from_bucket(
-                selected,
-                judge_bucket,
-                used_ids,
-                1,
-                reason=f"{category} 的判断题数量不足，无法生成考试试卷",
-            )
-
-    for category in categories:
-        single_bucket = by_combo.get((category, "single"), [])
-        if single_bucket:
-            _take_from_bucket(
-                selected,
-                single_bucket,
-                used_ids,
-                1,
-                reason=f"{category} 的单选题数量不足，无法生成考试试卷",
-            )
+    # 覆盖所有 category + question_type 组合
+    for (category, question_type), bucket in sorted(by_combo.items()):
+        if not bucket:
+            continue
+        if any(question.id in used_ids for question in bucket):
+            continue
+        _take_from_bucket(
+            selected,
+            bucket,
+            used_ids,
+            1,
+            reason=f"{category} 缺少 {question_type} 题目，无法覆盖题型组合",
+        )
 
     for (category, question_type), bucket in sorted(by_combo.items()):
         if not bucket:

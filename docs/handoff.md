@@ -54,7 +54,7 @@ Observed results:
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
 - Exam configuration create/update/list services persist to the `exam` table, and active listing returns only `active` exams.
 - Exam start creates an in-progress attempt and stores question snapshots.
-- Non-empty `question_rule` with `question_count` uses fixed-paper mode. The default rule is 60 questions, total score 100, pass score 60, and type counts `single: 15`, `multiple: 40`, `judge: 5`.
+- Non-empty `question_rule` with `question_count` uses fixed-paper mode. The default rule is 50 questions, total score 100, pass score 60, and type counts `single: 30`, `multiple: 10`, `judge: 10`.
 - Fixed-paper selection only uses active questions, covers `category_1`, question types, and available `category_1 + question_type` combinations, then stores `fixed_question_ids` on the exam for later candidates.
 - Empty `question_rule = {}` remains compatible with the legacy all-active question behavior.
 - Answer autosave writes to `exam_attempt_answer`; submit scoring updates persisted answers and attempt totals.

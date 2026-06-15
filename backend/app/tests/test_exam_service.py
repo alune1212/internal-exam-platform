@@ -141,7 +141,7 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
 ) -> None:
     exam = create_exam(
         db,
-        question_rule={"question_count": 60, "total_score": 100, "pass_score": 60},
+        question_rule={"question_count": 50, "total_score": 100, "pass_score": 60},
     )
     candidate = create_candidate(db)
     categories = ["交通", "安全", "工伤", "廉政"]
@@ -154,7 +154,7 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
                 stem=f"{category}-{question_type}-must-cover",
                 category_1=category,
                 question_type=question_type,
-                score=2 if question_type == "multiple" else 1,
+                score=2,
             )
     for index in range(120):
         create_question_with_options(
@@ -162,7 +162,7 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
             stem=f"补充题-{index}",
             category_1=categories[index % len(categories)],
             question_type=question_types[index % len(question_types)],
-            score=2 if question_types[index % len(question_types)] == "multiple" else 1,
+            score=2,
         )
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
@@ -176,7 +176,7 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
         (question.category_1, question.question_type) for question in selected_questions
     }
 
-    assert len(result.questions) == 60
+    assert len(result.questions) == 50
     assert attempt.total_score == 100
     assert sum(float(snapshot.score) for snapshot in snapshots) == 100
     assert result.exam.question_rule["pass_score"] == 60
@@ -196,7 +196,7 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
 def test_start_exam_reuses_fixed_paper_for_same_exam(db: Session) -> None:
     exam = create_exam(
         db,
-        question_rule={"question_count": 60, "total_score": 100, "pass_score": 60},
+        question_rule={"question_count": 50, "total_score": 100, "pass_score": 60},
     )
     first_candidate = create_candidate(db, name="甲", employee_no="E001")
     second_candidate = create_candidate(db, name="乙", employee_no="E002")
@@ -211,7 +211,7 @@ def test_start_exam_reuses_fixed_paper_for_same_exam(db: Session) -> None:
                     stem=f"{category}-{question_type}-{index}",
                     category_1=category,
                     question_type=question_type,
-                    score=2 if question_type == "multiple" else 1,
+                    score=2,
                 )
 
     first = exam_service.start_exam(db, exam.id, first_candidate.id)
@@ -233,13 +233,13 @@ def test_start_exam_reuses_fixed_paper_for_same_exam(db: Session) -> None:
     ]
 
     assert first_ids == second_ids
-    assert len(first_ids) == 60
+    assert len(first_ids) == 50
 
 
 def test_start_exam_rejects_question_rule_when_pool_is_too_small(
     db: Session,
 ) -> None:
-    exam = create_exam(db, question_rule={"question_count": 60, "total_score": 100})
+    exam = create_exam(db, question_rule={"question_count": 50, "total_score": 100})
     candidate = create_candidate(db)
     create_question_with_options(db)
 
