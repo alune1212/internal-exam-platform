@@ -23,10 +23,10 @@ class ExamAttempt(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exam_id: Mapped[int] = mapped_column(
-        ForeignKey("exam.id"), nullable=False, index=True
+        ForeignKey("exam.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     candidate_id: Mapped[int] = mapped_column(
-        ForeignKey("candidate.id"), nullable=False, index=True
+        ForeignKey("candidate.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="in_progress", index=True
@@ -65,7 +65,7 @@ class ExamAttemptQuestion(TimestampMixin, Base):
         ForeignKey("exam_attempt.id", ondelete="CASCADE"), nullable=False, index=True
     )
     original_question_id: Mapped[int | None] = mapped_column(
-        ForeignKey("question.id"), index=True
+        ForeignKey("question.id", ondelete="SET NULL"), index=True
     )
     question_type: Mapped[str] = mapped_column(String(20), nullable=False)
     stem_snapshot: Mapped[str] = mapped_column(nullable=False)

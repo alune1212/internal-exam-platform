@@ -23,16 +23,16 @@ class Question(TimestampMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    question_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    question_type: Mapped[str] = mapped_column(String(20), nullable=False)
     stem: Mapped[str] = mapped_column(Text, nullable=False)
     analysis: Mapped[str | None] = mapped_column(Text)
     category_1: Mapped[str | None] = mapped_column(String(100))
     category_2: Mapped[str | None] = mapped_column(String(100))
     difficulty: Mapped[str | None] = mapped_column(String(50))
-    score: Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False, default=1)
-    status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="active", index=True
+    score: Mapped[Decimal] = mapped_column(
+        Numeric(8, 2), nullable=False, default=1, server_default="1"
     )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     source: Mapped[str | None] = mapped_column(String(200))
     source_no: Mapped[str | None] = mapped_column(String(100))
     remark: Mapped[str | None] = mapped_column(Text)

@@ -1,8 +1,15 @@
+import enum
+
 from sqlalchemy import Boolean, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import TimestampMixin
+
+
+class CandidateStatus(enum.StrEnum):
+    active = "active"
+    inactive = "inactive"
 
 
 class Candidate(TimestampMixin, Base):
@@ -24,7 +31,7 @@ class Candidate(TimestampMixin, Base):
     exam_group: Mapped[str | None] = mapped_column(String(100))
     should_attend: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="active", index=True
+        String(20), nullable=False, default=CandidateStatus.active.value, index=True
     )
     remark: Mapped[str | None] = mapped_column(Text)
 
