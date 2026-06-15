@@ -208,6 +208,28 @@ describe("P0 pages", () => {
     expect(screen.getAllByText(/CHAPTER 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
   });
 
+  it("uses submit as the final-question primary action", async () => {
+    const user = userEvent.setup();
+    vi.mocked(submitAttempt).mockReturnValue(new Promise(() => {}));
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    await screen.findAllByRole("radio", { name: /选项 A：北京/ });
+
+    const submitButtons = screen.getAllByRole("button", { name: "提交试卷" });
+    expect(submitButtons.length).toBeGreaterThan(0);
+    submitButtons.forEach((button) => expect(button).toBeEnabled());
+
+    await user.click(submitButtons[0]);
+
+    await waitFor(() => expect(submitAttempt).toHaveBeenCalledWith("10", "manual"));
+  });
+
   it("waits for queued autosave before final exam submit and ignores duplicate submits", async () => {
     const user = userEvent.setup();
     let resolveFirstSave: (value: { saved_count: number; saved_at: string }) => void = () => {};

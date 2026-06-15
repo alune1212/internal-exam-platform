@@ -5,7 +5,7 @@
 - PostgreSQL 作为第一阶段唯一关系数据库。
 - 时间字段使用 timezone-aware datetime。
 - 历史考试结果必须基于考试题目快照，不受题库后续修改影响。
-- `question_rule` 使用 JSON 字段，为后续抽题规则预留。
+- `question_rule` 使用 JSON 字段保存抽题规则和固定试卷来源；不新增抽题规则表。
 
 ## 核心表
 
@@ -50,6 +50,25 @@
 考试配置表。
 
 关键字段：`id`、`title`、`description`、`duration_minutes`、`question_rule`、`status`、`show_answer_after_submit`、`show_ranking`、`created_at`、`updated_at`。
+
+`question_rule` 当前支持固定 60 题试卷规则：
+
+```json
+{
+  "question_count": 60,
+  "total_score": 100,
+  "pass_score": 60,
+  "mode": "fixed_paper",
+  "type_counts": { "single": 15, "multiple": 40, "judge": 5 },
+  "fixed_question_ids": [1, 2, 3]
+}
+```
+
+说明：
+
+- `fixed_question_ids` 在首次开考时生成，后续考生复用同一批原题生成各自的 attempt snapshot。
+- 空 `{}` 保留旧行为：开始考试时抽取全部 active 题目。
+- 已生成的 attempt 仍以 `exam_attempt_question` 快照为准，不受后续 `question_rule` 或题库修改影响。
 
 ### exam_attempt
 

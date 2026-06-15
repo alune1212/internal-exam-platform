@@ -77,6 +77,7 @@ Admin pages use `AdminLayout` with side rail navigation, compact page headers, m
 - Loading states: use `ContentSkeleton`, which exposes `role="status"` and `aria-busy`.
 - Timer urgency: `Timer` switches to `text-error` and pulse when the remaining time is at or below 5 minutes.
 - Keyboard shortcuts on the exam page: `ArrowLeft` / `ArrowRight` change questions; `1-9` and `A-D` select options. Inputs, textareas, and contenteditable elements must not be intercepted.
+- Exam-taking primary action: earlier questions show “下一题”; the final question shows “提交试卷” and calls the normal manual submit flow.
 
 ## Accessibility
 

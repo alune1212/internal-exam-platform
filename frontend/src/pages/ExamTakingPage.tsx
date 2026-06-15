@@ -141,6 +141,7 @@ export function ExamTakingPage() {
 
   const total = attempt?.questions.length ?? 0;
   const activeQuestion: AttemptQuestion | undefined = attempt?.questions[activeIndex];
+  const isLastQuestion = total > 0 && activeIndex === total - 1;
 
   const answeredCount = useMemo(() => {
     if (!attempt) {
@@ -198,6 +199,14 @@ export function ExamTakingPage() {
     }
     setActiveIndex((index) => Math.min(attempt.questions.length - 1, index + 1));
   }, [attempt]);
+
+  const handleNextAction = useCallback(() => {
+    if (isLastQuestion) {
+      requestSubmit("manual");
+      return;
+    }
+    goNext();
+  }, [goNext, isLastQuestion, requestSubmit]);
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -317,6 +326,11 @@ export function ExamTakingPage() {
       setActiveIndex(nextIndex);
     }
   };
+  const nextQuestionLabel = isLastQuestion
+    ? submitMutation.isPending
+      ? "正在交卷"
+      : "提交试卷"
+    : "下一题";
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-6">
@@ -354,9 +368,10 @@ export function ExamTakingPage() {
             nav={{
               onPrev: goPrev,
               onSave: handleSave,
-              onNext: goNext,
+              onNext: handleNextAction,
               prevDisabled: activeIndex === 0,
-              nextDisabled: activeIndex === total - 1,
+              nextDisabled: isLastQuestion && submitMutation.isPending,
+              nextLabel: nextQuestionLabel,
               saving: saveMutation.isPending,
             }}
           />
@@ -384,9 +399,10 @@ export function ExamTakingPage() {
           onSelectOption={handleSelectOption}
           nav={{
             onPrev: goPrev,
-            onNext: goNext,
+            onNext: handleNextAction,
             prevDisabled: activeIndex === 0,
-            nextDisabled: activeIndex === total - 1,
+            nextDisabled: isLastQuestion && submitMutation.isPending,
+            nextLabel: nextQuestionLabel,
           }}
         />
 
