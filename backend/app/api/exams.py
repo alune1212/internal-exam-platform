@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_candidate_id
 from app.schemas.common import ApiResponse
 from app.schemas.exam import (
     ExamCreate,
     ExamRead,
-    ExamStartRequest,
     ExamStartResponse,
     ExamUpdate,
     RankingRow,
@@ -26,10 +26,10 @@ def list_active_exams(db: Session = Depends(get_db)) -> ApiResponse[list[ExamRea
 @router.post("/{exam_id}/start", response_model=ApiResponse[ExamStartResponse])
 def start_exam(
     exam_id: int,
-    payload: ExamStartRequest,
     db: Session = Depends(get_db),
+    candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[ExamStartResponse]:
-    return ApiResponse(data=exam_service.start_exam(db, exam_id, payload.candidate_id))
+    return ApiResponse(data=exam_service.start_exam(db, exam_id, candidate_id))
 
 
 @router.get("/{exam_id}/ranking", response_model=ApiResponse[list[RankingRow]])
