@@ -22,6 +22,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
+import { useScrolled } from "@/lib/useScrolled";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
@@ -142,6 +143,7 @@ export function ExamTakingPage() {
   const total = attempt?.questions.length ?? 0;
   const activeQuestion: AttemptQuestion | undefined = attempt?.questions[activeIndex];
   const isLastQuestion = total > 0 && activeIndex === total - 1;
+  const scrolled = useScrolled();
 
   const answeredCount = useMemo(() => {
     if (!attempt) {
@@ -271,9 +273,7 @@ export function ExamTakingPage() {
         <Card className="bg-surface-card">
           <CardContent className="flex flex-col gap-4 p-8">
             <ChapterNumber>CHAPTER 00 · NOT STARTED</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold italic text-ink">
-              未开始考试。
-            </h1>
+            <h1 className="font-display text-display-lg font-semibold text-ink">未开始考试。</h1>
             <Button asChild>
               <Link to={`/exams/${examId}/start`}>返回考试说明</Link>
             </Button>
@@ -334,7 +334,10 @@ export function ExamTakingPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-6">
-      <header className="sticky top-0 z-30 -mx-4 border-b border-hairline-soft bg-canvas px-4 py-3 md:-mx-8 md:px-8">
+      <header
+        data-scrolled={scrolled}
+        className="sticky top-0 z-30 -mx-4 border-b border-hairline-soft bg-canvas px-4 py-3 backdrop-blur-sm transition-shadow md:-mx-8 md:px-8"
+      >
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col leading-none">
             <span className="text-caption uppercase italic tracking-[0.18em] text-muted">
@@ -376,7 +379,7 @@ export function ExamTakingPage() {
             }}
           />
         </div>
-        <aside className="self-start lg:fixed lg:right-8 lg:top-24 lg:z-30 lg:w-60">
+        <aside className="self-start lg:sticky lg:top-24 lg:z-30 lg:w-60">
           <ExamNavigator
             items={navItems}
             activeId={activeQuestion.id}

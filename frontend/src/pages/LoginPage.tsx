@@ -40,11 +40,11 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col justify-center gap-8">
+    <div data-stagger className="flex min-h-[calc(100vh-10rem)] flex-col justify-center gap-8">
       <div className="flex flex-col gap-6">
         <ChapterNumber>CHAPTER 01 · WELCOME</ChapterNumber>
-        <h1 className="font-display text-[40px] font-semibold italic leading-[1.05] text-ink md:text-[72px]">
-          坐下来，开始考试。
+        <h1 className="font-display text-display-lg font-semibold leading-[1.08] text-ink md:text-display-2xl">
+          报上姓名，<em className="italic">开始答题</em>。
         </h1>
         <p className="max-w-xl text-body-lg text-muted">
           填写姓名即可进入练习或考试。系统会先在应考名单中匹配；如有员工号会优先用于识别。整个过程不会发送邮件或短信。

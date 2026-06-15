@@ -66,10 +66,10 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 01 · OVERVIEW</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           一切就绪。
         </h1>
         <p className="text-body text-body-lg">

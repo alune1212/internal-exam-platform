@@ -14,7 +14,9 @@ const badgeVariants = cva(
       variant: {
         default: "bg-ink text-canvas",
         outline: "border border-ink bg-canvas text-ink",
-        muted: "bg-surface-card text-body",
+        // Muted shares its neutral surface with StatusPill's default so the
+        // two chip families look like one continuous "neutral" tier.
+        muted: "bg-canvas-warm text-ink",
         success: "border border-success bg-canvas text-success",
         warning: "border border-warning bg-canvas text-warning",
         error: "border border-error bg-canvas text-error",

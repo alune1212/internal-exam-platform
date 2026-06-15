@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 export type TimerProps = {
@@ -23,6 +25,16 @@ export function Timer({ remainingSeconds, criticalThresholdSeconds = 300, classN
     Number.isFinite(remainingSeconds) && remainingSeconds <= criticalThresholdSeconds;
   const display = formatMmSs(remainingSeconds);
 
+  // Announce a single message the moment we cross into the critical window.
+  const wasCriticalRef = useRef(false);
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  useEffect(() => {
+    if (isCritical && !wasCriticalRef.current) {
+      setAnnouncement("剩余时间不足 5 分钟。");
+    }
+    wasCriticalRef.current = isCritical;
+  }, [isCritical]);
+
   return (
     <div className={cn("flex flex-col gap-1", className)}>
       <span className="text-caption uppercase tracking-[0.16em] text-muted">
@@ -33,8 +45,7 @@ export function Timer({ remainingSeconds, criticalThresholdSeconds = 300, classN
         style={isCritical ? { animationDuration: `${PULSE_DURATION_MS}ms` } : undefined}
       >
         <span
-          aria-live="polite"
-          aria-atomic="true"
+          aria-label={`剩余时间 ${display}`}
           className={cn(
             "font-display text-[32px] font-semibold tabular-nums leading-none text-ink",
             isCritical && "text-error",
@@ -42,6 +53,9 @@ export function Timer({ remainingSeconds, criticalThresholdSeconds = 300, classN
         >
           {display}
         </span>
+      </span>
+      <span role="status" aria-live="polite" className="sr-only">
+        {announcement ?? ""}
       </span>
     </div>
   );

@@ -70,6 +70,7 @@ export function AdminSideRail() {
       <aside className="w-60 shrink-0 border-r border-black bg-footer px-5 py-6 text-footer-soft">
         <Link
           to="/admin/dashboard"
+          aria-label="返回管理后台首页"
           className="mb-8 inline-flex rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas focus-visible:ring-offset-2 focus-visible:ring-offset-footer"
         >
           <Wordmark size="sm" tone="dark" subtitle="admin" />
@@ -83,6 +84,7 @@ export function AdminSideRail() {
     <div className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-4">
       <Link
         to="/admin/dashboard"
+        aria-label="返回管理后台首页"
         className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
       >
         <Wordmark size="sm" subtitle="admin" />

@@ -49,7 +49,7 @@ export function Wordmark({
           isDark ? "bg-canvas text-ink" : "bg-ink text-canvas",
         )}
       >
-        Z
+        知
       </span>
       <span className="flex flex-col leading-none">
         <span

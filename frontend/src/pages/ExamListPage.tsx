@@ -9,12 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Exam } from "@/types/exam";
 
+function resolveQuestionCount(rule: Record<string, unknown>): number | null {
+  if (typeof rule.question_count === "number") {
+    return rule.question_count;
+  }
+  if (Array.isArray(rule.counts)) {
+    return rule.counts.reduce(
+      (total, value) => (typeof value === "number" ? total + value : total),
+      0,
+    );
+  }
+  return null;
+}
+
 function ExamCard({ exam }: { exam: Exam }) {
   const isLive = exam.status === "active" || exam.status === "live";
-  const counts = exam.question_rule.counts;
-  const totalQuestions = Array.isArray(counts)
-    ? counts.reduce((total, value) => (typeof value === "number" ? total + value : total), 0)
-    : null;
+  const totalQuestions = resolveQuestionCount(exam.question_rule);
   const startsAt =
     typeof exam.question_rule.starts_at === "string" ? exam.question_rule.starts_at : null;
   const totalScore =
@@ -63,6 +73,19 @@ function ExamCard({ exam }: { exam: Exam }) {
   );
 }
 
+function resolveHeading(examCount: number, isLoading: boolean): string {
+  if (isLoading) {
+    return "正在加载今日考试……";
+  }
+  if (examCount === 0) {
+    return "今天暂无考试安排。";
+  }
+  if (examCount === 1) {
+    return "今天有一场考试等着你。";
+  }
+  return `今天有 ${examCount} 场考试等着你。`;
+}
+
 export function ExamListPage() {
   const { data = [], isLoading } = useQuery({
     queryKey: ["active-exams"],
@@ -70,11 +93,11 @@ export function ExamListPage() {
   });
 
   return (
-    <div className="flex flex-col gap-8">
+    <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
-          今天有三场考试等着你。
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
+          {resolveHeading(data.length, isLoading)}
         </h1>
       </header>
 

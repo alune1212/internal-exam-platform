@@ -40,7 +40,7 @@ describe("AdminSideRail", () => {
 
   it("renders the dark wordmark with the admin subtitle", () => {
     renderSideRail("/admin/dashboard");
-    const wordmarkLink = screen.getByRole("link", { name: /知试/ });
+    const wordmarkLink = screen.getByRole("link", { name: /返回管理后台首页/ });
     expect(wordmarkLink).toBeInTheDocument();
     expect(screen.getByText(/admin/i)).toBeInTheDocument();
   });

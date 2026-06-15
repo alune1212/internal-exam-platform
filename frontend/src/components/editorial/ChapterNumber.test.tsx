@@ -10,10 +10,13 @@ describe("ChapterNumber", () => {
     expect(screen.getByText("CHAPTER 01 · WELCOME")).toBeInTheDocument();
   });
 
-  it("renders the leading horizontal-line marker", () => {
+  it("renders the leading horizontal-line marker as a decorative rule", () => {
     render(<ChapterNumber>CHAPTER 01 · WELCOME</ChapterNumber>);
 
-    expect(screen.getByText("———")).toBeInTheDocument();
+    // Marker is now a 1px CSS rule (decorative) and an empty span with role separator.
+    const container = screen.getByText("CHAPTER 01 · WELCOME").parentElement;
+    expect(container?.querySelector('span[aria-hidden="true"]')).toBeInTheDocument();
+    expect(screen.queryByText("———")).not.toBeInTheDocument();
   });
 
   it("applies italic, caption size, tracking, and muted color classes", () => {

@@ -89,11 +89,10 @@ describe("EmptyState", () => {
     expect(screen.getByText("CHAPTER 00").parentElement?.className).toMatch(/text-muted/);
   });
 
-  it("title uses italic and display font", () => {
+  it("title uses display font", () => {
     render(<EmptyState chapter="x" description="y" title="暂无内容" />);
 
     const heading = screen.getByRole("heading", { level: 2, name: "暂无内容" });
-    expect(heading.className).toMatch(/italic/);
     expect(heading.className).toMatch(/font-display/);
   });
 });

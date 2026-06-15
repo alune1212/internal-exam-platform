@@ -18,6 +18,10 @@ const EXPECTED_KEYS = [
   "success",
   "warning",
   "error",
+  "inkRed",
+  "inkBlue",
+  "successOnDark",
+  "errorOnDark",
   "radiusPill",
   "radiusLg",
   "radiusMd",
@@ -61,6 +65,10 @@ describe("designTokens", () => {
       "success",
       "warning",
       "error",
+      "inkRed",
+      "inkBlue",
+      "successOnDark",
+      "errorOnDark",
     ];
     for (const key of hexTokens) {
       expect(designTokens[key]).toMatch(/^#[0-9a-fA-F]{3,8}$/);

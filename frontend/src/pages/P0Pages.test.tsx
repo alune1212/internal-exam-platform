@@ -6,11 +6,14 @@ import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
-import { getActiveExams, getExamRanking } from "@/api/exams";
+import { ApiError } from "@/api/client";
+import { getActiveExams, getExamRanking, startExam } from "@/api/exams";
 import { getPracticeQuestions } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { ExamResultPage } from "@/pages/ExamResultPage";
 import { ExamTakingPage } from "@/pages/ExamTakingPage";
+import { ExamListPage } from "@/pages/ExamListPage";
+import { ExamStartPage } from "@/pages/ExamStartPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PracticePage } from "@/pages/PracticePage";
 import { RankingPage } from "@/pages/RankingPage";
@@ -33,6 +36,7 @@ vi.mock("@/api/attempts", () => ({
 vi.mock("@/api/exams", () => ({
   getActiveExams: vi.fn(),
   getExamRanking: vi.fn(),
+  startExam: vi.fn(),
 }));
 
 vi.mock("@/api/questions", () => ({
@@ -100,10 +104,22 @@ const exam: Exam = {
   title: "内部考试",
   description: "考试说明",
   duration_minutes: 30,
-  question_rule: {},
+  question_rule: {
+    question_count: 60,
+    total_score: 100,
+    pass_score: 60,
+    mode: "fixed_paper",
+    type_counts: { single: 15, multiple: 40, judge: 5 },
+  },
   status: "published",
   show_answer_after_submit: true,
   show_ranking: true,
+};
+
+const secondExam: Exam = {
+  ...exam,
+  id: 2,
+  title: "第二次内部考试",
 };
 
 const rankingRows = [
@@ -181,6 +197,9 @@ describe("P0 pages", () => {
     vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
     vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
     vi.mocked(submitAttempt).mockResolvedValue(result);
+    vi.mocked(startExam).mockResolvedValue({ attempt_id: 10 } as Awaited<
+      ReturnType<typeof startExam>
+    >);
   });
 
   it("renders the Phase 5 login chapter and bilingual name label", () => {
@@ -191,7 +210,7 @@ describe("P0 pages", () => {
     });
 
     expect(screen.getByText("CHAPTER 01 · WELCOME")).toBeInTheDocument();
-    expect(screen.getByText("坐下来，开始考试。")).toBeInTheDocument();
+    expect(screen.getByText(/报上姓名/)).toBeInTheDocument();
     expect(screen.getByText(/姓名 ·/)).toBeInTheDocument();
   });
 
@@ -318,16 +337,17 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByText("刷一遍，记一遍。")).toBeInTheDocument();
+    expect(await screen.findByText(/刷一遍/)).toBeInTheDocument();
+    expect(await screen.findByText(/记一遍/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("region", { name: "题号导航" })[0].parentElement).toHaveClass(
-      "lg:fixed",
+      "lg:sticky",
       "lg:top-24",
     );
   });
 
-  it("shows practice loading copy before empty copy while questions are loading", async () => {
+  it("shows practice loading state before empty copy while questions are loading", async () => {
     vi.mocked(getPracticeQuestions).mockReturnValue(new Promise(() => {}));
 
     renderPage("practice", <PracticePage />, {
@@ -337,7 +357,71 @@ describe("P0 pages", () => {
     });
 
     expect(await screen.findByRole("status")).toBeInTheDocument();
-    expect(screen.getByText(/Loading/)).toBeInTheDocument();
     expect(screen.queryByText("暂无题目")).not.toBeInTheDocument();
+  });
+
+  it("renders the exam list heading and question count from the active exam rule", async () => {
+    vi.mocked(getActiveExams).mockResolvedValue([exam]);
+
+    renderPage("exams", <ExamListPage />);
+
+    expect(await screen.findByText("今天有一场考试等着你。")).toBeInTheDocument();
+    const questionCounts = screen.getAllByText("60");
+    expect(questionCounts.length).toBeGreaterThan(0);
+    expect(screen.getAllByText("100").length).toBeGreaterThan(0);
+  });
+
+  it("pluralizes the exam list heading based on the number of active exams", async () => {
+    vi.mocked(getActiveExams).mockResolvedValue([exam, secondExam]);
+
+    renderPage("exams", <ExamListPage />);
+
+    expect(await screen.findByText("今天有 2 场考试等着你。")).toBeInTheDocument();
+  });
+
+  it("falls back to the empty-state heading when there are no active exams", async () => {
+    vi.mocked(getActiveExams).mockResolvedValue([]);
+
+    renderPage("exams", <ExamListPage />);
+
+    expect(await screen.findByText("今天暂无考试安排。")).toBeInTheDocument();
+    expect(screen.getByText("暂无可参加考试。")).toBeInTheDocument();
+  });
+
+  it("shows the actual API error when starting an exam fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(startExam).mockRejectedValueOnce(
+      new ApiError("考生已有进行中的考试记录 #9", 409, "考生已有进行中的考试记录 #9"),
+    );
+
+    renderPage("exams/:examId/start", <ExamStartPage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    const startButton = await screen.findByRole("button", { name: /开始考试/ });
+    await user.click(startButton);
+
+    expect(await screen.findByText("考生已有进行中的考试记录 #9")).toBeInTheDocument();
+    expect(screen.queryByText("请确认考试仍处于发布状态。")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "继续考试" })).toBeInTheDocument();
+  });
+
+  it("falls back to a generic message when the start-exam error has no detail", async () => {
+    const user = userEvent.setup();
+    vi.mocked(startExam).mockRejectedValueOnce(new Error("network down"));
+
+    renderPage("exams/:examId/start", <ExamStartPage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    const startButton = await screen.findByRole("button", { name: /开始考试/ });
+    await user.click(startButton);
+
+    expect(await screen.findByText("network down")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "继续考试" })).not.toBeInTheDocument();
   });
 });

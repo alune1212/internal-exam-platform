@@ -8,6 +8,7 @@ import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { EmptyState } from "@/components/editorial/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type { RankingRow } from "@/types/exam";
 
 const columns: ColumnDef<RankingRow>[] = [
@@ -54,14 +55,14 @@ const columns: ColumnDef<RankingRow>[] = [
 ];
 
 const rowClassName = (row: RankingRow) => {
-  if (row.rank === 1) return "bg-surface-card hover:bg-surface-card";
-  if (row.rank === 2 || row.rank === 3) return "bg-canvas-warm";
-  return undefined;
+  if (row.rank === 1) return "border-l-4 border-l-ink bg-surface-card";
+  if (row.rank === 2 || row.rank === 3) return "border-l-4 border-l-ink-soft bg-canvas-warm";
+  return "border-l-4 border-l-hairline";
 };
 
 const mobileRowClassName = (row: RankingRow) => {
   if (row.rank === 1) return "border-l-4 border-ink bg-surface-card";
-  if (row.rank === 2 || row.rank === 3) return "border-l-4 border-muted bg-canvas-warm";
+  if (row.rank === 2 || row.rank === 3) return "border-l-4 border-ink-soft bg-canvas-warm";
   return "border-l-4 border-hairline bg-canvas";
 };
 
@@ -80,32 +81,59 @@ function RankingMetric({
   label,
   value,
   icon: Icon,
+  emphasis = false,
 }: {
   label: string;
   value: string | number;
   icon: typeof Trophy;
+  emphasis?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-lg border border-hairline bg-canvas p-4 shadow-card">
+    <div
+      className={cn(
+        "flex items-start justify-between gap-4 rounded-lg border bg-canvas p-4 shadow-card",
+        emphasis ? "border-ink" : "border-hairline",
+      )}
+    >
       <div className="flex flex-col gap-2">
         <span className="text-caption uppercase tracking-[0.16em] text-muted">{label}</span>
         <span className="font-display text-[28px] font-semibold tabular-nums text-ink">
           {value}
         </span>
       </div>
-      <Icon className="h-5 w-5 text-muted" aria-hidden="true" />
+      <Icon className={cn("h-5 w-5", emphasis ? "text-ink" : "text-muted")} aria-hidden="true" />
     </div>
   );
 }
 
 function TopRankCard({ row }: { row: RankingRow }) {
+  const isFirst = row.rank === 1;
+  const isPodium = row.rank <= 3;
+
   return (
-    <article className="flex flex-col gap-4 rounded-lg border border-hairline bg-canvas p-5 shadow-card">
+    <article
+      className={cn(
+        "flex flex-col gap-4 rounded-lg border bg-canvas p-5 shadow-card",
+        isFirst ? "border-ink" : "border-hairline",
+      )}
+    >
       <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
+        <span
+          className={cn(
+            "font-mono text-caption uppercase tracking-[0.16em]",
+            isFirst ? "text-ink-red" : "text-muted",
+          )}
+        >
           RANK {String(row.rank).padStart(2, "0")}
         </span>
-        <Medal className="h-5 w-5 text-ink" aria-hidden="true" />
+        <Medal
+          className={cn(
+            "h-5 w-5",
+            isFirst ? "fill-ink-red text-ink-red" : isPodium ? "text-ink-soft" : "text-hairline",
+          )}
+          strokeWidth={isFirst ? 2 : 1.5}
+          aria-hidden="true"
+        />
       </div>
       <div className="flex flex-col gap-1">
         <h2 className="font-display text-[24px] font-semibold text-ink">{row.candidate_name}</h2>
@@ -126,10 +154,10 @@ export function RankingPage() {
   const leader = data[0];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 03 · RESULTS</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           谁在这场考试里名列前茅。
         </h1>
       </header>
@@ -150,7 +178,7 @@ export function RankingPage() {
               </span>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <RankingMetric label="最高分" value={formatScore(leader)} icon={Trophy} />
+              <RankingMetric label="最高分" value={formatScore(leader)} icon={Trophy} emphasis />
               <RankingMetric label="平均分" value={averageScore(data)} icon={Sigma} />
               <RankingMetric label="交卷人数" value={data.length} icon={Users} />
             </div>

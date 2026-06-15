@@ -22,6 +22,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
+import { useScrolled } from "@/lib/useScrolled";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
 
@@ -55,6 +56,8 @@ export function PracticePage() {
     () => data.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0),
     [answers, data],
   );
+
+  const scrolled = useScrolled();
 
   const navItems = useMemo(
     () =>
@@ -125,7 +128,7 @@ export function PracticePage() {
         <Card className="bg-surface-card">
           <CardContent className="flex flex-col gap-4 p-8">
             <ChapterNumber>CHAPTER 00 · NOT LOGGED IN</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold italic text-ink">
+            <h1 className="font-display text-display-lg font-semibold text-ink">
               请先登录考试人。
             </h1>
             <p className="text-body text-muted">登录后可提交练习答案并记录练习结果。</p>
@@ -209,28 +212,24 @@ export function PracticePage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="sticky top-0 z-30 -mx-4 border-b border-hairline-soft bg-canvas px-4 py-3 md:-mx-8 md:px-8">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col leading-none">
-            <span className="text-caption uppercase italic tracking-[0.18em] text-muted">
-              PRACTICE
-            </span>
-            <span className="font-display text-display-sm font-semibold text-ink">练习模式</span>
-          </div>
-          <div className="hidden items-center gap-3 md:flex">
-            <ProgressCapsule current={activeIndex + 1} total={total} answered={answeredCount} />
-          </div>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/exams">返回考试</Link>
-          </Button>
+    <div data-stagger className="flex flex-col gap-6">
+      <header
+        data-scrolled={scrolled}
+        className="sticky top-0 z-30 -mx-4 flex items-center justify-between gap-4 border-b border-hairline-soft bg-canvas px-4 py-3 backdrop-blur-sm transition-shadow md:-mx-8 md:px-8"
+      >
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/exams">返回考试</Link>
+        </Button>
+        <div className="hidden items-center gap-3 md:flex">
+          <ProgressCapsule current={activeIndex + 1} total={total} answered={answeredCount} />
         </div>
+        <span aria-hidden className="w-16 md:hidden" />
       </header>
 
       <div className="flex flex-col gap-3 border-b border-hairline pb-4">
         <ChapterNumber>CHAPTER PR · PRACTICE</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold italic text-ink md:text-display-xl">
-          刷一遍，记一遍。
+        <h1 className="font-display text-display-lg font-semibold text-ink md:text-display-xl">
+          刷一遍，<em className="italic">记一遍</em>。
         </h1>
         <p className="max-w-2xl text-body-lg text-muted">
           练习结果不计入正式成绩。提交后即时显示对错与解析。
@@ -274,7 +273,7 @@ export function PracticePage() {
           </ExamFocusMode>
         </div>
 
-        <aside className="self-start lg:fixed lg:right-8 lg:top-24 lg:z-30 lg:w-60">
+        <aside className="self-start lg:sticky lg:top-24 lg:z-30 lg:w-60">
           <ExamNavigator
             items={navItems}
             activeId={activeQuestion.id}

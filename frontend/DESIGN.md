@@ -51,11 +51,17 @@ Do not reintroduce old `hsl(var(--...))` shadcn tokens. Use Tailwind aliases suc
 
 ## Typography
 
-- Display: `Manrope`, used for page and section headings.
-- Body: `Inter`, used for UI, prose, form controls, and table text.
+- Display: `Source Serif 4` (with `Songti SC` / `Noto Serif SC` fallback for Chinese characters). Used for page and section headings — gives the product an academic, paper-grade feel that matches the "知试" brand voice.
+- Body: `Inter` (with `PingFang SC` / `Hiragino Sans GB` for CJK). Used for UI, prose, form controls, and table text.
 - Mono: `JetBrains Mono`, used for counters, codes, and tabular identifiers.
 
-Display headings intentionally use slight negative letter spacing through the configured type scale. Body text should stay at normal letter spacing.
+Display headings use modest negative letter spacing (`-0.01em` / `-0.02em`) through the configured type scale — serif italics at heavy negative tracking collapse glyphs. Body text should stay at normal letter spacing.
+
+### H1 rules
+
+- Page-level H1 must use `font-display text-display-lg lg:text-display-xl font-semibold text-ink` (do not specify raw `text-[Npx]`).
+- H1 stays upright by default. Italic is reserved for *emphasis phrases* inside an H1 (wrap with `<em class="italic">…</em>`) and for the `ChapterNumber` marginalia.
+- `EmptyState` H2 also stays upright; use `<em class="italic">…</em>` for emphasis.
 
 ## Component Rules
 
@@ -64,6 +70,25 @@ Display headings intentionally use slight negative letter spacing through the co
 - Keep frontend API calls in `src/api/`; pages should compose hooks, API clients, and components rather than hand-writing fetch logic.
 - For admin tables, prefer `SimpleDataTable` and its mobile card renderer instead of creating separate mobile-only lists.
 - For metric summaries, use `MetricCard` so tone, label, value, unit, and caption styling stay consistent.
+
+## Neutral chip & surface rule
+
+`StatusPill` default and `Badge` muted share the same neutral surface (`bg-canvas-warm`). If you need a different neutral (e.g. on a dark card), use a surface-specific variant rather than introducing a new shade.
+
+## Radius rule
+
+- Display cards (Card, ExamFocusMode article, TopRankCard, ExamCard) → `rounded-lg` (16px).
+- Information-dense surfaces (Table, DataCard, Input, Select, Textarea) → `rounded-md` (8px).
+- Pills, capsules, navigation, buttons → `rounded-pill` (full).
+- Chips / badges / status pills → `rounded-sm` (4px).
+
+## Sticky header pattern
+
+Use the shared `useScrolled` hook to toggle `data-scrolled` on the sticky header. The `[data-scrolled="true"]` selector in `index.css` applies a hairline shadow so the header has a visual anchor once the user has scrolled.
+
+## Stagger entrance
+
+Add `data-stagger` to a top-level page container to opt into the editorial entrance keyframe. Children fade in with an 80ms delay step. The animation respects `prefers-reduced-motion`.
 
 ## Layouts
 

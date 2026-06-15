@@ -28,11 +28,11 @@ export function ExamResultPage() {
     [];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div data-stagger className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
         <div className="flex flex-col gap-1">
           <ChapterNumber>CHAPTER 99 · RESULT</ChapterNumber>
-          <h1 className="font-display text-display-md font-semibold italic text-ink">考试结果</h1>
+          <h1 className="font-display text-display-md font-semibold text-ink">考试结果</h1>
         </div>
         <Button asChild variant="ghost" size="sm">
           <Link to="/exams">返回考试列表</Link>
@@ -43,7 +43,7 @@ export function ExamResultPage() {
         <Card className="border-0 bg-footer text-canvas shadow-pop">
           <CardContent className="flex flex-col gap-6 p-6 md:p-8">
             <ChapterNumber className="text-footer-soft">CHAPTER 99 · RESULT</ChapterNumber>
-            <h1 className="font-display text-[40px] font-semibold italic leading-[1.05] text-canvas md:text-[48px]">
+            <h1 className="font-display text-display-xl font-semibold leading-[1.08] text-canvas">
               考试结束。
             </h1>
 
@@ -62,7 +62,7 @@ export function ExamResultPage() {
                   <span
                     className={cn(
                       "font-display text-display-sm font-semibold",
-                      result.is_passed ? "text-success" : "text-error",
+                      result.is_passed ? "text-success-on-dark" : "text-error-on-dark",
                     )}
                   >
                     {result.is_passed ? "PASSED · 已通过" : "FAILED · 未通过"}
@@ -77,7 +77,7 @@ export function ExamResultPage() {
                 <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
                   正确
                 </span>
-                <span className="font-display text-display-md font-semibold tabular-nums text-success">
+                <span className="font-display text-display-md font-semibold tabular-nums text-success-on-dark">
                   {result?.correct_count ?? "—"}
                 </span>
               </div>
@@ -85,7 +85,7 @@ export function ExamResultPage() {
                 <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
                   错误
                 </span>
-                <span className="font-display text-display-md font-semibold tabular-nums text-error">
+                <span className="font-display text-display-md font-semibold tabular-nums text-error-on-dark">
                   {result?.wrong_count ?? "—"}
                 </span>
               </div>

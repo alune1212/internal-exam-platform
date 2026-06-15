@@ -41,9 +41,12 @@ describe("Timer", () => {
     expect(wrapper?.className).not.toContain("animate-pulse");
   });
 
-  it("always sets aria-live=polite on the live region", () => {
+  it("does not pollute screen readers with per-second ticks", () => {
     render(<Timer remainingSeconds={1200} />);
     const time = screen.getByText("20:00");
-    expect(time).toHaveAttribute("aria-live", "polite");
+    // The clock face itself is no longer an aria-live region; a separate
+    // sr-only region handles threshold announcements only.
+    expect(time).not.toHaveAttribute("aria-live");
+    expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });

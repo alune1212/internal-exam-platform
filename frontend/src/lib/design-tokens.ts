@@ -35,6 +35,14 @@ export const designTokens = {
   warning: "#b45309",
   error: "#b91c1c",
 
+  // Editorial ink accents
+  inkRed: "#b91c1c",
+  inkBlue: "#1e3a8a",
+
+  // High-contrast variants for dark surfaces
+  successOnDark: "#4ade80",
+  errorOnDark: "#fca5a5",
+
   // Radius
   radiusPill: "9999px",
   radiusLg: "16px",
@@ -47,8 +55,8 @@ export const designTokens = {
   shadowElevate: "0 16px 40px rgba(17, 17, 17, 0.1)",
 
   // Fonts
-  fontDisplay: '"Manrope", "Inter", system-ui, sans-serif',
-  fontBody: '"Inter", system-ui, sans-serif',
+  fontDisplay: '"Source Serif 4", "Source Serif Pro", "Songti SC", "Noto Serif SC", Georgia, serif',
+  fontBody: '"Inter", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif',
   fontMono: '"JetBrains Mono", ui-monospace, monospace',
 } as const;
 

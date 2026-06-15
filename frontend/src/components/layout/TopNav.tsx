@@ -38,20 +38,30 @@ function candidateSubtitle(candidate: Candidate) {
   return [candidate.employee_no, candidate.department].filter(Boolean).join(" · ") || undefined;
 }
 
-function NavLinkItem({ item }: { item: NavItem }) {
+function NavLinkItem({ item, index }: { item: NavItem; index: number }) {
+  const sectionNumber = String(index + 1).padStart(2, "0");
   return (
     <NavLink
       to={item.to}
       end={item.end}
       className={({ isActive }) =>
         cn(
-          "relative inline-flex h-10 items-center px-1 text-body-sm font-medium transition-colors",
+          "relative inline-flex h-10 items-center gap-1.5 px-1 text-body-sm font-medium transition-colors",
           isActive ? "text-ink" : "text-muted hover:text-ink",
         )
       }
     >
       {({ isActive }) => (
         <>
+          <span
+            aria-hidden="true"
+            className={cn(
+              "font-mono text-caption uppercase tracking-[0.16em] transition-opacity",
+              isActive ? "text-ink opacity-100" : "opacity-0",
+            )}
+          >
+            §{sectionNumber}
+          </span>
           <span>{item.label}</span>
           <span
             aria-hidden="true"
@@ -75,6 +85,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
       <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-4 px-4 md:px-8">
         <Link
           to="/exams"
+          aria-label="返回考试首页"
           className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
         >
           <Wordmark size="sm" subtitle="internal exam platform" />
@@ -82,8 +93,8 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
 
         {isDesktop ? (
           <nav className="flex flex-1 items-center justify-center gap-8">
-            {navItems.map((item) => (
-              <NavLinkItem key={item.to} item={item} />
+            {navItems.map((item, index) => (
+              <NavLinkItem key={item.to} index={index} item={item} />
             ))}
           </nav>
         ) : null}

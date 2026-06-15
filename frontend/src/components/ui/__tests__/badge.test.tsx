@@ -20,16 +20,16 @@ describe("Badge", () => {
     expect(el.className).toContain("border-ink");
   });
 
-  it("muted variant uses bg-surface-card + text-body", () => {
+  it("muted variant shares the neutral surface with StatusPill (bg-canvas-warm)", () => {
     render(<Badge variant="muted">ARCHIVED</Badge>);
     const el = screen.getByText("ARCHIVED");
-    expect(el.className).toContain("bg-surface-card");
-    expect(el.className).toContain("text-body");
+    expect(el.className).toContain("bg-canvas-warm");
+    expect(el.className).toContain("text-ink");
   });
 
   it("badgeVariants() returns correct class strings", () => {
     expect(badgeVariants({ variant: "default" })).toContain("bg-ink");
     expect(badgeVariants({ variant: "outline" })).toContain("border-ink");
-    expect(badgeVariants({ variant: "muted" })).toContain("bg-surface-card");
+    expect(badgeVariants({ variant: "muted" })).toContain("bg-canvas-warm");
   });
 });

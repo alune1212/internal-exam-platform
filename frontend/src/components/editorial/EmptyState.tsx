@@ -42,7 +42,7 @@ export function EmptyState({
       <ChapterNumber className={tone === "error" ? "text-error" : undefined}>
         {chapter}
       </ChapterNumber>
-      <h2 className="font-display text-display-md italic text-ink">{title}</h2>
+      <h2 className="font-display text-display-md text-ink">{title}</h2>
       <p className="text-body text-muted">{description}</p>
       {action || secondaryAction ? (
         <div className="flex flex-wrap justify-center gap-3">

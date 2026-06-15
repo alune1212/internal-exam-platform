@@ -10,10 +10,10 @@ describe("Wordmark", () => {
     expect(screen.getByText("知试")).toBeInTheDocument();
   });
 
-  it("renders the Z mark inside the circle", () => {
+  it("renders the brand 知 monogram inside the circle", () => {
     render(<Wordmark data-testid="wm" />);
 
-    expect(screen.getByText("Z")).toBeInTheDocument();
+    expect(screen.getByText("知")).toBeInTheDocument();
   });
 
   it("renders optional subtitle in italic caption", () => {
@@ -41,8 +41,8 @@ describe("Wordmark", () => {
   it("uses size=md circle by default", () => {
     render(<Wordmark size="md" />);
 
-    const z = screen.getByText("Z");
-    expect(z.className).toMatch(/size-9|h-9|w-9/);
+    const monogram = screen.getByText("知");
+    expect(monogram.className).toMatch(/size-9|h-9|w-9/);
   });
 
   it("uses size=sm circle and compact text", () => {

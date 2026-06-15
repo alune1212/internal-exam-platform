@@ -15,9 +15,7 @@ export function ChapterNumber({ children, className, ...props }: ChapterNumberPr
       )}
       {...props}
     >
-      <span aria-hidden="true" className="mr-3">
-        ———
-      </span>
+      <span aria-hidden="true" className="mr-3 inline-block h-px w-6 bg-current opacity-70" />
       <span>{children}</span>
     </span>
   );
