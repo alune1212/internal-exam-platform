@@ -531,6 +531,8 @@ def save_answers(
     db: Session, attempt_id: int, payload: AnswerSaveRequest
 ) -> AnswerSaveResponse:
     attempt = _load_attempt_with_snapshots(db, attempt_id)
+    if attempt.status != "in_progress":
+        raise AttemptAlreadySubmittedError(attempt_id)
     questions_by_id = {question.id: question for question in attempt.questions}
     now = datetime.now(UTC)
 
