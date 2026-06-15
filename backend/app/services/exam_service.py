@@ -410,7 +410,7 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
     """开始考试：创建 attempt 并生成题目快照。"""
-    exam = db.get(Exam, exam_id)
+    exam = db.query(Exam).filter(Exam.id == exam_id).with_for_update().one_or_none()
     if exam is None:
         raise ExamNotFoundError(exam_id)
     if exam.status != "active":
@@ -432,6 +432,10 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         raise AttemptAlreadyExistsError(existing.id)
 
     questions = _select_exam_questions(db, exam)
+
+    # 持久化 exam.question_rule（含 fixed_question_ids），释放行锁
+    db.add(exam)
+    db.flush()
 
     now = datetime.now(UTC)
     total_score = sum(q.score for q in questions)

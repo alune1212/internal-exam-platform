@@ -1,0 +1,45 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "返回考试首页" [ref=e6] [cursor=pointer]:
+        - /url: /exams
+        - generic [ref=e7]:
+          - generic [ref=e8]: 知
+          - generic [ref=e9]:
+            - generic [ref=e10]: 知试
+            - generic [ref=e11]: internal exam platform
+      - navigation [ref=e12]:
+        - link "练习" [ref=e13] [cursor=pointer]:
+          - /url: /practice
+          - generic [ref=e14]: I.
+          - generic [ref=e15]: 练习
+        - link "考试" [ref=e17] [cursor=pointer]:
+          - /url: /exams
+          - generic [ref=e18]: II.
+          - generic [ref=e19]: 考试
+        - link "排名" [ref=e21] [cursor=pointer]:
+          - /url: /exams/1/ranking
+          - generic [ref=e22]: III.
+          - generic [ref=e23]: 排名
+      - link "登录" [ref=e26] [cursor=pointer]:
+        - /url: /login
+        - img [ref=e27]
+        - text: 登录
+  - main [ref=e30]:
+    - generic [ref=e32]:
+      - generic [ref=e35]: CHAPTER 02 · EXAMS
+      - heading "正在加载今日考试……" [level=1] [ref=e36]
+  - contentinfo [ref=e40]:
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - generic [ref=e44]: 知
+          - generic [ref=e45]:
+            - generic [ref=e46]: 知试
+            - generic [ref=e47]: internal exam platform
+        - paragraph [ref=e48]: 内部临时考试与刷题平台 · 轻量、可信、留有纸感。
+      - generic [ref=e49]:
+        - paragraph [ref=e50]: CONTACT
+        - link "internal-exam@example.com" [ref=e51] [cursor=pointer]:
+          - /url: mailto:internal-exam@example.com
+        - paragraph [ref=e52]: © 2026 ZHISHI

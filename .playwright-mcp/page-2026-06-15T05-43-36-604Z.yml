@@ -1,0 +1,71 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "返回考试首页" [ref=e6] [cursor=pointer]:
+        - /url: /exams
+        - generic [ref=e7]:
+          - generic [ref=e8]: 知
+          - generic [ref=e9]:
+            - generic [ref=e10]: 知试
+            - generic [ref=e11]: internal exam platform
+      - navigation [ref=e12]:
+        - link "练习" [ref=e13] [cursor=pointer]:
+          - /url: /practice
+          - generic [ref=e14]: I.
+          - generic [ref=e15]: 练习
+        - link "考试" [ref=e17] [cursor=pointer]:
+          - /url: /exams
+          - generic [ref=e18]: II.
+          - generic [ref=e19]: 考试
+        - link "排名" [ref=e21] [cursor=pointer]:
+          - /url: /exams/1/ranking
+          - generic [ref=e22]: III.
+          - generic [ref=e23]: 排名
+      - link "登录" [ref=e26] [cursor=pointer]:
+        - /url: /login
+        - img [ref=e27]
+        - text: 登录
+  - main [ref=e30]:
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e35]: CHAPTER 02 · EXAMS
+        - heading "今天有一场考试等着你。" [level=1] [ref=e36]
+      - article [ref=e38]:
+        - paragraph [ref=e39]: LIVE · 进行中
+        - heading "安全知识竞赛" [level=2] [ref=e40]
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - term [ref=e43]:
+              - img [ref=e44]
+              - text: 时长
+            - definition [ref=e47]: 60 分钟
+          - generic [ref=e48]:
+            - term [ref=e49]:
+              - img [ref=e50]
+              - text: 题数
+            - definition [ref=e53]: "60"
+          - generic [ref=e54]:
+            - term [ref=e55]:
+              - img [ref=e56]
+              - text: 总分
+            - definition [ref=e59]: "100"
+        - generic [ref=e60]:
+          - paragraph [ref=e61]: 随时开考
+          - link "进入考试" [ref=e62] [cursor=pointer]:
+            - /url: /exams/1/start
+            - text: 进入考试
+            - img [ref=e63]
+  - contentinfo [ref=e66]:
+    - generic [ref=e67]:
+      - generic [ref=e68]:
+        - generic [ref=e69]:
+          - generic [ref=e70]: 知
+          - generic [ref=e71]:
+            - generic [ref=e72]: 知试
+            - generic [ref=e73]: internal exam platform
+        - paragraph [ref=e74]: 内部临时考试与刷题平台 · 轻量、可信、留有纸感。
+      - generic [ref=e75]:
+        - paragraph [ref=e76]: CONTACT
+        - link "internal-exam@example.com" [ref=e77] [cursor=pointer]:
+          - /url: mailto:internal-exam@example.com
+        - paragraph [ref=e78]: © 2026 ZHISHI
