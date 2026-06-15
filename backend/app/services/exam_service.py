@@ -554,9 +554,31 @@ def save_answers(
 
 
 def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptResultRead:
-    attempt = _load_attempt_with_snapshots(db, attempt_id)
+    # 轻量快速检查：避免不必要的 FOR UPDATE
+    quick = db.get(ExamAttempt, attempt_id)
+    if quick is None:
+        raise AttemptNotFoundError(attempt_id)
+    if quick.status != "in_progress":
+        raise AttemptAlreadySubmittedError(attempt_id)
+
+    # 加行锁后重新加载完整 attempt + snapshots + exam
+    attempt = (
+        db.query(ExamAttempt)
+        .options(
+            selectinload(ExamAttempt.questions).selectinload(
+                ExamAttemptQuestion.answer
+            ),
+            selectinload(ExamAttempt.exam),
+        )
+        .filter(ExamAttempt.id == attempt_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if attempt is None:
+        raise AttemptNotFoundError(attempt_id)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
+
     submitted_at = datetime.now(UTC)
     score = Decimal("0")
     correct_count = 0
