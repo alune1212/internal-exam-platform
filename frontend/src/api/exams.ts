@@ -10,6 +10,20 @@ export function getAdminExams() {
   return apiRequest<Exam[]>("/api/admin/exams");
 }
 
+export type ExamUpdatePayload = {
+  title: string;
+  duration_minutes: number;
+  question_rule: Record<string, unknown>;
+  status: string;
+};
+
+export function updateAdminExam(examId: string, payload: ExamUpdatePayload) {
+  return apiRequest<Exam>(`/api/admin/exams/${examId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getExamRanking(examId: string) {
   return apiRequest<RankingRow[]>(`/api/exams/${examId}/ranking`);
 }

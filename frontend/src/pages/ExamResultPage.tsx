@@ -57,6 +57,19 @@ export function ExamResultPage() {
                   / {result ? result.total_score : "—"}
                 </span>
               </p>
+              {result?.pass_score != null ? (
+                <div className="flex flex-wrap items-center gap-2 text-body-sm">
+                  <span
+                    className={cn(
+                      "font-display text-display-sm font-semibold",
+                      result.is_passed ? "text-success" : "text-error",
+                    )}
+                  >
+                    {result.is_passed ? "PASSED · 已通过" : "FAILED · 未通过"}
+                  </span>
+                  <span className="text-footer-soft">及格线 {result.pass_score} 分</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-6 border-t border-footer-soft pt-6 text-body">

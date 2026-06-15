@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models import ExamAttemptAnswer, Question, QuestionOption
+from app.models import ExamAttemptAnswer, ExamAttemptQuestion, Question, QuestionOption
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamCreate, ExamUpdate
 from app.services import exam_service
@@ -129,6 +129,130 @@ def test_start_exam_total_score_matches_questions(db: Session) -> None:
     assert attempt.total_score == 7
 
 
+def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
+    db: Session,
+) -> None:
+    exam = create_exam(
+        db,
+        question_rule={"question_count": 60, "total_score": 100, "pass_score": 60},
+    )
+    candidate = create_candidate(db)
+    categories = ["交通", "安全", "工伤", "廉政"]
+    question_types = ["single", "multiple", "judge"]
+
+    for category in categories:
+        for question_type in question_types:
+            create_question_with_options(
+                db,
+                stem=f"{category}-{question_type}-must-cover",
+                category_1=category,
+                question_type=question_type,
+                score=2 if question_type == "multiple" else 1,
+            )
+    for index in range(120):
+        create_question_with_options(
+            db,
+            stem=f"补充题-{index}",
+            category_1=categories[index % len(categories)],
+            question_type=question_types[index % len(question_types)],
+            score=2 if question_types[index % len(question_types)] == "multiple" else 1,
+        )
+
+    result = exam_service.start_exam(db, exam.id, candidate.id)
+    attempt = exam_service.get_attempt(db, result.attempt_id)
+    snapshots = (
+        db.query(ExamAttemptQuestion).filter_by(attempt_id=result.attempt_id).all()
+    )
+    original_ids = [snapshot.original_question_id for snapshot in snapshots]
+    selected_questions = db.query(Question).filter(Question.id.in_(original_ids)).all()
+    selected_combos = {
+        (question.category_1, question.question_type) for question in selected_questions
+    }
+
+    assert len(result.questions) == 60
+    assert attempt.total_score == 100
+    assert sum(float(snapshot.score) for snapshot in snapshots) == 100
+    assert result.exam.question_rule["pass_score"] == 60
+    assert {question.category_1 for question in selected_questions} == set(categories)
+    assert {question.question_type for question in selected_questions} == set(
+        question_types
+    )
+    assert selected_combos.issuperset(
+        {
+            (category, question_type)
+            for category in categories
+            for question_type in question_types
+        }
+    )
+
+
+def test_start_exam_reuses_fixed_paper_for_same_exam(db: Session) -> None:
+    exam = create_exam(
+        db,
+        question_rule={"question_count": 60, "total_score": 100, "pass_score": 60},
+    )
+    first_candidate = create_candidate(db, name="甲", employee_no="E001")
+    second_candidate = create_candidate(db, name="乙", employee_no="E002")
+    categories = ["交通", "安全", "工伤", "廉政"]
+    question_types = ["single", "multiple", "judge"]
+
+    for category in categories:
+        for question_type in question_types:
+            for index in range(10):
+                create_question_with_options(
+                    db,
+                    stem=f"{category}-{question_type}-{index}",
+                    category_1=category,
+                    question_type=question_type,
+                    score=2 if question_type == "multiple" else 1,
+                )
+
+    first = exam_service.start_exam(db, exam.id, first_candidate.id)
+    second = exam_service.start_exam(db, exam.id, second_candidate.id)
+
+    first_ids = [
+        row.original_question_id
+        for row in db.query(ExamAttemptQuestion)
+        .filter_by(attempt_id=first.attempt_id)
+        .order_by(ExamAttemptQuestion.sort_order)
+        .all()
+    ]
+    second_ids = [
+        row.original_question_id
+        for row in db.query(ExamAttemptQuestion)
+        .filter_by(attempt_id=second.attempt_id)
+        .order_by(ExamAttemptQuestion.sort_order)
+        .all()
+    ]
+
+    assert first_ids == second_ids
+    assert len(first_ids) == 60
+
+
+def test_start_exam_rejects_question_rule_when_pool_is_too_small(
+    db: Session,
+) -> None:
+    exam = create_exam(db, question_rule={"question_count": 60, "total_score": 100})
+    candidate = create_candidate(db)
+    create_question_with_options(db)
+
+    with pytest.raises(exam_service.InsufficientQuestionsError):
+        exam_service.start_exam(db, exam.id, candidate.id)
+
+
+def test_start_exam_keeps_legacy_empty_question_rule_behavior(db: Session) -> None:
+    exam = create_exam(db, question_rule={})
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="题目1", score=2)
+    create_question_with_options(db, stem="题目2", score=3)
+
+    result = exam_service.start_exam(db, exam.id, candidate.id)
+    attempt = exam_service.get_attempt(db, result.attempt_id)
+
+    assert len(result.questions) == 2
+    assert attempt.total_score == 5
+
+
 # --- get_attempt 测试 ---
 
 
@@ -254,6 +378,37 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
     assert result.questions[1].score_awarded == 0
     assert attempt.status == "submitted"
     assert attempt.submitted_at is not None
+
+
+def test_submit_attempt_includes_pass_status_from_question_rule(db: Session) -> None:
+    exam = create_exam(db, question_rule={"pass_score": 6})
+    candidate = create_candidate(db)
+    create_question_with_options(db, stem="题目1", score=5)
+    create_question_with_options(db, stem="题目2", score=5)
+    start_result = exam_service.start_exam(db, exam.id, candidate.id)
+
+    exam_service.save_answers(
+        db,
+        start_result.attempt_id,
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=start_result.questions[0].id,
+                    selected_answer="A",
+                ),
+                AnswerSaveItem(
+                    attempt_question_id=start_result.questions[1].id,
+                    selected_answer="B",
+                ),
+            ]
+        ),
+    )
+
+    result = exam_service.submit_attempt(db, start_result.attempt_id, "manual")
+
+    assert result.score == 5
+    assert result.pass_score == 6
+    assert result.is_passed is False
 
 
 def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:

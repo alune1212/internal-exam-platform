@@ -1,4 +1,7 @@
+from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -19,6 +22,7 @@ from app.schemas.attempt import (
     AnswerSaveResponse,
     AttemptQuestionRead,
     AttemptRead,
+    AttemptResultQuestion,
     AttemptResultRead,
 )
 from app.schemas.exam import (
@@ -83,6 +87,19 @@ class AttemptAlreadySubmittedError(DomainError):
         super().__init__(f"考试记录 #{attempt_id} 已提交")
 
 
+class InsufficientQuestionsError(DomainError):
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+@dataclass(frozen=True)
+class FixedPaperRule:
+    question_count: int
+    total_score: Decimal
+    type_counts: dict[str, int]
+
+
 def _build_correct_answer_snapshot(options: list) -> str:
     """从题目选项中提取正确答案标签，逗号分隔。"""
     correct = sorted(opt.label for opt in options if opt.is_correct)
@@ -95,6 +112,206 @@ def _build_options_snapshot(options: list) -> list[dict]:
         {"label": opt.label, "content": opt.content, "sort_order": opt.sort_order}
         for opt in sorted(options, key=lambda o: o.sort_order)
     ]
+
+
+def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
+    if not question_rule or "question_count" not in question_rule:
+        return None
+
+    question_count = int(question_rule.get("question_count", 60))
+    total_score = Decimal(str(question_rule.get("total_score", 100)))
+    raw_type_counts = question_rule.get("type_counts") or {
+        "single": 15,
+        "multiple": 40,
+        "judge": 5,
+    }
+    type_counts = {
+        question_type: int(raw_type_counts.get(question_type, 0))
+        for question_type in ("single", "multiple", "judge")
+    }
+    if sum(type_counts.values()) != question_count:
+        raise InsufficientQuestionsError("抽题规则中的题型数量合计必须等于总题数")
+    return FixedPaperRule(
+        question_count=question_count,
+        total_score=total_score,
+        type_counts=type_counts,
+    )
+
+
+def _questions_by_type(questions: list[Question]) -> dict[str, list[Question]]:
+    grouped: dict[str, list[Question]] = defaultdict(list)
+    for question in questions:
+        grouped[question.question_type].append(question)
+    return grouped
+
+
+def _category_key(question: Question) -> str:
+    return question.category_1 or "(未填写)"
+
+
+def _active_category_totals(questions: list[Question]) -> dict[str, int]:
+    totals: dict[str, int] = defaultdict(int)
+    for question in questions:
+        totals[_category_key(question)] += 1
+    return dict(totals)
+
+
+def _take_from_bucket(
+    selected: list[Question],
+    bucket: list[Question],
+    used_ids: set[int],
+    count: int,
+    *,
+    reason: str,
+) -> None:
+    available = [question for question in bucket if question.id not in used_ids]
+    if len(available) < count:
+        raise InsufficientQuestionsError(reason)
+    for question in available[:count]:
+        selected.append(question)
+        used_ids.add(question.id)
+
+
+def _select_questions_by_type(
+    questions: list[Question], rule: FixedPaperRule
+) -> list[Question]:
+    if len(questions) < rule.question_count:
+        raise InsufficientQuestionsError("active 题目数量不足，无法生成考试试卷")
+
+    grouped_by_type = _questions_by_type(questions)
+    for question_type, count in rule.type_counts.items():
+        if len(grouped_by_type[question_type]) < count:
+            raise InsufficientQuestionsError(
+                f"{question_type} 题目数量不足，无法生成考试试卷"
+            )
+
+    selected: list[Question] = []
+    used_ids: set[int] = set()
+    category_totals = _active_category_totals(questions)
+    categories = [
+        category
+        for category, _total in sorted(
+            category_totals.items(), key=lambda item: (-item[1], item[0])
+        )
+    ]
+    by_combo: dict[tuple[str, str], list[Question]] = defaultdict(list)
+    for question in questions:
+        by_combo[(_category_key(question), question.question_type)].append(question)
+
+    for category in categories:
+        multiple_bucket = by_combo.get((category, "multiple"), [])
+        if multiple_bucket:
+            _take_from_bucket(
+                selected,
+                multiple_bucket,
+                used_ids,
+                min(5, len(multiple_bucket)),
+                reason=f"{category} 的多选题数量不足，无法生成考试试卷",
+            )
+
+    for category in categories:
+        judge_bucket = by_combo.get((category, "judge"), [])
+        if judge_bucket:
+            _take_from_bucket(
+                selected,
+                judge_bucket,
+                used_ids,
+                1,
+                reason=f"{category} 的判断题数量不足，无法生成考试试卷",
+            )
+
+    for category in categories:
+        single_bucket = by_combo.get((category, "single"), [])
+        if single_bucket:
+            _take_from_bucket(
+                selected,
+                single_bucket,
+                used_ids,
+                1,
+                reason=f"{category} 的单选题数量不足，无法生成考试试卷",
+            )
+
+    for (category, question_type), bucket in sorted(by_combo.items()):
+        if not bucket:
+            continue
+        if any(question.id in used_ids for question in bucket):
+            continue
+        _take_from_bucket(
+            selected,
+            bucket,
+            used_ids,
+            1,
+            reason=f"{category} 缺少 {question_type} 题目，无法覆盖题型组合",
+        )
+
+    for question_type, target_count in rule.type_counts.items():
+        current_count = sum(
+            1 for question in selected if question.question_type == question_type
+        )
+        _take_from_bucket(
+            selected,
+            grouped_by_type[question_type],
+            used_ids,
+            target_count - current_count,
+            reason=f"{question_type} 题目数量不足，无法生成考试试卷",
+        )
+
+    if len(selected) != rule.question_count:
+        raise InsufficientQuestionsError("抽题数量与规则不一致，无法生成考试试卷")
+    if sum(question.score for question in selected) != rule.total_score:
+        raise InsufficientQuestionsError("抽题总分与规则不一致，无法生成考试试卷")
+    return selected
+
+
+def _load_questions_by_ids(db: Session, question_ids: list[int]) -> list[Question]:
+    questions = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.id.in_(question_ids))
+        .all()
+    )
+    by_id = {question.id: question for question in questions}
+    missing_ids = [
+        question_id for question_id in question_ids if question_id not in by_id
+    ]
+    if missing_ids:
+        raise InsufficientQuestionsError("固定试卷中的题目已不存在，无法开始考试")
+    return [by_id[question_id] for question_id in question_ids]
+
+
+def _select_exam_questions(db: Session, exam: Exam) -> list[Question]:
+    rule = _parse_fixed_paper_rule(exam.question_rule)
+    if rule is None:
+        return (
+            db.query(Question)
+            .options(selectinload(Question.options))
+            .filter(Question.status == "active")
+            .order_by(Question.id)
+            .all()
+        )
+
+    fixed_question_ids = exam.question_rule.get("fixed_question_ids")
+    if fixed_question_ids:
+        if len(fixed_question_ids) != rule.question_count:
+            raise InsufficientQuestionsError("固定试卷题目数量与抽题规则不一致")
+        return _load_questions_by_ids(
+            db, [int(question_id) for question_id in fixed_question_ids]
+        )
+
+    active_questions = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.status == "active")
+        .order_by(Question.id)
+        .all()
+    )
+    selected = _select_questions_by_type(active_questions, rule)
+    exam.question_rule = {
+        **exam.question_rule,
+        "mode": exam.question_rule.get("mode", "fixed_paper"),
+        "fixed_question_ids": [question.id for question in selected],
+    }
+    return selected
 
 
 def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
@@ -112,26 +329,35 @@ def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
 
 
 def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
-    questions = []
+    questions: list[AttemptResultQuestion] = []
     for question in attempt.questions:
         answer = question.answer
         questions.append(
-            {
-                "attempt_question_id": question.id,
-                "stem_snapshot": question.stem_snapshot,
-                "selected_answer": answer.selected_answer if answer else None,
-                "correct_answer_snapshot": question.correct_answer_snapshot,
-                "analysis_snapshot": question.analysis_snapshot,
-                "is_correct": answer.is_correct if answer else False,
-                "score_awarded": float(answer.score_awarded) if answer else 0,
-                "score": float(question.score),
-            }
+            AttemptResultQuestion(
+                attempt_question_id=question.id,
+                stem_snapshot=question.stem_snapshot,
+                selected_answer=answer.selected_answer if answer else None,
+                correct_answer_snapshot=question.correct_answer_snapshot,
+                analysis_snapshot=question.analysis_snapshot,
+                is_correct=answer.is_correct if answer else False,
+                score_awarded=float(answer.score_awarded) if answer else 0,
+                score=float(question.score),
+            )
         )
+
+    raw_pass_score = (
+        attempt.exam.question_rule.get("pass_score") if attempt.exam else None
+    )
+    pass_score = float(raw_pass_score) if raw_pass_score is not None else None
 
     return AttemptResultRead(
         attempt_id=attempt.id,
         score=float(attempt.score),
         total_score=float(attempt.total_score),
+        pass_score=pass_score,
+        is_passed=float(attempt.score) >= pass_score
+        if pass_score is not None
+        else None,
         correct_count=attempt.correct_count,
         wrong_count=attempt.wrong_count,
         questions=questions,
@@ -196,14 +422,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     if existing is not None:
         raise AttemptAlreadyExistsError(existing.id)
 
-    # 加载所有 active 题目及其选项
-    questions = (
-        db.query(Question)
-        .options(selectinload(Question.options))
-        .filter(Question.status == "active")
-        .order_by(Question.id)
-        .all()
-    )
+    questions = _select_exam_questions(db, exam)
 
     now = datetime.now(UTC)
     total_score = sum(q.score for q in questions)
@@ -326,7 +545,7 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
     submitted_at = datetime.now(UTC)
-    score = 0.0
+    score = Decimal("0")
     correct_count = 0
 
     for question in attempt.questions:
@@ -348,10 +567,10 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
             )
             question.answer = answer
         answer.is_correct = scoring.is_correct
-        answer.score_awarded = scoring.score_awarded
+        answer.score_awarded = Decimal(str(scoring.score_awarded))
         if scoring.is_correct:
             correct_count += 1
-            score += scoring.score_awarded
+            score += Decimal(str(scoring.score_awarded))
 
     attempt.status = "auto_submitted" if submit_type == "auto" else "submitted"
     attempt.submitted_at = submitted_at

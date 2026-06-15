@@ -30,6 +30,8 @@ export type AttemptResult = {
   attempt_id: number;
   score: number;
   total_score: number;
+  pass_score?: number | null;
+  is_passed?: boolean | null;
   correct_count: number;
   wrong_count: number;
   questions: Array<{

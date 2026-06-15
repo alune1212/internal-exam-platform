@@ -63,6 +63,8 @@ class AttemptResultRead(BaseModel):
     attempt_id: int
     score: float
     total_score: float
+    pass_score: float | None = None
+    is_passed: bool | None = None
     correct_count: int
     wrong_count: int
     questions: list[AttemptResultQuestion] = Field(default_factory=list)

@@ -1,10 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
 import { z } from "zod";
 
+import { getAdminExams, updateAdminExam } from "@/api/exams";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,24 @@ const schema = z.object({
 });
 
 type ExamEditForm = z.infer<typeof schema>;
+
+const DEFAULT_FIXED_RULE = {
+  question_count: 60,
+  total_score: 100,
+  pass_score: 60,
+  mode: "fixed_paper",
+  type_counts: { single: 15, multiple: 40, judge: 5 },
+};
+
+function formatQuestionRule(rule: Record<string, unknown>) {
+  return JSON.stringify(Object.keys(rule).length ? rule : DEFAULT_FIXED_RULE, null, 2);
+}
+
+function normalizeStatus(status: string): ExamEditForm["status"] {
+  return STATUS_OPTIONS.some((option) => option.value === status)
+    ? (status as ExamEditForm["status"])
+    : "draft";
+}
 
 function StatusDropdown({
   value,
@@ -87,15 +107,53 @@ function StatusDropdown({
 
 export function ExamEditPage() {
   const { examId } = useParams();
+  const queryClient = useQueryClient();
   const form = useForm<ExamEditForm>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: "临时考试",
       duration_minutes: 60,
       status: "draft",
-      question_rule_json: JSON.stringify({ counts: [5, 5, 2], total_score: 100 }, null, 2),
+      question_rule_json: formatQuestionRule(DEFAULT_FIXED_RULE),
     },
   });
+  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
+  const mutation = useMutation({
+    mutationFn: (values: ExamEditForm) => {
+      if (!examId) {
+        throw new Error("missing exam id");
+      }
+      let questionRule: Record<string, unknown>;
+      try {
+        questionRule = JSON.parse(values.question_rule_json) as Record<string, unknown>;
+      } catch {
+        form.setError("question_rule_json", { message: "抽题规则必须是合法 JSON" });
+        throw new Error("invalid question rule json");
+      }
+      return updateAdminExam(examId, {
+        title: values.title,
+        duration_minutes: values.duration_minutes,
+        status: values.status,
+        question_rule: questionRule,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-exams"] });
+    },
+  });
+
+  useEffect(() => {
+    if (!currentExam) {
+      return;
+    }
+    form.reset({
+      title: currentExam.title,
+      duration_minutes: currentExam.duration_minutes,
+      status: normalizeStatus(currentExam.status),
+      question_rule_json: formatQuestionRule(currentExam.question_rule),
+    });
+  }, [currentExam, form]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -113,9 +171,14 @@ export function ExamEditPage() {
               取消
             </Link>
           </Button>
-          <Button type="button" size="sm" onClick={form.handleSubmit(() => undefined)}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={mutation.isPending}
+            onClick={form.handleSubmit((values) => mutation.mutate(values))}
+          >
             <Save data-icon="inline-start" />
-            保存配置
+            {mutation.isPending ? "保存中" : "保存配置"}
           </Button>
         </div>
       </header>
@@ -151,6 +214,11 @@ export function ExamEditPage() {
             className="w-full resize-y rounded-md border border-hairline bg-footer p-4 font-mono text-[12px] leading-relaxed text-footer-soft focus:border-ink focus:outline-none"
             {...form.register("question_rule_json")}
           />
+          {form.formState.errors.question_rule_json ? (
+            <p className="text-body-sm text-error">
+              {form.formState.errors.question_rule_json.message}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-3 rounded-md bg-surface-card p-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
           <div className="flex flex-col gap-1">
