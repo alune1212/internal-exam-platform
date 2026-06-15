@@ -132,9 +132,21 @@ def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
     ]
 
 
-def get_absent_candidates(db: Session) -> list[AbsentCandidateRow]:
-    """缺考人员：应参但无任何 attempt 记录的考生。"""
-    attempted_ids = select(ExamAttempt.candidate_id).distinct()
+def get_absent_candidates(
+    db: Session, exam_id: int | None = None
+) -> list[AbsentCandidateRow]:
+    """缺考人员：应参但在指定考试中无 attempt 记录的考生。
+
+    不传 exam_id 时保留旧行为（全局从未参考过）。
+    """
+    if exam_id is not None:
+        attempted_ids = (
+            select(ExamAttempt.candidate_id)
+            .where(ExamAttempt.exam_id == exam_id)
+            .distinct()
+        )
+    else:
+        attempted_ids = select(ExamAttempt.candidate_id).distinct()
 
     rows = (
         db.query(Candidate)

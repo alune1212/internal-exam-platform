@@ -142,11 +142,17 @@ def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None
 
     question_count = int(question_rule.get("question_count", 60))
     total_score = Decimal(str(question_rule.get("total_score", 100)))
-    raw_type_counts = question_rule.get("type_counts") or {
-        "single": 15,
-        "multiple": 40,
-        "judge": 5,
-    }
+    raw_type_counts = question_rule.get("type_counts")
+    if raw_type_counts is None:
+        total_parts = 12
+        single = max(1, round(question_count * 3 / total_parts))
+        multiple = max(1, round(question_count * 8 / total_parts))
+        judge = max(1, question_count - single - multiple)
+        raw_type_counts = {
+            "single": single,
+            "multiple": multiple,
+            "judge": judge,
+        }
     type_counts = {
         question_type: int(raw_type_counts.get(question_type, 0))
         for question_type in ("single", "multiple", "judge")
@@ -340,7 +346,10 @@ def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
     attempt = (
         db.query(ExamAttempt)
         .options(
-            selectinload(ExamAttempt.questions).selectinload(ExamAttemptQuestion.answer)
+            selectinload(ExamAttempt.questions).selectinload(
+                ExamAttemptQuestion.answer
+            ),
+            selectinload(ExamAttempt.exam),
         )
         .filter(ExamAttempt.id == attempt_id)
         .one_or_none()
@@ -548,6 +557,8 @@ def save_answers(
     attempt = _load_attempt_with_snapshots(db, attempt_id)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
+    if attempt.exam and attempt.exam.status != "active":
+        raise ExamNotActiveError(attempt.exam_id)
     questions_by_id = {question.id: question for question in attempt.questions}
     now = datetime.now(UTC)
 
