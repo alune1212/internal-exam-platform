@@ -68,6 +68,13 @@ class CandidateNotFoundError(DomainError):
         super().__init__(f"考生 #{candidate_id} 不存在")
 
 
+class CandidateNotEligibleError(DomainError):
+    status_code = 403
+
+    def __init__(self, candidate_id: int) -> None:
+        super().__init__(f"考生 #{candidate_id} 当前不可参加考试")
+
+
 class AttemptAlreadyExistsError(DomainError):
     status_code = 409
 
@@ -425,6 +432,8 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
         raise CandidateNotFoundError(candidate_id)
+    if candidate.status != "active":
+        raise CandidateNotEligibleError(candidate_id)
 
     # 检查是否已有进行中的 attempt
     existing = db.execute(
