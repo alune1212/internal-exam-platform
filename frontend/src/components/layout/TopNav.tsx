@@ -1,6 +1,6 @@
 import { LogIn, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 
 import { NamePlate } from "@/components/editorial/NamePlate";
 import { Wordmark } from "@/components/editorial/Wordmark";
@@ -79,6 +79,8 @@ function NavLinkItem({ item }: { item: NavItem }) {
 export function TopNav({ candidate, onLogout }: TopNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const location = useLocation();
+  const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-hairline-soft bg-canvas">
@@ -104,6 +106,14 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
             candidate ? (
               <>
                 <NamePlate name={candidate.name} subtitle={candidateSubtitle(candidate)} />
+                {isInExam ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="/exams" aria-label="退出考试">
+                      <LogOut data-icon="inline-start" aria-hidden="true" />
+                      退出考试
+                    </Link>
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"
@@ -157,6 +167,14 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                   {candidate ? (
                     <div className="mt-4 flex flex-col gap-3 border-t border-hairline-soft pt-4">
                       <NamePlate name={candidate.name} subtitle={candidateSubtitle(candidate)} />
+                      {isInExam ? (
+                        <Button asChild variant="outline">
+                          <Link to="/exams" onClick={() => setMobileOpen(false)}>
+                            <LogOut data-icon="inline-start" aria-hidden="true" />
+                            退出考试
+                          </Link>
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         variant="outline"

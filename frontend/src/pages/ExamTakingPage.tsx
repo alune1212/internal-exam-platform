@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { List, LogOut, Send } from "lucide-react";
+import { List, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
@@ -8,7 +8,6 @@ import { getActiveExams } from "@/api/exams";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
-import { Timer } from "@/components/exam/Timer";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { Button } from "@/components/ui/button";
@@ -21,8 +20,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
-import { useScrolled } from "@/lib/useScrolled";
+import {
+  buildQuestionNavItems,
+  getQuestionTypeLabel,
+  perTypeIndexOf,
+} from "@/lib/questionNavigation";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
@@ -143,7 +145,6 @@ export function ExamTakingPage() {
   const total = attempt?.questions.length ?? 0;
   const activeQuestion: AttemptQuestion | undefined = attempt?.questions[activeIndex];
   const isLastQuestion = total > 0 && activeIndex === total - 1;
-  const scrolled = useScrolled();
 
   const answeredCount = useMemo(() => {
     if (!attempt) {
@@ -298,7 +299,8 @@ export function ExamTakingPage() {
   const isMultiple = activeQuestion.question_type === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
-  const stemChapterLabel = `CHAPTER ${String(activeIndex + 1).padStart(2, "0")} · ${getQuestionTypeLabel(
+  const perTypeNumber = perTypeIndexOf(attempt.questions, activeQuestion.id);
+  const stemChapterLabel = `CHAPTER ${String(perTypeNumber).padStart(2, "0")} · ${getQuestionTypeLabel(
     activeQuestion.question_type,
   )} · ${activeQuestion.score} 分`;
 
@@ -334,31 +336,6 @@ export function ExamTakingPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-6">
-      <header
-        data-scrolled={scrolled}
-        className="sticky top-0 z-30 -mx-4 border-b border-hairline-soft bg-canvas px-4 py-3 backdrop-blur-sm transition-shadow md:-mx-8 md:px-8"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col leading-none">
-            <span className="text-caption uppercase italic tracking-[0.18em] text-muted">
-              EXAM IN PROGRESS
-            </span>
-            <span className="font-display text-display-sm font-semibold text-ink">
-              {attempt.questions.length} 题
-            </span>
-          </div>
-          <div className="hidden items-center gap-3 md:flex">
-            <ProgressCapsule current={activeIndex + 1} total={total} answered={answeredCount} />
-            <Timer remainingSeconds={remainingSeconds} />
-          </div>
-          <Button asChild variant="ghost" size="icon" aria-label="退出考试">
-            <Link to="/exams">
-              <LogOut />
-            </Link>
-          </Button>
-        </div>
-      </header>
-
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
         <div id="exam-question-focus">
           <ExamFocusMode

@@ -21,7 +21,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { buildQuestionNavItems, getQuestionTypeLabel } from "@/lib/questionNavigation";
+import {
+  buildQuestionNavItems,
+  getQuestionTypeLabel,
+  perTypeIndexOf,
+} from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
 
@@ -164,9 +168,10 @@ export function PracticePage() {
   const isMultiple = activeQuestion.question_type === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
-  const stemChapterLabel = `CHAPTER ${String(activeIndex + 1).padStart(2, "0")} · ${getQuestionTypeLabel(
-    activeQuestion.question_type,
-  )} · ${activeQuestion.score} 分`;
+  const stemChapterLabel = `CHAPTER ${String(perTypeIndexOf(data, activeQuestion.id)).padStart(
+    2,
+    "0",
+  )} · ${getQuestionTypeLabel(activeQuestion.question_type)} · ${activeQuestion.score} 分`;
 
   const options = activeQuestion.options.map((option) => ({
     label: option.label,

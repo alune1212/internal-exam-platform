@@ -83,9 +83,8 @@ export function ExamNavigator({
         {groups.map((group) => (
           <div key={group.type} className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between">
-              <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
-                CHAPTER&nbsp;{String(group.items[0]?.displayIndex ?? "").padStart(2, "0")}
-                &nbsp;·&nbsp;{getQuestionTypeLabel(group.type)}
+              <span className="font-display text-caption italic tracking-[0.18em] text-muted">
+                {getQuestionTypeLabel(group.type)}
               </span>
               <span className="text-body-sm text-muted">{group.items.length} 题</span>
             </div>
