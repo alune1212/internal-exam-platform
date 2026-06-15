@@ -35,6 +35,15 @@ from app.schemas.exam import (
 from app.services.scoring_service import score_answer
 
 
+class AdminAuthError(DomainError):
+    """管理员鉴权失败。"""
+
+    status_code = 401
+
+    def __init__(self) -> None:
+        super().__init__("管理员凭据无效，请重新登录。")
+
+
 class ExamNotFoundError(DomainError):
     status_code = 404
 
