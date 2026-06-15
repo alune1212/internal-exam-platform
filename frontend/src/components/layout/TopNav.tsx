@@ -84,24 +84,24 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-hairline-soft bg-canvas">
-      <div className="mx-auto flex h-full max-w-6xl items-center justify-between gap-4 px-4 md:px-8">
+      <div className="mx-auto grid h-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-8">
         <Link
           to="/exams"
           aria-label="返回考试首页"
-          className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
+          className="justify-self-start rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
         >
           <Wordmark size="sm" subtitle="internal exam platform" />
         </Link>
 
         {isDesktop ? (
-          <nav className="flex flex-1 items-center justify-center gap-8">
+          <nav className="flex items-center gap-8 justify-self-center">
             {navItems.map((item) => (
               <NavLinkItem key={item.to} item={item} />
             ))}
           </nav>
         ) : null}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 justify-self-end">
           {isDesktop ? (
             candidate ? (
               <>
