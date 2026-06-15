@@ -1,10 +1,12 @@
 import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getQuestionTypeLabel, type QuestionNavItem } from "@/lib/questionNavigation";
+import {
+  QUESTION_TYPE_ORDER,
+  getQuestionTypeLabel,
+  type QuestionNavItem,
+} from "@/lib/questionNavigation";
 import { cn } from "@/lib/utils";
-
-const QUESTION_TYPE_ORDER = ["single", "multiple", "judge"];
 
 export type ExamNavigatorProps = {
   items: QuestionNavItem[];
@@ -20,8 +22,8 @@ export type ExamNavigatorProps = {
 
 function groupNavItems(items: QuestionNavItem[]) {
   const sortedTypes = Array.from(new Set(items.map((item) => item.type))).sort((a, b) => {
-    const indexA = QUESTION_TYPE_ORDER.indexOf(a);
-    const indexB = QUESTION_TYPE_ORDER.indexOf(b);
+    const indexA = QUESTION_TYPE_ORDER.indexOf(a as (typeof QUESTION_TYPE_ORDER)[number]);
+    const indexB = QUESTION_TYPE_ORDER.indexOf(b as (typeof QUESTION_TYPE_ORDER)[number]);
     if (indexA === -1 && indexB === -1) {
       return a.localeCompare(b);
     }

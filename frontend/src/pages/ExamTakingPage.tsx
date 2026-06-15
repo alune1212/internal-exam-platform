@@ -24,11 +24,14 @@ import {
   buildQuestionNavItems,
   getQuestionTypeLabel,
   perTypeIndexOf,
+  sortByType,
 } from "@/lib/questionNavigation";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
 type AnswerMap = Record<number, string>;
+
+const EMPTY_QUESTIONS: AttemptQuestion[] = [];
 
 export function ExamTakingPage() {
   const { examId = "1" } = useParams();
@@ -61,7 +64,7 @@ export function ExamTakingPage() {
       if (!attempt) {
         return null;
       }
-      const items = attempt.questions.map((question) => ({
+      const items = sortedQuestions.map((question) => ({
         attempt_question_id: question.id,
         selected_answer: answers[question.id] ?? "",
       }));
@@ -142,25 +145,25 @@ export function ExamTakingPage() {
     requestSubmit("auto");
   }, [attempt, remainingSeconds, requestSubmit, submitMutation.isPending]);
 
-  const total = attempt?.questions.length ?? 0;
-  const activeQuestion: AttemptQuestion | undefined = attempt?.questions[activeIndex];
+  const sortedQuestions: AttemptQuestion[] = attempt
+    ? sortByType(attempt.questions)
+    : EMPTY_QUESTIONS;
+  const total = sortedQuestions.length;
+  const activeQuestion: AttemptQuestion | undefined = sortedQuestions[activeIndex];
   const isLastQuestion = total > 0 && activeIndex === total - 1;
 
   const answeredCount = useMemo(() => {
-    if (!attempt) {
-      return 0;
-    }
-    return attempt.questions.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0);
-  }, [answers, attempt]);
+    return sortedQuestions.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0);
+  }, [answers, sortedQuestions]);
 
   const navItems = useMemo(
     () =>
       buildQuestionNavItems({
-        questions: attempt?.questions ?? [],
+        questions: sortedQuestions,
         answers,
         getTargetId: () => "exam-question-focus",
       }),
-    [answers, attempt?.questions],
+    [answers, sortedQuestions],
   );
 
   const handleSingleChange = useCallback(
@@ -185,7 +188,7 @@ export function ExamTakingPage() {
       return;
     }
     void queueSave(
-      attempt.questions.map((question) => ({
+      sortedQuestions.map((question) => ({
         attempt_question_id: question.id,
         selected_answer: answers[question.id] ?? "",
       })),
@@ -200,8 +203,8 @@ export function ExamTakingPage() {
     if (!attempt) {
       return;
     }
-    setActiveIndex((index) => Math.min(attempt.questions.length - 1, index + 1));
-  }, [attempt]);
+    setActiveIndex((index) => Math.min(sortedQuestions.length - 1, index + 1));
+  }, [attempt, sortedQuestions]);
 
   const handleNextAction = useCallback(() => {
     if (isLastQuestion) {
@@ -299,7 +302,7 @@ export function ExamTakingPage() {
   const isMultiple = activeQuestion.question_type === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
-  const perTypeNumber = perTypeIndexOf(attempt.questions, activeQuestion.id);
+  const perTypeNumber = perTypeIndexOf(sortedQuestions, activeQuestion.id);
   const stemChapterLabel = `CHAPTER ${String(perTypeNumber).padStart(2, "0")} · ${getQuestionTypeLabel(
     activeQuestion.question_type,
   )} · ${activeQuestion.score} 分`;
@@ -323,7 +326,7 @@ export function ExamTakingPage() {
   };
 
   const jumpToQuestion = (id: number) => {
-    const nextIndex = attempt.questions.findIndex((question) => question.id === id);
+    const nextIndex = sortedQuestions.findIndex((question) => question.id === id);
     if (nextIndex >= 0) {
       setActiveIndex(nextIndex);
     }

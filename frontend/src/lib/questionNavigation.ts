@@ -8,6 +8,17 @@ export type QuestionNavItem = {
   targetId: string;
 };
 
+/**
+ * Canonical display order for question types. Used both for the navigator's
+ * group ordering and for `sortByType` to enforce a single question starts
+ * with 单选, then 多选, then 判断.
+ */
+export const QUESTION_TYPE_ORDER = ["single", "multiple", "judge"] as const;
+
+const TYPE_ORDER_INDEX: Record<string, number> = Object.fromEntries(
+  QUESTION_TYPE_ORDER.map((type, index) => [type, index]),
+);
+
 type BuildQuestionNavItemsParams<TQuestion extends { id: number; question_type: string }> = {
   questions: TQuestion[];
   answers: Record<number, string>;
@@ -22,6 +33,21 @@ export function getQuestionTypeLabel(questionType: string): string {
     judge: "判断",
   };
   return labels[questionType] ?? questionType;
+}
+
+/**
+ * Returns a new array sorted so 单选 come first, then 多选, then 判断.
+ * Unknown question types are pushed to the end (stable for forward compat).
+ * Pure function — does not mutate the input.
+ */
+export function sortByType<TQuestion extends { question_type: string }>(
+  questions: TQuestion[],
+): TQuestion[] {
+  return [...questions].sort((a, b) => {
+    const indexA = TYPE_ORDER_INDEX[a.question_type] ?? Number.MAX_SAFE_INTEGER;
+    const indexB = TYPE_ORDER_INDEX[b.question_type] ?? Number.MAX_SAFE_INTEGER;
+    return indexA - indexB;
+  });
 }
 
 export function buildQuestionNavItems<TQuestion extends { id: number; question_type: string }>({

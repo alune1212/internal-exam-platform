@@ -25,6 +25,7 @@ import {
   buildQuestionNavItems,
   getQuestionTypeLabel,
   perTypeIndexOf,
+  sortByType,
 } from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, Question } from "@/types/question";
@@ -51,18 +52,19 @@ export function PracticePage() {
     },
   });
 
-  const total = data.length;
-  const activeQuestion: Question | undefined = data[activeIndex];
+  const sortedData = useMemo<Question[]>(() => sortByType(data), [data]);
+  const total = sortedData.length;
+  const activeQuestion: Question | undefined = sortedData[activeIndex];
   const activeResult = activeQuestion ? results[activeQuestion.id] : undefined;
   const answeredCount = useMemo(
-    () => data.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0),
-    [answers, data],
+    () => sortedData.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0),
+    [answers, sortedData],
   );
 
   const navItems = useMemo(
     () =>
       buildQuestionNavItems({
-        questions: data,
+        questions: sortedData,
         answers,
         getSubmittedResult: (question) => {
           const result = results[question.id];
@@ -70,7 +72,7 @@ export function PracticePage() {
         },
         getTargetId: () => "practice-question-focus",
       }),
-    [answers, data, results],
+    [answers, sortedData, results],
   );
 
   function handleSingleChange(question: Question, label: string) {
@@ -97,8 +99,8 @@ export function PracticePage() {
 
   const goPrev = useCallback(() => setActiveIndex((index) => Math.max(0, index - 1)), []);
   const goNext = useCallback(
-    () => setActiveIndex((index) => Math.min(data.length - 1, index + 1)),
-    [data.length],
+    () => setActiveIndex((index) => Math.min(sortedData.length - 1, index + 1)),
+    [sortedData.length],
   );
 
   useEffect(() => {
@@ -168,7 +170,9 @@ export function PracticePage() {
   const isMultiple = activeQuestion.question_type === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
-  const stemChapterLabel = `CHAPTER ${String(perTypeIndexOf(data, activeQuestion.id)).padStart(
+  const stemChapterLabel = `CHAPTER ${String(
+    perTypeIndexOf(sortedData, activeQuestion.id),
+  ).padStart(
     2,
     "0",
   )} · ${getQuestionTypeLabel(activeQuestion.question_type)} · ${activeQuestion.score} 分`;
@@ -192,7 +196,7 @@ export function PracticePage() {
   };
 
   const jumpToQuestion = (id: number) => {
-    const nextIndex = data.findIndex((question) => question.id === id);
+    const nextIndex = sortedData.findIndex((question) => question.id === id);
     if (nextIndex >= 0) {
       setActiveIndex(nextIndex);
     }
