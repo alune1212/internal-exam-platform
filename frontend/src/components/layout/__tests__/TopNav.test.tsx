@@ -32,17 +32,12 @@ function renderTopNav(props: {
   candidate: Candidate | null;
   onLogout: () => void;
   initialEntry?: string;
-  activeExamId?: number;
 }) {
   mockDesktopMediaQuery();
 
   return render(
     <MemoryRouter initialEntries={[props.initialEntry ?? "/practice"]}>
-      <TopNav
-        candidate={props.candidate}
-        onLogout={props.onLogout}
-        activeExamId={props.activeExamId}
-      />
+      <TopNav candidate={props.candidate} onLogout={props.onLogout} />
     </MemoryRouter>,
   );
 }
@@ -54,16 +49,10 @@ describe("TopNav", () => {
     expect(wordmarkLink).toHaveAttribute("href", "/exams");
   });
 
-  it("renders all three primary nav items", () => {
+  it("renders the two primary nav items", () => {
     renderTopNav({ candidate, onLogout: () => {} });
     expect(screen.getByRole("link", { name: "练习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "排名" })).toBeInTheDocument();
-  });
-
-  it("links ranking to the current active exam", () => {
-    renderTopNav({ candidate, onLogout: () => {}, activeExamId: 2 });
-    expect(screen.getByRole("link", { name: "排名" })).toHaveAttribute("href", "/exams/2/ranking");
   });
 
   it("marks the active nav item with an underline and text-ink class", () => {
@@ -74,13 +63,6 @@ describe("TopNav", () => {
     // the second is the underline rule (bg-ink). Select the rule specifically.
     const underline = activeLink.querySelectorAll("span[aria-hidden='true']")[1];
     expect(underline).toHaveClass("bg-ink");
-  });
-
-  it("keeps ranking active without also highlighting the exam list item", () => {
-    renderTopNav({ candidate, onLogout: () => {}, initialEntry: "/exams/1/ranking" });
-
-    expect(screen.getByRole("link", { name: "排名" })).toHaveClass("text-ink");
-    expect(screen.getByRole("link", { name: "考试" })).toHaveClass("text-muted");
   });
 
   it("renders the candidate NamePlate when a candidate is logged in", () => {

@@ -28,7 +28,6 @@ type NavItem = {
 type TopNavProps = {
   candidate: Candidate | null;
   onLogout: () => void;
-  activeExamId?: number | null;
 };
 
 function candidateSubtitle(candidate: Candidate) {
@@ -72,21 +71,14 @@ function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
   );
 }
 
-export function TopNav({ candidate, onLogout, activeExamId }: TopNavProps) {
+export function TopNav({ candidate, onLogout }: TopNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const location = useLocation();
   const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
-  const rankingPath = activeExamId ? `/exams/${activeExamId}/ranking` : "/exams";
   const navItems: NavItem[] = [
     { to: "/practice", label: "练习", mark: "I." },
     { to: "/exams", label: "考试", mark: "II.", end: true },
-    {
-      to: rankingPath,
-      label: "排名",
-      mark: "III.",
-      activePattern: /^\/exams\/\d+\/ranking$/,
-    },
   ];
 
   return (
@@ -158,11 +150,12 @@ export function TopNav({ candidate, onLogout, activeExamId }: TopNavProps) {
                     <NavLink
                       key={item.mark}
                       to={item.to}
+                      end={item.end}
                       onClick={() => setMobileOpen(false)}
                       className={({ isActive }) =>
                         cn(
                           "flex h-12 items-center rounded-md px-3 text-body font-medium transition-colors",
-                          isActive
+                          isActive || item.activePattern?.test(location.pathname)
                             ? "bg-surface-card text-ink"
                             : "text-body hover:bg-surface-card hover:text-ink",
                         )
