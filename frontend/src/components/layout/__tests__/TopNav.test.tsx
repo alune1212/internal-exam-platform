@@ -32,12 +32,17 @@ function renderTopNav(props: {
   candidate: Candidate | null;
   onLogout: () => void;
   initialEntry?: string;
+  activeExamId?: number;
 }) {
   mockDesktopMediaQuery();
 
   return render(
     <MemoryRouter initialEntries={[props.initialEntry ?? "/practice"]}>
-      <TopNav candidate={props.candidate} onLogout={props.onLogout} />
+      <TopNav
+        candidate={props.candidate}
+        onLogout={props.onLogout}
+        activeExamId={props.activeExamId}
+      />
     </MemoryRouter>,
   );
 }
@@ -54,6 +59,11 @@ describe("TopNav", () => {
     expect(screen.getByRole("link", { name: "练习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "排名" })).toBeInTheDocument();
+  });
+
+  it("links ranking to the current active exam", () => {
+    renderTopNav({ candidate, onLogout: () => {}, activeExamId: 2 });
+    expect(screen.getByRole("link", { name: "排名" })).toHaveAttribute("href", "/exams/2/ranking");
   });
 
   it("marks the active nav item with an underline and text-ink class", () => {

@@ -22,24 +22,20 @@ type NavItem = {
   label: string;
   mark: string;
   end?: boolean;
+  activePattern?: RegExp;
 };
 
 type TopNavProps = {
   candidate: Candidate | null;
   onLogout: () => void;
+  activeExamId?: number | null;
 };
-
-const navItems: NavItem[] = [
-  { to: "/practice", label: "练习", mark: "I." },
-  { to: "/exams", label: "考试", mark: "II.", end: true },
-  { to: "/exams/1/ranking", label: "排名", mark: "III." },
-];
 
 function candidateSubtitle(candidate: Candidate) {
   return [candidate.employee_no, candidate.department].filter(Boolean).join(" · ") || undefined;
 }
 
-function NavLinkItem({ item }: { item: NavItem }) {
+function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <NavLink
       to={item.to}
@@ -47,7 +43,7 @@ function NavLinkItem({ item }: { item: NavItem }) {
       className={({ isActive }) =>
         cn(
           "relative inline-flex h-10 items-center gap-1.5 px-1 text-body-sm font-medium transition-colors",
-          isActive ? "text-ink" : "text-muted hover:text-ink",
+          isActive || item.activePattern?.test(pathname) ? "text-ink" : "text-muted hover:text-ink",
         )
       }
     >
@@ -57,7 +53,7 @@ function NavLinkItem({ item }: { item: NavItem }) {
             aria-hidden="true"
             className={cn(
               "inline-block w-7 text-right font-mono text-[11px] uppercase tracking-[0.16em] transition-opacity",
-              isActive ? "text-ink opacity-100" : "opacity-0",
+              isActive || item.activePattern?.test(pathname) ? "text-ink opacity-100" : "opacity-0",
             )}
           >
             {item.mark}
@@ -67,7 +63,7 @@ function NavLinkItem({ item }: { item: NavItem }) {
             aria-hidden="true"
             className={cn(
               "absolute inset-x-0 -bottom-px h-px transition-opacity",
-              isActive ? "bg-ink opacity-100" : "opacity-0",
+              isActive || item.activePattern?.test(pathname) ? "bg-ink opacity-100" : "opacity-0",
             )}
           />
         </>
@@ -76,11 +72,22 @@ function NavLinkItem({ item }: { item: NavItem }) {
   );
 }
 
-export function TopNav({ candidate, onLogout }: TopNavProps) {
+export function TopNav({ candidate, onLogout, activeExamId }: TopNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const location = useLocation();
   const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
+  const rankingPath = activeExamId ? `/exams/${activeExamId}/ranking` : "/exams";
+  const navItems: NavItem[] = [
+    { to: "/practice", label: "练习", mark: "I." },
+    { to: "/exams", label: "考试", mark: "II.", end: true },
+    {
+      to: rankingPath,
+      label: "排名",
+      mark: "III.",
+      activePattern: /^\/exams\/\d+\/ranking$/,
+    },
+  ];
 
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-hairline-soft bg-canvas">
@@ -96,7 +103,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
         {isDesktop ? (
           <nav className="flex items-center gap-8 justify-self-center">
             {navItems.map((item) => (
-              <NavLinkItem key={item.to} item={item} />
+              <NavLinkItem key={item.mark} item={item} pathname={location.pathname} />
             ))}
           </nav>
         ) : null}
@@ -149,7 +156,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                 <nav className="flex flex-col gap-1 px-4 pb-6">
                   {navItems.map((item) => (
                     <NavLink
-                      key={item.to}
+                      key={item.mark}
                       to={item.to}
                       onClick={() => setMobileOpen(false)}
                       className={({ isActive }) =>
