@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Footer } from "@/components/layout/Footer";
 import { TopNav } from "@/components/layout/TopNav";
 import {
@@ -17,7 +17,12 @@ export type CandidateSessionContext = {
 
 export function CandidateLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [candidate, setCandidate] = useState<Candidate | null>(() => getCurrentCandidate());
+
+  if (!candidate && location.pathname !== "/login") {
+    return <Navigate to="/login" replace />;
+  }
 
   function loginCandidate(nextCandidate: Candidate) {
     setCurrentCandidate(nextCandidate);
