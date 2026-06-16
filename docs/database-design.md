@@ -66,6 +66,7 @@
 说明：
 
 - 固定试卷按 `question_count`、`type_counts` 和 active 题库抽取题干去重的等价试卷。
+- 固定试卷规则必须显式提供正整数 `question_count`、正整数 `total_score`，且 `type_counts.single`、`type_counts.multiple`、`type_counts.judge` 为非负整数并合计等于 `question_count`。
 - 固定试卷分值按 `total_score / question_count` 均分为整数；不能整除时余数按试卷顺序分配到前若干题。
 - 空 `{}` 保留旧行为：开始考试时抽取全部 active 题目。
 - 已生成的 attempt 仍以 `exam_attempt_question` 快照为准，不受后续 `question_rule` 或题库修改影响。

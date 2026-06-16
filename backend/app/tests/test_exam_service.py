@@ -56,6 +56,141 @@ def test_create_exam_persists(db: Session) -> None:
     assert result.status == "draft"
 
 
+def test_create_exam_rejects_invalid_duration_status_and_rule(db: Session) -> None:
+    with pytest.raises(exam_service.ExamConfigError, match="考试时长必须为正整数"):
+        exam_service.create_exam(db, ExamCreate(title="坏考试", duration_minutes=0))
+
+    with pytest.raises(exam_service.ExamConfigError, match="考试状态只能是"):
+        exam_service.create_exam(
+            db, ExamCreate(title="坏考试", duration_minutes=60, status="published")
+        )
+
+    with pytest.raises(
+        exam_service.ExamConfigError, match="question_count 必须为正整数"
+    ):
+        exam_service.create_exam(
+            db,
+            ExamCreate(
+                title="坏考试",
+                duration_minutes=60,
+                question_rule={
+                    "question_count": 0,
+                    "total_score": 100,
+                    "type_counts": {"single": 0, "multiple": 0, "judge": 0},
+                },
+            ),
+        )
+
+
+def test_update_exam_rejects_invalid_duration_status_and_rule(db: Session) -> None:
+    exam = create_exam(db, status="draft", question_rule={})
+
+    with pytest.raises(exam_service.ExamConfigError, match="考试时长必须为正整数"):
+        exam_service.update_exam(db, exam.id, ExamUpdate(duration_minutes=0))
+
+    with pytest.raises(exam_service.ExamConfigError, match="考试状态只能是"):
+        exam_service.update_exam(db, exam.id, ExamUpdate(status="published"))
+
+    with pytest.raises(exam_service.ExamConfigError, match="抽题规则必须是对象"):
+        exam_service.update_exam(db, exam.id, ExamUpdate(question_rule=None))
+
+
+@pytest.mark.parametrize(
+    ("question_rule", "message"),
+    [
+        (
+            {"question_count": 1.5, "total_score": 100, "type_counts": {"single": 1}},
+            "question_count 必须为正整数",
+        ),
+        (
+            {"question_count": 1, "total_score": 99.5, "type_counts": {"single": 1}},
+            "total_score 必须为正整数",
+        ),
+        (
+            {"question_count": 1, "total_score": 0, "type_counts": {"single": 1}},
+            "total_score 必须为正整数",
+        ),
+        (
+            {"question_count": 1, "total_score": 100, "type_counts": None},
+            "type_counts 必须是对象",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": 1, "essay": 0},
+            },
+            "type_counts 只能包含 single、multiple、judge",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": -1, "multiple": 2},
+            },
+            "type_counts.single 必须为非负整数",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": 1},
+                "pass_score": "x",
+            },
+            "pass_score 必须是数字",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": 1},
+                "pass_score": "60",
+            },
+            "pass_score 必须是数字",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": 1},
+                "pass_score": float("nan"),
+            },
+            "pass_score 必须是数字",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": 1},
+                "pass_score": -1,
+            },
+            "pass_score 不能为负数",
+        ),
+        (
+            {
+                "question_count": 1,
+                "total_score": 100,
+                "type_counts": {"single": 1},
+                "pass_score": 101,
+            },
+            "pass_score 不能大于 total_score",
+        ),
+    ],
+)
+def test_create_exam_rejects_invalid_fixed_question_rule_values(
+    db: Session, question_rule: dict, message: str
+) -> None:
+    with pytest.raises(exam_service.ExamConfigError, match=message):
+        exam_service.create_exam(
+            db,
+            ExamCreate(
+                title="坏考试",
+                duration_minutes=60,
+                question_rule=question_rule,
+            ),
+        )
+
+
 def test_list_active_exams_filters(db: Session) -> None:
     exam_service.create_exam(
         db, ExamCreate(title="草稿", duration_minutes=60, status="draft")
@@ -253,7 +388,14 @@ def test_start_exam_rejects_after_submit_without_retake_grant(db: Session) -> No
 def test_start_exam_consumes_retake_grant_and_creates_retake_attempt(
     db: Session,
 ) -> None:
-    exam = create_exam(db, question_rule={"question_count": 5, "total_score": 100})
+    exam = create_exam(
+        db,
+        question_rule={
+            "question_count": 5,
+            "total_score": 100,
+            "type_counts": {"single": 3, "multiple": 1, "judge": 1},
+        },
+    )
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
     create_balanced_question_pool(db, per_type=6)
@@ -331,7 +473,12 @@ def test_start_exam_distributes_fixed_paper_scores_evenly(db: Session) -> None:
     """固定试卷按总分和题量均分，不按题库原始分值加权。"""
     exam = create_exam(
         db,
-        question_rule={"question_count": 5, "total_score": 100, "pass_score": 60},
+        question_rule={
+            "question_count": 5,
+            "total_score": 100,
+            "type_counts": {"single": 3, "multiple": 1, "judge": 1},
+            "pass_score": 60,
+        },
     )
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
@@ -401,7 +548,12 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
 ) -> None:
     exam = create_exam(
         db,
-        question_rule={"question_count": 50, "total_score": 100, "pass_score": 60},
+        question_rule={
+            "question_count": 50,
+            "total_score": 100,
+            "type_counts": {"single": 30, "multiple": 10, "judge": 10},
+            "pass_score": 60,
+        },
     )
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
@@ -459,7 +611,12 @@ def test_start_exam_generates_independent_equivalent_papers_for_same_exam(
 ) -> None:
     exam = create_exam(
         db,
-        question_rule={"question_count": 50, "total_score": 100, "pass_score": 60},
+        question_rule={
+            "question_count": 50,
+            "total_score": 100,
+            "type_counts": {"single": 30, "multiple": 10, "judge": 10},
+            "pass_score": 60,
+        },
     )
     first_candidate = create_candidate(db, name="甲", employee_no="E001")
     second_candidate = create_candidate(db, name="乙", employee_no="E002")
@@ -504,7 +661,14 @@ def test_start_exam_generates_independent_equivalent_papers_for_same_exam(
 def test_start_exam_rejects_question_rule_when_pool_is_too_small(
     db: Session,
 ) -> None:
-    exam = create_exam(db, question_rule={"question_count": 50, "total_score": 100})
+    exam = create_exam(
+        db,
+        question_rule={
+            "question_count": 50,
+            "total_score": 100,
+            "type_counts": {"single": 50, "multiple": 0, "judge": 0},
+        },
+    )
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)

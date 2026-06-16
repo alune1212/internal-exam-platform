@@ -2,7 +2,7 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
 from sqlalchemy import func
@@ -128,11 +128,22 @@ class ExamFrozenError(DomainError):
         super().__init__(reason)
 
 
+class ExamConfigError(DomainError):
+    status_code = 422
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+
+
 @dataclass(frozen=True)
 class FixedPaperRule:
     question_count: int
     total_score: Decimal
     type_counts: dict[str, int]
+
+
+VALID_EXAM_STATUSES = {"draft", "active", "archived"}
+VALID_FIXED_TYPES = {"single", "multiple", "judge"}
 
 
 def _build_correct_answer_snapshot(options: list) -> str:
@@ -149,29 +160,93 @@ def _build_options_snapshot(options: list) -> list[dict]:
     ]
 
 
-def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
-    if not question_rule or "question_count" not in question_rule:
-        return None
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
-    question_count = int(question_rule.get("question_count", 50))
-    total_score = Decimal(str(question_rule.get("total_score", 100)))
+
+def _require_positive_int(value: object, field_name: str) -> int:
+    if not _is_int(value) or value <= 0:
+        separator = "" if field_name == "考试时长" else " "
+        raise ExamConfigError(f"{field_name}{separator}必须为正整数")
+    return value
+
+
+def _require_non_negative_int(value: object, field_name: str) -> int:
+    if not _is_int(value) or value < 0:
+        raise ExamConfigError(f"{field_name} 必须为非负整数")
+    return value
+
+
+def _optional_decimal(value: object, field_name: str) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float | Decimal):
+        raise ExamConfigError(f"{field_name} 必须是数字")
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise ExamConfigError(f"{field_name} 必须是数字") from None
+    if not decimal_value.is_finite():
+        raise ExamConfigError(f"{field_name} 必须是数字")
+    return decimal_value
+
+
+def _validate_question_rule(question_rule: object) -> None:
+    if not isinstance(question_rule, dict):
+        raise ExamConfigError("抽题规则必须是对象")
+    if not question_rule:
+        return
+
+    pass_score = _optional_decimal(question_rule.get("pass_score"), "pass_score")
+    if pass_score is not None and pass_score < 0:
+        raise ExamConfigError("pass_score 不能为负数")
+    if "question_count" not in question_rule:
+        return
+
+    question_count = _require_positive_int(
+        question_rule.get("question_count"), "question_count"
+    )
+    total_score_value = _require_positive_int(
+        question_rule.get("total_score"), "total_score"
+    )
     raw_type_counts = question_rule.get("type_counts")
-    if raw_type_counts is None:
-        total_parts = 5
-        single = max(1, round(question_count * 3 / total_parts))
-        multiple = max(1, round(question_count * 1 / total_parts))
-        judge = max(1, question_count - single - multiple)
-        raw_type_counts = {
-            "single": single,
-            "multiple": multiple,
-            "judge": judge,
-        }
+    if not isinstance(raw_type_counts, dict):
+        raise ExamConfigError("type_counts 必须是对象")
+    if set(raw_type_counts) - VALID_FIXED_TYPES:
+        raise ExamConfigError("type_counts 只能包含 single、multiple、judge")
     type_counts = {
-        question_type: int(raw_type_counts.get(question_type, 0))
+        question_type: _require_non_negative_int(
+            raw_type_counts.get(question_type, 0), f"type_counts.{question_type}"
+        )
         for question_type in ("single", "multiple", "judge")
     }
     if sum(type_counts.values()) != question_count:
         raise InsufficientQuestionsError("抽题规则中的题型数量合计必须等于总题数")
+    if pass_score is not None and pass_score > Decimal(total_score_value):
+        raise ExamConfigError("pass_score 不能大于 total_score")
+
+
+def _validate_exam_config_values(
+    *, duration_minutes: int, status: str, question_rule: object
+) -> None:
+    _require_positive_int(duration_minutes, "考试时长")
+    if status not in VALID_EXAM_STATUSES:
+        raise ExamConfigError("考试状态只能是 draft、active 或 archived")
+    _validate_question_rule(question_rule)
+
+
+def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
+    if not question_rule or "question_count" not in question_rule:
+        return None
+
+    _validate_question_rule(question_rule)
+    question_count = question_rule["question_count"]
+    total_score = Decimal(question_rule["total_score"])
+    raw_type_counts = question_rule["type_counts"]
+    type_counts = {
+        question_type: int(raw_type_counts.get(question_type, 0))
+        for question_type in ("single", "multiple", "judge")
+    }
     return FixedPaperRule(
         question_count=question_count,
         total_score=total_score,
@@ -288,19 +363,6 @@ def _select_questions_by_type(
                 remaining -= count
 
     # 覆盖所有 category + question_type 组合
-    for (category, question_type), bucket in sorted(by_combo.items()):
-        if not bucket:
-            continue
-        if any(question.id in used_ids for question in bucket):
-            continue
-        _take_from_bucket(
-            selected,
-            bucket,
-            used_ids,
-            1,
-            reason=f"{category} 缺少 {question_type} 题目，无法覆盖题型组合",
-        )
-
     for (category, question_type), bucket in sorted(by_combo.items()):
         if not bucket:
             continue
@@ -555,7 +617,13 @@ def list_admin_exams(db: Session) -> list[ExamRead]:
 
 
 def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
-    exam = Exam(**payload.model_dump())
+    data = payload.model_dump()
+    _validate_exam_config_values(
+        duration_minutes=data["duration_minutes"],
+        status=data["status"],
+        question_rule=data["question_rule"],
+    )
+    exam = Exam(**data)
     db.add(exam)
     db.commit()
     db.refresh(exam)
@@ -572,9 +640,18 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
         frozen_fields = {"duration_minutes", "question_rule"}
         if frozen_fields.intersection(updates):
             raise ExamFrozenError()
+
+    next_duration_minutes = updates.get("duration_minutes", exam.duration_minutes)
+    next_status = updates.get("status", exam.status)
+    next_question_rule = updates.get("question_rule", exam.question_rule)
+    _validate_exam_config_values(
+        duration_minutes=next_duration_minutes,
+        status=next_status,
+        question_rule=next_question_rule,
+    )
+
     if updates.get("status") == "active" and exam.status != "active":
         _ensure_exam_has_scope(db, exam.id)
-        next_question_rule = updates.get("question_rule", exam.question_rule)
         _validate_fixed_rule_capacity(db, next_question_rule)
 
     for field, value in updates.items():
