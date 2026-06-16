@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 const RULES: { text: string }[] = [
   { text: "考试中答案会自动暂存，但倒计时不会暂停。" },
   { text: "可以提前交卷，到时间系统会自动提交。" },
-  { text: "提交后自动判分，并按配置展示答案与排名。" },
+  { text: "提交后自动判分，并按配置展示答案与解析。" },
   { text: "系统会在开始时生成题目快照，后续题库修改不影响本次结果。" },
 ];
 
