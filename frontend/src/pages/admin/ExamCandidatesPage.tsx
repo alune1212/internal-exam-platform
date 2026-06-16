@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileUp, RotateCcw, Trash2 } from "lucide-react";
+import { Download, FileUp, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import {
   importExamCandidates,
   removeExamCandidate,
 } from "@/api/exams";
+import { downloadImportTemplate } from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill } from "@/components/editorial/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,15 @@ export function ExamCandidatesPage() {
           >
             <FileUp data-icon="inline-start" />
             {importMutation.isPending ? "正在导入..." : "上传应考人员"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void downloadImportTemplate("candidates")}
+          >
+            <Download data-icon="inline-start" />
+            下载人员模板
           </Button>
         </div>
         {importMutation.data ? (
