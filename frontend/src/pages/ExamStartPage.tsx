@@ -32,8 +32,13 @@ export function ExamStartPage() {
 
   const apiError = mutation.error instanceof ApiError ? mutation.error : null;
   const errorMessage = apiError?.message ?? mutation.error?.message ?? "请稍后重试或联系管理员。";
+  const isInProgressConflict = apiError?.detail?.includes("进行中") ?? false;
+  const submittedAttemptId =
+    apiError?.status === 409 && apiError.detail?.includes("已提交")
+      ? Number(apiError.detail?.match(IN_PROGRESS_PATTERN)?.[1] ?? 0) || null
+      : null;
   const existingAttemptId =
-    apiError?.status === 409
+    apiError?.status === 409 && isInProgressConflict
       ? Number(apiError.detail?.match(IN_PROGRESS_PATTERN)?.[1] ?? 0) || null
       : null;
 
@@ -109,7 +114,13 @@ export function ExamStartPage() {
                     onClick: () =>
                       navigate(`/exams/${examId}/taking?attemptId=${existingAttemptId}`),
                   }
-                : undefined
+                : submittedAttemptId
+                  ? {
+                      label: "查看成绩",
+                      onClick: () =>
+                        navigate(`/exams/${examId}/result?attemptId=${submittedAttemptId}`),
+                    }
+                  : undefined
             }
             secondaryAction={{ label: "重试", onClick: () => mutation.reset() }}
             className="items-start py-4 text-left"

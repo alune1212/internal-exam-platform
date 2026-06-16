@@ -371,6 +371,23 @@ describe("P0 pages", () => {
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
   });
 
+  it("links in-progress exams directly to the existing attempt", async () => {
+    vi.mocked(getActiveExams).mockResolvedValue([
+      {
+        ...exam,
+        latest_attempt_id: 10,
+        latest_attempt_status: "in_progress",
+      },
+    ]);
+
+    renderPage("exams", <ExamListPage />);
+
+    expect(await screen.findByRole("link", { name: /继续考试/ })).toHaveAttribute(
+      "href",
+      "/exams/1/taking?attemptId=10",
+    );
+  });
+
   it("pluralizes the exam list heading based on the number of active exams", async () => {
     vi.mocked(getActiveExams).mockResolvedValue([exam, secondExam]);
 
@@ -406,6 +423,55 @@ describe("P0 pages", () => {
     expect(await screen.findByText("考生已有进行中的考试记录 #9")).toBeInTheDocument();
     expect(screen.queryByText("请确认考试仍处于发布状态。")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续考试" })).toBeInTheDocument();
+  });
+
+  it("does not offer continue action after the exam was already submitted", async () => {
+    const user = userEvent.setup();
+    vi.mocked(startExam).mockRejectedValueOnce(
+      new ApiError("考试记录 #10 已提交", 409, "考试记录 #10 已提交"),
+    );
+
+    renderPage("exams/:examId/start", <ExamStartPage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    const startButton = await screen.findByRole("button", { name: /开始考试/ });
+    await user.click(startButton);
+
+    expect(await screen.findByText("考试记录 #10 已提交")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "继续考试" })).not.toBeInTheDocument();
+  });
+
+  it("blocks submitted attempts from re-entering the taking page", async () => {
+    vi.mocked(getAttempt).mockResolvedValue({ ...attempt, status: "submitted" });
+    const router = createMemoryRouter(
+      [
+        { path: "/exams/:examId/taking", element: <ExamTakingPage /> },
+        { path: "/exams/:examId/result", element: <div>结果页</div> },
+      ],
+      { initialEntries: ["/exams/1/taking?attemptId=10"] },
+    );
+
+    render(
+      <QueryClientProvider
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+          })
+        }
+      >
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("考试已提交。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看成绩" })).toHaveAttribute(
+      "href",
+      "/exams/1/result?attemptId=10",
+    );
+    expect(screen.queryByRole("button", { name: "提交试卷" })).not.toBeInTheDocument();
   });
 
   it("falls back to a generic message when the start-exam error has no detail", async () => {

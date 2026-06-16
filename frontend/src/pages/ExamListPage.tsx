@@ -24,6 +24,8 @@ function resolveQuestionCount(rule: Record<string, unknown>): number | null {
 
 function ExamCard({ exam }: { exam: Exam }) {
   const isLive = exam.status === "active" || exam.status === "live";
+  const hasInProgressAttempt =
+    exam.latest_attempt_status === "in_progress" && exam.latest_attempt_id;
   const totalQuestions = resolveQuestionCount(exam.question_rule);
   const startsAt =
     typeof exam.question_rule.starts_at === "string" ? exam.question_rule.starts_at : null;
@@ -63,8 +65,14 @@ function ExamCard({ exam }: { exam: Exam }) {
           {startsAt ? `开始时间 · ${startsAt}` : "随时开考"}
         </p>
         <Button asChild size="sm">
-          <Link to={`/exams/${exam.id}/start`}>
-            {isLive ? "进入考试" : "查看说明"}
+          <Link
+            to={
+              hasInProgressAttempt
+                ? `/exams/${exam.id}/taking?attemptId=${exam.latest_attempt_id}`
+                : `/exams/${exam.id}/start`
+            }
+          >
+            {hasInProgressAttempt ? "继续考试" : isLive ? "进入考试" : "查看说明"}
             <ArrowUpRight data-icon="inline-end" />
           </Link>
         </Button>

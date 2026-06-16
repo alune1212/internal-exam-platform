@@ -32,6 +32,7 @@ import type { AttemptQuestion } from "@/types/attempt";
 type AnswerMap = Record<number, string>;
 
 const EMPTY_QUESTIONS: AttemptQuestion[] = [];
+const SUBMITTED_STATUSES = new Set(["submitted", "auto_submitted"]);
 
 export function ExamTakingPage() {
   const { examId = "1" } = useParams();
@@ -107,6 +108,9 @@ export function ExamTakingPage() {
 
   useEffect(() => {
     if (!attempt) {
+      return;
+    }
+    if (SUBMITTED_STATUSES.has(attempt.status)) {
       return;
     }
     setAnswers(
@@ -287,7 +291,35 @@ export function ExamTakingPage() {
     );
   }
 
-  if (isLoading || !attempt || !activeQuestion) {
+  if (isLoading || !attempt) {
+    return (
+      <div className="mx-auto max-w-3xl py-12">
+        <Card className="bg-surface-card">
+          <CardContent className="p-8">
+            <ContentSkeleton rows={4} className="p-0" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (SUBMITTED_STATUSES.has(attempt.status)) {
+    return (
+      <div className="mx-auto max-w-3xl py-12">
+        <Card className="bg-surface-card">
+          <CardContent className="flex flex-col gap-4 p-8">
+            <ChapterNumber>CHAPTER 03 · SUBMITTED</ChapterNumber>
+            <h1 className="font-display text-display-lg font-semibold text-ink">考试已提交。</h1>
+            <Button asChild>
+              <Link to={`/exams/${examId}/result?attemptId=${attempt.id}`}>查看成绩</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!activeQuestion) {
     return (
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">

@@ -476,8 +476,49 @@ def _list_exams(db: Session, *, status: str | None = None) -> list[ExamRead]:
     return [ExamRead.model_validate(exam) for exam in query.order_by(Exam.id).all()]
 
 
-def list_active_exams(db: Session) -> list[ExamRead]:
-    return _list_exams(db, status="active")
+def _build_exam_read_for_candidate(
+    db: Session, exam: Exam, candidate_id: int
+) -> ExamRead | None:
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None or candidate.status != "active" or not candidate.should_attend:
+        return None
+    scope = (
+        db.query(ExamCandidateScope.id)
+        .filter(
+            ExamCandidateScope.exam_id == exam.id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .first()
+    )
+    if scope is None:
+        return None
+
+    latest = _latest_attempt_for_candidate(db, exam.id, candidate_id)
+    has_unused_retake_grant = _has_unused_retake_grant(db, exam.id, candidate_id)
+    if latest and latest.status in SUBMITTED_STATUSES and not has_unused_retake_grant:
+        return None
+
+    return ExamRead.model_validate(exam).model_copy(
+        update={
+            "latest_attempt_id": latest.id if latest else None,
+            "latest_attempt_status": latest.status if latest else None,
+            "has_unused_retake_grant": has_unused_retake_grant,
+        }
+    )
+
+
+def list_active_exams(db: Session, candidate_id: int | None = None) -> list[ExamRead]:
+    if candidate_id is None:
+        return _list_exams(db, status="active")
+
+    exams = db.query(Exam).filter(Exam.status == "active").order_by(Exam.id).all()
+    candidate_exams = [
+        exam_read
+        for exam in exams
+        if (exam_read := _build_exam_read_for_candidate(db, exam, candidate_id))
+        is not None
+    ]
+    return candidate_exams
 
 
 def list_admin_exams(db: Session) -> list[ExamRead]:

@@ -69,6 +69,38 @@ def test_list_active_exams_filters(db: Session) -> None:
     assert active[0].title == "上线"
 
 
+def test_list_active_exams_for_candidate_hides_submitted_without_retake(
+    db: Session,
+) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    active = exam_service.list_active_exams(db, candidate.id)
+
+    assert active == []
+
+
+def test_list_active_exams_for_candidate_includes_in_progress_attempt(
+    db: Session,
+) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+
+    active = exam_service.list_active_exams(db, candidate.id)
+
+    assert len(active) == 1
+    assert active[0].id == exam.id
+    assert active[0].latest_attempt_id == start.attempt_id
+    assert active[0].latest_attempt_status == "in_progress"
+
+
 def test_update_exam_partial(db: Session) -> None:
     exam = exam_service.create_exam(
         db, ExamCreate(title="原始标题", duration_minutes=60)

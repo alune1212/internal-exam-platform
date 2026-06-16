@@ -33,6 +33,9 @@ class ExamUpdate(BaseModel):
 
 class ExamRead(ExamBase, ORMModel):
     id: int
+    latest_attempt_id: int | None = None
+    latest_attempt_status: str | None = None
+    has_unused_retake_grant: bool = False
 
 
 class ExamStartRequest(BaseModel):

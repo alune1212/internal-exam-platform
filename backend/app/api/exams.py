@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, Header, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,8 +20,12 @@ admin_router = APIRouter(prefix="/admin/exams", tags=["admin-exams"])
 
 
 @router.get("/active", response_model=ApiResponse[list[ExamRead]])
-def list_active_exams(db: Session = Depends(get_db)) -> ApiResponse[list[ExamRead]]:
-    return ApiResponse(data=exam_service.list_active_exams(db))
+def list_active_exams(
+    db: Session = Depends(get_db),
+    x_candidate_id: str | None = Header(None, alias="X-Candidate-Id"),
+) -> ApiResponse[list[ExamRead]]:
+    candidate_id = int(x_candidate_id) if x_candidate_id else None
+    return ApiResponse(data=exam_service.list_active_exams(db, candidate_id))
 
 
 @router.post("/{exam_id}/start", response_model=ApiResponse[ExamStartResponse])
