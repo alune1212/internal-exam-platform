@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { getQuestionAccuracy } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
+import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { QuestionAccuracyRow } from "@/types/report";
 
 const columns: ColumnDef<QuestionAccuracyRow>[] = [
@@ -57,6 +58,7 @@ export function QuestionAccuracyPage() {
       queryKey="question-accuracy"
       queryFn={getQuestionAccuracy}
       columns={columns}
+      actions={<ReportExportButton />}
     />
   );
 }

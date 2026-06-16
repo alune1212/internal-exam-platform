@@ -11,6 +11,7 @@ import {
   importExamCandidates,
   removeExamCandidate,
 } from "@/api/exams";
+import { getErrorMessage } from "@/api/client";
 import { downloadImportTemplate } from "@/api/imports";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
@@ -36,6 +37,7 @@ function statusVariant(status?: string | null) {
 export function ExamCandidatesPage() {
   const { examId = "1" } = useParams();
   const [file, setFile] = useState<File | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const queryClient = useQueryClient();
   const candidatesKey = ["exam-candidates", examId];
   const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
@@ -48,22 +50,40 @@ export function ExamCandidatesPage() {
   const importMutation = useMutation({
     mutationFn: (selected: File) => importExamCandidates(examId, selected),
     onSuccess: () => {
+      setNotice({ tone: "success", message: "应考人员导入完成。" });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
       void queryClient.invalidateQueries({ queryKey: ["absent-candidates"] });
     },
+    onError: (error) =>
+      setNotice({ tone: "error", message: getErrorMessage(error, "应考人员导入失败") }),
   });
   const retakeMutation = useMutation({
     mutationFn: (candidateId: number) => createRetakeGrant(examId, candidateId),
     onSuccess: () => {
+      setNotice({ tone: "success", message: "补考授权已创建。" });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
     },
+    onError: (error) =>
+      setNotice({ tone: "error", message: getErrorMessage(error, "补考授权失败") }),
   });
   const removeMutation = useMutation({
     mutationFn: (candidateId: number) => removeExamCandidate(examId, candidateId),
     onSuccess: () => {
+      setNotice({ tone: "success", message: "应考人员已移除。" });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
     },
+    onError: (error) =>
+      setNotice({ tone: "error", message: getErrorMessage(error, "移除应考人员失败") }),
   });
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadImportTemplate("candidates");
+      setNotice({ tone: "success", message: "人员模板已开始下载。" });
+    } catch (error) {
+      setNotice({ tone: "error", message: getErrorMessage(error, "人员模板下载失败") });
+    }
+  };
 
   const columns = useMemo<ColumnDef<ExamCandidateRow>[]>(
     () => [
@@ -194,7 +214,7 @@ export function ExamCandidatesPage() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => void downloadImportTemplate("candidates")}
+            onClick={() => void handleDownloadTemplate()}
           >
             <Download data-icon="inline-start" />
             下载人员模板
@@ -215,6 +235,16 @@ export function ExamCandidatesPage() {
               </li>
             ))}
           </ul>
+        ) : null}
+        {notice ? (
+          <p
+            className={`rounded-md border bg-canvas p-3 text-body-sm ${
+              notice.tone === "success" ? "border-success text-success" : "border-error text-error"
+            }`}
+            role="alert"
+          >
+            {notice.message}
+          </p>
         ) : null}
       </section>
 

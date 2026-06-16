@@ -32,8 +32,12 @@ def _build_client() -> tuple[TestClient, Session]:
     return TestClient(app), db
 
 
-def _admin_headers() -> dict[str, str]:
-    return {"X-Admin-Token": settings.admin_password}
+def _admin_headers(client: TestClient) -> dict[str, str]:
+    resp = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    )
+    return {"X-Admin-Token": resp.json()["data"]["token"]}
 
 
 def _create_exam(db: Session, *, status: str = "draft") -> Exam:
@@ -73,7 +77,7 @@ def test_import_exam_candidates_adds_scope_rows() -> None:
 
     resp = client.post(
         f"/api/admin/exams/{exam.id}/candidates/import",
-        headers=_admin_headers(),
+        headers=_admin_headers(client),
         files={
             "file": (
                 "candidates.xlsx",
@@ -110,7 +114,7 @@ def test_list_exam_candidates_returns_attempt_and_retake_state() -> None:
     db.commit()
 
     resp = client.get(
-        f"/api/admin/exams/{exam.id}/candidates", headers=_admin_headers()
+        f"/api/admin/exams/{exam.id}/candidates", headers=_admin_headers(client)
     )
 
     assert resp.status_code == 200
@@ -138,11 +142,11 @@ def test_remove_exam_candidate_only_allowed_for_draft_exam() -> None:
 
     ok = client.delete(
         f"/api/admin/exams/{draft_exam.id}/candidates/{candidate.id}",
-        headers=_admin_headers(),
+        headers=_admin_headers(client),
     )
     blocked = client.delete(
         f"/api/admin/exams/{active_exam.id}/candidates/{candidate.id}",
-        headers=_admin_headers(),
+        headers=_admin_headers(client),
     )
 
     assert ok.status_code == 200
@@ -173,7 +177,7 @@ def test_create_retake_grant_endpoint() -> None:
 
     resp = client.post(
         f"/api/admin/exams/{exam.id}/candidates/{candidate.id}/retake-grants",
-        headers=_admin_headers(),
+        headers=_admin_headers(client),
     )
 
     assert resp.status_code == 200

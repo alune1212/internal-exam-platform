@@ -130,3 +130,25 @@ def test_absent_candidates_excludes_non_should_attend(db: Session) -> None:
     report = report_service.get_absent_candidates(db)
     names = [r.name for r in report]
     assert "不需要参加" not in names
+
+
+def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
+    from openpyxl import load_workbook
+
+    exam, _c1, _c2, r1, _r2 = _setup_exam_with_candidates(db)
+    submit_answers(db, r1.attempt_id, r1.questions, ["A", "B"])
+
+    workbook_stream = report_service.generate_report_workbook(db)
+    workbook = load_workbook(workbook_stream)
+
+    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "缺考人员"]
+    assert [cell.value for cell in workbook["成绩报表"][1]] == [
+        "姓名",
+        "员工号",
+        "部门",
+        "考试",
+        "得分",
+        "总分",
+        "提交时间",
+    ]
+    assert workbook["成绩报表"].cell(2, 1).value == "张三"

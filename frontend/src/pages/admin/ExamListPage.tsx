@@ -1,8 +1,11 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
-import { getAdminExams } from "@/api/exams";
+import { getErrorMessage } from "@/api/client";
+import { createAdminExam, getAdminExams } from "@/api/exams";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -53,22 +56,47 @@ const columns: ColumnDef<Exam>[] = [
 ];
 
 export function AdminExamListPage() {
+  const navigate = useNavigate();
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      const exam = await createAdminExam();
+      navigate(`/admin/exams/${exam.id}/edit`);
+    } catch (error) {
+      setCreateError(getErrorMessage(error, "创建考试失败"));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   return (
-    <ReportPage
-      title="考试配置"
-      chapterLabel="CHAPTER 02 · EXAMS"
-      description="所有考试的配置入口。点击考试名进入编辑页。"
-      queryKey="admin-exams"
-      queryFn={getAdminExams}
-      columns={columns}
-      actions={
-        <Button asChild size="sm">
-          <Link to="/admin/exams/1/edit">
-            新建考试
-            <ArrowUpRight data-icon="inline-end" />
-          </Link>
-        </Button>
-      }
-    />
+    <div className="flex flex-col gap-4">
+      <ReportPage
+        title="考试配置"
+        chapterLabel="CHAPTER 02 · EXAMS"
+        description="所有考试的配置入口。点击考试名进入编辑页。"
+        queryKey="admin-exams"
+        queryFn={getAdminExams}
+        columns={columns}
+        actions={
+          <Button type="button" size="sm" disabled={isCreating} onClick={() => void handleCreate()}>
+            <Plus data-icon="inline-start" />
+            {isCreating ? "创建中" : "新建考试"}
+          </Button>
+        }
+      />
+      {createError ? (
+        <p
+          className="rounded-md border border-error bg-canvas p-3 text-body-sm text-error"
+          role="alert"
+        >
+          {createError}
+        </p>
+      ) : null}
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { getAbsentCandidates } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
+import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { AbsentCandidateRow } from "@/types/report";
 
 const columns: ColumnDef<AbsentCandidateRow>[] = [
@@ -46,6 +47,7 @@ export function AbsentCandidatePage() {
       queryKey="absent-candidates"
       queryFn={getAbsentCandidates}
       columns={columns}
+      actions={<ReportExportButton />}
     />
   );
 }

@@ -8,6 +8,8 @@ export type QuestionOption = {
   sort_order: number;
 };
 
+export type QuestionOptionPayload = Omit<QuestionOption, "id">;
+
 export type Question = {
   id: number;
   question_type: QuestionType | string;
@@ -22,6 +24,10 @@ export type Question = {
   source_no?: string | null;
   remark?: string | null;
   options: QuestionOption[];
+};
+
+export type QuestionPayload = Omit<Question, "id" | "options"> & {
+  options: QuestionOptionPayload[];
 };
 
 export type PracticeAnswerResult = {

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download, FileUp } from "lucide-react";
 import { useState } from "react";
 
+import { getErrorMessage } from "@/api/client";
 import { downloadImportTemplate, importQuestions } from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Button } from "@/components/ui/button";
@@ -10,13 +11,26 @@ import type { ImportFailure } from "@/types/imports";
 
 export function QuestionImportPage() {
   const [file, setFile] = useState<File | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: importQuestions,
     onSuccess: () => {
+      setNotice({ tone: "success", message: "题库导入完成。" });
       queryClient.invalidateQueries({ queryKey: ["admin-questions"] });
     },
+    onError: (error) =>
+      setNotice({ tone: "error", message: getErrorMessage(error, "题库导入失败") }),
   });
+
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadImportTemplate("questions");
+      setNotice({ tone: "success", message: "模板已开始下载。" });
+    } catch (error) {
+      setNotice({ tone: "error", message: getErrorMessage(error, "模板下载失败") });
+    }
+  };
 
   return (
     <div data-stagger className="flex max-w-3xl flex-col gap-8">
@@ -36,7 +50,7 @@ export function QuestionImportPage() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => void downloadImportTemplate("questions")}
+            onClick={() => void handleDownloadTemplate()}
           >
             <Download data-icon="inline-start" />
             下载模板
@@ -61,6 +75,17 @@ export function QuestionImportPage() {
           {mutation.isPending ? "正在导入..." : "上传并校验"}
         </Button>
       </section>
+
+      {notice ? (
+        <p
+          className={`rounded-md border bg-canvas p-3 text-body-sm ${
+            notice.tone === "success" ? "border-success text-success" : "border-error text-error"
+          }`}
+          role="alert"
+        >
+          {notice.message}
+        </p>
+      ) : null}
 
       {mutation.data ? (
         <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-6 shadow-card">

@@ -4,14 +4,16 @@ from fastapi import Header, Request
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
-from app.core.security import constant_time_equals
+from app.core.security import verify_session_token
 from app.services.exam_service import AdminAuthError
 
 
 def require_admin(request: Request) -> None:
     """校验 X-Admin-Token 头与配置的管理员 token 一致。"""
     token = request.headers.get("X-Admin-Token", "")
-    if not constant_time_equals(token, settings.admin_password):
+    if not verify_session_token(
+        token, subject=settings.admin_username, secret=settings.token_secret
+    ):
         raise AdminAuthError()
 
 

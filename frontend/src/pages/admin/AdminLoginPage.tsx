@@ -28,8 +28,8 @@ export function AdminLoginPage() {
   });
   const mutation = useMutation({
     mutationFn: loginAdmin,
-    onSuccess: (_data, variables) => {
-      setAdminToken(variables.password);
+    onSuccess: (data) => {
+      setAdminToken(data.token);
       navigate("/admin/dashboard");
     },
   });

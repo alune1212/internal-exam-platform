@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { getScoreReport } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
+import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { ScoreReportRow } from "@/types/report";
 
 const columns: ColumnDef<ScoreReportRow>[] = [
@@ -57,6 +58,7 @@ export function ScoreReportPage() {
       queryKey="score-report"
       queryFn={getScoreReport}
       columns={columns}
+      actions={<ReportExportButton />}
     />
   );
 }

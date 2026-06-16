@@ -6,6 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
 import { z } from "zod";
 
+import { getErrorMessage } from "@/api/client";
 import { getAdminExams, updateAdminExam } from "@/api/exams";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
@@ -120,6 +121,7 @@ export function ExamEditPage() {
   const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
   const isPublished = currentExam?.status === "active";
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const mutation = useMutation({
     mutationFn: (values: ExamEditForm) => {
       if (!examId) {
@@ -146,7 +148,11 @@ export function ExamEditPage() {
       return updateAdminExam(examId, payload);
     },
     onSuccess: () => {
+      setNotice({ tone: "success", message: "考试配置已保存。" });
       void queryClient.invalidateQueries({ queryKey: ["admin-exams"] });
+    },
+    onError: (error) => {
+      setNotice({ tone: "error", message: getErrorMessage(error, "保存考试失败") });
     },
   });
 
@@ -191,6 +197,17 @@ export function ExamEditPage() {
       </header>
 
       <section className="grid gap-6 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:grid-cols-2 lg:p-8">
+        {notice ? (
+          <p
+            className={cn(
+              "rounded-md border p-3 text-body-sm lg:col-span-2",
+              notice.tone === "success" ? "border-success text-success" : "border-error text-error",
+            )}
+            role="alert"
+          >
+            {notice.message}
+          </p>
+        ) : null}
         <div className="flex flex-col gap-2">
           <Label htmlFor="title">考试名称 · Title</Label>
           <Input id="title" {...form.register("title")} />

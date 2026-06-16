@@ -19,6 +19,12 @@ export class ApiError extends Error {
   }
 }
 
+export function getErrorMessage(error: unknown, fallback = "操作失败，请稍后重试。"): string {
+  if (error instanceof ApiError) return error.detail ?? error.message;
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 function resolveAuthHeaders(path: string): Record<string, string> {

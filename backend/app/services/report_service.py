@@ -1,3 +1,6 @@
+from io import BytesIO
+
+from openpyxl import Workbook
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
@@ -200,3 +203,84 @@ def get_absent_candidates(
         )
         for c in rows
     ]
+
+
+def generate_report_workbook(db: Session) -> BytesIO:
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+
+    _append_sheet(
+        workbook,
+        "成绩报表",
+        ["姓名", "员工号", "部门", "考试", "得分", "总分", "提交时间"],
+        [
+            [
+                row.candidate_name,
+                row.employee_no,
+                row.department,
+                row.exam_title,
+                row.score,
+                row.total_score,
+                row.submitted_at.isoformat() if row.submitted_at else None,
+            ]
+            for row in get_score_report(db)
+        ],
+    )
+    _append_sheet(
+        workbook,
+        "题目正确率",
+        ["题目ID", "题干", "答对次数", "作答次数", "正确率"],
+        [
+            [
+                row.question_id,
+                row.stem,
+                row.correct_count,
+                row.total_count,
+                row.accuracy_rate,
+            ]
+            for row in get_question_accuracy(db)
+        ],
+    )
+    _append_sheet(
+        workbook,
+        "错题统计",
+        ["题目ID", "题干", "错误次数", "一级分类", "二级分类"],
+        [
+            [row.question_id, row.stem, row.wrong_count, row.category_1, row.category_2]
+            for row in get_wrong_questions(db)
+        ],
+    )
+    _append_sheet(
+        workbook,
+        "缺考人员",
+        ["考生ID", "姓名", "员工号", "部门", "考试分组"],
+        [
+            [
+                row.candidate_id,
+                row.name,
+                row.employee_no,
+                row.department,
+                row.exam_group,
+            ]
+            for row in get_absent_candidates(db)
+        ],
+    )
+
+    stream = BytesIO()
+    workbook.save(stream)
+    stream.seek(0)
+    return stream
+
+
+def _append_sheet(
+    workbook: Workbook, title: str, headers: list[str], rows: list[list[object]]
+) -> None:
+    sheet = workbook.create_sheet(title)
+    sheet.append(headers)
+    for row in rows:
+        sheet.append(row)
+    for column_cells in sheet.columns:
+        max_length = max(len(str(cell.value or "")) for cell in column_cells)
+        sheet.column_dimensions[column_cells[0].column_letter].width = min(
+            max(max_length + 2, 10), 48
+        )

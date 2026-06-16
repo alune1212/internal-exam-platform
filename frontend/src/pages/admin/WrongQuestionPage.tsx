@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { getWrongQuestions } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
+import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { WrongQuestionRow } from "@/types/report";
 
 const columns: ColumnDef<WrongQuestionRow>[] = [
@@ -48,6 +49,7 @@ export function WrongQuestionPage() {
       queryKey="wrong-questions"
       queryFn={getWrongQuestions}
       columns={columns}
+      actions={<ReportExportButton />}
     />
   );
 }

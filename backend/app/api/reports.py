@@ -1,4 +1,7 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -43,6 +46,13 @@ def get_absent_candidates(
     return ApiResponse(data=report_service.get_absent_candidates(db, exam_id=exam_id))
 
 
-@router.get("/export", response_model=ApiResponse[dict[str, str]])
-def export_report() -> ApiResponse[dict[str, str]]:
-    return ApiResponse(data={"status": "reserved"})
+@router.get("/export")
+def export_report(db: Session = Depends(get_db)) -> StreamingResponse:
+    stream = report_service.generate_report_workbook(db)
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('考试报表.xlsx')}"
+        },
+    )

@@ -1,4 +1,5 @@
 import { apiRequest } from "@/api/client";
+import { getAdminToken } from "@/lib/adminSession";
 import type {
   AbsentCandidateRow,
   QuestionAccuracyRow,
@@ -20,4 +21,18 @@ export function getWrongQuestions() {
 
 export function getAbsentCandidates() {
   return apiRequest<AbsentCandidateRow[]>("/api/admin/reports/absent-candidates");
+}
+
+export async function downloadReportExport(): Promise<void> {
+  const response = await fetch("/api/admin/reports/export", {
+    headers: { "X-Admin-Token": getAdminToken() ?? "" },
+  });
+  if (!response.ok) throw new Error("报表导出失败");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "考试报表.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
 }

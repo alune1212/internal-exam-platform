@@ -11,6 +11,26 @@ export function getAdminExams() {
   return apiRequest<Exam[]>("/api/admin/exams");
 }
 
+export function createAdminExam() {
+  return apiRequest<Exam>("/api/admin/exams", {
+    method: "POST",
+    body: JSON.stringify({
+      title: "新考试",
+      description: null,
+      duration_minutes: 60,
+      question_rule: {
+        question_count: 50,
+        total_score: 100,
+        pass_score: 60,
+        mode: "fixed_paper",
+        type_counts: { single: 30, multiple: 10, judge: 10 },
+      },
+      status: "draft",
+      show_answer_after_submit: true,
+    }),
+  });
+}
+
 export type ExamUpdatePayload = {
   title?: string;
   duration_minutes?: number;
