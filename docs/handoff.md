@@ -14,7 +14,7 @@ Implemented foundations:
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
 - Exam configuration create/update/list persistence and candidate-facing active exam listing.
-- Exam start persistence with fixed 60-question paper generation, attempt creation, and question snapshots.
+- Exam start persistence with fixed 50-question paper generation, attempt creation, and question snapshots.
 - Answer autosave persistence and submit scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.

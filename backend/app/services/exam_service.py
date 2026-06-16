@@ -286,9 +286,34 @@ def _select_questions_by_type(
 
     if len(selected) != rule.question_count:
         raise InsufficientQuestionsError("抽题数量与规则不一致，无法生成考试试卷")
-    if sum(question.score for question in selected) != rule.total_score:
-        raise InsufficientQuestionsError("抽题总分与规则不一致，无法生成考试试卷")
     return selected
+
+
+def _rescale_scores(
+    questions: list[Question], target_total: Decimal
+) -> list[tuple[Question, Decimal]]:
+    """按 target_total 等比折算每题分值，返回 (question, scaled_score) 列表。
+
+    原始 Question.score 不修改；折算结果仅用于快照和 attempt.total_score。
+    末题吸收舍入误差，确保总分精确等于 target_total。
+    """
+    raw_total = sum(q.score for q in questions)
+    if raw_total == 0:
+        raise InsufficientQuestionsError("题目原始总分为 0，无法折算分值")
+
+    pairs: list[tuple[Question, Decimal]] = []
+    accumulated = Decimal("0")
+    for i, question in enumerate(questions):
+        if i == len(questions) - 1:
+            # 末题：用目标总分减去已累计分值，吸收舍入误差
+            scaled = target_total - accumulated
+        else:
+            scaled = (question.score * target_total / raw_total).quantize(
+                Decimal("0.01")
+            )
+            accumulated += scaled
+        pairs.append((question, scaled))
+    return pairs
 
 
 def _load_questions_by_ids(db: Session, question_ids: list[int]) -> list[Question]:
@@ -462,7 +487,15 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     db.flush()
 
     now = datetime.now(UTC)
-    total_score = sum(q.score for q in questions)
+
+    # 按 question_rule.total_score 等比折算分值（如有），原始题目 score 不修改
+    rule = _parse_fixed_paper_rule(exam.question_rule)
+    if rule is not None:
+        scaled_pairs = _rescale_scores(questions, rule.total_score)
+        total_score = rule.total_score
+    else:
+        scaled_pairs = [(q, q.score) for q in questions]
+        total_score = sum(q.score for q in questions)
 
     # 创建 attempt
     attempt = ExamAttempt(
@@ -475,9 +508,9 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     db.add(attempt)
     db.flush()  # 获取 attempt.id
 
-    # 生成题目快照
+    # 生成题目快照（使用折算后的分值）
     snapshots: list[ExamAttemptQuestion] = []
-    for idx, question in enumerate(questions):
+    for idx, (question, scaled_score) in enumerate(scaled_pairs):
         snapshot = ExamAttemptQuestion(
             attempt_id=attempt.id,
             original_question_id=question.id,
@@ -486,7 +519,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
             options_snapshot=_build_options_snapshot(question.options),
             correct_answer_snapshot=_build_correct_answer_snapshot(question.options),
             analysis_snapshot=question.analysis,
-            score=question.score,
+            score=scaled_score,
             sort_order=idx,
         )
         db.add(snapshot)

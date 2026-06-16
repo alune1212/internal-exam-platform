@@ -30,11 +30,11 @@ const schema = z.object({
 type ExamEditForm = z.infer<typeof schema>;
 
 const DEFAULT_FIXED_RULE = {
-  question_count: 60,
+  question_count: 50,
   total_score: 100,
   pass_score: 60,
   mode: "fixed_paper",
-  type_counts: { single: 15, multiple: 40, judge: 5 },
+  type_counts: { single: 30, multiple: 10, judge: 10 },
 };
 
 function formatQuestionRule(rule: Record<string, unknown>) {

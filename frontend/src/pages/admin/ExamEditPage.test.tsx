@@ -14,11 +14,11 @@ vi.mock("@/api/exams", () => ({
 }));
 
 const fixedRule = {
-  question_count: 60,
+  question_count: 50,
   total_score: 100,
   pass_score: 60,
   mode: "fixed_paper",
-  type_counts: { single: 15, multiple: 40, judge: 5 },
+  type_counts: { single: 30, multiple: 10, judge: 10 },
 };
 
 const exam: Exam = {
@@ -55,14 +55,14 @@ describe("ExamEditPage", () => {
     vi.mocked(updateAdminExam).mockResolvedValue(exam);
   });
 
-  it("loads the current exam and saves the fixed 60-question rule", async () => {
+  it("loads the current exam and saves the fixed 50-question rule", async () => {
     const user = userEvent.setup();
 
     renderExamEditPage();
 
     expect(await screen.findByDisplayValue("安全知识竞赛")).toBeInTheDocument();
     expect(screen.getByDisplayValue("60")).toBeInTheDocument();
-    expect(screen.getByDisplayValue(/"question_count": 60/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue(/"question_count": 50/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /保存配置/ }));
 

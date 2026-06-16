@@ -105,11 +105,11 @@ const exam: Exam = {
   description: "考试说明",
   duration_minutes: 30,
   question_rule: {
-    question_count: 60,
+    question_count: 50,
     total_score: 100,
     pass_score: 60,
     mode: "fixed_paper",
-    type_counts: { single: 15, multiple: 40, judge: 5 },
+    type_counts: { single: 30, multiple: 10, judge: 10 },
   },
   status: "published",
   show_answer_after_submit: true,
@@ -366,7 +366,7 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByText("今天有一场考试等着你。")).toBeInTheDocument();
-    const questionCounts = screen.getAllByText("60");
+    const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
   });
