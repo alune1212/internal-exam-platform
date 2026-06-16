@@ -1,9 +1,18 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { useState } from "react";
 
-import { getAbsentCandidates } from "@/api/reports";
+import { getAbsentCandidates, type AttendanceStatus } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { AbsentCandidateRow } from "@/types/report";
+
+const statusLabels: Record<AttendanceStatus, string> = {
+  not_started: "未开始",
+  in_progress: "进行中",
+  submitted: "已提交",
+};
 
 const columns: ColumnDef<AbsentCandidateRow>[] = [
   {
@@ -36,18 +45,47 @@ const columns: ColumnDef<AbsentCandidateRow>[] = [
     cell: ({ row }) => row.original.exam_group ?? "-",
     meta: { mobilePriority: "primary", mobileLabel: "GROUP" },
   },
+  {
+    accessorKey: "attendance_status",
+    header: "STATUS",
+    cell: ({ row }) => statusLabels[row.original.attendance_status],
+    meta: { mobileLabel: "STATUS" },
+  },
 ];
 
 export function AbsentCandidatePage() {
+  const [status, setStatus] = useState<AttendanceStatus>("not_started");
+
   return (
     <ReportPage
-      title="未参加人员"
+      title="参考状态"
       chapterLabel="CHAPTER 04 · REPORTS"
-      description="应考但未提交考试的人员列表。需补考时使用。"
-      queryKey="absent-candidates"
-      queryFn={getAbsentCandidates}
+      description="按未开始、进行中、已提交拆分应考人员状态，避免把进行中考试计为缺考。"
+      queryKey={`absent-candidates-${status}`}
+      queryFn={() => getAbsentCandidates(status)}
       columns={columns}
-      actions={<ReportExportButton />}
+      actions={
+        <>
+          <div className="inline-flex items-center gap-1 rounded-pill border border-hairline bg-canvas p-1">
+            {(["not_started", "in_progress", "submitted"] as AttendanceStatus[]).map((item) => (
+              <Button
+                key={item}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "rounded-pill",
+                  status === item ? "bg-ink text-canvas hover:bg-ink" : "text-muted",
+                )}
+                onClick={() => setStatus(item)}
+              >
+                {statusLabels[item]}
+              </Button>
+            ))}
+          </div>
+          <ReportExportButton />
+        </>
+      }
     />
   );
 }

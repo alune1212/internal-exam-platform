@@ -153,6 +153,10 @@ def test_absent_candidates_splits_not_started_and_in_progress(db: Session) -> No
         db, exam_id=exam.id, status="in_progress"
     )
     assert [r.name for r in in_progress] == ["李四"]
+    submitted = report_service.get_absent_candidates(
+        db, exam_id=exam.id, status="submitted"
+    )
+    assert [r.name for r in submitted] == ["张三"]
 
 
 def test_absent_candidates_excludes_non_should_attend(db: Session) -> None:
@@ -161,6 +165,22 @@ def test_absent_candidates_excludes_non_should_attend(db: Session) -> None:
     report = report_service.get_absent_candidates(db)
     names = [r.name for r in report]
     assert "不需要参加" not in names
+
+
+def test_absent_candidates_global_status_filter(db: Session) -> None:
+    exam, c1, _c2, r1, _r2 = _setup_exam_with_candidates(db)
+    submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
+    c3 = create_candidate(db, name="王五", employee_no="E003")
+    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=c3.id))
+    db.commit()
+
+    assert [r.name for r in report_service.get_absent_candidates(db)] == ["王五"]
+    assert [
+        r.name for r in report_service.get_absent_candidates(db, status="in_progress")
+    ] == ["李四"]
+    assert [
+        r.name for r in report_service.get_absent_candidates(db, status="submitted")
+    ] == ["张三"]
 
 
 def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
@@ -172,7 +192,7 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
     workbook_stream = report_service.generate_report_workbook(db)
     workbook = load_workbook(workbook_stream)
 
-    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "缺考人员"]
+    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "参考状态"]
     assert [cell.value for cell in workbook["成绩报表"][1]] == [
         "姓名",
         "员工号",
@@ -183,3 +203,11 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
         "提交时间",
     ]
     assert workbook["成绩报表"].cell(2, 1).value == "张三"
+    assert [cell.value for cell in workbook["参考状态"][1]] == [
+        "考生ID",
+        "姓名",
+        "员工号",
+        "部门",
+        "考试分组",
+        "参考状态",
+    ]

@@ -152,7 +152,7 @@ docker-compose config
 - 开始考试时按 `question_rule` 生成固定 50 题等价试卷，题干去重、整数均分，创建 attempt 和题目快照，答案暂存入库，提交后按快照自动判分
 - 考试结果返回及格线和通过状态，当前固定试卷规则为总分 100、及格线 60
 - 到时自动提交后台检查、考试排名和管理端报表 SQL 查询
-- 管理端报表导出为单个 Excel 工作簿，包含成绩报表、题目正确率、错题统计和缺考人员
+- 管理端报表导出为单个 Excel 工作簿，包含成绩报表、题目正确率、错题统计和参考状态
 - 管理员登录返回签名 session token，管理端 API 使用 `X-Admin-Token`
 - Academic Editorial 前端 redesign：设计令牌、UI primitives、candidate/admin layouts、P0/P1/P2 页面、空态/错态/加载态和考试快捷键
 

@@ -80,4 +80,4 @@ GET /api/admin/reports/export
 - 题库导入接口执行标准 Excel 行级校验，合法行写入 `question` / `question_option`，并写入 `import_batch` 记录失败行号和原因。
 - 模板下载接口返回标准 Excel 模板，`Content-Disposition` 使用 `filename*` 兼容中文文件名。
 - 应参人员导入接口按考试写入 `exam_candidate_scope`；有员工号时按员工号复用已有人员，无员工号时按无员工号姓名复用已有人员，缺失身份或非法状态按行记录失败原因。
-- 报表统计查询已使用真实 SQL；`/api/admin/reports/export` 返回 Excel 工作簿，包含成绩报表、题目正确率、错题统计、缺考人员四个 sheet。
+- 报表统计查询已使用真实 SQL；`/api/admin/reports/export` 返回 Excel 工作簿，包含成绩报表、题目正确率、错题统计、参考状态四个 sheet。

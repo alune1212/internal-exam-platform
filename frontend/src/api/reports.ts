@@ -19,8 +19,10 @@ export function getWrongQuestions() {
   return apiRequest<WrongQuestionRow[]>("/api/admin/reports/wrong-questions");
 }
 
-export function getAbsentCandidates() {
-  return apiRequest<AbsentCandidateRow[]>("/api/admin/reports/absent-candidates");
+export type AttendanceStatus = "not_started" | "in_progress" | "submitted";
+
+export function getAbsentCandidates(status: AttendanceStatus = "not_started") {
+  return apiRequest<AbsentCandidateRow[]>(`/api/admin/reports/absent-candidates?status=${status}`);
 }
 
 export async function downloadReportExport(): Promise<void> {

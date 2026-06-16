@@ -27,9 +27,7 @@ export function CandidateImportPage() {
         <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
           应考人员导入
         </h1>
-        <p className="text-body-lg">
-          未参加人员名单 = 应考人员 - 已提交考试人员。导入前请按模板填写。
-        </p>
+        <p className="text-body-lg">参考状态会按未开始、进行中、已提交拆分。导入前请按模板填写。</p>
       </header>
 
       <section className="flex flex-col gap-5 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">

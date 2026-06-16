@@ -42,7 +42,10 @@ export function AdminDashboardPage() {
   const questions = useQuery({ queryKey: ["admin-questions"], queryFn: getAdminQuestions });
   const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
   const scores = useQuery({ queryKey: ["score-report"], queryFn: getScoreReport });
-  const absent = useQuery({ queryKey: ["absent-candidates"], queryFn: getAbsentCandidates });
+  const absent = useQuery({
+    queryKey: ["absent-candidates", "not_started"],
+    queryFn: () => getAbsentCandidates("not_started"),
+  });
 
   const liveExams = (exams.data ?? []).filter(
     (exam) => exam.status === "active" || exam.status === "live",
@@ -96,11 +99,11 @@ export function AdminDashboardPage() {
           caption="所有考试累计提交次数"
         />
         <MetricCard
-          label="ABSENT · 未参加"
+          label="NOT STARTED · 未开始"
           value={absent.data?.length ?? 0}
           unit="人"
           tone="warning"
-          caption="应考但未提交人员"
+          caption="应考但尚未开始"
         />
       </section>
 
@@ -108,7 +111,7 @@ export function AdminDashboardPage() {
         <header className="flex flex-col gap-1">
           <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
           <h2 className="font-display text-display-sm font-semibold tracking-[-0.04em] text-ink">
-            提交与缺席
+            提交与未开始
           </h2>
         </header>
         {questions.isLoading || exams.isLoading || scores.isLoading || absent.isLoading ? (

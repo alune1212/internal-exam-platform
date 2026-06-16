@@ -30,4 +30,5 @@ export type AbsentCandidateRow = {
   employee_no?: string | null;
   department?: string | null;
   exam_group?: string | null;
+  attendance_status: "not_started" | "in_progress" | "submitted";
 };

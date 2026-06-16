@@ -3,14 +3,17 @@
 from collections.abc import Iterator
 from io import BytesIO
 
+import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.database import Base, get_db
+from app.core.security import create_session_token
 from app.main import create_app
 
 
@@ -96,6 +99,31 @@ def test_admin_exams_rejects_wrong_token() -> None:
     assert resp.status_code == 401
 
 
+def test_admin_exams_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _ = _build_client()
+    token = create_session_token(settings.admin_username)
+    monkeypatch.setattr(settings, "token_ttl_seconds", -1)
+
+    resp = client.get(
+        "/api/admin/exams",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 401
+
+
+def test_production_rejects_default_admin_password_and_token_secret() -> None:
+    with pytest.raises(ValidationError):
+        Settings(environment="production")
+
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="production",
+            admin_password="strong-password",  # noqa: S106
+            token_secret="change-me-in-production",  # noqa: S106
+        )
+
+
 def test_admin_questions_requires_token() -> None:
     client, _ = _build_client()
     resp = client.get("/api/admin/questions")
@@ -155,4 +183,4 @@ def test_admin_report_export_returns_workbook() -> None:
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     workbook = load_workbook(BytesIO(resp.content))
-    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "缺考人员"]
+    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "参考状态"]

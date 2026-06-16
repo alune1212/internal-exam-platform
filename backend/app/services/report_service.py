@@ -21,6 +21,12 @@ from app.schemas.report import (
     WrongQuestionRow,
 )
 
+ATTENDANCE_STATUS_LABELS = {
+    "not_started": "未开始",
+    "in_progress": "进行中",
+    "submitted": "已提交",
+}
+
 
 def get_score_report(db: Session) -> list[ScoreReportRow]:
     """成绩报表：所有已提交 attempt 的成绩汇总。"""
@@ -156,10 +162,7 @@ def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
 def get_absent_candidates(
     db: Session, exam_id: int | None = None, status: str = "not_started"
 ) -> list[AbsentCandidateRow]:
-    """缺考人员：应参但在指定考试中无 attempt 记录的考生。
-
-    不传 exam_id 时保留旧行为（全局从未参考过）。
-    """
+    """参考状态：按未开始、进行中、已提交拆分应考人员。"""
     if exam_id is not None:
         base = (
             db.query(Candidate)
@@ -205,17 +208,38 @@ def get_absent_candidates(
         else:
             rows = []
     else:
-        attempted_ids = select(ExamAttempt.candidate_id).distinct()
-        rows = (
-            db.query(Candidate)
-            .filter(
-                Candidate.should_attend == True,  # noqa: E712
-                Candidate.status == "active",
-                ~Candidate.id.in_(attempted_ids),
-            )
-            .order_by(Candidate.name)
-            .all()
+        base = db.query(Candidate).filter(
+            Candidate.should_attend == True,  # noqa: E712
+            Candidate.status == "active",
         )
+        if status == "not_started":
+            attempted_ids = select(ExamAttempt.candidate_id).distinct()
+            rows = (
+                base.filter(~Candidate.id.in_(attempted_ids))
+                .order_by(Candidate.name)
+                .all()
+            )
+        elif status == "in_progress":
+            rows = (
+                base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
+                .filter(ExamAttempt.status == "in_progress")
+                .distinct()
+                .order_by(Candidate.name)
+                .all()
+            )
+        elif status == "submitted":
+            latest_submitted = latest_submitted_attempts(db)
+            rows = (
+                base.join(
+                    latest_submitted,
+                    latest_submitted.c.candidate_id == Candidate.id,
+                )
+                .distinct()
+                .order_by(Candidate.name)
+                .all()
+            )
+        else:
+            rows = []
 
     return [
         AbsentCandidateRow(
@@ -305,8 +329,8 @@ def generate_report_workbook(db: Session) -> BytesIO:
     )
     _append_sheet(
         workbook,
-        "缺考人员",
-        ["考生ID", "姓名", "员工号", "部门", "考试分组"],
+        "参考状态",
+        ["考生ID", "姓名", "员工号", "部门", "考试分组", "参考状态"],
         [
             [
                 row.candidate_id,
@@ -314,8 +338,12 @@ def generate_report_workbook(db: Session) -> BytesIO:
                 row.employee_no,
                 row.department,
                 row.exam_group,
+                ATTENDANCE_STATUS_LABELS.get(
+                    row.attendance_status, row.attendance_status
+                ),
             ]
-            for row in get_absent_candidates(db)
+            for status in ("not_started", "in_progress", "submitted")
+            for row in get_absent_candidates(db, status=status)
         ],
     )
 
