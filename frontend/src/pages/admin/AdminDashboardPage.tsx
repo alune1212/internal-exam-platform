@@ -72,9 +72,7 @@ export function AdminDashboardPage() {
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           一切就绪。
         </h1>
-        <p className="text-body text-body-lg">
-          最近一次刷新 · {new Date().toLocaleString("zh-CN")}
-        </p>
+        <p className="text-body-lg">最近一次刷新 · {new Date().toLocaleString("zh-CN")}</p>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -109,7 +107,7 @@ export function AdminDashboardPage() {
       <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
         <header className="flex flex-col gap-1">
           <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
-          <h2 className="font-display text-[20px] font-semibold tracking-[-0.04em] text-ink">
+          <h2 className="font-display text-display-sm font-semibold tracking-[-0.04em] text-ink">
             提交与缺席
           </h2>
         </header>

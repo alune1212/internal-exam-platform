@@ -36,7 +36,7 @@ export function OptionCard({
         aria-hidden="true"
         className={cn(
           "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          "font-mono text-xs font-semibold tabular-nums",
+          "font-mono text-caption font-semibold tabular-nums",
           selected ? "bg-ink text-canvas" : "border border-hairline bg-canvas text-ink",
         )}
       >

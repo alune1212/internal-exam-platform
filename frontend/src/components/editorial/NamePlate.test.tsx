@@ -50,7 +50,7 @@ describe("NamePlate", () => {
 
     const name = screen.getByText("张三");
     expect(name.className).toMatch(/font-display/);
-    expect(name.className).toMatch(/text-\[14px\]|text-sm/);
+    expect(name.className).toMatch(/text-body-sm/);
   });
 
   it("can render from candidate input", () => {

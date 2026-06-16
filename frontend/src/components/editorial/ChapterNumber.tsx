@@ -10,7 +10,7 @@ export function ChapterNumber({ children, className, ...props }: ChapterNumberPr
   return (
     <span
       className={cn(
-        "inline-flex items-center text-[11px] uppercase italic tracking-[0.18em] text-muted",
+        "inline-flex items-center text-caption uppercase italic tracking-[0.18em] text-muted",
         className,
       )}
       {...props}

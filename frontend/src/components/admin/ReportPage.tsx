@@ -35,14 +35,14 @@ export function ReportPage<TData>({
   const { data = [], isLoading } = useQuery({ queryKey: [queryKey], queryFn });
 
   return (
-    <section className={cn("flex flex-col gap-8", className)}>
+    <section data-stagger className={cn("flex flex-col gap-8", className)}>
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-3">
           <ChapterNumber>{chapterLabel}</ChapterNumber>
-          <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+          <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
             {title}
           </h1>
-          {description ? <p className="max-w-2xl text-body text-body-lg">{description}</p> : null}
+          {description ? <p className="max-w-2xl text-body-lg">{description}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </header>
@@ -52,7 +52,7 @@ export function ReportPage<TData>({
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
-          <p className="text-caption uppercase tracking-[0.16em] text-muted">LOADING · 加载中...</p>
+          <p className="text-caption uppercase tracking-[0.16em] text-muted">Loading · 加载中...</p>
         </div>
       ) : (
         <SimpleDataTable

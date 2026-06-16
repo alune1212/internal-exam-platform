@@ -16,7 +16,7 @@ describe("Table primitives", () => {
     );
     const th = screen.getByText("RANK");
     expect(th.className).toContain("uppercase");
-    expect(th.className).toContain("tracking-[0.12em]");
+    expect(th.className).toContain("tracking-[0.16em]");
     expect(th.className).toContain("text-muted");
   });
 

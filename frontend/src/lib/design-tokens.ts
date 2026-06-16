@@ -54,6 +54,9 @@ export const designTokens = {
   shadowPop: "0 8px 24px rgba(17, 17, 17, 0.08)",
   shadowElevate: "0 16px 40px rgba(17, 17, 17, 0.1)",
 
+  // Overlay
+  overlay: "rgba(17, 17, 17, 0.4)",
+
   // Fonts
   fontDisplay: '"Source Serif 4", "Source Serif Pro", "Songti SC", "Noto Serif SC", Georgia, serif',
   fontBody: '"Inter", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif',

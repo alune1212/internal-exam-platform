@@ -21,13 +21,13 @@ export function CandidateImportPage() {
   });
 
   return (
-    <div className="flex max-w-3xl flex-col gap-8">
+    <div data-stagger className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+        <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
           应考人员导入
         </h1>
-        <p className="text-body text-body-lg">
+        <p className="text-body-lg">
           未参加人员名单 = 应考人员 - 已提交考试人员。导入前请按模板填写。
         </p>
       </header>

@@ -43,11 +43,11 @@ function SidebarList({
           onClick={onNavigate}
           className={({ isActive }) =>
             cn(
-              "flex h-11 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
+              "flex h-12 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
               tone === "dark"
                 ? isActive
-                  ? "bg-white text-ink"
-                  : "text-footer-soft hover:bg-white/10 hover:text-white"
+                  ? "bg-canvas text-ink"
+                  : "text-footer-soft hover:bg-white/10 hover:text-canvas"
                 : isActive
                   ? "bg-surface-card text-ink"
                   : "text-body hover:bg-surface-card hover:text-ink",
@@ -67,7 +67,7 @@ export function AdminSideRail() {
 
   if (isDesktop) {
     return (
-      <aside className="w-60 shrink-0 border-r border-black bg-footer px-5 py-6 text-footer-soft">
+      <aside className="w-60 shrink-0 border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft">
         <Link
           to="/admin/dashboard"
           aria-label="返回管理后台首页"

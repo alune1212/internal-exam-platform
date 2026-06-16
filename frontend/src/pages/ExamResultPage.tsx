@@ -49,7 +49,7 @@ export function ExamResultPage() {
               <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
                 YOUR SCORE · 你的分数
               </span>
-              <p className="font-display text-[56px] font-semibold tabular-nums leading-none text-canvas md:text-[64px]">
+              <p className="font-display text-display-xl font-semibold tabular-nums leading-none text-canvas md:text-display-2xl">
                 {result ? `${result.score}` : "—"}
                 <span className="ml-2 text-body-lg text-footer-soft">
                   / {result ? result.total_score : "—"}

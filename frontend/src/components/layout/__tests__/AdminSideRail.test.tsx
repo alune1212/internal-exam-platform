@@ -48,7 +48,7 @@ describe("AdminSideRail", () => {
   it("highlights the active route with white text and white background", () => {
     renderSideRail("/admin/dashboard");
     const activeLink = screen.getByRole("link", { name: "仪表盘" });
-    expect(activeLink).toHaveClass("bg-white");
+    expect(activeLink).toHaveClass("bg-canvas");
     expect(activeLink).toHaveClass("text-ink");
   });
 

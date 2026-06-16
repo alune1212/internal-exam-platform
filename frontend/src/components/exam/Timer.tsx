@@ -47,7 +47,7 @@ export function Timer({ remainingSeconds, criticalThresholdSeconds = 300, classN
         <span
           aria-label={`剩余时间 ${display}`}
           className={cn(
-            "font-display text-[32px] font-semibold tabular-nums leading-none text-ink",
+            "font-display text-display-md font-semibold tabular-nums leading-none text-ink",
             isCritical && "text-error",
           )}
         >

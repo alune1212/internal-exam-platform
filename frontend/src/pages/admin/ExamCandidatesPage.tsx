@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Download, FileUp, RotateCcw, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
 import {
@@ -11,6 +12,7 @@ import {
   removeExamCandidate,
 } from "@/api/exams";
 import { downloadImportTemplate } from "@/api/imports";
+import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill } from "@/components/editorial/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -63,14 +65,98 @@ export function ExamCandidatesPage() {
     },
   });
 
+  const columns = useMemo<ColumnDef<ExamCandidateRow>[]>(
+    () => [
+      {
+        id: "name",
+        header: "NAME",
+        meta: { mobilePriority: "primary", mobileLabel: "姓名" },
+        cell: ({ row }) => (
+          <>
+            <span className="font-medium text-ink">{row.original.candidate_name}</span>
+            <span className="ml-2 font-mono text-caption text-muted">
+              {row.original.employee_no ?? "-"}
+            </span>
+          </>
+        ),
+      },
+      {
+        id: "dept",
+        header: "DEPT",
+        meta: { mobileLabel: "部门" },
+        cell: ({ row }) => <span className="text-muted">{row.original.department ?? "-"}</span>,
+      },
+      {
+        id: "attempt",
+        header: "ATTEMPT",
+        meta: { mobileLabel: "状态" },
+        cell: ({ row }) => (
+          <>
+            <StatusPill variant={statusVariant(row.original.latest_attempt_status)}>
+              {row.original.latest_attempt_status ?? "not_started"}
+            </StatusPill>
+            {row.original.attempt_no ? (
+              <span className="ml-2 font-mono text-caption text-muted">
+                #{row.original.attempt_no} {row.original.attempt_kind}
+              </span>
+            ) : null}
+          </>
+        ),
+      },
+      {
+        id: "score",
+        header: "SCORE",
+        meta: { mobileLabel: "分数" },
+        cell: ({ row }) => (
+          <span className="font-mono tabular-nums">{scoreText(row.original)}</span>
+        ),
+      },
+      {
+        id: "action",
+        header: "",
+        meta: { mobileLabel: "操作" },
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            {row.original.latest_attempt_status === "submitted" ||
+            row.original.latest_attempt_status === "auto_submitted" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant={row.original.has_unused_retake_grant ? "outline" : "default"}
+                disabled={row.original.has_unused_retake_grant || retakeMutation.isPending}
+                onClick={() => retakeMutation.mutate(row.original.candidate_id)}
+              >
+                <RotateCcw data-icon="inline-start" />
+                {row.original.has_unused_retake_grant ? "已授权" : "授权补考"}
+              </Button>
+            ) : null}
+            {!isFrozen ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={removeMutation.isPending}
+                onClick={() => removeMutation.mutate(row.original.candidate_id)}
+              >
+                <Trash2 data-icon="inline-start" />
+                移除
+              </Button>
+            ) : null}
+          </div>
+        ),
+      },
+    ],
+    [isFrozen, retakeMutation, removeMutation],
+  );
+
   return (
-    <div className="flex flex-col gap-8">
+    <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+        <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
           应考人员名单
         </h1>
-        <p className="text-body text-body-lg">
+        <p className="text-body-lg">
           本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。
         </p>
       </header>
@@ -133,73 +219,12 @@ export function ExamCandidatesPage() {
       </section>
 
       <section className="overflow-hidden rounded-lg border border-hairline bg-canvas shadow-card">
-        <table className="w-full text-left text-body-sm">
-          <thead className="border-b border-hairline bg-surface-card text-caption uppercase tracking-[0.16em] text-muted">
-            <tr>
-              <th className="px-4 py-3">NAME</th>
-              <th className="px-4 py-3">DEPT</th>
-              <th className="px-4 py-3">ATTEMPT</th>
-              <th className="px-4 py-3">SCORE</th>
-              <th className="px-4 py-3 text-right">ACTION</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(candidates.data ?? []).map((row) => (
-              <tr key={row.candidate_id} className="border-b border-hairline-soft">
-                <td className="px-4 py-3">
-                  <span className="font-medium text-ink">{row.candidate_name}</span>
-                  <span className="ml-2 font-mono text-caption text-muted">
-                    {row.employee_no ?? "-"}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-muted">{row.department ?? "-"}</td>
-                <td className="px-4 py-3">
-                  <StatusPill variant={statusVariant(row.latest_attempt_status)}>
-                    {row.latest_attempt_status ?? "not_started"}
-                  </StatusPill>
-                  {row.attempt_no ? (
-                    <span className="ml-2 font-mono text-caption text-muted">
-                      #{row.attempt_no} {row.attempt_kind}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3 font-mono tabular-nums">{scoreText(row)}</td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
-                    {row.latest_attempt_status === "submitted" ||
-                    row.latest_attempt_status === "auto_submitted" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={row.has_unused_retake_grant ? "outline" : "default"}
-                        disabled={row.has_unused_retake_grant || retakeMutation.isPending}
-                        onClick={() => retakeMutation.mutate(row.candidate_id)}
-                      >
-                        <RotateCcw data-icon="inline-start" />
-                        {row.has_unused_retake_grant ? "已授权" : "授权补考"}
-                      </Button>
-                    ) : null}
-                    {!isFrozen ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={removeMutation.isPending}
-                        onClick={() => removeMutation.mutate(row.candidate_id)}
-                      >
-                        <Trash2 data-icon="inline-start" />
-                        移除
-                      </Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!candidates.isLoading && !candidates.data?.length ? (
-          <p className="p-6 text-body text-muted">暂无应考人员。</p>
-        ) : null}
+        <SimpleDataTable
+          columns={columns}
+          data={candidates.data ?? []}
+          emptyText="暂无应考人员"
+          rowKey={(row) => row.candidate_id}
+        />
       </section>
     </div>
   );

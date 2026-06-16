@@ -48,6 +48,7 @@ export default {
         "error-on-dark": "var(--error-on-dark)",
         "ink-red": "var(--ink-red)",
         "ink-blue": "var(--ink-blue)",
+        overlay: "var(--overlay)",
       },
       borderRadius: {
         pill: "var(--radius-pill)",

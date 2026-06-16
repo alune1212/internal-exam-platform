@@ -1,7 +1,8 @@
 // Barrel export for the 9 academic-editorial UI primitives.
 // Keep this list in sync with every component in this directory.
 
-export { Button, buttonVariants, type ButtonProps } from "./button";
+export { Button, type ButtonProps } from "./button";
+export { buttonVariants } from "./button-variants";
 export {
   Card,
   CardHeader,
@@ -13,7 +14,8 @@ export {
 } from "./card";
 export { Input } from "./input";
 export { Label } from "./label";
-export { Badge, badgeVariants, type BadgeProps } from "./badge";
+export { Badge, type BadgeProps } from "./badge";
+export { badgeVariants } from "./badge-variants";
 export {
   Table,
   TableHeader,

@@ -49,7 +49,7 @@ export function ExamStartPage() {
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           规则已阅，<em className="italic">开始倒计时</em>。
         </h1>
-        <p className="text-body text-body-lg">
+        <p className="text-body-lg">
           仔细阅读下面的规则，然后开始倒计时。开始后系统会立即生成题目快照。
         </p>
       </header>

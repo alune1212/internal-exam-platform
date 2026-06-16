@@ -163,11 +163,11 @@ export function ExamEditPage() {
   }, [currentExam, form]);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-3">
           <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-          <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+          <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
             编辑考试 #{examId ?? "-"}
           </h1>
         </div>
@@ -220,7 +220,7 @@ export function ExamEditPage() {
             rows={8}
             spellCheck={false}
             disabled={isPublished}
-            className="w-full resize-y rounded-md border border-hairline bg-footer p-4 font-mono text-[12px] leading-relaxed text-footer-soft focus:border-ink focus:outline-none"
+            className="w-full resize-y rounded-md border border-hairline bg-canvas-warm p-4 font-mono text-body-sm leading-relaxed text-ink focus:border-ink focus:outline-none"
             {...form.register("question_rule_json")}
           />
           {isPublished ? (

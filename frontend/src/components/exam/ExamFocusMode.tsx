@@ -68,7 +68,7 @@ export function ExamFocusMode({
           <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
             {stem.chapterLabel}
           </span>
-          <h2 className="font-display text-[26px] font-semibold leading-snug text-ink">
+          <h2 className="font-display text-display-md font-semibold leading-snug text-ink">
             {stem.title}
           </h2>
         </header>

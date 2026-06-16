@@ -29,6 +29,7 @@ const EXPECTED_KEYS = [
   "shadowCard",
   "shadowPop",
   "shadowElevate",
+  "overlay",
   "fontDisplay",
   "fontBody",
   "fontMono",

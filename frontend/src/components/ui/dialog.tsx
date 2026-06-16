@@ -16,7 +16,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-[rgba(17,17,17,0.4)] backdrop-blur-[2px]",
+      "fixed inset-0 z-50 bg-overlay backdrop-blur-[2px]",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
@@ -69,7 +69,7 @@ const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
   ({ className, chapter, children, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col gap-2 text-left", className)} {...props}>
       {chapter ? (
-        <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted">
+        <span className="text-caption font-medium uppercase tracking-[0.16em] text-muted">
           {chapter}
         </span>
       ) : null}
@@ -97,7 +97,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "font-display text-[20px] font-semibold leading-tight tracking-[-0.02em] text-ink lg:text-[22px]",
+      "font-display text-display-sm font-semibold leading-tight tracking-[-0.02em] text-ink lg:text-display-md",
       className,
     )}
     {...props}
@@ -111,7 +111,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-body text-body-sm leading-relaxed", className)}
+    className={cn("text-body-sm leading-relaxed", className)}
     {...props}
   />
 ));

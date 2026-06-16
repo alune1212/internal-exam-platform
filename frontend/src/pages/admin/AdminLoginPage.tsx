@@ -41,10 +41,10 @@ export function AdminLoginPage() {
         <div className="flex flex-1 flex-col justify-center gap-8">
           <header className="flex flex-col gap-3">
             <ChapterNumber>CHAPTER 00 · ADMIN</ChapterNumber>
-            <h1 className="font-display text-[40px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[64px]">
+            <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-2xl">
               安静地工作。
             </h1>
-            <p className="text-body text-body-lg">管理员登录后可访问题库、考试配置与所有报表。</p>
+            <p className="text-body-lg">管理员登录后可访问题库、考试配置与所有报表。</p>
           </header>
 
           <form
@@ -87,7 +87,7 @@ export function AdminLoginPage() {
       >
         <div className="absolute inset-0 flex flex-col items-start justify-end gap-3 p-16 text-footer-soft">
           <p className="text-caption uppercase tracking-[0.18em]">ADMIN CONSOLE</p>
-          <p className="max-w-sm font-display text-[28px] font-semibold italic tracking-[-0.04em] text-white">
+          <p className="max-w-sm font-display text-display-md font-semibold italic tracking-[-0.04em] text-canvas">
             所有考试、题库、报表 — 一处掌控。
           </p>
         </div>

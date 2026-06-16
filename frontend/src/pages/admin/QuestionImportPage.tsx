@@ -19,13 +19,13 @@ export function QuestionImportPage() {
   });
 
   return (
-    <div className="flex max-w-3xl flex-col gap-8">
+    <div data-stagger className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 03 · LIBRARY</ChapterNumber>
-        <h1 className="font-display text-[28px] font-semibold italic tracking-[-0.04em] text-ink lg:text-[40px]">
+        <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
           题库导入
         </h1>
-        <p className="text-body text-body-lg">
+        <p className="text-body-lg">
           仅支持标准 Excel（.xlsx / .xls），不解析 Word。导入前请先下载模板，按列填写题目。
         </p>
       </header>

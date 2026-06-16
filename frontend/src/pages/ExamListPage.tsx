@@ -37,7 +37,7 @@ function ExamCard({ exam }: { exam: Exam }) {
       <p className="font-body text-caption font-medium uppercase italic tracking-[0.18em] text-muted">
         {isLive ? "LIVE · 进行中" : "DRAFT · 未开始"}
       </p>
-      <h2 className="font-display text-[22px] font-semibold tracking-[-0.04em] text-ink lg:text-[24px]">
+      <h2 className="font-display text-display-sm font-semibold tracking-[-0.04em] text-ink lg:text-display-md">
         {exam.title}
       </h2>
       <dl className="grid grid-cols-3 gap-3 border-y border-hairline-soft py-3 text-caption text-muted">
@@ -45,19 +45,19 @@ function ExamCard({ exam }: { exam: Exam }) {
           <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
             <Clock className="h-3 w-3" /> 时长
           </dt>
-          <dd className="font-mono text-base text-ink">{exam.duration_minutes} 分钟</dd>
+          <dd className="font-mono text-body text-ink">{exam.duration_minutes} 分钟</dd>
         </div>
         <div className="flex flex-col gap-1">
           <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
             <FileText className="h-3 w-3" /> 题数
           </dt>
-          <dd className="font-mono text-base text-ink">{totalQuestions ?? "-"}</dd>
+          <dd className="font-mono text-body text-ink">{totalQuestions ?? "-"}</dd>
         </div>
         <div className="flex flex-col gap-1">
           <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
             <Hash className="h-3 w-3" /> 总分
           </dt>
-          <dd className="font-mono text-base text-ink">{totalScore ?? "-"}</dd>
+          <dd className="font-mono text-body text-ink">{totalScore ?? "-"}</dd>
         </div>
       </dl>
       <div className="flex items-center justify-between gap-3">

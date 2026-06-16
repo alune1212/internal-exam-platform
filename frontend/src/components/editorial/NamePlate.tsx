@@ -39,7 +39,7 @@ export function NamePlate({
     <div className={cn("inline-flex items-center gap-2", className)} {...props}>
       <span
         aria-hidden="true"
-        className="inline-flex shrink-0 items-center justify-center rounded-full font-display text-[12px] font-semibold text-ink"
+        className="inline-flex shrink-0 items-center justify-center rounded-full font-display text-caption font-semibold text-ink"
         style={{
           width: `${avatarSize}px`,
           height: `${avatarSize}px`,
@@ -49,9 +49,9 @@ export function NamePlate({
         {initial}
       </span>
       <span className="flex flex-col leading-tight">
-        <span className="font-display text-[14px] font-semibold text-ink">{displayName}</span>
+        <span className="font-display text-body-sm font-semibold text-ink">{displayName}</span>
         {displaySubtitle ? (
-          <span className="text-[11px] italic text-muted">{displaySubtitle}</span>
+          <span className="text-caption italic text-muted">{displaySubtitle}</span>
         ) : null}
       </span>
     </div>

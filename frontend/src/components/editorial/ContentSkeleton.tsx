@@ -29,7 +29,7 @@ export function ContentSkeleton({
       ))}
       {showCaption ? (
         <p className="mt-2 text-caption font-medium uppercase tracking-[0.16em] text-muted">
-          Loading · 加载中
+          Loading · 加载中...
         </p>
       ) : null}
     </div>

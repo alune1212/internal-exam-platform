@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Badge, badgeVariants } from "../badge";
+import { Badge } from "../badge";
+import { badgeVariants } from "../badge-variants";
 
 describe("Badge", () => {
   it("default variant uses bg-ink + text-canvas", () => {
