@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileUp } from "lucide-react";
+import { Download, FileUp } from "lucide-react";
 import { useState } from "react";
 
-import { importQuestions } from "@/api/imports";
+import { downloadImportTemplate, importQuestions } from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,9 +31,17 @@ export function QuestionImportPage() {
       </header>
 
       <section className="flex flex-col gap-5 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
-        <p className="text-caption italic text-muted">
-          模板格式见 docs/import-templates.md · Template format lives in the docs.
-        </p>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void downloadImportTemplate("questions")}
+          >
+            <Download data-icon="inline-start" />
+            下载模板
+          </Button>
+        </div>
 
         <Input
           type="file"
