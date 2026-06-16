@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
 import { ApiError } from "@/api/client";
-import { getActiveExams, getExamRanking, startExam } from "@/api/exams";
+import { getActiveExams, startExam } from "@/api/exams";
 import { getPracticeQuestions } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { ExamResultPage } from "@/pages/ExamResultPage";
@@ -16,7 +16,6 @@ import { ExamListPage } from "@/pages/ExamListPage";
 import { ExamStartPage } from "@/pages/ExamStartPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PracticePage } from "@/pages/PracticePage";
-import { RankingPage } from "@/pages/RankingPage";
 import type { Attempt, AttemptResult } from "@/types/attempt";
 import type { Candidate } from "@/types/candidate";
 import type { Exam } from "@/types/exam";
@@ -35,7 +34,6 @@ vi.mock("@/api/attempts", () => ({
 
 vi.mock("@/api/exams", () => ({
   getActiveExams: vi.fn(),
-  getExamRanking: vi.fn(),
   startExam: vi.fn(),
 }));
 
@@ -122,30 +120,6 @@ const secondExam: Exam = {
   title: "第二次内部考试",
 };
 
-const rankingRows = [
-  {
-    rank: 1,
-    candidate_name: "张三",
-    department: "综合管理部",
-    score: 3,
-    total_score: 749,
-  },
-  {
-    rank: 2,
-    candidate_name: "李四",
-    department: "财务部",
-    score: 0,
-    total_score: 749,
-  },
-  {
-    rank: 3,
-    candidate_name: "王五",
-    department: "运营部",
-    score: 0,
-    total_score: 749,
-  },
-];
-
 const practiceQuestions: Question[] = [
   {
     id: 201,
@@ -193,7 +167,6 @@ describe("P0 pages", () => {
     vi.mocked(getAttempt).mockResolvedValue(attempt);
     vi.mocked(getAttemptResult).mockResolvedValue(result);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
-    vi.mocked(getExamRanking).mockResolvedValue(rankingRows);
     vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
     vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
     vi.mocked(submitAttempt).mockResolvedValue(result);
@@ -318,16 +291,6 @@ describe("P0 pages", () => {
     expect(await screen.findByText("考试结束。")).toBeInTheDocument();
     expect(screen.getByText("YOUR SCORE · 你的分数")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
-  });
-
-  it("renders ranking summary cards before the detailed ranking table", async () => {
-    renderPage("exams/:examId/ranking", <RankingPage />, undefined, "exams/1/ranking");
-
-    expect(await screen.findByText("榜单概览")).toBeInTheDocument();
-    expect(screen.getByText("最高分")).toBeInTheDocument();
-    expect(screen.getByText("平均分")).toBeInTheDocument();
-    expect(screen.getByText("TOP 3")).toBeInTheDocument();
-    expect(screen.getByText("明细排名")).toBeInTheDocument();
   });
 
   it("renders the practice focus page with submit affordance", async () => {

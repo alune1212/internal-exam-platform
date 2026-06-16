@@ -8,7 +8,6 @@ import { ExamStartPage } from "@/pages/ExamStartPage";
 import { ExamTakingPage } from "@/pages/ExamTakingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PracticePage } from "@/pages/PracticePage";
-import { RankingPage } from "@/pages/RankingPage";
 import { AbsentCandidatePage } from "@/pages/admin/AbsentCandidatePage";
 import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
 import { AdminExamListPage } from "@/pages/admin/ExamListPage";
@@ -33,7 +32,6 @@ export const router = createBrowserRouter([
       { path: "exams/:examId/start", element: <ExamStartPage /> },
       { path: "exams/:examId/taking", element: <ExamTakingPage /> },
       { path: "exams/:examId/result", element: <ExamResultPage /> },
-      { path: "exams/:examId/ranking", element: <RankingPage /> },
     ],
   },
   { path: "/admin/login", element: <AdminLoginPage /> },
