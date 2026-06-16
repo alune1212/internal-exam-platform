@@ -29,7 +29,6 @@ const exam: Exam = {
   question_rule: fixedRule,
   status: "draft",
   show_answer_after_submit: true,
-  show_ranking: true,
 };
 
 function renderExamEditPage() {

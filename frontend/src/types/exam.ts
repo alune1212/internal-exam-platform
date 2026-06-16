@@ -6,19 +6,9 @@ export type Exam = {
   question_rule: Record<string, unknown>;
   status: string;
   show_answer_after_submit: boolean;
-  show_ranking: boolean;
   latest_attempt_id?: number | null;
   latest_attempt_status?: string | null;
   has_unused_retake_grant?: boolean;
-};
-
-export type RankingRow = {
-  rank: number;
-  candidate_name: string;
-  department?: string | null;
-  score: number;
-  total_score: number;
-  submitted_at?: string | null;
 };
 
 export type ExamCandidateRow = {

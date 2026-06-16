@@ -1,6 +1,6 @@
 import { apiRequest, uploadRequest } from "@/api/client";
 import type { ExamStartResponse } from "@/types/attempt";
-import type { Exam, ExamCandidateRow, RankingRow } from "@/types/exam";
+import type { Exam, ExamCandidateRow } from "@/types/exam";
 import type { QuestionImportResult } from "@/types/imports";
 
 export function getActiveExams() {
@@ -23,10 +23,6 @@ export function updateAdminExam(examId: string, payload: ExamUpdatePayload) {
     method: "PUT",
     body: JSON.stringify(payload),
   });
-}
-
-export function getExamRanking(examId: string) {
-  return apiRequest<RankingRow[]>(`/api/exams/${examId}/ranking`);
 }
 
 export function startExam(examId: string) {

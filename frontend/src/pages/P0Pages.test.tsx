@@ -111,7 +111,6 @@ const exam: Exam = {
   },
   status: "published",
   show_answer_after_submit: true,
-  show_ranking: true,
 };
 
 const secondExam: Exam = {

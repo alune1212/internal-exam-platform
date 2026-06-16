@@ -53,7 +53,6 @@ export type ExamStartResponse = {
     title: string;
     duration_minutes: number;
     show_answer_after_submit: boolean;
-    show_ranking: boolean;
   };
   questions: AttemptQuestion[];
   started_at: string;

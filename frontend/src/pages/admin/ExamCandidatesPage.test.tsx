@@ -47,7 +47,6 @@ describe("ExamCandidatesPage", () => {
         question_rule: {},
         status: "draft",
         show_answer_after_submit: true,
-        show_ranking: true,
       },
     ]);
     vi.mocked(getExamCandidates).mockResolvedValue([
