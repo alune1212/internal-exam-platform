@@ -37,7 +37,7 @@ export function AdminLoginPage() {
   return (
     <main className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
       <section className="flex flex-col gap-10 px-6 py-10 lg:px-16 lg:py-16">
-        <Wordmark tone="dark" subtitle="— admin console" />
+        <Wordmark subtitle="— admin console" />
         <div className="flex flex-1 flex-col justify-center gap-8">
           <header className="flex flex-col gap-3">
             <ChapterNumber>CHAPTER 00 · ADMIN</ChapterNumber>

@@ -25,7 +25,28 @@ const TONE_DOT: Record<ActivityTone, string> = {
   error: "bg-error",
 };
 
+function resolveActivityTime(value: string): { label: string; dateTime?: string } {
+  if (value === "-") {
+    return { label: value };
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return { label: value };
+  }
+  return {
+    label: date.toLocaleString("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    dateTime: value,
+  };
+}
+
 function ActivityRow({ item }: { item: ActivityItem }) {
+  const activityTime = resolveActivityTime(item.when);
+
   return (
     <li className="flex items-center gap-4 border-b border-hairline-soft py-3 last:border-b-0">
       <span className={cn("h-1.5 w-1.5 rounded-pill", TONE_DOT[item.tone])} aria-hidden="true" />
@@ -33,7 +54,13 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         <span className="text-body font-medium text-ink">{item.title}</span>
         <span className="text-caption italic text-muted">{item.caption}</span>
       </div>
-      <span className="text-caption text-muted">{item.when}</span>
+      {activityTime.dateTime ? (
+        <time className="shrink-0 text-caption text-muted" dateTime={activityTime.dateTime}>
+          {activityTime.label}
+        </time>
+      ) : (
+        <span className="shrink-0 text-caption text-muted">{activityTime.label}</span>
+      )}
     </li>
   );
 }

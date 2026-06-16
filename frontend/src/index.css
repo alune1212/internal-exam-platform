@@ -168,8 +168,8 @@
      page load. Children of [data-stagger] animate with increasing delay. */
   @keyframes editorial-rise {
     0% {
-      opacity: 0;
-      transform: translateY(10px);
+      opacity: 0.72;
+      transform: translateY(6px);
     }
     100% {
       opacity: 1;
@@ -178,29 +178,29 @@
   }
 
   [data-stagger] > * {
-    animation: editorial-rise 480ms ease-out both;
+    animation: editorial-rise 280ms ease-out both;
   }
 
   [data-stagger] > *:nth-child(1) {
     animation-delay: 0ms;
   }
   [data-stagger] > *:nth-child(2) {
-    animation-delay: 80ms;
+    animation-delay: 40ms;
   }
   [data-stagger] > *:nth-child(3) {
-    animation-delay: 160ms;
+    animation-delay: 80ms;
   }
   [data-stagger] > *:nth-child(4) {
-    animation-delay: 240ms;
+    animation-delay: 120ms;
   }
   [data-stagger] > *:nth-child(5) {
-    animation-delay: 320ms;
+    animation-delay: 160ms;
   }
   [data-stagger] > *:nth-child(6) {
-    animation-delay: 400ms;
+    animation-delay: 200ms;
   }
   [data-stagger] > *:nth-child(n + 7) {
-    animation-delay: 480ms;
+    animation-delay: 240ms;
   }
 
   @media (prefers-reduced-motion: reduce) {
