@@ -13,7 +13,7 @@ import { AbsentCandidatePage } from "@/pages/admin/AbsentCandidatePage";
 import { AdminDashboardPage } from "@/pages/admin/AdminDashboardPage";
 import { AdminExamListPage } from "@/pages/admin/ExamListPage";
 import { AdminLoginPage } from "@/pages/admin/AdminLoginPage";
-import { CandidateImportPage } from "@/pages/admin/CandidateImportPage";
+import { ExamCandidatesPage } from "@/pages/admin/ExamCandidatesPage";
 import { ExamEditPage } from "@/pages/admin/ExamEditPage";
 import { QuestionAccuracyPage } from "@/pages/admin/QuestionAccuracyPage";
 import { QuestionImportPage } from "@/pages/admin/QuestionImportPage";
@@ -47,7 +47,7 @@ export const router = createBrowserRouter([
       { path: "questions/import", element: <QuestionImportPage /> },
       { path: "exams", element: <AdminExamListPage /> },
       { path: "exams/:examId/edit", element: <ExamEditPage /> },
-      { path: "exams/:examId/candidates", element: <CandidateImportPage /> },
+      { path: "exams/:examId/candidates", element: <ExamCandidatesPage /> },
       { path: "reports/scores", element: <ScoreReportPage /> },
       { path: "reports/questions", element: <QuestionAccuracyPage /> },
       { path: "reports/wrong", element: <WrongQuestionPage /> },

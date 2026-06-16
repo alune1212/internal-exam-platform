@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id
 from app.schemas.common import ApiResponse
 from app.schemas.exam import (
+    ExamCandidateRow,
     ExamCreate,
     ExamRead,
     ExamStartResponse,
@@ -12,7 +13,7 @@ from app.schemas.exam import (
     RankingRow,
 )
 from app.schemas.question import QuestionImportResult
-from app.services import exam_service, import_service
+from app.services import exam_service
 
 router = APIRouter(prefix="/exams", tags=["exams"])
 admin_router = APIRouter(prefix="/admin/exams", tags=["admin-exams"])
@@ -66,7 +67,42 @@ def import_exam_candidates(
     file: UploadFile,
     db: Session = Depends(get_db),
 ) -> ApiResponse[QuestionImportResult]:
-    result = import_service.import_candidates_from_workbook(
-        db, file.file, file.filename or "candidates.xlsx"
+    result = exam_service.import_exam_candidates_from_workbook(
+        db, exam_id, file.file, file.filename or "candidates.xlsx"
     )
     return ApiResponse(data=result)
+
+
+@admin_router.get(
+    "/{exam_id}/candidates", response_model=ApiResponse[list[ExamCandidateRow]]
+)
+def list_exam_candidates(
+    exam_id: int,
+    db: Session = Depends(get_db),
+) -> ApiResponse[list[ExamCandidateRow]]:
+    return ApiResponse(data=exam_service.list_exam_candidates(db, exam_id))
+
+
+@admin_router.delete("/{exam_id}/candidates/{candidate_id}")
+def remove_exam_candidate(
+    exam_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+) -> ApiResponse[dict[str, int]]:
+    return ApiResponse(
+        data=exam_service.remove_exam_candidate(db, exam_id, candidate_id)
+    )
+
+
+@admin_router.post(
+    "/{exam_id}/candidates/{candidate_id}/retake-grants",
+    response_model=ApiResponse[ExamCandidateRow],
+)
+def create_retake_grant(
+    exam_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+) -> ApiResponse[ExamCandidateRow]:
+    return ApiResponse(
+        data=exam_service.create_retake_grant_row(db, exam_id, candidate_id)
+    )

@@ -27,7 +27,7 @@ const exam: Exam = {
   description: null,
   duration_minutes: 60,
   question_rule: fixedRule,
-  status: "active",
+  status: "draft",
   show_answer_after_submit: true,
   show_ranking: true,
 };
@@ -70,8 +70,28 @@ describe("ExamEditPage", () => {
     expect(updateAdminExam).toHaveBeenCalledWith("1", {
       title: "安全知识竞赛",
       duration_minutes: 60,
-      status: "active",
+      status: "draft",
       question_rule: fixedRule,
+    });
+  });
+
+  it("freezes duration and question rule after publishing", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAdminExams).mockResolvedValue([{ ...exam, status: "active" }]);
+
+    renderExamEditPage();
+
+    expect(await screen.findByDisplayValue("安全知识竞赛")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("60")).toBeDisabled();
+    expect(screen.getByDisplayValue(/"question_count": 50/)).toBeDisabled();
+    expect(screen.getByText("考试已发布，时长和抽题规则已冻结。")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /保存配置/ }));
+
+    await waitFor(() => expect(updateAdminExam).toHaveBeenCalledTimes(1));
+    expect(updateAdminExam).toHaveBeenCalledWith("1", {
+      title: "安全知识竞赛",
+      status: "active",
     });
   });
 });

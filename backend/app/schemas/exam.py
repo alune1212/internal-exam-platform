@@ -54,3 +54,21 @@ class RankingRow(BaseModel):
     score: float
     total_score: float
     submitted_at: datetime | None = None
+
+
+class ExamCandidateRow(BaseModel):
+    candidate_id: int
+    candidate_name: str
+    employee_no: str | None = None
+    department: str | None = None
+    exam_group: str | None = None
+    should_attend: bool
+    candidate_status: str
+    latest_attempt_id: int | None = None
+    latest_attempt_status: str | None = None
+    latest_score: float | None = None
+    latest_total_score: float | None = None
+    latest_submitted_at: datetime | None = None
+    attempt_no: int | None = None
+    attempt_kind: str | None = None
+    has_unused_retake_grant: bool = False

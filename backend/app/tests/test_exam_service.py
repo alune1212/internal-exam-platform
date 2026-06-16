@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Candidate,
+    ExamAttempt,
     ExamAttemptAnswer,
     ExamAttemptQuestion,
+    ExamCandidateScope,
     Question,
     QuestionOption,
 )
@@ -17,6 +19,7 @@ from app.services.exam_service import (
     AttemptNotFoundError,
     CandidateNotEligibleError,
     CandidateNotFoundError,
+    ExamFrozenError,
     ExamNotActiveError,
     ExamNotFoundError,
 )
@@ -25,6 +28,23 @@ from app.tests.conftest import (
     create_exam,
     create_question_with_options,
 )
+
+
+def add_exam_candidate_scope(db: Session, exam_id: int, candidate_id: int) -> None:
+    db.add(ExamCandidateScope(exam_id=exam_id, candidate_id=candidate_id))
+    db.commit()
+
+
+def create_balanced_question_pool(db: Session, *, per_type: int = 30) -> None:
+    for question_type in ("single", "multiple", "judge"):
+        for index in range(per_type):
+            create_question_with_options(
+                db,
+                stem=f"{question_type}-{index}",
+                question_type=question_type,
+                score=1,
+            )
+
 
 # --- CRUD 测试 ---
 
@@ -63,12 +83,31 @@ def test_update_exam_not_found(db: Session) -> None:
         exam_service.update_exam(db, 999, ExamUpdate(title="x"))
 
 
+def test_update_exam_freezes_structure_after_publish(db: Session) -> None:
+    exam = create_exam(db, status="draft", question_rule={})
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    published = exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+    assert published.status == "active"
+
+    with pytest.raises(ExamFrozenError):
+        exam_service.update_exam(db, exam.id, ExamUpdate(duration_minutes=90))
+
+    with pytest.raises(ExamFrozenError):
+        exam_service.update_exam(
+            db, exam.id, ExamUpdate(question_rule={"question_count": 50})
+        )
+
+
 # --- start_exam 测试 ---
 
 
 def test_start_exam_creates_attempt_and_snapshots(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="题目1", score=2)
     create_question_with_options(db, stem="题目2", score=3)
 
@@ -85,6 +124,7 @@ def test_start_exam_creates_attempt_and_snapshots(db: Session) -> None:
 def test_start_exam_snapshot_preserves_options(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
@@ -116,17 +156,115 @@ def test_start_exam_candidate_not_found(db: Session) -> None:
         exam_service.start_exam(db, exam.id, 999)
 
 
+def test_start_exam_rejects_candidate_outside_exam_scope(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    create_question_with_options(db)
+
+    with pytest.raises(CandidateNotEligibleError):
+        exam_service.start_exam(db, exam.id, candidate.id)
+
+
+def test_start_exam_allows_candidate_inside_exam_scope(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    result = exam_service.start_exam(db, exam.id, candidate.id)
+
+    assert result.attempt_id > 0
+
+
 def test_start_exam_prevents_duplicate_attempt(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     exam_service.start_exam(db, exam.id, candidate.id)
     with pytest.raises(AttemptAlreadyExistsError):
         exam_service.start_exam(db, exam.id, candidate.id)
 
 
+def test_start_exam_rejects_after_submit_without_retake_grant(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    with pytest.raises(AttemptAlreadySubmittedError):
+        exam_service.start_exam(db, exam.id, candidate.id)
+
+
+def test_start_exam_consumes_retake_grant_and_creates_retake_attempt(
+    db: Session,
+) -> None:
+    exam = create_exam(db, question_rule={"question_count": 5, "total_score": 100})
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_balanced_question_pool(db, per_type=6)
+    first = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, first.attempt_id, "manual")
+
+    grant = exam_service.create_retake_grant(db, exam.id, candidate.id)
+    second = exam_service.start_exam(db, exam.id, candidate.id)
+    attempts = (
+        db.query(ExamAttempt)
+        .filter_by(exam_id=exam.id, candidate_id=candidate.id)
+        .order_by(ExamAttempt.attempt_no)
+        .all()
+    )
+    db.refresh(grant)
+
+    assert second.attempt_id != first.attempt_id
+    assert [attempt.attempt_kind for attempt in attempts] == ["initial", "retake"]
+    assert [attempt.attempt_no for attempt in attempts] == [1, 2]
+    assert grant.used_at is not None
+
+
+def test_retake_uses_new_equivalent_random_paper(db: Session) -> None:
+    exam = create_exam(
+        db,
+        question_rule={
+            "question_count": 5,
+            "total_score": 100,
+            "type_counts": {"single": 3, "multiple": 1, "judge": 1},
+        },
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_balanced_question_pool(db, per_type=12)
+    first = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, first.attempt_id, "manual")
+    exam_service.create_retake_grant(db, exam.id, candidate.id)
+
+    second = exam_service.start_exam(db, exam.id, candidate.id)
+    first_ids = {
+        row.original_question_id
+        for row in db.query(ExamAttemptQuestion).filter_by(attempt_id=first.attempt_id)
+    }
+    second_snapshots = (
+        db.query(ExamAttemptQuestion).filter_by(attempt_id=second.attempt_id).all()
+    )
+    second_ids = {row.original_question_id for row in second_snapshots}
+    type_counts = {
+        question_type: sum(
+            1 for row in second_snapshots if row.question_type == question_type
+        )
+        for question_type in ("single", "multiple", "judge")
+    }
+
+    assert first_ids != second_ids
+    assert len(second_snapshots) == 5
+    assert sum(float(row.score) for row in second_snapshots) == 100
+    assert type_counts == {"single": 3, "multiple": 1, "judge": 1}
+
+
 def test_start_exam_total_score_matches_questions(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, score=2)
     create_question_with_options(db, score=5)
 
@@ -143,6 +281,7 @@ def test_start_exam_rescales_scores_to_match_total_score(db: Session) -> None:
         question_rule={"question_count": 5, "total_score": 100, "pass_score": 60},
     )
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     # 每题 1 分，原始总分 5 分，目标 100 分 → 每题折算为 20 分
     for _ in range(3):
         create_question_with_options(db, question_type="single", score=1)
@@ -168,6 +307,7 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
         question_rule={"question_count": 50, "total_score": 100, "pass_score": 60},
     )
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     categories = ["交通", "安全", "工伤", "廉政"]
     question_types = ["single", "multiple", "judge"]
 
@@ -217,13 +357,17 @@ def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(
     )
 
 
-def test_start_exam_reuses_fixed_paper_for_same_exam(db: Session) -> None:
+def test_start_exam_generates_independent_equivalent_papers_for_same_exam(
+    db: Session,
+) -> None:
     exam = create_exam(
         db,
         question_rule={"question_count": 50, "total_score": 100, "pass_score": 60},
     )
     first_candidate = create_candidate(db, name="甲", employee_no="E001")
     second_candidate = create_candidate(db, name="乙", employee_no="E002")
+    add_exam_candidate_scope(db, exam.id, first_candidate.id)
+    add_exam_candidate_scope(db, exam.id, second_candidate.id)
     categories = ["交通", "安全", "工伤", "廉政"]
     question_types = ["single", "multiple", "judge"]
 
@@ -256,7 +400,7 @@ def test_start_exam_reuses_fixed_paper_for_same_exam(db: Session) -> None:
         .all()
     ]
 
-    assert first_ids == second_ids
+    assert first_ids != second_ids
     assert len(first_ids) == 50
 
 
@@ -265,6 +409,7 @@ def test_start_exam_rejects_question_rule_when_pool_is_too_small(
 ) -> None:
     exam = create_exam(db, question_rule={"question_count": 50, "total_score": 100})
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
 
     with pytest.raises(exam_service.InsufficientQuestionsError):
@@ -274,6 +419,7 @@ def test_start_exam_rejects_question_rule_when_pool_is_too_small(
 def test_start_exam_keeps_legacy_empty_question_rule_behavior(db: Session) -> None:
     exam = create_exam(db, question_rule={})
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="题目1", score=2)
     create_question_with_options(db, stem="题目2", score=3)
 
@@ -290,6 +436,7 @@ def test_start_exam_keeps_legacy_empty_question_rule_behavior(db: Session) -> No
 def test_get_attempt_returns_snapshot_questions(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="快照题")
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
 
@@ -313,6 +460,7 @@ def test_get_attempt_not_found(db: Session) -> None:
 def test_save_answers_persists_selected_answer(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     attempt_question_id = start_result.questions[0].id
@@ -338,6 +486,7 @@ def test_save_answers_persists_selected_answer(db: Session) -> None:
 def test_save_answers_updates_existing_answer(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     attempt_question_id = start_result.questions[0].id
@@ -375,6 +524,7 @@ def test_save_answers_updates_existing_answer(db: Session) -> None:
 def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="单选题", score=2)
     create_question_with_options(db, stem="错题", score=3)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
@@ -414,6 +564,7 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
 def test_submit_attempt_includes_pass_status_from_question_rule(db: Session) -> None:
     exam = create_exam(db, question_rule={"pass_score": 6})
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="题目1", score=5)
     create_question_with_options(db, stem="题目2", score=5)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
@@ -445,6 +596,7 @@ def test_submit_attempt_includes_pass_status_from_question_rule(db: Session) -> 
 def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     question = Question(
         question_type="multiple", stem="多选题", score=4, status="active"
     )
@@ -502,6 +654,7 @@ def test_get_attempt_result_reads_submitted_result_without_mutating_submit_type(
 ) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     exam_service.submit_attempt(db, start_result.attempt_id, "auto")
@@ -520,6 +673,8 @@ def test_get_ranking_orders_by_score_desc(db: Session) -> None:
     exam = create_exam(db)
     c1 = create_candidate(db, name="甲", employee_no="E001")
     c2 = create_candidate(db, name="乙", employee_no="E002")
+    add_exam_candidate_scope(db, exam.id, c1.id)
+    add_exam_candidate_scope(db, exam.id, c2.id)
     create_question_with_options(db, score=10)
 
     # 考生1答对
@@ -566,6 +721,7 @@ def test_get_ranking_orders_by_score_desc(db: Session) -> None:
 def test_get_ranking_excludes_in_progress(db: Session) -> None:
     exam = create_exam(db)
     c1 = create_candidate(db, name="进行中", employee_no="E001")
+    add_exam_candidate_scope(db, exam.id, c1.id)
     create_question_with_options(db)
     exam_service.start_exam(db, exam.id, c1.id)
 
@@ -581,6 +737,7 @@ def test_get_ranking_empty_for_no_attempts(db: Session) -> None:
 def test_submit_attempt_rejects_already_submitted(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     exam_service.submit_attempt(db, start_result.attempt_id, "manual")
@@ -592,6 +749,7 @@ def test_submit_attempt_rejects_already_submitted(db: Session) -> None:
 def test_save_answers_rejects_after_submit(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="题目", score=5)
     start = exam_service.start_exam(db, exam.id, candidate.id)
     exam_service.submit_attempt(db, start.attempt_id, "manual")
@@ -614,6 +772,7 @@ def test_save_answers_rejects_after_submit(db: Session) -> None:
 def test_submit_attempt_with_no_answers_zeros_score(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="题目1", score=2)
     create_question_with_options(db, stem="题目2", score=3)
     start = exam_service.start_exam(db, exam.id, candidate.id)

@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.scheduler import _find_expired_attempts
-from app.models import ExamAttempt
+from app.models import ExamAttempt, ExamCandidateScope
 from app.services import exam_service
 from app.tests.conftest import (
     create_candidate,
@@ -16,6 +16,8 @@ def _make_started_attempt(db: Session, duration_minutes: int = 60):
     """创建考试、考生、题目并开始考试，返回 (exam, candidate, start_result)。"""
     exam = create_exam(db, duration_minutes=duration_minutes)
     candidate = create_candidate(db, name="超时考生")
+    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.commit()
     create_question_with_options(db)
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     return exam, candidate, start_result

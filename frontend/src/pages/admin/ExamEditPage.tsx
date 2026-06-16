@@ -119,24 +119,31 @@ export function ExamEditPage() {
   });
   const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
+  const isPublished = currentExam?.status === "active";
   const mutation = useMutation({
     mutationFn: (values: ExamEditForm) => {
       if (!examId) {
         throw new Error("missing exam id");
       }
-      let questionRule: Record<string, unknown>;
-      try {
-        questionRule = JSON.parse(values.question_rule_json) as Record<string, unknown>;
-      } catch {
-        form.setError("question_rule_json", { message: "抽题规则必须是合法 JSON" });
-        throw new Error("invalid question rule json");
-      }
-      return updateAdminExam(examId, {
+      const payload = {
         title: values.title,
-        duration_minutes: values.duration_minutes,
         status: values.status,
-        question_rule: questionRule,
-      });
+      };
+      if (!isPublished) {
+        let questionRule: Record<string, unknown>;
+        try {
+          questionRule = JSON.parse(values.question_rule_json) as Record<string, unknown>;
+        } catch {
+          form.setError("question_rule_json", { message: "抽题规则必须是合法 JSON" });
+          throw new Error("invalid question rule json");
+        }
+        return updateAdminExam(examId, {
+          ...payload,
+          duration_minutes: values.duration_minutes,
+          question_rule: questionRule,
+        });
+      }
+      return updateAdminExam(examId, payload);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin-exams"] });
@@ -194,6 +201,7 @@ export function ExamEditPage() {
             id="duration_minutes"
             type="number"
             min={1}
+            disabled={isPublished}
             {...form.register("duration_minutes", { valueAsNumber: true })}
           />
         </div>
@@ -211,9 +219,13 @@ export function ExamEditPage() {
             id="question_rule_json"
             rows={8}
             spellCheck={false}
+            disabled={isPublished}
             className="w-full resize-y rounded-md border border-hairline bg-footer p-4 font-mono text-[12px] leading-relaxed text-footer-soft focus:border-ink focus:outline-none"
             {...form.register("question_rule_json")}
           />
+          {isPublished ? (
+            <p className="text-body-sm text-muted">考试已发布，时长和抽题规则已冻结。</p>
+          ) : null}
           {form.formState.errors.question_rule_json ? (
             <p className="text-body-sm text-error">
               {form.formState.errors.question_rule_json.message}

@@ -20,6 +20,11 @@ SUBMITTED_STATUSES = ("submitted", "auto_submitted")
 
 class ExamAttempt(TimestampMixin, Base):
     __tablename__ = "exam_attempt"
+    __table_args__ = (
+        UniqueConstraint(
+            "exam_id", "candidate_id", "attempt_no", name="uq_exam_attempt_no"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exam_id: Mapped[int] = mapped_column(
@@ -43,6 +48,11 @@ class ExamAttempt(TimestampMixin, Base):
     correct_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     wrong_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    attempt_kind: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="initial"
+    )
+    paper_seed: Mapped[str | None] = mapped_column(String(64))
 
     exam = relationship("Exam", back_populates="attempts")
     candidate = relationship("Candidate", back_populates="attempts")

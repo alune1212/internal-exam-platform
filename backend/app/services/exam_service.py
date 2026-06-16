@@ -1,9 +1,11 @@
+import random
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.exceptions import DomainError
@@ -14,6 +16,8 @@ from app.models import (
     ExamAttempt,
     ExamAttemptAnswer,
     ExamAttemptQuestion,
+    ExamCandidateScope,
+    ExamRetakeGrant,
     Question,
 )
 from app.models.attempt import SUBMITTED_STATUSES
@@ -26,12 +30,14 @@ from app.schemas.attempt import (
     AttemptResultRead,
 )
 from app.schemas.exam import (
+    ExamCandidateRow,
     ExamCreate,
     ExamRead,
     ExamStartResponse,
     ExamUpdate,
     RankingRow,
 )
+from app.schemas.question import ImportFailure, QuestionImportResult
 from app.services.scoring_service import score_answer
 
 
@@ -112,6 +118,13 @@ class InsufficientQuestionsError(DomainError):
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
+        super().__init__(reason)
+
+
+class ExamFrozenError(DomainError):
+    status_code = 409
+
+    def __init__(self, reason: str = "考试发布后结构配置已冻结") -> None:
         super().__init__(reason)
 
 
@@ -332,7 +345,53 @@ def _load_questions_by_ids(db: Session, question_ids: list[int]) -> list[Questio
     return [by_id[question_id] for question_id in question_ids]
 
 
-def _select_exam_questions(db: Session, exam: Exam) -> list[Question]:
+def _validate_fixed_rule_capacity(db: Session, exam: Exam) -> None:
+    rule = _parse_fixed_paper_rule(exam.question_rule)
+    if rule is None:
+        active_count = (
+            db.query(func.count(Question.id))
+            .filter(Question.status == "active")
+            .scalar()
+        )
+        if not active_count:
+            raise InsufficientQuestionsError("active 题目数量不足，无法发布考试")
+        return
+    active_questions = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.status == "active")
+        .order_by(Question.id)
+        .all()
+    )
+    _select_questions_by_type(active_questions, rule)
+
+
+def _ensure_exam_has_scope(db: Session, exam_id: int) -> None:
+    scope_count = (
+        db.query(func.count(ExamCandidateScope.id))
+        .filter(ExamCandidateScope.exam_id == exam_id)
+        .scalar()
+    )
+    if not scope_count:
+        raise CandidateNotEligibleError(0)
+
+
+def _ensure_candidate_in_scope(db: Session, exam_id: int, candidate_id: int) -> None:
+    scoped = (
+        db.query(ExamCandidateScope.id)
+        .filter(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .first()
+    )
+    if scoped is None:
+        raise CandidateNotEligibleError(candidate_id)
+
+
+def _select_exam_questions(
+    db: Session, exam: Exam, paper_seed: str | None = None
+) -> list[Question]:
     rule = _parse_fixed_paper_rule(exam.question_rule)
     if rule is None:
         return (
@@ -343,14 +402,6 @@ def _select_exam_questions(db: Session, exam: Exam) -> list[Question]:
             .all()
         )
 
-    fixed_question_ids = exam.question_rule.get("fixed_question_ids")
-    if fixed_question_ids:
-        if len(fixed_question_ids) != rule.question_count:
-            raise InsufficientQuestionsError("固定试卷题目数量与抽题规则不一致")
-        return _load_questions_by_ids(
-            db, [int(question_id) for question_id in fixed_question_ids]
-        )
-
     active_questions = (
         db.query(Question)
         .options(selectinload(Question.options))
@@ -358,12 +409,10 @@ def _select_exam_questions(db: Session, exam: Exam) -> list[Question]:
         .order_by(Question.id)
         .all()
     )
+    rng = random.Random(paper_seed)  # noqa: S311 - deterministic exam paper sampling, not a secret
+    rng.shuffle(active_questions)
     selected = _select_questions_by_type(active_questions, rule)
-    exam.question_rule = {
-        **exam.question_rule,
-        "mode": exam.question_rule.get("mode", "fixed_paper"),
-        "fixed_question_ids": [question.id for question in selected],
-    }
+    rng.shuffle(selected)
     return selected
 
 
@@ -448,11 +497,207 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
     if exam is None:
         raise ExamNotFoundError(exam_id)
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if exam.status == "active":
+        frozen_fields = {"duration_minutes", "question_rule"}
+        if frozen_fields.intersection(updates):
+            raise ExamFrozenError()
+    if updates.get("status") == "active" and exam.status != "active":
+        _ensure_exam_has_scope(db, exam.id)
+        _validate_fixed_rule_capacity(db, exam)
+
+    for field, value in updates.items():
         setattr(exam, field, value)
 
     db.commit()
     return ExamRead.model_validate(exam)
+
+
+def create_retake_grant(
+    db: Session, exam_id: int, candidate_id: int
+) -> ExamRetakeGrant:
+    exam = db.get(Exam, exam_id)
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None:
+        raise CandidateNotFoundError(candidate_id)
+    submitted = (
+        db.query(ExamAttempt.id)
+        .filter(
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.candidate_id == candidate_id,
+            ExamAttempt.status.in_(SUBMITTED_STATUSES),
+        )
+        .first()
+    )
+    if submitted is None:
+        raise AttemptNotFoundError(0)
+    grant = ExamRetakeGrant(exam_id=exam_id, candidate_id=candidate_id)
+    db.add(grant)
+    db.commit()
+    db.refresh(grant)
+    return grant
+
+
+def _latest_attempt_for_candidate(
+    db: Session, exam_id: int, candidate_id: int
+) -> ExamAttempt | None:
+    return (
+        db.query(ExamAttempt)
+        .filter(
+            ExamAttempt.exam_id == exam_id, ExamAttempt.candidate_id == candidate_id
+        )
+        .order_by(ExamAttempt.attempt_no.desc(), ExamAttempt.id.desc())
+        .first()
+    )
+
+
+def _has_unused_retake_grant(db: Session, exam_id: int, candidate_id: int) -> bool:
+    return (
+        db.query(ExamRetakeGrant.id)
+        .filter(
+            ExamRetakeGrant.exam_id == exam_id,
+            ExamRetakeGrant.candidate_id == candidate_id,
+            ExamRetakeGrant.used_at.is_(None),
+        )
+        .first()
+        is not None
+    )
+
+
+def _build_exam_candidate_row(
+    db: Session, exam_id: int, candidate: Candidate
+) -> ExamCandidateRow:
+    latest = _latest_attempt_for_candidate(db, exam_id, candidate.id)
+    return ExamCandidateRow(
+        candidate_id=candidate.id,
+        candidate_name=candidate.name,
+        employee_no=candidate.employee_no,
+        department=candidate.department,
+        exam_group=candidate.exam_group,
+        should_attend=candidate.should_attend,
+        candidate_status=candidate.status,
+        latest_attempt_id=latest.id if latest else None,
+        latest_attempt_status=latest.status if latest else None,
+        latest_score=float(latest.score) if latest else None,
+        latest_total_score=float(latest.total_score) if latest else None,
+        latest_submitted_at=latest.submitted_at if latest else None,
+        attempt_no=latest.attempt_no if latest else None,
+        attempt_kind=latest.attempt_kind if latest else None,
+        has_unused_retake_grant=_has_unused_retake_grant(db, exam_id, candidate.id),
+    )
+
+
+def list_exam_candidates(db: Session, exam_id: int) -> list[ExamCandidateRow]:
+    exam = db.get(Exam, exam_id)
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    candidates = (
+        db.query(Candidate)
+        .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
+        .filter(ExamCandidateScope.exam_id == exam_id)
+        .order_by(Candidate.name, Candidate.id)
+        .all()
+    )
+    return [
+        _build_exam_candidate_row(db, exam_id, candidate) for candidate in candidates
+    ]
+
+
+def remove_exam_candidate(
+    db: Session, exam_id: int, candidate_id: int
+) -> dict[str, int]:
+    exam = db.get(Exam, exam_id)
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    if exam.status != "draft":
+        raise ExamFrozenError("考试发布后应考名单已冻结")
+    deleted = (
+        db.query(ExamCandidateScope)
+        .filter(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .delete()
+    )
+    db.commit()
+    return {"removed_count": deleted}
+
+
+def create_retake_grant_row(
+    db: Session, exam_id: int, candidate_id: int
+) -> ExamCandidateRow:
+    create_retake_grant(db, exam_id, candidate_id)
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None:
+        raise CandidateNotFoundError(candidate_id)
+    return _build_exam_candidate_row(db, exam_id, candidate)
+
+
+def import_exam_candidates_from_workbook(
+    db: Session, exam_id: int, file_obj: object, file_name: str
+) -> QuestionImportResult:
+    from app.services import import_service
+
+    exam = db.get(Exam, exam_id)
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    if exam.status != "draft":
+        raise ExamFrozenError("考试发布后应考名单已冻结")
+
+    parsed = import_service.parse_workbook(file_obj)
+    failures: list[ImportFailure] = []
+    success_count = 0
+
+    for row_number, row in enumerate(parsed.rows, start=2):
+        employee_no = import_service._optional_text(row.get("employee_no"))
+        candidate = None
+        if employee_no:
+            candidate = (
+                db.query(Candidate).filter(Candidate.employee_no == employee_no).first()
+            )
+        if candidate is None:
+            reason = import_service._validate_candidate_import_row(
+                row=row,
+                existing_employee_numbers={
+                    item[0]
+                    for item in db.query(Candidate.employee_no)
+                    .filter(Candidate.employee_no.isnot(None))
+                    .all()
+                },
+                existing_names_without_no={
+                    item[0]
+                    for item in db.query(Candidate.name)
+                    .filter(Candidate.employee_no.is_(None))
+                    .all()
+                },
+            )
+            if reason:
+                failures.append(ImportFailure(row_number=row_number, reason=reason))
+                continue
+            candidate = import_service._build_candidate(row)
+            db.add(candidate)
+            db.flush()
+
+        exists = (
+            db.query(ExamCandidateScope.id)
+            .filter(
+                ExamCandidateScope.exam_id == exam_id,
+                ExamCandidateScope.candidate_id == candidate.id,
+            )
+            .first()
+        )
+        if exists is None:
+            db.add(ExamCandidateScope(exam_id=exam_id, candidate_id=candidate.id))
+        success_count += 1
+
+    db.commit()
+    return QuestionImportResult(
+        success_count=success_count,
+        failed_count=len(failures),
+        failures=failures,
+    )
 
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
@@ -466,23 +711,51 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
         raise CandidateNotFoundError(candidate_id)
-    if candidate.status != "active":
+    if candidate.status != "active" or not candidate.should_attend:
         raise CandidateNotEligibleError(candidate_id)
+    _ensure_candidate_in_scope(db, exam_id, candidate_id)
 
-    # 检查是否已有进行中的 attempt
-    existing = db.execute(
-        select(ExamAttempt).where(
+    existing_attempts = (
+        db.query(ExamAttempt)
+        .filter(
             ExamAttempt.exam_id == exam_id,
             ExamAttempt.candidate_id == candidate_id,
-            ExamAttempt.status == "in_progress",
         )
-    ).scalar_one_or_none()
-    if existing is not None:
-        raise AttemptAlreadyExistsError(existing.id)
+        .order_by(ExamAttempt.attempt_no.desc())
+        .all()
+    )
+    in_progress = next(
+        (attempt for attempt in existing_attempts if attempt.status == "in_progress"),
+        None,
+    )
+    if in_progress is not None:
+        raise AttemptAlreadyExistsError(in_progress.id)
 
-    questions = _select_exam_questions(db, exam)
+    submitted_attempts = [
+        attempt for attempt in existing_attempts if attempt.status in SUBMITTED_STATUSES
+    ]
+    retake_grant: ExamRetakeGrant | None = None
+    if submitted_attempts:
+        retake_grant = (
+            db.query(ExamRetakeGrant)
+            .filter(
+                ExamRetakeGrant.exam_id == exam_id,
+                ExamRetakeGrant.candidate_id == candidate_id,
+                ExamRetakeGrant.used_at.is_(None),
+            )
+            .order_by(ExamRetakeGrant.created_at)
+            .with_for_update()
+            .first()
+        )
+        if retake_grant is None:
+            raise AttemptAlreadySubmittedError(submitted_attempts[0].id)
 
-    # 持久化 exam.question_rule（含 fixed_question_ids），释放行锁
+    attempt_no = (existing_attempts[0].attempt_no if existing_attempts else 0) + 1
+    attempt_kind = "retake" if submitted_attempts else "initial"
+    paper_seed = uuid4().hex
+    questions = _select_exam_questions(db, exam, paper_seed)
+
+    # 持久化 exam 行锁相关状态，释放行锁
     db.add(exam)
     db.flush()
 
@@ -504,9 +777,15 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         status="in_progress",
         started_at=now,
         total_score=total_score,
+        attempt_no=attempt_no,
+        attempt_kind=attempt_kind,
+        paper_seed=paper_seed,
     )
     db.add(attempt)
     db.flush()  # 获取 attempt.id
+    if retake_grant is not None:
+        retake_grant.used_attempt_id = attempt.id
+        retake_grant.used_at = now
 
     # 生成题目快照（使用折算后的分值）
     snapshots: list[ExamAttemptQuestion] = []
@@ -689,9 +968,26 @@ def get_attempt_result(db: Session, attempt_id: int) -> AttemptResultRead:
 
 def get_ranking(db: Session, exam_id: int) -> list[RankingRow]:
     """获取考试排名：按分数降序、提交时间升序。"""
+    latest_submitted = (
+        db.query(
+            ExamAttempt.candidate_id.label("candidate_id"),
+            func.max(ExamAttempt.attempt_no).label("attempt_no"),
+        )
+        .filter(
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.status.in_(SUBMITTED_STATUSES),
+        )
+        .group_by(ExamAttempt.candidate_id)
+        .subquery()
+    )
     rows = (
         db.query(ExamAttempt, Candidate.name, Candidate.department)
         .join(Candidate, ExamAttempt.candidate_id == Candidate.id)
+        .join(
+            latest_submitted,
+            (latest_submitted.c.candidate_id == ExamAttempt.candidate_id)
+            & (latest_submitted.c.attempt_no == ExamAttempt.attempt_no),
+        )
         .filter(
             ExamAttempt.exam_id == exam_id,
             ExamAttempt.status.in_(SUBMITTED_STATUSES),

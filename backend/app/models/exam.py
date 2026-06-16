@@ -1,6 +1,16 @@
 import enum
+from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,3 +40,46 @@ class Exam(TimestampMixin, Base):
     show_ranking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     attempts = relationship("ExamAttempt", back_populates="exam")
+    candidate_scopes = relationship(
+        "ExamCandidateScope", back_populates="exam", cascade="all, delete-orphan"
+    )
+    retake_grants = relationship(
+        "ExamRetakeGrant", back_populates="exam", cascade="all, delete-orphan"
+    )
+
+
+class ExamCandidateScope(TimestampMixin, Base):
+    __tablename__ = "exam_candidate_scope"
+    __table_args__ = (
+        UniqueConstraint("exam_id", "candidate_id", name="uq_exam_candidate_scope"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_id: Mapped[int] = mapped_column(
+        ForeignKey("exam.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    exam = relationship("Exam", back_populates="candidate_scopes")
+    candidate = relationship("Candidate")
+
+
+class ExamRetakeGrant(TimestampMixin, Base):
+    __tablename__ = "exam_retake_grant"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_id: Mapped[int] = mapped_column(
+        ForeignKey("exam.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    used_attempt_id: Mapped[int | None] = mapped_column(
+        ForeignKey("exam_attempt.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    exam = relationship("Exam", back_populates="retake_grants")
+    candidate = relationship("Candidate")

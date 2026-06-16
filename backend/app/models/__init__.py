@@ -5,7 +5,7 @@ from app.models.attempt import (
     PracticeAnswer,
 )
 from app.models.candidate import Candidate
-from app.models.exam import Exam
+from app.models.exam import Exam, ExamCandidateScope, ExamRetakeGrant
 from app.models.import_batch import ImportBatch
 from app.models.question import Question, QuestionOption
 
@@ -15,6 +15,8 @@ __all__ = [
     "ExamAttempt",
     "ExamAttemptAnswer",
     "ExamAttemptQuestion",
+    "ExamCandidateScope",
+    "ExamRetakeGrant",
     "ImportBatch",
     "PracticeAnswer",
     "Question",

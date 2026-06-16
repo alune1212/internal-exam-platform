@@ -7,6 +7,7 @@ from app.models import (
     ExamAttempt,
     ExamAttemptAnswer,
     ExamAttemptQuestion,
+    ExamCandidateScope,
     Question,
 )
 from app.models.attempt import SUBMITTED_STATUSES
@@ -20,6 +21,16 @@ from app.schemas.report import (
 
 def get_score_report(db: Session) -> list[ScoreReportRow]:
     """成绩报表：所有已提交 attempt 的成绩汇总。"""
+    latest_submitted = (
+        db.query(
+            ExamAttempt.exam_id.label("exam_id"),
+            ExamAttempt.candidate_id.label("candidate_id"),
+            func.max(ExamAttempt.attempt_no).label("attempt_no"),
+        )
+        .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
+        .group_by(ExamAttempt.exam_id, ExamAttempt.candidate_id)
+        .subquery()
+    )
     rows = (
         db.query(
             Candidate.name,
@@ -32,6 +43,12 @@ def get_score_report(db: Session) -> list[ScoreReportRow]:
         )
         .join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
         .join(Exam, Exam.id == ExamAttempt.exam_id)
+        .join(
+            latest_submitted,
+            (latest_submitted.c.exam_id == ExamAttempt.exam_id)
+            & (latest_submitted.c.candidate_id == ExamAttempt.candidate_id)
+            & (latest_submitted.c.attempt_no == ExamAttempt.attempt_no),
+        )
         .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
         .order_by(ExamAttempt.score.desc())
         .all()
@@ -142,22 +159,36 @@ def get_absent_candidates(
     if exam_id is not None:
         attempted_ids = (
             select(ExamAttempt.candidate_id)
-            .where(ExamAttempt.exam_id == exam_id)
+            .where(
+                ExamAttempt.exam_id == exam_id,
+                ExamAttempt.status.in_(SUBMITTED_STATUSES),
+            )
             .distinct()
+        )
+        rows = (
+            db.query(Candidate)
+            .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
+            .filter(
+                ExamCandidateScope.exam_id == exam_id,
+                Candidate.should_attend == True,  # noqa: E712
+                Candidate.status == "active",
+                ~Candidate.id.in_(attempted_ids),
+            )
+            .order_by(Candidate.name)
+            .all()
         )
     else:
         attempted_ids = select(ExamAttempt.candidate_id).distinct()
-
-    rows = (
-        db.query(Candidate)
-        .filter(
-            Candidate.should_attend == True,  # noqa: E712
-            Candidate.status == "active",
-            ~Candidate.id.in_(attempted_ids),
+        rows = (
+            db.query(Candidate)
+            .filter(
+                Candidate.should_attend == True,  # noqa: E712
+                Candidate.status == "active",
+                ~Candidate.id.in_(attempted_ids),
+            )
+            .order_by(Candidate.name)
+            .all()
         )
-        .order_by(Candidate.name)
-        .all()
-    )
 
     return [
         AbsentCandidateRow(
