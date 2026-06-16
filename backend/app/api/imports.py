@@ -1,3 +1,5 @@
+from urllib.parse import quote
+
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
@@ -12,7 +14,9 @@ def download_question_template() -> StreamingResponse:
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="题库导入模板.xlsx"'},
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('题库导入模板.xlsx')}"
+        },
     )
 
 
@@ -22,5 +26,7 @@ def download_candidate_template() -> StreamingResponse:
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="应考人员模板.xlsx"'},
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('应考人员模板.xlsx')}"
+        },
     )

@@ -697,6 +697,14 @@ def import_exam_candidates_from_workbook(
             candidate = (
                 db.query(Candidate).filter(Candidate.employee_no == employee_no).first()
             )
+        else:
+            name = import_service._optional_text(row.get("name"))
+            if name:
+                candidate = (
+                    db.query(Candidate)
+                    .filter(Candidate.employee_no.is_(None), Candidate.name == name)
+                    .first()
+                )
         if candidate is None:
             reason = import_service._validate_candidate_import_row(
                 row=row,

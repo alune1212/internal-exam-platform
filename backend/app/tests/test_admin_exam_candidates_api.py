@@ -92,6 +92,62 @@ def test_import_exam_candidates_adds_scope_rows() -> None:
     assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
 
 
+def test_import_exam_candidates_reuses_existing_name_without_employee_no() -> None:
+    client, db = _build_client()
+    first_exam = _create_exam(db)
+    second_exam = _create_exam(db)
+    candidate = Candidate(name="人员1", status="active")
+    db.add(candidate)
+    db.flush()
+    db.add(ExamCandidateScope(exam_id=first_exam.id, candidate_id=candidate.id))
+    db.commit()
+    workbook = build_workbook(
+        [
+            "name",
+            "employee_no",
+            "department",
+            "position",
+            "phone_suffix",
+            "email",
+            "exam_group",
+            "should_attend",
+            "status",
+            "remark",
+        ],
+        [
+            {
+                "name": "人员1",
+                "should_attend": True,
+                "status": "active",
+            },
+            {
+                "name": "人员2",
+                "should_attend": True,
+                "status": "active",
+            },
+        ],
+    )
+
+    resp = client.post(
+        f"/api/admin/exams/{second_exam.id}/candidates/import",
+        headers=_admin_headers(client),
+        files={
+            "file": (
+                "candidates.xlsx",
+                workbook.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["success_count"] == 2
+    assert data["failed_count"] == 0
+    assert db.query(Candidate).count() == 2
+    assert db.query(ExamCandidateScope).filter_by(exam_id=second_exam.id).count() == 2
+
+
 def test_list_exam_candidates_returns_attempt_and_retake_state() -> None:
     client, db = _build_client()
     exam = _create_exam(db)

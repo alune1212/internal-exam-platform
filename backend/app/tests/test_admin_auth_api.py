@@ -114,6 +114,28 @@ def test_admin_imports_requires_token() -> None:
     assert resp.status_code == 401
 
 
+def test_admin_candidate_template_download_returns_workbook() -> None:
+    client, _ = _build_client()
+    login = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    )
+    token = login.json()["data"]["token"]
+
+    resp = client.get(
+        "/api/admin/imports/templates/candidates",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 200
+    assert (
+        resp.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = load_workbook(BytesIO(resp.content))
+    assert workbook.active.cell(1, 1).value == "name"
+
+
 def test_admin_report_export_returns_workbook() -> None:
     client, _ = _build_client()
     login = client.post(
