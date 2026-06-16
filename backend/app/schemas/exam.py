@@ -14,7 +14,6 @@ class ExamBase(BaseModel):
     question_rule: dict[str, Any] = Field(default_factory=dict)
     status: str = "draft"
     show_answer_after_submit: bool = True
-    show_ranking: bool = True
 
 
 class ExamCreate(ExamBase):
@@ -28,7 +27,6 @@ class ExamUpdate(BaseModel):
     question_rule: dict[str, Any] | None = None
     status: str | None = None
     show_answer_after_submit: bool | None = None
-    show_ranking: bool | None = None
 
 
 class ExamRead(ExamBase, ORMModel):
@@ -48,15 +46,6 @@ class ExamStartResponse(BaseModel):
     questions: list[AttemptQuestionRead]
     started_at: datetime
     ends_at: datetime
-
-
-class RankingRow(BaseModel):
-    rank: int
-    candidate_name: str
-    department: str | None = None
-    score: float
-    total_score: float
-    submitted_at: datetime | None = None
 
 
 class ExamCandidateRow(BaseModel):

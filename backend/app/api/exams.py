@@ -10,7 +10,6 @@ from app.schemas.exam import (
     ExamRead,
     ExamStartResponse,
     ExamUpdate,
-    RankingRow,
 )
 from app.schemas.question import QuestionImportResult
 from app.services import exam_service
@@ -35,13 +34,6 @@ def start_exam(
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[ExamStartResponse]:
     return ApiResponse(data=exam_service.start_exam(db, exam_id, candidate_id))
-
-
-@router.get("/{exam_id}/ranking", response_model=ApiResponse[list[RankingRow]])
-def get_ranking(
-    exam_id: int, db: Session = Depends(get_db)
-) -> ApiResponse[list[RankingRow]]:
-    return ApiResponse(data=exam_service.get_ranking(db, exam_id))
 
 
 @admin_router.post("", response_model=ApiResponse[ExamRead])

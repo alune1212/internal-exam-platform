@@ -35,7 +35,6 @@ from app.schemas.exam import (
     ExamRead,
     ExamStartResponse,
     ExamUpdate,
-    RankingRow,
 )
 from app.schemas.question import ImportFailure, QuestionImportResult
 from app.services.scoring_service import score_answer
@@ -1005,46 +1004,3 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
 
 def get_attempt_result(db: Session, attempt_id: int) -> AttemptResultRead:
     return _build_attempt_result(_load_attempt_with_snapshots(db, attempt_id))
-
-
-def get_ranking(db: Session, exam_id: int) -> list[RankingRow]:
-    """获取考试排名：按分数降序、提交时间升序。"""
-    latest_submitted = (
-        db.query(
-            ExamAttempt.candidate_id.label("candidate_id"),
-            func.max(ExamAttempt.attempt_no).label("attempt_no"),
-        )
-        .filter(
-            ExamAttempt.exam_id == exam_id,
-            ExamAttempt.status.in_(SUBMITTED_STATUSES),
-        )
-        .group_by(ExamAttempt.candidate_id)
-        .subquery()
-    )
-    rows = (
-        db.query(ExamAttempt, Candidate.name, Candidate.department)
-        .join(Candidate, ExamAttempt.candidate_id == Candidate.id)
-        .join(
-            latest_submitted,
-            (latest_submitted.c.candidate_id == ExamAttempt.candidate_id)
-            & (latest_submitted.c.attempt_no == ExamAttempt.attempt_no),
-        )
-        .filter(
-            ExamAttempt.exam_id == exam_id,
-            ExamAttempt.status.in_(SUBMITTED_STATUSES),
-        )
-        .order_by(ExamAttempt.score.desc(), ExamAttempt.submitted_at.asc())
-        .all()
-    )
-
-    return [
-        RankingRow(
-            rank=idx + 1,
-            candidate_name=name,
-            department=department,
-            score=float(attempt.score),
-            total_score=float(attempt.total_score),
-            submitted_at=attempt.submitted_at,
-        )
-        for idx, (attempt, name, department) in enumerate(rows)
-    ]
