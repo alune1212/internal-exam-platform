@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { getAttemptResult } from "@/api/attempts";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
@@ -12,7 +11,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export function ExamResultPage() {
-  const { examId = "1" } = useParams();
   const [searchParams] = useSearchParams();
   const attemptId = searchParams.get("attemptId");
   const [filter, setFilter] = useState<"all" | "wrong">("all");
@@ -90,13 +88,6 @@ export function ExamResultPage() {
                 </span>
               </div>
             </div>
-
-            <Button asChild className="w-full bg-canvas text-ink hover:bg-canvas-warm">
-              <Link to={`/exams/${examId}/ranking`}>
-                查看排名
-                <ChevronRight data-icon="inline-end" />
-              </Link>
-            </Button>
           </CardContent>
         </Card>
 
