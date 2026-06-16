@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Header, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate_id
+from app.core.dependencies import CandidateAuthError, get_current_candidate_id
+from app.core.security import parse_candidate_token
 from app.schemas.common import ApiResponse
 from app.schemas.exam import (
     ExamCandidateRow,
@@ -21,9 +22,13 @@ admin_router = APIRouter(prefix="/admin/exams", tags=["admin-exams"])
 @router.get("/active", response_model=ApiResponse[list[ExamRead]])
 def list_active_exams(
     db: Session = Depends(get_db),
-    x_candidate_id: str | None = Header(None, alias="X-Candidate-Id"),
+    x_candidate_token: str | None = Header(None, alias="X-Candidate-Token"),
 ) -> ApiResponse[list[ExamRead]]:
-    candidate_id = int(x_candidate_id) if x_candidate_id else None
+    candidate_id = (
+        parse_candidate_token(x_candidate_token) if x_candidate_token else None
+    )
+    if x_candidate_token and candidate_id is None:
+        raise CandidateAuthError("无效的候选人身份")
     return ApiResponse(data=exam_service.list_active_exams(db, candidate_id))
 
 

@@ -14,7 +14,6 @@ from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamCreate, ExamUpdate
 from app.services import exam_service
 from app.services.exam_service import (
-    AttemptAlreadyExistsError,
     AttemptAlreadySubmittedError,
     AttemptNotFoundError,
     CandidateNotEligibleError,
@@ -133,6 +132,27 @@ def test_update_exam_freezes_structure_after_publish(db: Session) -> None:
         )
 
 
+def test_update_exam_validates_new_rule_when_publishing(db: Session) -> None:
+    exam = create_exam(db, status="draft", question_rule={})
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db, stem="唯一题目")
+
+    with pytest.raises(exam_service.InsufficientQuestionsError):
+        exam_service.update_exam(
+            db,
+            exam.id,
+            ExamUpdate(
+                status="active",
+                question_rule={
+                    "question_count": 2,
+                    "total_score": 100,
+                    "type_counts": {"single": 2, "multiple": 0, "judge": 0},
+                },
+            ),
+        )
+
+
 # --- start_exam 测试 ---
 
 
@@ -208,13 +228,14 @@ def test_start_exam_allows_candidate_inside_exam_scope(db: Session) -> None:
     assert result.attempt_id > 0
 
 
-def test_start_exam_prevents_duplicate_attempt(db: Session) -> None:
+def test_start_exam_returns_existing_in_progress_attempt(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
-    exam_service.start_exam(db, exam.id, candidate.id)
-    with pytest.raises(AttemptAlreadyExistsError):
-        exam_service.start_exam(db, exam.id, candidate.id)
+    first = exam_service.start_exam(db, exam.id, candidate.id)
+    second = exam_service.start_exam(db, exam.id, candidate.id)
+
+    assert second.attempt_id == first.attempt_id
 
 
 def test_start_exam_rejects_after_submit_without_retake_grant(db: Session) -> None:
@@ -492,6 +513,37 @@ def test_start_exam_rejects_question_rule_when_pool_is_too_small(
         exam_service.start_exam(db, exam.id, candidate.id)
 
 
+def test_update_exam_rejects_type_count_smaller_than_category_coverage(
+    db: Session,
+) -> None:
+    exam = create_exam(
+        db,
+        status="draft",
+        question_rule={
+            "question_count": 2,
+            "total_score": 100,
+            "type_counts": {"single": 1, "multiple": 1, "judge": 0},
+        },
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(
+        db, question_type="single", stem="A-单选", category_1="A"
+    )
+    create_question_with_options(
+        db, question_type="single", stem="B-单选", category_1="B"
+    )
+    create_question_with_options(
+        db, question_type="multiple", stem="A-多选", category_1="A"
+    )
+
+    with pytest.raises(exam_service.InsufficientQuestionsError) as exc:
+        exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+
+    assert "single" in str(exc.value)
+    assert "需要覆盖 2 个分类组合，当前配置 1 题" in str(exc.value)
+
+
 def test_start_exam_keeps_legacy_empty_question_rule_behavior(db: Session) -> None:
     exam = create_exam(db, question_rule={})
     candidate = create_candidate(db)
@@ -742,7 +794,7 @@ def test_get_attempt_result_reads_submitted_result_without_mutating_submit_type(
     assert attempt.status == "auto_submitted"
 
 
-def test_submit_attempt_rejects_already_submitted(db: Session) -> None:
+def test_submit_attempt_is_idempotent_after_submitted(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
@@ -750,8 +802,41 @@ def test_submit_attempt_rejects_already_submitted(db: Session) -> None:
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
     exam_service.submit_attempt(db, start_result.attempt_id, "manual")
 
-    with pytest.raises(AttemptAlreadySubmittedError):
-        exam_service.submit_attempt(db, start_result.attempt_id, "manual")
+    again = exam_service.submit_attempt(db, start_result.attempt_id, "manual")
+
+    assert again.attempt_id == start_result.attempt_id
+    assert again.score == 0
+
+
+def test_get_attempt_includes_timer_fields_from_attempt_exam(db: Session) -> None:
+    exam = create_exam(db, duration_minutes=45)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam.status = "archived"
+    db.commit()
+
+    attempt = exam_service.get_attempt(db, start.attempt_id)
+
+    assert attempt.duration_minutes == 45
+    assert attempt.ends_at == start.ends_at
+    assert attempt.server_now >= attempt.started_at
+
+
+def test_result_hides_answer_snapshots_when_exam_disables_review(db: Session) -> None:
+    exam = create_exam(db, show_answer_after_submit=False)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    result = exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    assert result.show_answer_after_submit is False
+    assert result.questions[0].correct_answer_snapshot is None
+    assert result.questions[0].analysis_snapshot is None
 
 
 def test_save_answers_rejects_after_submit(db: Session) -> None:

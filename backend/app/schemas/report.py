@@ -35,3 +35,4 @@ class AbsentCandidateRow(BaseModel):
     employee_no: str | None = None
     department: str | None = None
     exam_group: str | None = None
+    attendance_status: str = "not_started"

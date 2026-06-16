@@ -44,6 +44,7 @@ vi.mock("@/api/questions", () => ({
 
 const candidate: Candidate = {
   id: 1,
+  token: "candidate-token",
   name: "张敏",
   employee_no: "E1001",
   department: "产品部",
@@ -57,6 +58,9 @@ const attempt: Attempt = {
   candidate_id: 1,
   status: "in_progress",
   started_at: new Date(Date.now() - 60_000).toISOString(),
+  duration_minutes: 30,
+  ends_at: new Date(Date.now() + 29 * 60_000).toISOString(),
+  server_now: new Date().toISOString(),
   score: 0,
   total_score: 4,
   correct_count: 0,
@@ -81,6 +85,7 @@ const result: AttemptResult = {
   attempt_id: 10,
   score: 2,
   total_score: 4,
+  show_answer_after_submit: true,
   correct_count: 1,
   wrong_count: 1,
   questions: [
@@ -290,6 +295,31 @@ describe("P0 pages", () => {
     expect(await screen.findByText("考试结束。")).toBeInTheDocument();
     expect(screen.getByText("YOUR SCORE · 你的分数")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
+  });
+
+  it("hides correct answer and analysis when the exam disables review", async () => {
+    vi.mocked(getAttemptResult).mockResolvedValue({
+      ...result,
+      show_answer_after_submit: false,
+      questions: [
+        {
+          ...result.questions[0],
+          correct_answer_snapshot: null,
+          analysis_snapshot: null,
+        },
+      ],
+    });
+
+    renderPage(
+      "exams/:examId/result",
+      <ExamResultPage />,
+      undefined,
+      "exams/1/result?attemptId=10",
+    );
+
+    expect(await screen.findByText("答题结果")).toBeInTheDocument();
+    expect(screen.queryByText("正确答案")).not.toBeInTheDocument();
+    expect(screen.queryByText("北京是首都。")).not.toBeInTheDocument();
   });
 
   it("renders the practice focus page with submit affordance", async () => {

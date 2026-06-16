@@ -1,8 +1,13 @@
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError
+from app.core.security import create_candidate_token
 from app.models import Candidate
-from app.schemas.candidate import CandidateLoginRequest, CandidateRead
+from app.schemas.candidate import (
+    CandidateLoginRequest,
+    CandidateLoginResponse,
+    CandidateRead,
+)
 
 
 class CandidateLoginError(DomainError):
@@ -19,7 +24,17 @@ class CandidateLoginAmbiguousError(DomainError):
         super().__init__("姓名匹配到多名考试人员，请填写员工号")
 
 
-def login_candidate(db: Session, payload: CandidateLoginRequest) -> CandidateRead:
+def _with_token(candidate: Candidate) -> CandidateLoginResponse:
+    candidate_read = CandidateRead.model_validate(candidate)
+    return CandidateLoginResponse(
+        **candidate_read.model_dump(),
+        token=create_candidate_token(candidate.id),
+    )
+
+
+def login_candidate(
+    db: Session, payload: CandidateLoginRequest
+) -> CandidateLoginResponse:
     if payload.employee_no:
         candidate = (
             db.query(Candidate)
@@ -31,7 +46,7 @@ def login_candidate(db: Session, payload: CandidateLoginRequest) -> CandidateRea
         )
         if candidate is None:
             raise CandidateLoginError()
-        return CandidateRead.model_validate(candidate)
+        return _with_token(candidate)
 
     candidates = (
         db.query(Candidate)
@@ -44,4 +59,4 @@ def login_candidate(db: Session, payload: CandidateLoginRequest) -> CandidateRea
         raise CandidateLoginError()
     if len(candidates) > 1:
         raise CandidateLoginAmbiguousError()
-    return CandidateRead.model_validate(candidates[0])
+    return _with_token(candidates[0])

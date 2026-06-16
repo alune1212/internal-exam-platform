@@ -1,5 +1,6 @@
 export type Candidate = {
   id: number;
+  token?: string;
   name: string;
   employee_no?: string | null;
   department?: string | null;

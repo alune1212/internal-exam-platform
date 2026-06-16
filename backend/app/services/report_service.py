@@ -24,16 +24,7 @@ from app.schemas.report import (
 
 def get_score_report(db: Session) -> list[ScoreReportRow]:
     """成绩报表：所有已提交 attempt 的成绩汇总。"""
-    latest_submitted = (
-        db.query(
-            ExamAttempt.exam_id.label("exam_id"),
-            ExamAttempt.candidate_id.label("candidate_id"),
-            func.max(ExamAttempt.attempt_no).label("attempt_no"),
-        )
-        .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
-        .group_by(ExamAttempt.exam_id, ExamAttempt.candidate_id)
-        .subquery()
-    )
+    latest_submitted = latest_submitted_attempts(db)
     rows = (
         db.query(
             Candidate.name,
@@ -74,6 +65,7 @@ def get_score_report(db: Session) -> list[ScoreReportRow]:
 def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
     """题目正确率：基于快照统计每道原始题目的答对率。"""
     correct_expr = case((ExamAttemptAnswer.is_correct == True, 1), else_=0)  # noqa: E712
+    latest_submitted = latest_submitted_attempts(db)
 
     stats = (
         db.query(
@@ -87,6 +79,10 @@ def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
             ExamAttemptAnswer.attempt_question_id == ExamAttemptQuestion.id,
         )
         .join(ExamAttempt, ExamAttempt.id == ExamAttemptQuestion.attempt_id)
+        .join(
+            latest_submitted,
+            latest_submitted.c.attempt_id == ExamAttempt.id,
+        )
         .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
         .group_by(
             ExamAttemptQuestion.original_question_id, ExamAttemptQuestion.stem_snapshot
@@ -112,6 +108,7 @@ def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
 
 def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
     """错题统计：答错次数最多的题目。"""
+    latest_submitted = latest_submitted_attempts(db)
     rows = (
         db.query(
             ExamAttemptQuestion.original_question_id,
@@ -125,6 +122,10 @@ def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
             ExamAttemptAnswer.attempt_question_id == ExamAttemptQuestion.id,
         )
         .join(ExamAttempt, ExamAttempt.id == ExamAttemptQuestion.attempt_id)
+        .join(
+            latest_submitted,
+            latest_submitted.c.attempt_id == ExamAttempt.id,
+        )
         .outerjoin(Question, Question.id == ExamAttemptQuestion.original_question_id)
         .filter(
             ExamAttempt.status.in_(SUBMITTED_STATUSES),
@@ -153,33 +154,56 @@ def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
 
 
 def get_absent_candidates(
-    db: Session, exam_id: int | None = None
+    db: Session, exam_id: int | None = None, status: str = "not_started"
 ) -> list[AbsentCandidateRow]:
     """缺考人员：应参但在指定考试中无 attempt 记录的考生。
 
     不传 exam_id 时保留旧行为（全局从未参考过）。
     """
     if exam_id is not None:
-        attempted_ids = (
-            select(ExamAttempt.candidate_id)
-            .where(
-                ExamAttempt.exam_id == exam_id,
-                ExamAttempt.status.in_(SUBMITTED_STATUSES),
-            )
-            .distinct()
-        )
-        rows = (
+        base = (
             db.query(Candidate)
             .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
             .filter(
                 ExamCandidateScope.exam_id == exam_id,
                 Candidate.should_attend == True,  # noqa: E712
                 Candidate.status == "active",
-                ~Candidate.id.in_(attempted_ids),
             )
-            .order_by(Candidate.name)
-            .all()
         )
+        if status == "not_started":
+            attempted_ids = (
+                select(ExamAttempt.candidate_id)
+                .where(ExamAttempt.exam_id == exam_id)
+                .distinct()
+            )
+            rows = (
+                base.filter(~Candidate.id.in_(attempted_ids))
+                .order_by(Candidate.name)
+                .all()
+            )
+        elif status == "in_progress":
+            rows = (
+                base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
+                .filter(
+                    ExamAttempt.exam_id == exam_id,
+                    ExamAttempt.status == "in_progress",
+                )
+                .order_by(Candidate.name)
+                .all()
+            )
+        elif status == "submitted":
+            latest_submitted = latest_submitted_attempts(db)
+            rows = (
+                base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
+                .join(
+                    latest_submitted,
+                    latest_submitted.c.attempt_id == ExamAttempt.id,
+                )
+                .order_by(Candidate.name)
+                .all()
+            )
+        else:
+            rows = []
     else:
         attempted_ids = select(ExamAttempt.candidate_id).distinct()
         rows = (
@@ -200,9 +224,38 @@ def get_absent_candidates(
             employee_no=c.employee_no,
             department=c.department,
             exam_group=c.exam_group,
+            attendance_status=status,
         )
         for c in rows
     ]
+
+
+def latest_submitted_attempts(db: Session):
+    latest_attempt_no = (
+        db.query(
+            ExamAttempt.exam_id.label("exam_id"),
+            ExamAttempt.candidate_id.label("candidate_id"),
+            func.max(ExamAttempt.attempt_no).label("attempt_no"),
+        )
+        .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
+        .group_by(ExamAttempt.exam_id, ExamAttempt.candidate_id)
+        .subquery()
+    )
+    return (
+        db.query(
+            ExamAttempt.id.label("attempt_id"),
+            ExamAttempt.exam_id.label("exam_id"),
+            ExamAttempt.candidate_id.label("candidate_id"),
+            ExamAttempt.attempt_no.label("attempt_no"),
+        )
+        .join(
+            latest_attempt_no,
+            (latest_attempt_no.c.exam_id == ExamAttempt.exam_id)
+            & (latest_attempt_no.c.candidate_id == ExamAttempt.candidate_id)
+            & (latest_attempt_no.c.attempt_no == ExamAttempt.attempt_no),
+        )
+        .subquery()
+    )
 
 
 def generate_report_workbook(db: Session) -> BytesIO:

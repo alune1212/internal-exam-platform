@@ -41,9 +41,12 @@ def get_wrong_questions(
 @router.get("/absent-candidates", response_model=ApiResponse[list[AbsentCandidateRow]])
 def get_absent_candidates(
     exam_id: int | None = None,
+    status: str = "not_started",
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[AbsentCandidateRow]]:
-    return ApiResponse(data=report_service.get_absent_candidates(db, exam_id=exam_id))
+    return ApiResponse(
+        data=report_service.get_absent_candidates(db, exam_id=exam_id, status=status)
+    )
 
 
 @router.get("/export")

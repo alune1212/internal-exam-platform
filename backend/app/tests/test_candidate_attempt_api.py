@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
+from app.core.security import create_candidate_token
 from app.main import create_app
 
 
@@ -36,15 +37,22 @@ def test_attempt_routes_require_candidate_header() -> None:
     assert "detail" in resp.json()
 
 
-def test_attempt_routes_accept_candidate_header() -> None:
+def test_attempt_routes_accept_candidate_token() -> None:
     client, _ = _build_client()
-    resp = client.get("/api/attempts/1", headers={"X-Candidate-Id": "1"})
+    token = create_candidate_token(1)
+    resp = client.get("/api/attempts/1", headers={"X-Candidate-Token": token})
     assert resp.status_code == 404
 
 
-def test_attempt_routes_reject_invalid_candidate_id() -> None:
+def test_attempt_routes_reject_invalid_candidate_token() -> None:
     client, _ = _build_client()
-    resp = client.get("/api/attempts/1", headers={"X-Candidate-Id": "not-int"})
+    resp = client.get("/api/attempts/1", headers={"X-Candidate-Token": "not-valid"})
+    assert resp.status_code == 401
+
+
+def test_attempt_routes_reject_forged_candidate_id_header() -> None:
+    client, _ = _build_client()
+    resp = client.get("/api/attempts/1", headers={"X-Candidate-Id": "1"})
     assert resp.status_code == 401
 
 

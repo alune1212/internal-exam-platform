@@ -6,6 +6,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.exceptions import DomainError
@@ -216,6 +217,10 @@ def _take_from_bucket(
     *,
     reason: str,
 ) -> None:
+    if count < 0:
+        raise InsufficientQuestionsError(reason)
+    if count == 0:
+        return
     available = [question for question in bucket if question.id not in used_ids]
     if len(available) < count:
         raise InsufficientQuestionsError(reason)
@@ -236,6 +241,18 @@ def _select_questions_by_type(
         if len(grouped_by_type[question_type]) < count:
             raise InsufficientQuestionsError(
                 f"{question_type} 题目数量不足，无法生成考试试卷"
+            )
+    seen_combos = {
+        (_category_key(question), question.question_type) for question in questions
+    }
+    for question_type, target_count in rule.type_counts.items():
+        required = sum(
+            1 for _category, q_type in seen_combos if q_type == question_type
+        )
+        if target_count < required:
+            raise InsufficientQuestionsError(
+                f"{question_type} 题型需要覆盖 {required} 个分类组合，"
+                f"当前配置 {target_count} 题"
             )
 
     selected: list[Question] = []
@@ -350,8 +367,8 @@ def _load_questions_by_ids(db: Session, question_ids: list[int]) -> list[Questio
     return [by_id[question_id] for question_id in question_ids]
 
 
-def _validate_fixed_rule_capacity(db: Session, exam: Exam) -> None:
-    rule = _parse_fixed_paper_rule(exam.question_rule)
+def _validate_fixed_rule_capacity(db: Session, question_rule: dict) -> None:
+    rule = _parse_fixed_paper_rule(question_rule)
     if rule is None:
         active_count = (
             db.query(func.count(Question.id))
@@ -441,6 +458,9 @@ def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
 
 def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
     questions: list[AttemptResultQuestion] = []
+    show_answer = bool(
+        attempt.exam.show_answer_after_submit if attempt.exam is not None else True
+    )
     for question in attempt.questions:
         answer = question.answer
         questions.append(
@@ -448,8 +468,10 @@ def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
                 attempt_question_id=question.id,
                 stem_snapshot=question.stem_snapshot,
                 selected_answer=answer.selected_answer if answer else None,
-                correct_answer_snapshot=question.correct_answer_snapshot,
-                analysis_snapshot=question.analysis_snapshot,
+                correct_answer_snapshot=question.correct_answer_snapshot
+                if show_answer
+                else None,
+                analysis_snapshot=question.analysis_snapshot if show_answer else None,
                 is_correct=answer.is_correct if answer else False,
                 score_awarded=float(answer.score_awarded) if answer else 0,
                 score=float(question.score),
@@ -469,6 +491,7 @@ def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
         is_passed=float(attempt.score) >= pass_score
         if pass_score is not None
         else None,
+        show_answer_after_submit=show_answer,
         correct_count=attempt.correct_count,
         wrong_count=attempt.wrong_count,
         questions=questions,
@@ -551,7 +574,8 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
             raise ExamFrozenError()
     if updates.get("status") == "active" and exam.status != "active":
         _ensure_exam_has_scope(db, exam.id)
-        _validate_fixed_rule_capacity(db, exam)
+        next_question_rule = updates.get("question_rule", exam.question_rule)
+        _validate_fixed_rule_capacity(db, next_question_rule)
 
     for field, value in updates.items():
         setattr(exam, field, value)
@@ -784,7 +808,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         None,
     )
     if in_progress is not None:
-        raise AttemptAlreadyExistsError(in_progress.id)
+        return _build_exam_start_response_from_attempt(in_progress)
 
     submitted_attempts = [
         attempt for attempt in existing_attempts if attempt.status in SUBMITTED_STATUSES
@@ -837,7 +861,14 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         paper_seed=paper_seed,
     )
     db.add(attempt)
-    db.flush()  # 获取 attempt.id
+    try:
+        db.flush()  # 获取 attempt.id
+    except IntegrityError:
+        db.rollback()
+        existing = _latest_attempt_for_candidate(db, exam_id, candidate_id)
+        if existing is not None and existing.status == "in_progress":
+            return _build_exam_start_response_from_attempt(existing)
+        raise
     if retake_grant is not None:
         retake_grant.used_attempt_id = attempt.id
         retake_grant.used_at = now
@@ -886,6 +917,31 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     )
 
 
+def _build_exam_start_response_from_attempt(attempt: ExamAttempt) -> ExamStartResponse:
+    questions = [
+        AttemptQuestionRead(
+            id=snapshot.id,
+            question_type=snapshot.question_type,
+            stem_snapshot=snapshot.stem_snapshot,
+            options_snapshot=snapshot.options_snapshot,
+            score=float(snapshot.score),
+            sort_order=snapshot.sort_order,
+            selected_answer=snapshot.answer.selected_answer
+            if snapshot.answer is not None
+            else None,
+        )
+        for snapshot in attempt.questions
+    ]
+    return ExamStartResponse(
+        attempt_id=attempt.id,
+        exam=ExamRead.model_validate(attempt.exam),
+        questions=questions,
+        started_at=attempt.started_at,
+        ends_at=ensure_aware(attempt.started_at)
+        + timedelta(minutes=attempt.exam.duration_minutes),
+    )
+
+
 def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
     """获取考试记录及其题目快照。"""
     attempt = _load_attempt_with_snapshots(db, attempt_id)
@@ -908,7 +964,11 @@ def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
         exam_id=attempt.exam_id,
         candidate_id=attempt.candidate_id,
         status=attempt.status,
-        started_at=attempt.started_at,
+        started_at=ensure_aware(attempt.started_at),
+        duration_minutes=attempt.exam.duration_minutes,
+        ends_at=ensure_aware(attempt.started_at)
+        + timedelta(minutes=attempt.exam.duration_minutes),
+        server_now=datetime.now(UTC),
         submitted_at=attempt.submitted_at,
         score=float(attempt.score),
         total_score=float(attempt.total_score),
@@ -954,7 +1014,7 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
     if quick is None:
         raise AttemptNotFoundError(attempt_id)
     if quick.status != "in_progress":
-        raise AttemptAlreadySubmittedError(attempt_id)
+        return _build_attempt_result(_load_attempt_with_snapshots(db, attempt_id))
 
     # 加行锁后重新加载完整 attempt + snapshots + exam
     attempt = (
@@ -972,7 +1032,7 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
     if attempt is None:
         raise AttemptNotFoundError(attempt_id)
     if attempt.status != "in_progress":
-        raise AttemptAlreadySubmittedError(attempt_id)
+        return _build_attempt_result(attempt)
 
     submitted_at = datetime.now(UTC)
     score = Decimal("0")

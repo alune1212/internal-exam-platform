@@ -46,6 +46,7 @@ def test_candidate_login_returns_persisted_candidate_by_employee_no() -> None:
     assert data["id"] > 0
     assert data["name"] == "张三"
     assert data["department"] == "综合管理部"
+    assert data["token"]
 
 
 def test_candidate_login_returns_persisted_candidate_by_name_without_employee_no() -> (
@@ -66,6 +67,7 @@ def test_candidate_login_returns_persisted_candidate_by_name_without_employee_no
     assert data["id"] > 0
     assert data["name"] == "王五"
     assert data["department"] == "安全管理部"
+    assert data["token"]
 
 
 def test_practice_answer_scores_and_persists_result() -> None:

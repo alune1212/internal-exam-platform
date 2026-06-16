@@ -22,6 +22,9 @@ class AttemptRead(ORMModel):
     candidate_id: int
     status: str
     started_at: datetime
+    duration_minutes: int
+    ends_at: datetime
+    server_now: datetime
     submitted_at: datetime | None = None
     score: float
     total_score: float
@@ -52,7 +55,7 @@ class AttemptResultQuestion(BaseModel):
     attempt_question_id: int
     stem_snapshot: str
     selected_answer: str | None
-    correct_answer_snapshot: str
+    correct_answer_snapshot: str | None
     analysis_snapshot: str | None = None
     is_correct: bool
     score_awarded: float
@@ -65,6 +68,7 @@ class AttemptResultRead(BaseModel):
     total_score: float
     pass_score: float | None = None
     is_passed: bool | None = None
+    show_answer_after_submit: bool
     correct_count: int
     wrong_count: int
     questions: list[AttemptResultQuestion] = Field(default_factory=list)

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
-import { getActiveExams } from "@/api/exams";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
@@ -42,6 +41,9 @@ export function ExamTakingPage() {
 
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [now, setNow] = useState(() => Date.now());
+  const [attemptClock, setAttemptClock] = useState<{ serverNow: number; clientNow: number } | null>(
+    null,
+  );
   const [activeIndex, setActiveIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
@@ -52,8 +54,6 @@ export function ExamTakingPage() {
     queryFn: () => getAttempt(attemptId ?? ""),
     enabled: Boolean(attemptId),
   });
-
-  const { data: exams = [] } = useQuery({ queryKey: ["active-exams"], queryFn: getActiveExams });
 
   const saveMutation = useMutation({
     mutationFn: (items: Array<{ attempt_question_id: number; selected_answer: string }>) =>
@@ -125,15 +125,26 @@ export function ExamTakingPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const durationMinutes = exams.find((exam) => String(exam.id) === examId)?.duration_minutes;
+  useEffect(() => {
+    if (!attempt) {
+      setAttemptClock(null);
+      return;
+    }
+    const serverNow = new Date(attempt.server_now).getTime();
+    setAttemptClock({
+      serverNow: Number.isFinite(serverNow) ? serverNow : Date.now(),
+      clientNow: Date.now(),
+    });
+  }, [attempt]);
 
   const remainingSeconds = useMemo(() => {
-    if (!attempt || !durationMinutes) {
+    if (!attempt) {
       return Number.POSITIVE_INFINITY;
     }
-    const endsAt = new Date(attempt.started_at).getTime() + durationMinutes * 60 * 1000;
-    return Math.max(0, Math.floor((endsAt - now) / 1000));
-  }, [attempt, durationMinutes, now]);
+    const endsAt = new Date(attempt.ends_at).getTime();
+    const serverOffset = attemptClock ? attemptClock.clientNow - attemptClock.serverNow : 0;
+    return Math.max(0, Math.floor((endsAt - (now - serverOffset)) / 1000));
+  }, [attempt, attemptClock, now]);
 
   const autoSubmittedRef = useRef(false);
   useEffect(() => {

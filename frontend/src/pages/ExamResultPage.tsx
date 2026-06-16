@@ -97,7 +97,9 @@ export function ExamResultPage() {
               <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
                 CHAPTER R · REVIEW
               </span>
-              <h2 className="font-display text-display-md font-semibold text-ink">答案与解析</h2>
+              <h2 className="font-display text-display-md font-semibold text-ink">
+                {result?.show_answer_after_submit === false ? "答题结果" : "答案与解析"}
+              </h2>
             </div>
             <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas p-1 text-body-sm">
               <button
@@ -151,12 +153,14 @@ export function ExamResultPage() {
                       </dt>
                       <dd className="text-ink">{question.selected_answer || "未作答"}</dd>
                     </div>
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <dt className="text-caption uppercase tracking-[0.16em] text-muted">
-                        正确答案
-                      </dt>
-                      <dd className="text-ink">{question.correct_answer_snapshot}</dd>
-                    </div>
+                    {result?.show_answer_after_submit ? (
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <dt className="text-caption uppercase tracking-[0.16em] text-muted">
+                          正确答案
+                        </dt>
+                        <dd className="text-ink">{question.correct_answer_snapshot}</dd>
+                      </div>
+                    ) : null}
                     <div className="flex flex-wrap items-baseline gap-2">
                       <dt className="text-caption uppercase tracking-[0.16em] text-muted">得分</dt>
                       <dd className="font-mono tabular-nums text-ink">
@@ -164,7 +168,7 @@ export function ExamResultPage() {
                       </dd>
                     </div>
                   </dl>
-                  {question.analysis_snapshot ? (
+                  {result?.show_answer_after_submit && question.analysis_snapshot ? (
                     <p className="text-body-sm text-muted">
                       <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
                       {question.analysis_snapshot}

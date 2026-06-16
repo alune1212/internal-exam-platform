@@ -33,8 +33,8 @@ function resolveAuthHeaders(path: string): Record<string, string> {
     return token ? { "X-Admin-Token": token } : {};
   }
   const candidate = getCurrentCandidate();
-  if (candidate) {
-    return { "X-Candidate-Id": String(candidate.id) };
+  if (candidate?.token) {
+    return { "X-Candidate-Token": candidate.token };
   }
   return {};
 }

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "change-me"
     token_secret: str = Field(default="change-me-in-production", min_length=8)
+    token_ttl_seconds: int = 12 * 60 * 60
+
+    @model_validator(mode="after")
+    def reject_production_defaults(self) -> "Settings":
+        if self.environment == "production":
+            if self.admin_password == "change-me":
+                raise ValueError("production 环境必须配置 ADMIN_PASSWORD")
+            if self.token_secret == "change-me-in-production":
+                raise ValueError("production 环境必须配置 TOKEN_SECRET")
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

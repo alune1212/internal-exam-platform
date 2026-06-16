@@ -18,6 +18,9 @@ export type Attempt = {
   candidate_id: number;
   status: string;
   started_at: string;
+  duration_minutes: number;
+  ends_at: string;
+  server_now: string;
   submitted_at?: string | null;
   score: number;
   total_score: number;
@@ -32,13 +35,14 @@ export type AttemptResult = {
   total_score: number;
   pass_score?: number | null;
   is_passed?: boolean | null;
+  show_answer_after_submit: boolean;
   correct_count: number;
   wrong_count: number;
   questions: Array<{
     attempt_question_id: number;
     stem_snapshot: string;
     selected_answer?: string | null;
-    correct_answer_snapshot: string;
+    correct_answer_snapshot?: string | null;
     analysis_snapshot?: string | null;
     is_correct: boolean;
     score_awarded: number;

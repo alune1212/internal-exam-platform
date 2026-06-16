@@ -25,5 +25,9 @@ class CandidateRead(CandidateBase, ORMModel):
     id: int
 
 
+class CandidateLoginResponse(CandidateRead):
+    token: str
+
+
 class CandidateImportRow(CandidateBase):
     pass

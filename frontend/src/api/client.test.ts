@@ -28,6 +28,7 @@ Object.defineProperty(window, "localStorage", { value: mockStorage });
 
 const mockCandidate: Candidate = {
   id: 42,
+  token: "candidate-token",
   name: "张三",
   employee_no: "E001",
   department: "技术部",
@@ -73,12 +74,13 @@ describe("apiRequest auth headers", () => {
     expect(init?.headers).not.toHaveProperty("X-Admin-Token");
   });
 
-  it("候选人路径自动带 X-Candidate-Id", async () => {
+  it("候选人路径自动带 X-Candidate-Token", async () => {
     setCurrentCandidate(mockCandidate);
     mockFetchJson({ attempt_id: 1 });
     await apiRequest("/api/exams/1/start", { method: "POST" });
     const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).toMatchObject({ "X-Candidate-Id": "42" });
+    expect(init?.headers).toMatchObject({ "X-Candidate-Token": "candidate-token" });
+    expect(init?.headers).not.toHaveProperty("X-Candidate-Id");
   });
 
   it("公开路径无候选人时不带 candidate header", async () => {
@@ -86,7 +88,7 @@ describe("apiRequest auth headers", () => {
     mockFetchJson([]);
     await apiRequest("/api/exams/active");
     const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).not.toHaveProperty("X-Candidate-Id");
+    expect(init?.headers).not.toHaveProperty("X-Candidate-Token");
   });
 
   it("401 admin 请求清 token", async () => {
