@@ -28,14 +28,16 @@ npm run dev          # 开发服务器 (localhost:5173)
 npm run build        # 生产构建（先 tsc --noEmit 再 vite build）
 npm run lint         # ESLint 检查
 npm run lint:fix     # ESLint 自动修复
-npm run format       # Prettier 格式化
+npm run format       # Prettier 格式化（prettier --write）
 npm run format:check # Prettier 格式检查
 npm run test         # Vitest 单次运行
 npm run test:watch   # Vitest watch 模式
 npx tsc --noEmit     # 类型检查（build 已包含）
 ```
 
-测试栈：Vitest + @testing-library/react + jsdom，单测主要覆盖 `components/editorial/`、`components/exam/`、`components/layout/` 和 `pages/P0Pages.test.tsx`。
+测试栈：Vitest + @testing-library/react + jsdom，单测覆盖 `components/editorial/`、`components/exam/`、`components/layout/`、`lib/adminSession`、`api/client` 和 `pages/P0Pages.test.tsx`。
+
+> **Node.js v26 注意**：jsdom 的 `window.localStorage` 在 Node.js v26 下可能为 `undefined`。测试中如需操作 localStorage，需在测试文件顶部安装 in-memory mock（参考 `lib/adminSession.test.ts`）。
 
 ## 代码质量 Hooks
 
@@ -102,6 +104,8 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 
 前端分层：`api/`（请求封装）→ `pages/`（页面组件）→ `components/`（UI 组件）→ `types/`（类型定义）。页面不要手写 fetch。
 
+前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（密码存于 `lib/adminSession.ts`），其余带 `X-Candidate-Id`（从 `lib/candidateSession.ts` 读取）。401 时自动清 session 并跳转登录页。后端 `require_admin` 校验 `X-Admin-Token` 是否等于 `settings.admin_password`，`get_current_candidate_id` 从 `X-Candidate-Id` header 读取整数 ID。
+
 前端设计系统：`frontend/src/index.css` 定义 CSS 变量，`frontend/tailwind.config.ts` 映射 Tailwind token，`frontend/src/lib/design-tokens.ts` 仅在需要原始值时使用。优先复用本地 UI primitives 和 `components/editorial/`，不要重新引入旧 shadcn HSL token 或页面级临时样式。完整设计规范见 `frontend/DESIGN.md`（含 token 表、组件清单、章节样式），所有 PR 改动若触及视觉需先读它。
 
 领域异常体系：所有业务异常继承 `app.core.exceptions.DomainError`（含 `status_code` 属性），API 路由层通过 `main.py` 的统一异常处理器映射为 HTTP 响应。新增异常时在 service 层定义，无需在路由层逐一捕获。
@@ -146,7 +150,7 @@ uv run alembic downgrade -1  # 回滚一步
 
 ## 当前阶段
 
-第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题试卷，结果页显示及格线和通过状态。剩余工作：导入失败报告下载、考试与应参人员范围关联、报表导出文件、正式会话保护。详细交接文档见 `docs/handoff.md`。
+第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（admin token 管理、candidate header 注入、401 自动跳转、AdminLayout 路由守卫）。剩余工作：导入失败报告下载、考试与应参人员范围关联、报表导出文件。详细交接文档见 `docs/handoff.md`。
 
 ## 与 AGENTS.md 的关系
 
