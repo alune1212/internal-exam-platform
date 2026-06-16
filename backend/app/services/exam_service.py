@@ -317,35 +317,20 @@ def _select_questions_by_type(
 def _rescale_scores(
     questions: list[Question], target_total: Decimal
 ) -> list[tuple[Question, Decimal]]:
-    """按 target_total 等比折算为整数分值，返回 (question, scaled_score) 列表。
+    """固定试卷按题量均分为整数分值，返回 (question, scaled_score) 列表。
 
     原始 Question.score 不修改；折算结果仅用于快照和 attempt.total_score。
-    小数余数按降序分配到前若干题，确保总分精确等于 target_total。
+    余数按试卷顺序分配到前若干题，确保总分精确等于 target_total。
     """
-    raw_total = sum(q.score for q in questions)
-    if raw_total == 0:
-        raise InsufficientQuestionsError("题目原始总分为 0，无法折算分值")
-
     target_points = int(target_total)
-    scaled_rows: list[tuple[int, Question, Decimal, Decimal]] = []
-    for index, question in enumerate(questions):
-        exact_score = question.score * target_points / raw_total
-        base_score = Decimal(int(exact_score))
-        scaled_rows.append((index, question, base_score, exact_score - base_score))
-
-    remaining_points = target_points - sum(int(row[2]) for row in scaled_rows)
-    bonus_indexes = {
-        index
-        for index, _question, _base_score, _remainder in sorted(
-            scaled_rows, key=lambda row: (-row[3], row[0])
-        )[:remaining_points]
-    }
+    base_points = target_points // len(questions)
+    remaining_points = target_points % len(questions)
     return [
         (
             question,
-            base_score + (Decimal("1") if index in bonus_indexes else Decimal("0")),
+            Decimal(base_points + (1 if index < remaining_points else 0)),
         )
-        for index, question, base_score, _remainder in scaled_rows
+        for index, question in enumerate(questions)
     ]
 
 

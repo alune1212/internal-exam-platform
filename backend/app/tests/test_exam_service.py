@@ -306,21 +306,20 @@ def test_start_exam_total_score_matches_questions(db: Session) -> None:
     assert attempt.total_score == 7
 
 
-def test_start_exam_rescales_scores_to_match_total_score(db: Session) -> None:
-    """当 question_rule.total_score 与题目原始分值总和不一致时，按比例折算。"""
+def test_start_exam_distributes_fixed_paper_scores_evenly(db: Session) -> None:
+    """固定试卷按总分和题量均分，不按题库原始分值加权。"""
     exam = create_exam(
         db,
         question_rule={"question_count": 5, "total_score": 100, "pass_score": 60},
     )
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
-    # 每题 1 分，原始总分 5 分，目标 100 分 → 每题折算为 20 分
     for index in range(3):
         create_question_with_options(
-            db, stem=f"单选题{index + 1}", question_type="single", score=1
+            db, stem=f"单选题{index + 1}", question_type="single", score=index + 1
         )
-    create_question_with_options(db, stem="多选题1", question_type="multiple", score=1)
-    create_question_with_options(db, stem="判断题1", question_type="judge", score=1)
+    create_question_with_options(db, stem="多选题1", question_type="multiple", score=8)
+    create_question_with_options(db, stem="判断题1", question_type="judge", score=13)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
     attempt = exam_service.get_attempt(db, result.attempt_id)
