@@ -1,7 +1,7 @@
 ---
 version: beta
 name: internal-exam-platform-academic-editorial
-updated: 2026-06-14
+updated: 2026-06-16
 description: Academic Editorial design system for the internal exam platform frontend.
 ---
 
@@ -88,7 +88,7 @@ Use the shared `useScrolled` hook to toggle `data-scrolled` on the sticky header
 
 ## Stagger entrance
 
-Add `data-stagger` to a top-level page container to opt into the editorial entrance keyframe. Children fade in with an 80ms delay step. The animation respects `prefers-reduced-motion`.
+Add `data-stagger` to a top-level page container to opt into the editorial entrance keyframe. Children rise in quickly from 72% opacity with a 40ms delay step, so mobile first paint remains readable instead of briefly washing out. The animation respects `prefers-reduced-motion`.
 
 ## Layouts
 
@@ -124,5 +124,3 @@ npm run lint
 npm run format:check
 npm run build
 ```
-
-Known non-blocking lint warnings remain in `src/components/ui/badge.tsx` and `src/components/ui/button.tsx` from `react-refresh/only-export-components`.

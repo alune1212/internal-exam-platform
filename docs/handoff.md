@@ -44,8 +44,8 @@ curl http://localhost:8080/api/health
 Observed results:
 
 - Backend tests: 97 passed, no warnings after adding `httpx2` for Starlette TestClient.
-- Frontend tests: 174 passed in the latest admin-loop verification run.
-- Frontend lint: 0 errors, with two existing Fast Refresh export warnings in `badge.tsx` and `button.tsx`.
+- Frontend tests: 176 passed in the 2026-06-16 frontend polish verification run.
+- Frontend lint: 0 errors and 0 warnings.
 - Frontend build: passed, with one Vite chunk size warning.
 - Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
 - `/api/health`: returned `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}` through backend and Nginx.
@@ -87,7 +87,14 @@ Observed results:
 - **倒计时 pulse**：`Timer.tsx` 在剩余时间小于等于 5 分钟时使用 `text-error` + pulse，并保留 `aria-live="polite"`。
 - **键盘快捷键**：考试作答页支持 `←/→` 切题、`1-9` 与 `A-D` 选择当前题选项；input / textarea / contenteditable 聚焦时不拦截快捷键。最后一道题的主按钮显示“提交试卷”并走现有手动交卷流程。
 - **可访问性**：移动端题号导航使用 Radix Sheet；选项卡暴露 radio / checkbox 语义；图标按钮均保留可访问名称。
-- **当前验证口径**：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run format:check`、`npm run build` 均需通过。`npm run lint` 当前为 0 errors，仍有 `badge.tsx` / `button.tsx` 两个 Fast Refresh export warnings。
+- **当前验证口径**：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run format:check`、`npm run build` 均需通过。2026-06-16 前端打磨验证中，`npm run lint` 为 0 errors / 0 warnings。
+
+## Frontend Polish Audit — 2026-06-16
+
+- 管理登录页浅底 `Wordmark` 改回默认浅背景配色，避免白色品牌字在白底上失去对比。
+- 管理仪表盘活动列表将 ISO 时间显示为 `MM/DD HH:mm`，同时保留 `<time datetime>` 语义。
+- `data-stagger` 入场动画收敛为 280ms、40ms delay step，并从 72% opacity 开始，避免移动端截图/首帧显得页面未加载完成。
+- 浏览器验证覆盖 `/admin/login`、`/admin/dashboard`、`/exams` 桌面视口，以及 `/exams` 移动视口菜单交互。
 
 ## Docker Rebuild — 2026-06-15
 
