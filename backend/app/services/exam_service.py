@@ -816,7 +816,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
 
     now = datetime.now(UTC)
 
-    # 按 question_rule.total_score 等比折算分值（如有），原始题目 score 不修改
+    # 固定试卷按 question_rule.total_score 和题量均分；原始题目 score 不修改
     rule = _parse_fixed_paper_rule(exam.question_rule)
     if rule is not None:
         scaled_pairs = _rescale_scores(questions, rule.total_score)
@@ -842,7 +842,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         retake_grant.used_attempt_id = attempt.id
         retake_grant.used_at = now
 
-    # 生成题目快照（使用折算后的分值）
+    # 生成题目快照（使用本场试卷分值）
     snapshots: list[ExamAttemptQuestion] = []
     for idx, (question, scaled_score) in enumerate(scaled_pairs):
         snapshot = ExamAttemptQuestion(

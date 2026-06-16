@@ -53,6 +53,8 @@ GET  /api/exams/{exam_id}/ranking
 POST /api/admin/login
 
 POST /api/admin/questions/import
+GET  /api/admin/imports/templates/questions
+GET  /api/admin/imports/templates/candidates
 GET  /api/admin/questions
 POST /api/admin/questions
 PUT  /api/admin/questions/{question_id}
@@ -73,8 +75,9 @@ GET /api/admin/reports/export
 
 说明：
 
-- 第一阶段管理员登录是简单口令占位，不是完整权限系统。
+- 管理员登录返回签名 session token；后续管理端接口通过 `X-Admin-Token` 校验，不是完整 RBAC。
 - `/api/admin/exams` 的创建、列表和更新已持久化到 `exam` 表；管理端考试编辑页直接保存 `question_rule` JSON。
 - 题库导入接口执行标准 Excel 行级校验，合法行写入 `question` / `question_option`，并写入 `import_batch` 记录失败行号和原因。
-- 应参人员导入接口执行标准 Excel 行级校验，合法行写入 `candidate`，并写入 `import_batch` 记录失败行号和原因。
-- 报表统计查询已使用真实 SQL；报表导出仍保留路由和 schema，后续补文件输出。
+- 模板下载接口返回标准 Excel 模板，`Content-Disposition` 使用 `filename*` 兼容中文文件名。
+- 应参人员导入接口按考试写入 `exam_candidate_scope`；有员工号时按员工号复用已有人员，无员工号时按无员工号姓名复用已有人员，缺失身份或非法状态按行记录失败原因。
+- 报表统计查询已使用真实 SQL；`/api/admin/reports/export` 返回 Excel 工作簿，包含成绩报表、题目正确率、错题统计、缺考人员四个 sheet。

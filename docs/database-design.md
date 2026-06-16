@@ -59,14 +59,14 @@
   "total_score": 100,
   "pass_score": 60,
   "mode": "fixed_paper",
-  "type_counts": { "single": 30, "multiple": 10, "judge": 10 },
-  "fixed_question_ids": [1, 2, 3]
+  "type_counts": { "single": 30, "multiple": 10, "judge": 10 }
 }
 ```
 
 说明：
 
-- `fixed_question_ids` 在首次开考时生成，后续考生复用同一批原题生成各自的 attempt snapshot。
+- 固定试卷按 `question_count`、`type_counts` 和 active 题库抽取题干去重的等价试卷。
+- 固定试卷分值按 `total_score / question_count` 均分为整数；不能整除时余数按试卷顺序分配到前若干题。
 - 空 `{}` 保留旧行为：开始考试时抽取全部 active 题目。
 - 已生成的 attempt 仍以 `exam_attempt_question` 快照为准，不受后续 `question_rule` 或题库修改影响。
 
@@ -74,7 +74,7 @@
 
 考试记录主表。
 
-关键字段：`id`、`exam_id`、`candidate_id`、`status`、`started_at`、`submitted_at`、`submit_type`、`score`、`total_score`、`correct_count`、`wrong_count`、`duration_seconds`、`created_at`、`updated_at`。
+关键字段：`id`、`exam_id`、`candidate_id`、`status`、`started_at`、`submitted_at`、`submit_type`、`score`、`total_score`、`correct_count`、`wrong_count`、`duration_seconds`、`attempt_no`、`attempt_kind`、`paper_seed`、`created_at`、`updated_at`。
 
 状态建议：
 
@@ -114,3 +114,20 @@
 导入批次表。
 
 关键字段：`id`、`import_type`、`file_name`、`total_count`、`success_count`、`failed_count`、`status`、`error_report`、`created_at`。
+
+### exam_candidate_scope
+
+考试应考名单范围表。
+
+关键字段：`id`、`exam_id`、`candidate_id`、`created_at`、`updated_at`。
+
+约束：
+
+- `(exam_id, candidate_id)` 唯一。
+- 仅名单内 active 且应参加人员可以开始对应考试。
+
+### exam_retake_grant
+
+补考授权表。
+
+关键字段：`id`、`exam_id`、`candidate_id`、`used_attempt_id`、`used_at`、`created_at`、`updated_at`。

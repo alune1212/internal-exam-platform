@@ -13,23 +13,25 @@ Implemented foundations:
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
+- Exam-scoped candidate list persistence via `exam_candidate_scope`, including import, removal, and retake grant endpoints.
 - Exam configuration create/update/list persistence and candidate-facing active exam listing.
-- Exam start persistence with fixed 50-question paper generation, attempt creation, and question snapshots.
+- Exam start persistence with fixed 50-question equivalent paper generation, attempt creation, and question snapshots.
 - Answer autosave persistence and submit scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
+- Signed admin session tokens returned from login and checked by `X-Admin-Token`.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
 - Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
 - Time-based auto-submit background check.
-- Ranking and basic admin report SQL queries.
+- Ranking, basic admin report SQL queries, and multi-sheet Excel report export.
 
 ## Verified Commands
 
-Verified on 2026-06-15:
+Verified on 2026-06-16:
 
 ```bash
-cd backend && UV_CACHE_DIR=.uv-cache uv run pytest -q
+cd backend && uv run pytest
 cd frontend && npm test -- --run
 cd frontend && npm run lint
 cd frontend && npm run format:check
@@ -41,8 +43,8 @@ curl http://localhost:8080/api/health
 
 Observed results:
 
-- Backend tests: 50 passed, with Starlette/httpx deprecation warnings.
-- Frontend tests: 138 passed.
+- Backend tests: 97 passed, no warnings after adding `httpx2` for Starlette TestClient.
+- Frontend tests: 174 passed in the latest admin-loop verification run.
 - Frontend lint: 0 errors, with two existing Fast Refresh export warnings in `badge.tsx` and `button.tsx`.
 - Frontend build: passed, with one Vite chunk size warning.
 - Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
@@ -55,28 +57,26 @@ Observed results:
 - Exam configuration create/update/list services persist to the `exam` table, and active listing returns only `active` exams.
 - Exam start creates an in-progress attempt and stores question snapshots.
 - Non-empty `question_rule` with `question_count` uses fixed-paper mode. The default rule is 50 questions, total score 100, pass score 60, and type counts `single: 30`, `multiple: 10`, `judge: 10`.
-- Fixed-paper selection only uses active questions, covers `category_1`, question types, and available `category_1 + question_type` combinations, then stores `fixed_question_ids` on the exam for later candidates.
+- Fixed-paper selection only uses active questions, avoids duplicate stems in the same paper, covers `category_1`, question types, and available `category_1 + question_type` combinations.
+- Fixed-paper scores are integer and evenly distributed from `question_rule.total_score`; 50 questions with total score 100 gives every question 2 points.
 - Empty `question_rule = {}` remains compatible with the legacy all-active question behavior.
+- Exam candidate import adds rows to `exam_candidate_scope`; existing candidates are reused by employee number, or by name when no employee number exists.
 - Answer autosave writes to `exam_attempt_answer`; submit scoring updates persisted answers and attempt totals.
 - The exam-taking page uses the final question primary action as “提交试卷”; earlier questions still show “下一题”.
 - Time-based auto-submit runs as an asyncio background task, checking every 30 seconds.
 - Ranking and reports (score, accuracy, wrong questions, absent candidates) use real SQL queries.
-- Admin authentication is a simple configured username/password placeholder.
-- No frontend auth/session guard exists yet.
+- Report export returns one Excel workbook with sheets for score report, question accuracy, wrong questions, and absent candidates.
+- Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
 
 ## Known Gaps
 
 - Question import failure report download is not implemented.
-- Exam scope is not explicitly linked to imported candidate groups yet.
-- Report export keeps the route/schema shape but does not generate a file yet.
-- Admin authentication remains a simple configured username/password placeholder.
-- No frontend auth/session guard exists yet.
 
 ## Recommended Next Work
 
 1. Add question import failure report download.
-2. Define how an exam is scoped to imported candidates.
-3. Add frontend auth/session guard for candidate and admin pages.
+2. Add a visible download path for import failure reports in the admin UI.
+3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
 
 ## Phase 7 — States & Polish（完成日期 2026-06-14）
 

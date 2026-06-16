@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-公司内部轻量级临时考试与刷题平台。第一阶段核心功能已实现，含题库导入、固定 50 题考试快照、判分、及格状态、排名、报表查询、自动提交和 Academic Editorial 前端 redesign。
+公司内部轻量级临时考试与刷题平台。第一阶段核心功能已实现，含题库导入、考试名单 scope、固定 50 题考试快照、均分判分、及格状态、排名、报表查询/导出、自动提交和 Academic Editorial 前端 redesign。
 
 ## 命令
 
@@ -104,13 +104,13 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 
 前端分层：`api/`（请求封装）→ `pages/`（页面组件）→ `components/`（UI 组件）→ `types/`（类型定义）。页面不要手写 fetch。
 
-前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（密码存于 `lib/adminSession.ts`），其余带 `X-Candidate-Id`（从 `lib/candidateSession.ts` 读取）。401 时自动清 session 并跳转登录页。后端 `require_admin` 校验 `X-Admin-Token` 是否等于 `settings.admin_password`，`get_current_candidate_id` 从 `X-Candidate-Id` header 读取整数 ID。
+前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（`AdminLoginPage` 保存后端返回的签名 session token），其余带 `X-Candidate-Id`（从 `lib/candidateSession.ts` 读取）。401 时自动清 session 并跳转登录页。后端 `require_admin` 使用 `TOKEN_SECRET` 校验签名 token，`get_current_candidate_id` 从 `X-Candidate-Id` header 读取整数 ID。
 
 前端设计系统：`frontend/src/index.css` 定义 CSS 变量，`frontend/tailwind.config.ts` 映射 Tailwind token，`frontend/src/lib/design-tokens.ts` 仅在需要原始值时使用。优先复用本地 UI primitives 和 `components/editorial/`，不要重新引入旧 shadcn HSL token 或页面级临时样式。完整设计规范见 `frontend/DESIGN.md`（含 token 表、组件清单、章节样式），所有 PR 改动若触及视觉需先读它。
 
 领域异常体系：所有业务异常继承 `app.core.exceptions.DomainError`（含 `status_code` 属性），API 路由层通过 `main.py` 的统一异常处理器映射为 HTTP 响应。新增异常时在 service 层定义，无需在路由层逐一捕获。
 
-考试抽题：非空 `exam.question_rule` 且包含 `question_count` 时走固定试卷逻辑。默认规则为 50 题、总分 100、及格线 60，题型配比 `single: 30`、`multiple: 10`、`judge: 10`；首次开考会写入 `fixed_question_ids`，同一考试后续考生复用同一批原题生成各自快照。空 `{}` 保留旧的全量 active 入卷行为。
+考试抽题：非空 `exam.question_rule` 且包含 `question_count` 时走固定试卷逻辑。默认规则为 50 题、总分 100、及格线 60，题型配比 `single: 30`、`multiple: 10`、`judge: 10`；每次开考按规则抽一份 active、题干去重的等价试卷，并按 `total_score / question_count` 均分为整数分值（如 50 题 100 分即每题 2 分）。空 `{}` 保留旧的全量 active 入卷行为。所有正式考试仍以 `exam_attempt_question` 快照为准。
 
 ## 硬边界
 
@@ -119,7 +119,7 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 - 后端业务逻辑放 `services/`，路由保持薄层
 - 所有请求/响应使用 `schemas/` 中的 Pydantic 模型
 - 考试快照语义不可破坏：历史答题记录必须使用保存的题目、选项、答案、解析、分值和顺序快照
-- 固定试卷语义不可破坏：已有 `fixed_question_ids` 的考试必须复用同一批原题，不能为不同考生重新随机
+- 固定试卷语义不可破坏：固定试卷必须按 `question_rule` 的题量、题型配比、题干去重和整数均分规则生成 attempt snapshots
 - 多选题判分按集合比较，不按字符串比较
 - 前端 API 调用放 `api/`，页面不手写 fetch
 
@@ -150,7 +150,7 @@ uv run alembic downgrade -1  # 回滚一步
 
 ## 当前阶段
 
-第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（admin token 管理、candidate header 注入、401 自动跳转、AdminLayout 路由守卫）。剩余工作：导入失败报告下载、考试与应参人员范围关联、报表导出文件。详细交接文档见 `docs/handoff.md`。
+第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、candidate header 注入、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，报表导出返回单个多 Sheet Excel。剩余工作：导入失败报告下载。详细交接文档见 `docs/handoff.md`。
 
 ## 与 AGENTS.md 的关系
 

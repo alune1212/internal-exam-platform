@@ -16,7 +16,7 @@ This project is a lightweight internal exam and practice platform. Keep changes 
 - Keep backend business logic in `backend/app/services/`; route files should stay thin.
 - All request and response shapes should use Pydantic schemas from `backend/app/schemas/`.
 - Preserve exam snapshot semantics: historical attempts must use saved question, option, answer, analysis, score, and order snapshots.
-- Preserve fixed-paper semantics: non-empty `exam.question_rule` with `question_count` generates/reuses a fixed 50-question paper via `fixed_question_ids`; empty `{}` keeps the legacy all-active behavior.
+- Preserve fixed-paper semantics: non-empty `exam.question_rule` with `question_count` samples an active, unique-stem paper by rule, assigns integer scores evenly from `total_score`, and stores attempt snapshots; empty `{}` keeps the legacy all-active behavior.
 - Multiple-choice scoring must compare answer sets, not raw strings.
 - Keep frontend API calls in `frontend/src/api/`; pages should not hand-roll fetch details.
 - Preserve the frontend redesign system: use `frontend/src/index.css` tokens, Tailwind aliases, local UI primitives, and editorial components instead of reintroducing HSL shadcn tokens or ad hoc page styling.
@@ -57,4 +57,4 @@ curl http://localhost:8080/api/health
 
 ## Current Stage
 
-The scaffold is runnable and the first-phase business loop is implemented. Question Excel import and candidate Excel import validate rows and persist records plus import batches. Exam configuration create/update/list, candidate-facing active exam listing, fixed 50-question exam papers, exam start snapshots, answer autosave, submit scoring with pass status, time-based auto-submit checks, ranking, and basic report SQL persist/query real database state. Remaining first-phase gaps are import failure report download, explicit exam-to-candidate scoping, report file export, and frontend/admin session guards. The frontend has completed the Academic Editorial redesign across tokens, primitives, layouts, P0/P1/P2 pages, states, polish, and Docker rebuild verification.
+The scaffold is runnable and the first-phase business loop is implemented. Question Excel import and candidate Excel import validate rows and persist records plus import batches. Exam configuration create/update/list, exam-scoped candidate import, candidate-facing active exam listing, fixed 50-question equivalent papers, exam start snapshots, answer autosave, submit scoring with pass status, time-based auto-submit checks, ranking, report SQL queries, Excel report export, and signed admin session tokens persist/query real database state. Remaining first-phase gap: import failure report download. The frontend has completed the Academic Editorial redesign across tokens, primitives, layouts, P0/P1/P2 pages, states, polish, and Docker rebuild verification.
