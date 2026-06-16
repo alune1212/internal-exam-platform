@@ -93,5 +93,5 @@ def test_admin_reports_requires_token() -> None:
 
 def test_admin_imports_requires_token() -> None:
     client, _ = _build_client()
-    resp = client.get("/api/admin/imports/templates")
+    resp = client.get("/api/admin/imports/templates/questions")
     assert resp.status_code == 401

@@ -1,10 +1,26 @@
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 
-from app.schemas.common import ApiResponse
+from app.services import template_service
 
 router = APIRouter(prefix="/admin/imports", tags=["admin-imports"])
 
 
-@router.get("/templates", response_model=ApiResponse[list[str]])
-def list_import_templates() -> ApiResponse[list[str]]:
-    return ApiResponse(data=["questions", "candidates"])
+@router.get("/templates/questions")
+def download_question_template() -> StreamingResponse:
+    stream = template_service.generate_question_template()
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="题库导入模板.xlsx"'},
+    )
+
+
+@router.get("/templates/candidates")
+def download_candidate_template() -> StreamingResponse:
+    stream = template_service.generate_candidate_template()
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="应考人员模板.xlsx"'},
+    )
