@@ -297,8 +297,8 @@ def test_start_exam_total_score_matches_questions(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
-    create_question_with_options(db, score=2)
-    create_question_with_options(db, score=5)
+    create_question_with_options(db, stem="题目1", score=2)
+    create_question_with_options(db, stem="题目2", score=5)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
     # total_score 通过 get_attempt 验证
@@ -315,10 +315,12 @@ def test_start_exam_rescales_scores_to_match_total_score(db: Session) -> None:
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
     # 每题 1 分，原始总分 5 分，目标 100 分 → 每题折算为 20 分
-    for _ in range(3):
-        create_question_with_options(db, question_type="single", score=1)
-    create_question_with_options(db, question_type="multiple", score=1)
-    create_question_with_options(db, question_type="judge", score=1)
+    for index in range(3):
+        create_question_with_options(
+            db, stem=f"单选题{index + 1}", question_type="single", score=1
+        )
+    create_question_with_options(db, stem="多选题1", question_type="multiple", score=1)
+    create_question_with_options(db, stem="判断题1", question_type="judge", score=1)
 
     result = exam_service.start_exam(db, exam.id, candidate.id)
     attempt = exam_service.get_attempt(db, result.attempt_id)
@@ -329,6 +331,49 @@ def test_start_exam_rescales_scores_to_match_total_score(db: Session) -> None:
     assert attempt.total_score == 100
     assert sum(float(s.score) for s in snapshots) == 100
     assert all(float(s.score) == 20 for s in snapshots)
+
+
+def test_start_exam_rescales_scores_to_integer_points(db: Session) -> None:
+    exam = create_exam(
+        db,
+        question_rule={
+            "question_count": 3,
+            "total_score": 100,
+            "type_counts": {"single": 3, "multiple": 0, "judge": 0},
+        },
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    for index in range(3):
+        create_question_with_options(db, stem=f"题目{index + 1}", score=1)
+
+    result = exam_service.start_exam(db, exam.id, candidate.id)
+    snapshots = (
+        db.query(ExamAttemptQuestion).filter_by(attempt_id=result.attempt_id).all()
+    )
+
+    assert sum(snapshot.score for snapshot in snapshots) == 100
+    assert {snapshot.score for snapshot in snapshots} == {33, 34}
+
+
+def test_select_questions_by_type_uses_unique_stems() -> None:
+    rule = exam_service.FixedPaperRule(
+        question_count=3,
+        total_score=100,
+        type_counts={"single": 3, "multiple": 0, "judge": 0},
+    )
+    questions = [
+        Question(id=1, question_type="single", stem="题目1", score=1),
+        Question(id=2, question_type="single", stem="题目1", score=1),
+        Question(id=3, question_type="single", stem="题目1 ", score=1),
+        Question(id=4, question_type="single", stem="题目2", score=1),
+        Question(id=5, question_type="single", stem="题目3", score=1),
+    ]
+
+    selected = exam_service._select_questions_by_type(questions, rule)
+
+    assert len(selected) == 3
+    assert len({question.stem.strip() for question in selected}) == 3
 
 
 def test_start_exam_applies_question_rule_sampling_coverage_and_total_score(

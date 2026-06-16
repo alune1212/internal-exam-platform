@@ -196,6 +196,18 @@ def _active_category_totals(questions: list[Question]) -> dict[str, int]:
     return dict(totals)
 
 
+def _deduplicate_questions_by_stem(questions: list[Question]) -> list[Question]:
+    seen_stems: set[str] = set()
+    unique_questions: list[Question] = []
+    for question in questions:
+        stem_key = question.stem.strip()
+        if stem_key in seen_stems:
+            continue
+        seen_stems.add(stem_key)
+        unique_questions.append(question)
+    return unique_questions
+
+
 def _take_from_bucket(
     selected: list[Question],
     bucket: list[Question],
@@ -215,6 +227,7 @@ def _take_from_bucket(
 def _select_questions_by_type(
     questions: list[Question], rule: FixedPaperRule
 ) -> list[Question]:
+    questions = _deduplicate_questions_by_stem(questions)
     if len(questions) < rule.question_count:
         raise InsufficientQuestionsError("active 题目数量不足，无法生成考试试卷")
 
@@ -304,28 +317,36 @@ def _select_questions_by_type(
 def _rescale_scores(
     questions: list[Question], target_total: Decimal
 ) -> list[tuple[Question, Decimal]]:
-    """按 target_total 等比折算每题分值，返回 (question, scaled_score) 列表。
+    """按 target_total 等比折算为整数分值，返回 (question, scaled_score) 列表。
 
     原始 Question.score 不修改；折算结果仅用于快照和 attempt.total_score。
-    末题吸收舍入误差，确保总分精确等于 target_total。
+    小数余数按降序分配到前若干题，确保总分精确等于 target_total。
     """
     raw_total = sum(q.score for q in questions)
     if raw_total == 0:
         raise InsufficientQuestionsError("题目原始总分为 0，无法折算分值")
 
-    pairs: list[tuple[Question, Decimal]] = []
-    accumulated = Decimal("0")
-    for i, question in enumerate(questions):
-        if i == len(questions) - 1:
-            # 末题：用目标总分减去已累计分值，吸收舍入误差
-            scaled = target_total - accumulated
-        else:
-            scaled = (question.score * target_total / raw_total).quantize(
-                Decimal("0.01")
-            )
-            accumulated += scaled
-        pairs.append((question, scaled))
-    return pairs
+    target_points = int(target_total)
+    scaled_rows: list[tuple[int, Question, Decimal, Decimal]] = []
+    for index, question in enumerate(questions):
+        exact_score = question.score * target_points / raw_total
+        base_score = Decimal(int(exact_score))
+        scaled_rows.append((index, question, base_score, exact_score - base_score))
+
+    remaining_points = target_points - sum(int(row[2]) for row in scaled_rows)
+    bonus_indexes = {
+        index
+        for index, _question, _base_score, _remainder in sorted(
+            scaled_rows, key=lambda row: (-row[3], row[0])
+        )[:remaining_points]
+    }
+    return [
+        (
+            question,
+            base_score + (Decimal("1") if index in bonus_indexes else Decimal("0")),
+        )
+        for index, question, base_score, _remainder in scaled_rows
+    ]
 
 
 def _load_questions_by_ids(db: Session, question_ids: list[int]) -> list[Question]:
@@ -393,13 +414,14 @@ def _select_exam_questions(
 ) -> list[Question]:
     rule = _parse_fixed_paper_rule(exam.question_rule)
     if rule is None:
-        return (
+        questions = (
             db.query(Question)
             .options(selectinload(Question.options))
             .filter(Question.status == "active")
             .order_by(Question.id)
             .all()
         )
+        return _deduplicate_questions_by_stem(questions)
 
     active_questions = (
         db.query(Question)
