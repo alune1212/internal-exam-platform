@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: internal_exam
       POSTGRES_USER: exam
-      POSTGRES_PASSWORD: exam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -19,11 +19,12 @@ services:
     build:
       context: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://exam:exam@db:5432/internal_exam
-      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: change-me
-      TOKEN_SECRET: change-me-in-production
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      TOKEN_SECRET: ${TOKEN_SECRET:?Set TOKEN_SECRET in .env}
     depends_on:
       db:
         condition: service_healthy

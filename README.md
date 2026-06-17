@@ -23,14 +23,30 @@ internal-exam-platform/
 
 ## 环境变量
 
-后端示例见 `backend/.env.example`：
+Docker Compose 示例见根目录 `.env.example`。首次使用 Compose 前先复制并按环境修改：
+
+```bash
+cp .env.example .env
+```
 
 ```text
-DATABASE_URL=postgresql+psycopg://exam:exam@db:5432/internal_exam
+ENVIRONMENT=development
+POSTGRES_PASSWORD=local-dev-postgres-password
+DATABASE_URL=postgresql+psycopg://exam:local-dev-postgres-password@db:5432/internal_exam
 CORS_ORIGINS=http://localhost:5173,http://localhost:8080
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=change-me
-TOKEN_SECRET=change-me-in-production
+ADMIN_PASSWORD=local-dev-admin-password
+TOKEN_SECRET=local-dev-token-secret-change-before-production
+```
+
+直接运行后端服务时也可以参考 `backend/.env.example`：
+
+```text
+DATABASE_URL=postgresql+psycopg://exam:local-dev-postgres-password@db:5432/internal_exam
+CORS_ORIGINS=http://localhost:5173,http://localhost:8080
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=local-dev-admin-password
+TOKEN_SECRET=local-dev-token-secret-change-before-production
 ```
 
 前端示例见 `frontend/.env.example`：
@@ -79,6 +95,7 @@ http://localhost:5173
 ## Docker Compose 启动
 
 ```bash
+cp .env.example .env  # 首次启动前执行，并替换生产环境密钥
 docker-compose up -d --build
 ```
 
@@ -134,7 +151,7 @@ npm run build
 Docker 配置检查：
 
 ```bash
-docker-compose config
+docker-compose --env-file .env config
 ```
 
 ## 第一阶段已包含
@@ -168,5 +185,5 @@ docker-compose config
 ## 后续开发计划
 
 1. 正式使用前按 `docs/official-exam-uat-checklist.md` 走 Docker/Nginx 入口验收。
-2. 生产环境必须配置非默认 `ADMIN_PASSWORD`、`TOKEN_SECRET`、`CORS_ORIGINS`，并准备数据库备份。
+2. 生产环境必须配置非默认 `POSTGRES_PASSWORD`、`DATABASE_URL`、`ADMIN_PASSWORD`、`TOKEN_SECRET`、`CORS_ORIGINS`，并准备数据库备份。
 3. 如需扩展权限，仅增加轻量能力，不引入复杂 RBAC。

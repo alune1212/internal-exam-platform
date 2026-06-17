@@ -5,12 +5,13 @@
 ## Preflight
 
 ```bash
+cp .env.example .env  # 首次执行；正式环境必须替换里面的口令和密钥
 cd backend && uv run alembic upgrade head
 cd backend && uv run pytest
 cd frontend && npm test -- --run
 cd frontend && npm run lint
 cd frontend && npm run build
-docker compose config
+docker compose --env-file .env config
 docker compose up -d --build
 curl http://localhost:8000/api/health
 curl http://localhost:8080/api/health
@@ -18,6 +19,8 @@ curl http://localhost:8080/api/health
 
 生产环境必须先确认：
 
+- `POSTGRES_PASSWORD` 不是示例值。
+- `DATABASE_URL` 使用正式数据库凭据。
 - `ADMIN_PASSWORD` 不是默认值。
 - `TOKEN_SECRET` 不是默认值。
 - `CORS_ORIGINS` 只包含正式前端/Nginx 域名。

@@ -78,7 +78,7 @@ Observed results:
 ## Recommended Next Work
 
 1. Run `docs/official-exam-uat-checklist.md` against the Docker/Nginx `8080` entrypoint.
-2. Before production use, set non-default `ADMIN_PASSWORD`, `TOKEN_SECRET`, and `CORS_ORIGINS`, then back up the database before running migrations.
+2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, `TOKEN_SECRET`, and `CORS_ORIGINS`, then back up the database before running migrations.
 3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
 
 ## Phase 7 — States & Polish（完成日期 2026-06-14）
@@ -103,3 +103,4 @@ Observed results:
 - `docker compose up -d --build` 已完成，backend 与 frontend 容器已重新创建。
 - `http://localhost:8000/api/health` 与 `http://localhost:8080/api/health` 均返回 `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`。
 - Docker build 期间 frontend build 仍有 Vite chunk size warning；这不是当前功能阻断项。
+- Compose no longer embeds default database/admin credentials; copy `.env.example` to `.env`, replace secrets, and use `docker compose --env-file .env config` for config validation.
