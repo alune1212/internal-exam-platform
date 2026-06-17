@@ -51,8 +51,8 @@ function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
           <span
             aria-hidden="true"
             className={cn(
-              "inline-block w-7 text-right font-mono text-[11px] uppercase tracking-[0.16em] transition-opacity",
-              isActive || item.activePattern?.test(pathname) ? "text-ink opacity-100" : "opacity-0",
+              "inline-block w-7 text-right font-mono text-[11px] uppercase tracking-[0.16em] transition-colors",
+              isActive || item.activePattern?.test(pathname) ? "text-ink" : "text-muted",
             )}
           >
             {item.mark}

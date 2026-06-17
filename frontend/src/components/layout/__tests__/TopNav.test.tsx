@@ -65,6 +65,38 @@ describe("TopNav", () => {
     expect(underline).toHaveClass("bg-ink");
   });
 
+  it("keeps desktop nav markers visible across route changes", () => {
+    const { rerender } = renderTopNav({
+      candidate,
+      onLogout: () => {},
+      initialEntry: "/practice",
+    });
+
+    const practiceMarker = screen
+      .getByRole("link", { name: "练习" })
+      .querySelector("span[aria-hidden='true']") as HTMLElement;
+    const examsMarker = screen
+      .getByRole("link", { name: "考试" })
+      .querySelector("span[aria-hidden='true']") as HTMLElement;
+    expect(practiceMarker).not.toHaveClass("opacity-0");
+    expect(examsMarker).not.toHaveClass("opacity-0");
+
+    rerender(
+      <MemoryRouter initialEntries={["/exams"]}>
+        <TopNav candidate={candidate} onLogout={() => {}} />
+      </MemoryRouter>,
+    );
+
+    const nextPracticeMarker = screen
+      .getByRole("link", { name: "练习" })
+      .querySelector("span[aria-hidden='true']") as HTMLElement;
+    const nextExamsMarker = screen
+      .getByRole("link", { name: "考试" })
+      .querySelector("span[aria-hidden='true']") as HTMLElement;
+    expect(nextPracticeMarker).not.toHaveClass("opacity-0");
+    expect(nextExamsMarker).not.toHaveClass("opacity-0");
+  });
+
   it("renders the candidate NamePlate when a candidate is logged in", () => {
     renderTopNav({ candidate, onLogout: () => {} });
     expect(screen.getByText("张敏")).toBeInTheDocument();
