@@ -4,6 +4,7 @@ export type ImportFailure = {
 };
 
 export type QuestionImportResult = {
+  batch_id: number;
   success_count: number;
   failed_count: number;
   failures: ImportFailure[];

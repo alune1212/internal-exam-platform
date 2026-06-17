@@ -3,7 +3,11 @@ import { Download, FileUp } from "lucide-react";
 import { useState } from "react";
 
 import { getErrorMessage } from "@/api/client";
-import { downloadImportTemplate, importQuestions } from "@/api/imports";
+import {
+  downloadImportFailureReport,
+  downloadImportTemplate,
+  importQuestions,
+} from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +33,15 @@ export function QuestionImportPage() {
       setNotice({ tone: "success", message: "模板已开始下载。" });
     } catch (error) {
       setNotice({ tone: "error", message: getErrorMessage(error, "模板下载失败") });
+    }
+  };
+
+  const handleDownloadFailureReport = async (batchId: number) => {
+    try {
+      await downloadImportFailureReport(batchId);
+      setNotice({ tone: "success", message: "失败明细已开始下载。" });
+    } catch (error) {
+      setNotice({ tone: "error", message: getErrorMessage(error, "失败明细下载失败") });
     }
   };
 
@@ -93,6 +106,18 @@ export function QuestionImportPage() {
             成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
             <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
           </p>
+          {mutation.data.failed_count > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => void handleDownloadFailureReport(mutation.data.batch_id)}
+            >
+              <Download data-icon="inline-start" />
+              下载失败明细
+            </Button>
+          ) : null}
           {mutation.data.failures.length ? (
             <ul className="flex flex-col gap-1 border-t border-hairline-soft pt-3 text-caption text-muted">
               {mutation.data.failures.map((failure: ImportFailure) => (

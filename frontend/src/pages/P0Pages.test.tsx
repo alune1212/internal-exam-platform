@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
 import { ApiError } from "@/api/client";
 import { getActiveExams, startExam } from "@/api/exams";
-import { getPracticeQuestions } from "@/api/questions";
+import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { ExamResultPage } from "@/pages/ExamResultPage";
 import { ExamTakingPage } from "@/pages/ExamTakingPage";
@@ -19,7 +19,7 @@ import { PracticePage } from "@/pages/PracticePage";
 import type { Attempt, AttemptResult } from "@/types/attempt";
 import type { Candidate } from "@/types/candidate";
 import type { Exam } from "@/types/exam";
-import type { Question } from "@/types/question";
+import type { PracticeQuestion } from "@/types/question";
 
 vi.mock("@/api/auth", () => ({
   loginCandidate: vi.fn(),
@@ -116,6 +116,8 @@ const exam: Exam = {
   },
   status: "published",
   show_answer_after_submit: true,
+  available_from: null,
+  available_until: null,
 };
 
 const secondExam: Exam = {
@@ -124,7 +126,7 @@ const secondExam: Exam = {
   title: "第二次内部考试",
 };
 
-const practiceQuestions: Question[] = [
+const practiceQuestions: PracticeQuestion[] = [
   {
     id: 201,
     question_type: "single",
@@ -132,8 +134,8 @@ const practiceQuestions: Question[] = [
     score: 2,
     status: "active",
     options: [
-      { id: 1, label: "A", content: "选项 A", is_correct: true, sort_order: 1 },
-      { id: 2, label: "B", content: "选项 B", is_correct: false, sort_order: 2 },
+      { id: 1, label: "A", content: "选项 A", sort_order: 1 },
+      { id: 2, label: "B", content: "选项 B", sort_order: 2 },
     ],
   },
 ];
@@ -172,6 +174,15 @@ describe("P0 pages", () => {
     vi.mocked(getAttemptResult).mockResolvedValue(result);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
     vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
+    vi.mocked(submitPracticeAnswer).mockResolvedValue({
+      question_id: 201,
+      selected_answer: "A",
+      correct_answer: "A",
+      is_correct: true,
+      score_awarded: 2,
+      score: 2,
+      analysis: "解析",
+    });
     vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
     vi.mocked(submitAttempt).mockResolvedValue(result);
     vi.mocked(startExam).mockResolvedValue({ attempt_id: 10 } as Awaited<
@@ -339,6 +350,25 @@ describe("P0 pages", () => {
     );
   });
 
+  it("submits practice answers without candidate_id in the request payload", async () => {
+    const user = userEvent.setup();
+    renderPage("practice", <PracticePage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    const optionA = await screen.findAllByRole("radio", { name: /选项 A：选项 A/ });
+    await user.click(optionA[0]);
+    await user.click(screen.getAllByRole("button", { name: "提交本题" })[0]);
+
+    await waitFor(() => expect(submitPracticeAnswer).toHaveBeenCalled());
+    expect(vi.mocked(submitPracticeAnswer).mock.calls[0][0]).toEqual({
+      question_id: 201,
+      selected_answer: "A",
+    });
+  });
+
   it("shows practice loading state before empty copy while questions are loading", async () => {
     vi.mocked(getPracticeQuestions).mockReturnValue(new Promise(() => {}));
 
@@ -361,6 +391,30 @@ describe("P0 pages", () => {
     const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
+  });
+
+  it("shows not-started and ended availability states in the exam list", async () => {
+    vi.mocked(getActiveExams).mockResolvedValue([
+      {
+        ...exam,
+        id: 3,
+        title: "稍后开放",
+        available_from: new Date(Date.now() + 60_000).toISOString(),
+      },
+      {
+        ...exam,
+        id: 4,
+        title: "已经结束",
+        available_until: new Date(Date.now() - 60_000).toISOString(),
+      },
+    ]);
+
+    renderPage("exams", <ExamListPage />);
+
+    expect(await screen.findByText("稍后开放")).toBeInTheDocument();
+    expect(screen.getByText("未开始")).toBeInTheDocument();
+    expect(screen.getByText("已结束")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "不可进入" }).length).toBe(2);
   });
 
   it("links in-progress exams directly to the existing attempt", async () => {

@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from io import BytesIO
 from typing import Any
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import DomainError
 from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
 from app.services.scoring_service import normalize_answer_set
@@ -15,6 +17,13 @@ VALID_STATUSES = {"active", "inactive"}
 DEFAULT_STATUS = "active"
 JUDGE_OPTIONS = [("A", "正确"), ("B", "错误")]
 JUDGE_ANSWER_MAP = {"true": "A", "false": "B"}
+
+
+class ImportBatchNotFoundError(DomainError):
+    status_code = 404
+
+    def __init__(self, batch_id: int) -> None:
+        super().__init__(f"导入批次 #{batch_id} 不存在")
 
 
 @dataclass(frozen=True)
@@ -60,20 +69,21 @@ def import_questions_from_workbook(
         imported_questions.append(_build_question(row))
 
     db.add_all(imported_questions)
-    db.add(
-        ImportBatch(
-            import_type="questions",
-            file_name=file_name,
-            total_count=parsed.total_count,
-            success_count=len(imported_questions),
-            failed_count=len(failures),
-            status="completed",
-            error_report=[failure.model_dump() for failure in failures],
-        )
+    batch = ImportBatch(
+        import_type="questions",
+        file_name=file_name,
+        total_count=parsed.total_count,
+        success_count=len(imported_questions),
+        failed_count=len(failures),
+        status="completed",
+        error_report=[failure.model_dump() for failure in failures],
     )
+    db.add(batch)
+    db.flush()
     db.commit()
 
     return QuestionImportResult(
+        batch_id=batch.id,
         success_count=len(imported_questions),
         failed_count=len(failures),
         failures=failures,
@@ -121,24 +131,43 @@ def import_candidates_from_workbook(
             existing_names_without_no.add(candidate.name)
 
     db.add_all(imported_candidates)
-    db.add(
-        ImportBatch(
-            import_type="candidates",
-            file_name=file_name,
-            total_count=parsed.total_count,
-            success_count=len(imported_candidates),
-            failed_count=len(failures),
-            status="completed",
-            error_report=[failure.model_dump() for failure in failures],
-        )
+    batch = ImportBatch(
+        import_type="candidates",
+        file_name=file_name,
+        total_count=parsed.total_count,
+        success_count=len(imported_candidates),
+        failed_count=len(failures),
+        status="completed",
+        error_report=[failure.model_dump() for failure in failures],
     )
+    db.add(batch)
+    db.flush()
     db.commit()
 
     return QuestionImportResult(
+        batch_id=batch.id,
         success_count=len(imported_candidates),
         failed_count=len(failures),
         failures=failures,
     )
+
+
+def generate_failure_report(db: Session, batch_id: int) -> BytesIO:
+    batch = db.get(ImportBatch, batch_id)
+    if batch is None:
+        raise ImportBatchNotFoundError(batch_id)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "失败明细"
+    sheet.append(["row_number", "reason"])
+    for failure in batch.error_report:
+        sheet.append([failure.get("row_number"), failure.get("reason")])
+
+    stream = BytesIO()
+    workbook.save(stream)
+    stream.seek(0)
+    return stream
 
 
 def validate_question_import_row(row: dict[str, Any]) -> str | None:

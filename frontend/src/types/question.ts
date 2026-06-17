@@ -10,7 +10,7 @@ export type QuestionOption = {
 
 export type QuestionOptionPayload = Omit<QuestionOption, "id">;
 
-export type Question = {
+export type AdminQuestion = {
   id: number;
   question_type: QuestionType | string;
   stem: string;
@@ -26,7 +26,15 @@ export type Question = {
   options: QuestionOption[];
 };
 
-export type QuestionPayload = Omit<Question, "id" | "options"> & {
+export type PracticeQuestionOption = Omit<QuestionOption, "is_correct">;
+
+export type PracticeQuestion = Omit<AdminQuestion, "analysis" | "options"> & {
+  options: PracticeQuestionOption[];
+};
+
+export type Question = AdminQuestion;
+
+export type QuestionPayload = Omit<AdminQuestion, "id" | "options"> & {
   options: QuestionOptionPayload[];
 };
 

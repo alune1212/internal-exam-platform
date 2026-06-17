@@ -28,7 +28,7 @@ import {
   sortByType,
 } from "@/lib/questionNavigation";
 import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
-import type { PracticeAnswerResult, Question } from "@/types/question";
+import type { PracticeAnswerResult, PracticeQuestion } from "@/types/question";
 
 type AnswerMap = Record<number, string>;
 type ResultMap = Record<number, PracticeAnswerResult>;
@@ -52,9 +52,9 @@ export function PracticePage() {
     },
   });
 
-  const sortedData = useMemo<Question[]>(() => sortByType(data), [data]);
+  const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data), [data]);
   const total = sortedData.length;
-  const activeQuestion: Question | undefined = sortedData[activeIndex];
+  const activeQuestion: PracticeQuestion | undefined = sortedData[activeIndex];
   const activeResult = activeQuestion ? results[activeQuestion.id] : undefined;
   const answeredCount = useMemo(
     () => sortedData.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0),
@@ -75,23 +75,22 @@ export function PracticePage() {
     [answers, sortedData, results],
   );
 
-  function handleSingleChange(question: Question, label: string) {
+  function handleSingleChange(question: PracticeQuestion, label: string) {
     setAnswers((current) => ({ ...current, [question.id]: label }));
   }
 
-  function handleMultipleChange(question: Question, label: string, checked: boolean) {
+  function handleMultipleChange(question: PracticeQuestion, label: string, checked: boolean) {
     setAnswers((current) => ({
       ...current,
       [question.id]: toggleMultipleAnswer(current[question.id], label, checked),
     }));
   }
 
-  function handleSubmit(question: Question) {
+  function handleSubmit(question: PracticeQuestion) {
     if (!candidate) {
       return;
     }
     mutation.mutate({
-      candidate_id: candidate.id,
       question_id: question.id,
       selected_answer: answers[question.id] ?? "",
     });

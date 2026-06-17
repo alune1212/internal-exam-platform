@@ -2,7 +2,6 @@ from pydantic import BaseModel
 
 
 class PracticeAnswerSubmitRequest(BaseModel):
-    candidate_id: int
     question_id: int
     selected_answer: str
 

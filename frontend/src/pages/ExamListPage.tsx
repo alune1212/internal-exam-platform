@@ -22,13 +22,34 @@ function resolveQuestionCount(rule: Record<string, unknown>): number | null {
   return null;
 }
 
+function resolveAvailability(exam: Exam, now = new Date()) {
+  const from = exam.available_from ? new Date(exam.available_from) : null;
+  const until = exam.available_until ? new Date(exam.available_until) : null;
+  if (from && now < from) {
+    return {
+      status: "not_started",
+      label: "未开始",
+      canEnter: false,
+      detail: from.toLocaleString(),
+    };
+  }
+  if (until && now > until) {
+    return { status: "ended", label: "已结束", canEnter: false, detail: until.toLocaleString() };
+  }
+  return {
+    status: "open",
+    label: "可进入",
+    canEnter: true,
+    detail: from?.toLocaleString() ?? null,
+  };
+}
+
 function ExamCard({ exam }: { exam: Exam }) {
   const isLive = exam.status === "active" || exam.status === "live";
   const hasInProgressAttempt =
     exam.latest_attempt_status === "in_progress" && exam.latest_attempt_id;
   const totalQuestions = resolveQuestionCount(exam.question_rule);
-  const startsAt =
-    typeof exam.question_rule.starts_at === "string" ? exam.question_rule.starts_at : null;
+  const availability = resolveAvailability(exam);
   const totalScore =
     typeof exam.question_rule.total_score === "number" ? exam.question_rule.total_score : null;
 
@@ -62,21 +83,28 @@ function ExamCard({ exam }: { exam: Exam }) {
       </dl>
       <div className="flex items-center justify-between gap-3">
         <p className="text-caption italic text-muted">
-          {startsAt ? `开始时间 · ${startsAt}` : "随时开考"}
+          {availability.detail ? `开放时间 · ${availability.detail}` : "随时开考"}
         </p>
-        <Button asChild size="sm">
-          <Link
-            to={
-              hasInProgressAttempt
-                ? `/exams/${exam.id}/taking?attemptId=${exam.latest_attempt_id}`
-                : `/exams/${exam.id}/start`
-            }
-          >
-            {hasInProgressAttempt ? "继续考试" : isLive ? "进入考试" : "查看说明"}
-            <ArrowUpRight data-icon="inline-end" />
-          </Link>
-        </Button>
+        {availability.canEnter ? (
+          <Button asChild size="sm">
+            <Link
+              to={
+                hasInProgressAttempt
+                  ? `/exams/${exam.id}/taking?attemptId=${exam.latest_attempt_id}`
+                  : `/exams/${exam.id}/start`
+              }
+            >
+              {hasInProgressAttempt ? "继续考试" : isLive ? "进入考试" : "查看说明"}
+              <ArrowUpRight data-icon="inline-end" />
+            </Link>
+          </Button>
+        ) : (
+          <Button type="button" size="sm" disabled>
+            不可进入
+          </Button>
+        )}
       </div>
+      <p className="text-caption uppercase tracking-[0.16em] text-muted">{availability.label}</p>
     </article>
   );
 }

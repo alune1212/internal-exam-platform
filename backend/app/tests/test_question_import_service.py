@@ -73,6 +73,7 @@ def test_import_questions_persists_valid_rows_and_import_batch(db: Session) -> N
 
     assert result.success_count == 2
     assert result.failed_count == 0
+    assert result.batch_id == batch.id
     assert [question.stem for question in questions] == [
         "以下哪项是正确做法？",
         "哪些属于安全要求？",

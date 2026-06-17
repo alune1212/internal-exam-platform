@@ -23,11 +23,11 @@ class PracticeQuestionNotFoundError(DomainError):
 
 
 def submit_practice_answer(
-    db: Session, payload: PracticeAnswerSubmitRequest
+    db: Session, candidate_id: int, payload: PracticeAnswerSubmitRequest
 ) -> PracticeAnswerResult:
-    candidate = db.get(Candidate, payload.candidate_id)
+    candidate = db.get(Candidate, candidate_id)
     if candidate is None or candidate.status != "active":
-        raise PracticeCandidateNotFoundError(payload.candidate_id)
+        raise PracticeCandidateNotFoundError(candidate_id)
 
     question = (
         db.query(Question)

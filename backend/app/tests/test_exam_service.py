@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from app.models import (
     ExamAttemptAnswer,
     ExamAttemptQuestion,
     ExamCandidateScope,
+    ExamQuestionPool,
     Question,
     QuestionOption,
 )
@@ -20,6 +23,7 @@ from app.services.exam_service import (
     CandidateNotFoundError,
     ExamFrozenError,
     ExamNotActiveError,
+    ExamNotAvailableError,
     ExamNotFoundError,
 )
 from app.tests.conftest import (
@@ -706,6 +710,88 @@ def test_update_exam_rejects_type_count_smaller_than_category_coverage(
 
     assert "single" in str(exc.value)
     assert "需要覆盖 2 个分类组合，当前配置 1 题" in str(exc.value)
+
+
+def test_update_exam_to_active_freezes_question_pool(db: Session) -> None:
+    exam = create_exam(
+        db,
+        status="draft",
+        question_rule={
+            "question_count": 2,
+            "total_score": 100,
+            "type_counts": {"single": 2, "multiple": 0, "judge": 0},
+        },
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    first = create_question_with_options(db, stem="发布前题目1", question_type="single")
+    second = create_question_with_options(
+        db, stem="发布前题目2", question_type="single"
+    )
+
+    exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+
+    rows = (
+        db.query(ExamQuestionPool)
+        .filter(ExamQuestionPool.exam_id == exam.id)
+        .order_by(ExamQuestionPool.sort_order)
+        .all()
+    )
+    assert [row.question_id for row in rows] == [first.id, second.id]
+
+
+def test_start_exam_uses_frozen_pool_after_question_bank_changes(db: Session) -> None:
+    exam = create_exam(
+        db,
+        status="draft",
+        question_rule={
+            "question_count": 2,
+            "total_score": 100,
+            "type_counts": {"single": 2, "multiple": 0, "judge": 0},
+        },
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    first = create_question_with_options(db, stem="发布前题目1", question_type="single")
+    second = create_question_with_options(
+        db, stem="发布前题目2", question_type="single"
+    )
+    exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+    first.status = "inactive"
+    second.stem = "发布后修改不应影响选题快照来源"
+    create_question_with_options(db, stem="发布后新增题", question_type="single")
+    db.commit()
+
+    result = exam_service.start_exam(db, exam.id, candidate.id)
+
+    assert sorted(question.stem_snapshot for question in result.questions) == [
+        "发布前题目1",
+        "发布后修改不应影响选题快照来源",
+    ]
+
+
+def test_start_exam_rejects_before_available_from(db: Session) -> None:
+    exam = create_exam(
+        db,
+        available_from=datetime.now(UTC) + timedelta(hours=1),
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+
+    with pytest.raises(ExamNotAvailableError, match="尚未开始"):
+        exam_service.start_exam(db, exam.id, candidate.id)
+
+
+def test_start_exam_rejects_after_available_until(db: Session) -> None:
+    exam = create_exam(
+        db,
+        available_until=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+
+    with pytest.raises(ExamNotAvailableError, match="已结束"):
+        exam_service.start_exam(db, exam.id, candidate.id)
 
 
 def test_start_exam_keeps_legacy_empty_question_rule_behavior(db: Session) -> None:

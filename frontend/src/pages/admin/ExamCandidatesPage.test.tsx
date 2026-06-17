@@ -10,6 +10,7 @@ import {
   getExamCandidates,
   importExamCandidates,
 } from "@/api/exams";
+import { downloadImportFailureReport } from "@/api/imports";
 import { ExamCandidatesPage } from "@/pages/admin/ExamCandidatesPage";
 
 vi.mock("@/api/exams", () => ({
@@ -17,6 +18,11 @@ vi.mock("@/api/exams", () => ({
   getExamCandidates: vi.fn(),
   importExamCandidates: vi.fn(),
   createRetakeGrant: vi.fn(),
+}));
+
+vi.mock("@/api/imports", () => ({
+  downloadImportTemplate: vi.fn(),
+  downloadImportFailureReport: vi.fn(),
 }));
 
 function renderPage() {
@@ -66,6 +72,7 @@ describe("ExamCandidatesPage", () => {
       },
     ]);
     vi.mocked(importExamCandidates).mockResolvedValue({
+      batch_id: 7,
       success_count: 1,
       failed_count: 0,
       failures: [],
@@ -112,5 +119,26 @@ describe("ExamCandidatesPage", () => {
 
     await waitFor(() => expect(importExamCandidates).toHaveBeenCalledWith("1", file));
     expect(await screen.findByText(/成功/)).toBeInTheDocument();
+  });
+
+  it("offers failure report download after scoped candidate import failures", async () => {
+    const user = userEvent.setup();
+    const file = new File(["x"], "candidates.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    vi.mocked(importExamCandidates).mockResolvedValueOnce({
+      batch_id: 9,
+      success_count: 0,
+      failed_count: 1,
+      failures: [{ row_number: 2, reason: "姓名不能为空" }],
+    });
+
+    renderPage();
+
+    await user.upload(await screen.findByLabelText("选择 Excel 文件"), file);
+    await user.click(screen.getByRole("button", { name: "上传应考人员" }));
+    await user.click(await screen.findByRole("button", { name: "下载失败明细" }));
+
+    expect(downloadImportFailureReport).toHaveBeenCalledWith(9);
   });
 });

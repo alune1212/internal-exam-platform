@@ -38,6 +38,8 @@ class Exam(TimestampMixin, Base):
         Boolean, nullable=False, default=True
     )
     show_ranking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    available_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    available_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     attempts = relationship("ExamAttempt", back_populates="exam")
     candidate_scopes = relationship(
@@ -46,6 +48,28 @@ class Exam(TimestampMixin, Base):
     retake_grants = relationship(
         "ExamRetakeGrant", back_populates="exam", cascade="all, delete-orphan"
     )
+    question_pool = relationship(
+        "ExamQuestionPool", back_populates="exam", cascade="all, delete-orphan"
+    )
+
+
+class ExamQuestionPool(TimestampMixin, Base):
+    __tablename__ = "exam_question_pool"
+    __table_args__ = (
+        UniqueConstraint("exam_id", "question_id", name="uq_exam_question_pool"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    exam_id: Mapped[int] = mapped_column(
+        ForeignKey("exam.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    exam = relationship("Exam", back_populates="question_pool")
+    question = relationship("Question")
 
 
 class ExamCandidateScope(TimestampMixin, Base):

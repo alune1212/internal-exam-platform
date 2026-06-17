@@ -6,6 +6,8 @@ export type Exam = {
   question_rule: Record<string, unknown>;
   status: string;
   show_answer_after_submit: boolean;
+  available_from?: string | null;
+  available_until?: string | null;
   latest_attempt_id?: number | null;
   latest_attempt_status?: string | null;
   has_unused_retake_grant?: boolean;

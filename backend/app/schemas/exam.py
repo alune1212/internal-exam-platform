@@ -14,6 +14,8 @@ class ExamBase(BaseModel):
     question_rule: dict[str, Any] = Field(default_factory=dict)
     status: str = "draft"
     show_answer_after_submit: bool = True
+    available_from: datetime | None = None
+    available_until: datetime | None = None
 
 
 class ExamCreate(ExamBase):
@@ -27,6 +29,8 @@ class ExamUpdate(BaseModel):
     question_rule: dict[str, Any] | None = None
     status: str | None = None
     show_answer_after_submit: bool | None = None
+    available_from: datetime | None = None
+    available_until: datetime | None = None
 
 
 class ExamRead(ExamBase, ORMModel):

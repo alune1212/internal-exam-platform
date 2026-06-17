@@ -51,6 +51,7 @@ def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> 
 
     assert result.success_count == 2
     assert result.failed_count == 0
+    assert result.batch_id == batch.id
     assert [(candidate.name, candidate.employee_no) for candidate in candidates] == [
         ("张三", "E001"),
         ("李四", None),

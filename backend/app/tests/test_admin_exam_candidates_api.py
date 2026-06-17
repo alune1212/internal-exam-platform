@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import create_app
-from app.models import Candidate, Exam, ExamAttempt, ExamCandidateScope
+from app.models import Candidate, Exam, ExamAttempt, ExamCandidateScope, ImportBatch
 from app.tests.conftest import build_workbook, create_question_with_options
 
 
@@ -88,6 +88,10 @@ def test_import_exam_candidates_adds_scope_rows() -> None:
     )
 
     assert resp.status_code == 200
+    data = resp.json()["data"]
+    batch = db.query(ImportBatch).one()
+    assert data["batch_id"] == batch.id
+    assert batch.import_type == "exam_candidates"
     assert db.query(Candidate).count() == 1
     assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
 

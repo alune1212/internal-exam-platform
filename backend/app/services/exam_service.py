@@ -18,7 +18,9 @@ from app.models import (
     ExamAttemptAnswer,
     ExamAttemptQuestion,
     ExamCandidateScope,
+    ExamQuestionPool,
     ExamRetakeGrant,
+    ImportBatch,
     Question,
 )
 from app.models.attempt import SUBMITTED_STATUSES
@@ -64,6 +66,13 @@ class ExamNotActiveError(DomainError):
     def __init__(self, exam_id: int) -> None:
         self.exam_id = exam_id
         super().__init__(f"考试 #{exam_id} 未处于 active 状态")
+
+
+class ExamNotAvailableError(DomainError):
+    status_code = 409
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
 
 
 class CandidateNotFoundError(DomainError):
@@ -226,13 +235,30 @@ def _validate_question_rule(question_rule: object) -> None:
         raise ExamConfigError("pass_score 不能大于 total_score")
 
 
+def _validate_exam_window(
+    available_from: datetime | None, available_until: datetime | None
+) -> None:
+    if (
+        available_from is not None
+        and available_until is not None
+        and ensure_aware(available_from) >= ensure_aware(available_until)
+    ):
+        raise ExamConfigError("开放开始时间必须早于结束时间")
+
+
 def _validate_exam_config_values(
-    *, duration_minutes: int, status: str, question_rule: object
+    *,
+    duration_minutes: int,
+    status: str,
+    question_rule: object,
+    available_from: datetime | None = None,
+    available_until: datetime | None = None,
 ) -> None:
     _require_positive_int(duration_minutes, "考试时长")
     if status not in VALID_EXAM_STATUSES:
         raise ExamConfigError("考试状态只能是 draft、active 或 archived")
     _validate_question_rule(question_rule)
+    _validate_exam_window(available_from, available_until)
 
 
 def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
@@ -450,6 +476,52 @@ def _validate_fixed_rule_capacity(db: Session, question_rule: dict) -> None:
     _select_questions_by_type(active_questions, rule)
 
 
+def _load_active_question_pool(db: Session) -> list[Question]:
+    questions = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.status == "active")
+        .order_by(Question.id)
+        .all()
+    )
+    return _deduplicate_questions_by_stem(questions)
+
+
+def _freeze_question_pool(
+    db: Session, exam: Exam, *, require_questions: bool = True
+) -> None:
+    questions = _load_active_question_pool(db)
+    if require_questions and not questions:
+        raise InsufficientQuestionsError("active 题目数量不足，无法发布考试")
+
+    db.query(ExamQuestionPool).filter(ExamQuestionPool.exam_id == exam.id).delete()
+    for index, question in enumerate(questions):
+        db.add(
+            ExamQuestionPool(
+                exam_id=exam.id,
+                question_id=question.id,
+                sort_order=index,
+            )
+        )
+
+
+def _exam_has_question_pool(db: Session, exam_id: int) -> bool:
+    return (
+        db.query(ExamQuestionPool.id)
+        .filter(ExamQuestionPool.exam_id == exam_id)
+        .first()
+        is not None
+    )
+
+
+def _assert_exam_available(exam: Exam) -> None:
+    now = datetime.now(UTC)
+    if exam.available_from is not None and now < ensure_aware(exam.available_from):
+        raise ExamNotAvailableError("考试尚未开始")
+    if exam.available_until is not None and now > ensure_aware(exam.available_until):
+        raise ExamNotAvailableError("考试已结束")
+
+
 def _ensure_exam_has_scope(db: Session, exam_id: int) -> None:
     scope_count = (
         db.query(func.count(ExamCandidateScope.id))
@@ -476,27 +548,25 @@ def _ensure_candidate_in_scope(db: Session, exam_id: int, candidate_id: int) -> 
 def _select_exam_questions(
     db: Session, exam: Exam, paper_seed: str | None = None
 ) -> list[Question]:
-    rule = _parse_fixed_paper_rule(exam.question_rule)
-    if rule is None:
-        questions = (
-            db.query(Question)
-            .options(selectinload(Question.options))
-            .filter(Question.status == "active")
-            .order_by(Question.id)
-            .all()
-        )
-        return _deduplicate_questions_by_stem(questions)
-
-    active_questions = (
-        db.query(Question)
-        .options(selectinload(Question.options))
-        .filter(Question.status == "active")
-        .order_by(Question.id)
+    pool_rows = (
+        db.query(ExamQuestionPool)
+        .filter(ExamQuestionPool.exam_id == exam.id)
+        .order_by(ExamQuestionPool.sort_order)
         .all()
     )
+    if pool_rows:
+        question_ids = [row.question_id for row in pool_rows]
+        base_questions = _load_questions_by_ids(db, question_ids)
+    else:
+        base_questions = _load_active_question_pool(db)
+
+    rule = _parse_fixed_paper_rule(exam.question_rule)
+    if rule is None:
+        return _deduplicate_questions_by_stem(base_questions)
+
     rng = random.Random(paper_seed)  # noqa: S311 - deterministic exam paper sampling, not a secret
-    rng.shuffle(active_questions)
-    selected = _select_questions_by_type(active_questions, rule)
+    rng.shuffle(base_questions)
+    selected = _select_questions_by_type(base_questions, rule)
     rng.shuffle(selected)
     return selected
 
@@ -622,6 +692,8 @@ def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
         duration_minutes=data["duration_minutes"],
         status=data["status"],
         question_rule=data["question_rule"],
+        available_from=data.get("available_from"),
+        available_until=data.get("available_until"),
     )
     exam = Exam(**data)
     db.add(exam)
@@ -644,18 +716,26 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
     next_duration_minutes = updates.get("duration_minutes", exam.duration_minutes)
     next_status = updates.get("status", exam.status)
     next_question_rule = updates.get("question_rule", exam.question_rule)
+    next_available_from = updates.get("available_from", exam.available_from)
+    next_available_until = updates.get("available_until", exam.available_until)
+    activating = updates.get("status") == "active" and exam.status != "active"
     _validate_exam_config_values(
         duration_minutes=next_duration_minutes,
         status=next_status,
         question_rule=next_question_rule,
+        available_from=next_available_from,
+        available_until=next_available_until,
     )
 
-    if updates.get("status") == "active" and exam.status != "active":
+    if activating:
         _ensure_exam_has_scope(db, exam.id)
         _validate_fixed_rule_capacity(db, next_question_rule)
 
     for field, value in updates.items():
         setattr(exam, field, value)
+
+    if activating:
+        _freeze_question_pool(db, exam)
 
     db.commit()
     return ExamRead.model_validate(exam)
@@ -848,8 +928,20 @@ def import_exam_candidates_from_workbook(
             db.add(ExamCandidateScope(exam_id=exam_id, candidate_id=candidate.id))
         success_count += 1
 
+    batch = ImportBatch(
+        import_type="exam_candidates",
+        file_name=file_name,
+        total_count=parsed.total_count,
+        success_count=success_count,
+        failed_count=len(failures),
+        status="completed",
+        error_report=[failure.model_dump() for failure in failures],
+    )
+    db.add(batch)
+    db.flush()
     db.commit()
     return QuestionImportResult(
+        batch_id=batch.id,
         success_count=success_count,
         failed_count=len(failures),
         failures=failures,
@@ -863,6 +955,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         raise ExamNotFoundError(exam_id)
     if exam.status != "active":
         raise ExamNotActiveError(exam_id)
+    _assert_exam_available(exam)
 
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
@@ -909,6 +1002,9 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     attempt_no = (existing_attempts[0].attempt_no if existing_attempts else 0) + 1
     attempt_kind = "retake" if submitted_attempts else "initial"
     paper_seed = uuid4().hex
+    if not _exam_has_question_pool(db, exam_id):
+        _freeze_question_pool(db, exam, require_questions=False)
+        db.flush()
     questions = _select_exam_questions(db, exam, paper_seed)
 
     # 持久化 exam 行锁相关状态，释放行锁

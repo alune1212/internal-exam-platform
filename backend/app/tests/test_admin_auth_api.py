@@ -15,6 +15,7 @@ from app.core.config import Settings, settings
 from app.core.database import Base, get_db
 from app.core.security import create_session_token
 from app.main import create_app
+from app.models import ImportBatch
 
 
 def _build_client() -> tuple[TestClient, Session]:
@@ -140,6 +141,43 @@ def test_admin_imports_requires_token() -> None:
     client, _ = _build_client()
     resp = client.get("/api/admin/imports/templates/questions")
     assert resp.status_code == 401
+
+
+def test_admin_import_failure_report_download_returns_workbook() -> None:
+    client, db = _build_client()
+    db.add(
+        ImportBatch(
+            import_type="questions",
+            file_name="questions.xlsx",
+            total_count=2,
+            success_count=1,
+            failed_count=1,
+            status="completed",
+            error_report=[{"row_number": 3, "reason": "题干不能为空"}],
+        )
+    )
+    db.commit()
+    batch = db.query(ImportBatch).one()
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    resp = client.get(
+        f"/api/admin/imports/{batch.id}/failure-report",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 200
+    assert (
+        resp.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = load_workbook(BytesIO(resp.content))
+    sheet = workbook.active
+    assert sheet.cell(1, 1).value == "row_number"
+    assert sheet.cell(2, 1).value == 3
+    assert sheet.cell(2, 2).value == "题干不能为空"
 
 
 def test_admin_candidate_template_download_returns_workbook() -> None:

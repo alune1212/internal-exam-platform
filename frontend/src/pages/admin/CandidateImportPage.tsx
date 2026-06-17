@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileUp } from "lucide-react";
+import { Download, FileUp } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { importCandidates } from "@/api/imports";
+import { downloadImportFailureReport, importCandidates } from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,10 @@ export function CandidateImportPage() {
       queryClient.invalidateQueries({ queryKey: ["absent-candidates"] });
     },
   });
+
+  const handleDownloadFailureReport = (batchId: number) => {
+    void downloadImportFailureReport(batchId);
+  };
 
   return (
     <div data-stagger className="flex max-w-3xl flex-col gap-8">
@@ -55,6 +59,18 @@ export function CandidateImportPage() {
             成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
             <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
           </p>
+          {mutation.data.failed_count > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={() => handleDownloadFailureReport(mutation.data.batch_id)}
+            >
+              <Download data-icon="inline-start" />
+              下载失败明细
+            </Button>
+          ) : null}
           {mutation.data.failures.length ? (
             <ul className="flex flex-col gap-1 border-t border-hairline-soft pt-3 text-caption text-muted">
               {mutation.data.failures.map((failure: ImportFailure) => (

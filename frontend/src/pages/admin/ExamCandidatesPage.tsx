@@ -12,7 +12,7 @@ import {
   removeExamCandidate,
 } from "@/api/exams";
 import { getErrorMessage } from "@/api/client";
-import { downloadImportTemplate } from "@/api/imports";
+import { downloadImportFailureReport, downloadImportTemplate } from "@/api/imports";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill } from "@/components/editorial/StatusPill";
@@ -82,6 +82,15 @@ export function ExamCandidatesPage() {
       setNotice({ tone: "success", message: "人员模板已开始下载。" });
     } catch (error) {
       setNotice({ tone: "error", message: getErrorMessage(error, "人员模板下载失败") });
+    }
+  };
+
+  const handleDownloadFailureReport = async (batchId: number) => {
+    try {
+      await downloadImportFailureReport(batchId);
+      setNotice({ tone: "success", message: "失败明细已开始下载。" });
+    } catch (error) {
+      setNotice({ tone: "error", message: getErrorMessage(error, "失败明细下载失败") });
     }
   };
 
@@ -221,11 +230,25 @@ export function ExamCandidatesPage() {
           </Button>
         </div>
         {importMutation.data ? (
-          <p className="text-body-sm text-muted">
-            成功 <span className="font-mono text-ink">{importMutation.data.success_count}</span>{" "}
-            行，失败{" "}
-            <span className="font-mono text-error">{importMutation.data.failed_count}</span> 行
-          </p>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <p className="text-body-sm text-muted">
+              成功 <span className="font-mono text-ink">{importMutation.data.success_count}</span>{" "}
+              行，失败{" "}
+              <span className="font-mono text-error">{importMutation.data.failed_count}</span> 行
+            </p>
+            {importMutation.data.failed_count > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => void handleDownloadFailureReport(importMutation.data.batch_id)}
+              >
+                <Download data-icon="inline-start" />
+                下载失败明细
+              </Button>
+            ) : null}
+          </div>
         ) : null}
         {importMutation.data?.failures.length ? (
           <ul className="flex flex-col gap-1 text-caption text-muted">
