@@ -1,6 +1,10 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import { getAdminExams } from "@/api/exams";
 import { getQuestionAccuracy } from "@/api/reports";
+import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { QuestionAccuracyRow } from "@/types/report";
@@ -50,15 +54,36 @@ const columns: ColumnDef<QuestionAccuracyRow>[] = [
 ];
 
 export function QuestionAccuracyPage() {
+  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (selectedExamId !== undefined || !exams.data) {
+      return;
+    }
+    setSelectedExamId(exams.data[0] ? String(exams.data[0].id) : null);
+  }, [exams.data, selectedExamId]);
+
   return (
     <ReportPage
       title="题目正确率"
       chapterLabel="CHAPTER 04 · REPORTS"
-      description="每道题被答对的比率。数字越高表示越简单。"
-      queryKey="question-accuracy"
-      queryFn={getQuestionAccuracy}
+      description="默认按单场考试查看题目正确率。数字越高表示越简单。"
+      queryKey={["question-accuracy", selectedExamId]}
+      queryFn={() =>
+        selectedExamId === undefined ? Promise.resolve([]) : getQuestionAccuracy(selectedExamId)
+      }
       columns={columns}
-      actions={<ReportExportButton />}
+      actions={
+        <>
+          <ExamReportFilter
+            exams={exams.data ?? []}
+            value={selectedExamId ?? null}
+            onChange={setSelectedExamId}
+          />
+          <ReportExportButton examId={selectedExamId ?? null} />
+        </>
+      }
     />
   );
 }

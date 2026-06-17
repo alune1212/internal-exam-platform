@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { QueryKey } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
@@ -9,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 interface ReportPageProps<TData> {
   title: string;
-  queryKey: string;
+  queryKey: string | QueryKey;
   queryFn: () => Promise<TData[]>;
   columns: ColumnDef<TData>[];
   actions?: ReactNode;
@@ -32,7 +33,8 @@ export function ReportPage<TData>({
   rowClassName,
   className,
 }: ReportPageProps<TData>) {
-  const { data = [], isLoading } = useQuery({ queryKey: [queryKey], queryFn });
+  const resolvedQueryKey = Array.isArray(queryKey) ? queryKey : [queryKey];
+  const { data = [], isLoading } = useQuery({ queryKey: resolvedQueryKey, queryFn });
 
   return (
     <section data-stagger className={cn("flex flex-col gap-8", className)}>

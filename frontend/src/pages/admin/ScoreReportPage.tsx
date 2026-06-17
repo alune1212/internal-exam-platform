@@ -1,6 +1,10 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import { getAdminExams } from "@/api/exams";
 import { getScoreReport } from "@/api/reports";
+import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { ScoreReportRow } from "@/types/report";
@@ -50,15 +54,36 @@ const columns: ColumnDef<ScoreReportRow>[] = [
 ];
 
 export function ScoreReportPage() {
+  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (selectedExamId !== undefined || !exams.data) {
+      return;
+    }
+    setSelectedExamId(exams.data[0] ? String(exams.data[0].id) : null);
+  }, [exams.data, selectedExamId]);
+
   return (
     <ReportPage
       title="个人成绩"
       chapterLabel="CHAPTER 04 · REPORTS"
-      description="每次考试的个人提交结果。"
-      queryKey="score-report"
-      queryFn={getScoreReport}
+      description="默认按单场考试查看个人提交结果，避免正式成绩混场。"
+      queryKey={["score-report", selectedExamId]}
+      queryFn={() =>
+        selectedExamId === undefined ? Promise.resolve([]) : getScoreReport(selectedExamId)
+      }
       columns={columns}
-      actions={<ReportExportButton />}
+      actions={
+        <>
+          <ExamReportFilter
+            exams={exams.data ?? []}
+            value={selectedExamId ?? null}
+            onChange={setSelectedExamId}
+          />
+          <ReportExportButton examId={selectedExamId ?? null} />
+        </>
+      }
     />
   );
 }

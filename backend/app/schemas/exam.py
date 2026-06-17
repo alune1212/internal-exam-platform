@@ -38,6 +38,8 @@ class ExamRead(ExamBase, ORMModel):
     latest_attempt_id: int | None = None
     latest_attempt_status: str | None = None
     has_unused_retake_grant: bool = False
+    question_pool_count: int = 0
+    availability_status: str = "open"
 
 
 class ExamStartRequest(BaseModel):

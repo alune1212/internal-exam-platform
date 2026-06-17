@@ -794,6 +794,27 @@ def test_start_exam_rejects_after_available_until(db: Session) -> None:
         exam_service.start_exam(db, exam.id, candidate.id)
 
 
+def test_start_exam_resumes_in_progress_attempt_after_available_until(
+    db: Session,
+) -> None:
+    exam = create_exam(
+        db,
+        available_until=datetime.now(UTC) + timedelta(hours=1),
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    first = exam_service.start_exam(db, exam.id, candidate.id)
+
+    exam.available_until = datetime.now(UTC) - timedelta(minutes=1)
+    db.commit()
+
+    second = exam_service.start_exam(db, exam.id, candidate.id)
+
+    assert second.attempt_id == first.attempt_id
+    assert second.ends_at == first.ends_at
+
+
 def test_start_exam_keeps_legacy_empty_question_rule_behavior(db: Session) -> None:
     exam = create_exam(db, question_rule={})
     candidate = create_candidate(db)

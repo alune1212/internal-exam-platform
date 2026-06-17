@@ -28,10 +28,10 @@ ATTENDANCE_STATUS_LABELS = {
 }
 
 
-def get_score_report(db: Session) -> list[ScoreReportRow]:
+def get_score_report(db: Session, exam_id: int | None = None) -> list[ScoreReportRow]:
     """成绩报表：所有已提交 attempt 的成绩汇总。"""
-    latest_submitted = latest_submitted_attempts(db)
-    rows = (
+    latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
+    query = (
         db.query(
             Candidate.name,
             Candidate.employee_no,
@@ -50,9 +50,10 @@ def get_score_report(db: Session) -> list[ScoreReportRow]:
             & (latest_submitted.c.attempt_no == ExamAttempt.attempt_no),
         )
         .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
-        .order_by(ExamAttempt.score.desc())
-        .all()
     )
+    if exam_id is not None:
+        query = query.filter(ExamAttempt.exam_id == exam_id)
+    rows = query.order_by(ExamAttempt.score.desc()).all()
 
     return [
         ScoreReportRow(
@@ -68,12 +69,14 @@ def get_score_report(db: Session) -> list[ScoreReportRow]:
     ]
 
 
-def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
+def get_question_accuracy(
+    db: Session, exam_id: int | None = None
+) -> list[QuestionAccuracyRow]:
     """题目正确率：基于快照统计每道原始题目的答对率。"""
     correct_expr = case((ExamAttemptAnswer.is_correct == True, 1), else_=0)  # noqa: E712
-    latest_submitted = latest_submitted_attempts(db)
+    latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
 
-    stats = (
+    query = (
         db.query(
             ExamAttemptQuestion.original_question_id,
             ExamAttemptQuestion.stem_snapshot,
@@ -90,11 +93,12 @@ def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
             latest_submitted.c.attempt_id == ExamAttempt.id,
         )
         .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
-        .group_by(
-            ExamAttemptQuestion.original_question_id, ExamAttemptQuestion.stem_snapshot
-        )
-        .all()
     )
+    if exam_id is not None:
+        query = query.filter(ExamAttempt.exam_id == exam_id)
+    stats = query.group_by(
+        ExamAttemptQuestion.original_question_id, ExamAttemptQuestion.stem_snapshot
+    ).all()
 
     result = [
         QuestionAccuracyRow(
@@ -112,10 +116,12 @@ def get_question_accuracy(db: Session) -> list[QuestionAccuracyRow]:
     return sorted(result, key=lambda r: r.accuracy_rate)
 
 
-def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
+def get_wrong_questions(
+    db: Session, exam_id: int | None = None
+) -> list[WrongQuestionRow]:
     """错题统计：答错次数最多的题目。"""
-    latest_submitted = latest_submitted_attempts(db)
-    rows = (
+    latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
+    query = (
         db.query(
             ExamAttemptQuestion.original_question_id,
             ExamAttemptQuestion.stem_snapshot,
@@ -137,7 +143,11 @@ def get_wrong_questions(db: Session) -> list[WrongQuestionRow]:
             ExamAttempt.status.in_(SUBMITTED_STATUSES),
             ExamAttemptAnswer.is_correct == False,  # noqa: E712
         )
-        .group_by(
+    )
+    if exam_id is not None:
+        query = query.filter(ExamAttempt.exam_id == exam_id)
+    rows = (
+        query.group_by(
             ExamAttemptQuestion.original_question_id,
             ExamAttemptQuestion.stem_snapshot,
             Question.category_1,
@@ -195,7 +205,7 @@ def get_absent_candidates(
                 .all()
             )
         elif status == "submitted":
-            latest_submitted = latest_submitted_attempts(db)
+            latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
             rows = (
                 base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
                 .join(
@@ -254,17 +264,19 @@ def get_absent_candidates(
     ]
 
 
-def latest_submitted_attempts(db: Session):
-    latest_attempt_no = (
-        db.query(
-            ExamAttempt.exam_id.label("exam_id"),
-            ExamAttempt.candidate_id.label("candidate_id"),
-            func.max(ExamAttempt.attempt_no).label("attempt_no"),
+def latest_submitted_attempts(db: Session, exam_id: int | None = None):
+    latest_attempt_no_query = db.query(
+        ExamAttempt.exam_id.label("exam_id"),
+        ExamAttempt.candidate_id.label("candidate_id"),
+        func.max(ExamAttempt.attempt_no).label("attempt_no"),
+    ).filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
+    if exam_id is not None:
+        latest_attempt_no_query = latest_attempt_no_query.filter(
+            ExamAttempt.exam_id == exam_id
         )
-        .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
-        .group_by(ExamAttempt.exam_id, ExamAttempt.candidate_id)
-        .subquery()
-    )
+    latest_attempt_no = latest_attempt_no_query.group_by(
+        ExamAttempt.exam_id, ExamAttempt.candidate_id
+    ).subquery()
     return (
         db.query(
             ExamAttempt.id.label("attempt_id"),
@@ -278,11 +290,12 @@ def latest_submitted_attempts(db: Session):
             & (latest_attempt_no.c.candidate_id == ExamAttempt.candidate_id)
             & (latest_attempt_no.c.attempt_no == ExamAttempt.attempt_no),
         )
+        .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
         .subquery()
     )
 
 
-def generate_report_workbook(db: Session) -> BytesIO:
+def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO:
     workbook = Workbook()
     workbook.remove(workbook.active)
 
@@ -300,7 +313,7 @@ def generate_report_workbook(db: Session) -> BytesIO:
                 row.total_score,
                 row.submitted_at.isoformat() if row.submitted_at else None,
             ]
-            for row in get_score_report(db)
+            for row in get_score_report(db, exam_id=exam_id)
         ],
     )
     _append_sheet(
@@ -315,7 +328,7 @@ def generate_report_workbook(db: Session) -> BytesIO:
                 row.total_count,
                 row.accuracy_rate,
             ]
-            for row in get_question_accuracy(db)
+            for row in get_question_accuracy(db, exam_id=exam_id)
         ],
     )
     _append_sheet(
@@ -324,7 +337,7 @@ def generate_report_workbook(db: Session) -> BytesIO:
         ["题目ID", "题干", "错误次数", "一级分类", "二级分类"],
         [
             [row.question_id, row.stem, row.wrong_count, row.category_1, row.category_2]
-            for row in get_wrong_questions(db)
+            for row in get_wrong_questions(db, exam_id=exam_id)
         ],
     )
     _append_sheet(
@@ -343,7 +356,7 @@ def generate_report_workbook(db: Session) -> BytesIO:
                 ),
             ]
             for status in ("not_started", "in_progress", "submitted")
-            for row in get_absent_candidates(db, status=status)
+            for row in get_absent_candidates(db, exam_id=exam_id, status=status)
         ],
     )
 

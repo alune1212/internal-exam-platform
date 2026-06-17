@@ -36,6 +36,8 @@ export type ExamUpdatePayload = {
   duration_minutes?: number;
   question_rule?: Record<string, unknown>;
   status?: string;
+  available_from?: string | null;
+  available_until?: string | null;
 };
 
 export function updateAdminExam(examId: string, payload: ExamUpdatePayload) {

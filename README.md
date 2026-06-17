@@ -2,7 +2,7 @@
 
 公司内部轻量级临时考试与刷题平台，用于快速组织内部考试、练习刷题、自动判分和基础报表统计。
 
-第一阶段已经形成可运行的考试闭环：后端 API、数据库模型、迁移、前端页面、Docker Compose 和项目文档。考试默认按固定 50 题等价试卷出题并保留题目快照；管理员使用签名 session token，考试名单按单场考试维护，报表支持单个 Excel 多 Sheet 导出。
+第一阶段已经形成可运行的考试闭环：后端 API、数据库模型、迁移、前端页面、Docker Compose 和项目文档。考试默认按固定 50 题等价试卷出题并保留题目快照；管理员使用签名 session token，考试名单按单场考试维护，发布时冻结题池，报表支持按考试过滤并导出单个 Excel 多 Sheet 工作簿。
 
 ## 技术栈
 
@@ -126,6 +126,8 @@ uv run pytest
 
 ```bash
 cd frontend
+npm test -- --run
+npm run lint
 npm run build
 ```
 
@@ -148,20 +150,23 @@ docker-compose config
 - 题库 Excel 导入行级校验、合法题目入库、选项入库、导入批次记录
 - 应参人员 Excel 导入行级校验、合法人员入库、导入批次记录
 - 单场考试应考名单导入会复用已有人员，并写入 `exam_candidate_scope`
-- 考试配置创建、更新、管理端列表和考试人端 active 列表入库
+- 题库导入、人员导入、单场考试名单导入均记录 `import_batch`，失败报告可下载 Excel 明细
+- 考试配置创建、更新、管理端列表和考试人端 active 列表入库，支持 `available_from` / `available_until` 开放窗口
+- 考试从 draft 发布为 active 时冻结 `exam_question_pool`；正式开始考试时只从该场 frozen pool 抽题
 - 开始考试时按 `question_rule` 生成固定 50 题等价试卷，题干去重、整数均分，创建 attempt 和题目快照，答案暂存入库，提交后按快照自动判分
 - 考试结果返回及格线和通过状态，当前固定试卷规则为总分 100、及格线 60
 - 到时自动提交后台检查、考试排名和管理端报表 SQL 查询
-- 管理端报表导出为单个 Excel 工作簿，包含成绩报表、题目正确率、错题统计和参考状态
+- 管理端报表支持按 `exam_id` 过滤，并导出为单个 Excel 工作簿，包含成绩报表、题目正确率、错题统计和参考状态
+- 练习模式通过 `X-Candidate-Token` 识别考生，练习题列表不返回正确答案和解析，提交后才返回解析
 - 管理员登录返回签名 session token，管理端 API 使用 `X-Admin-Token`
 - Academic Editorial 前端 redesign：设计令牌、UI primitives、candidate/admin layouts、P0/P1/P2 页面、空态/错态/加载态和考试快捷键
 
 ## 当前边界
 
-第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、考试配置、单场考试名单、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、基础报表和报表导出已经具备入库/查询闭环。仍未完成的是导入失败报告下载。接手实现真实业务时优先查看 `docs/handoff.md`。
+第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表和报表导出已经具备入库/查询闭环。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、消息通知或队列化导入。
 
 ## 后续开发计划
 
-1. 为题库导入增加失败报告下载。
-2. 继续增强导入结果的失败明细下载与前端入口。
+1. 正式使用前按 `docs/official-exam-uat-checklist.md` 走 Docker/Nginx 入口验收。
+2. 生产环境必须配置非默认 `ADMIN_PASSWORD`、`TOKEN_SECRET`、`CORS_ORIGINS`，并准备数据库备份。
 3. 如需扩展权限，仅增加轻量能力，不引入复杂 RBAC。

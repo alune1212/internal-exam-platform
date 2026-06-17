@@ -70,8 +70,29 @@ describe("ExamEditPage", () => {
       title: "安全知识竞赛",
       duration_minutes: 60,
       status: "draft",
+      available_from: null,
+      available_until: null,
       question_rule: fixedRule,
     });
+  });
+
+  it("saves available window fields", async () => {
+    const user = userEvent.setup();
+
+    renderExamEditPage();
+
+    await user.type(await screen.findByLabelText(/开放开始时间/), "2026-06-20T09:00");
+    await user.type(screen.getByLabelText(/开放结束时间/), "2026-06-20T10:00");
+    await user.click(screen.getByRole("button", { name: /保存配置/ }));
+
+    await waitFor(() => expect(updateAdminExam).toHaveBeenCalledTimes(1));
+    expect(updateAdminExam).toHaveBeenCalledWith(
+      "1",
+      expect.objectContaining({
+        available_from: expect.stringContaining("2026-06-20"),
+        available_until: expect.stringContaining("2026-06-20"),
+      }),
+    );
   });
 
   it("freezes duration and question rule after publishing", async () => {
@@ -83,7 +104,9 @@ describe("ExamEditPage", () => {
     expect(await screen.findByDisplayValue("安全知识竞赛")).toBeInTheDocument();
     expect(screen.getByDisplayValue("60")).toBeDisabled();
     expect(screen.getByDisplayValue(/"question_count": 50/)).toBeDisabled();
-    expect(screen.getByText("考试已发布，时长和抽题规则已冻结。")).toBeInTheDocument();
+    expect(
+      screen.getByText("考试已发布，题池、时长、抽题规则和应考名单已冻结。"),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /保存配置/ }));
 
@@ -91,6 +114,8 @@ describe("ExamEditPage", () => {
     expect(updateAdminExam).toHaveBeenCalledWith("1", {
       title: "安全知识竞赛",
       status: "active",
+      available_from: null,
+      available_until: null,
     });
   });
 });

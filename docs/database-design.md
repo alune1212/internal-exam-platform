@@ -49,7 +49,7 @@
 
 考试配置表。
 
-关键字段：`id`、`title`、`description`、`duration_minutes`、`question_rule`、`status`、`show_answer_after_submit`、`show_ranking`、`created_at`、`updated_at`。
+关键字段：`id`、`title`、`description`、`duration_minutes`、`question_rule`、`status`、`show_answer_after_submit`、`show_ranking`、`available_from`、`available_until`、`created_at`、`updated_at`。
 
 `question_rule` 当前支持固定 50 题试卷规则：
 
@@ -69,7 +69,21 @@
 - 固定试卷规则必须显式提供正整数 `question_count`、正整数 `total_score`，且 `type_counts.single`、`type_counts.multiple`、`type_counts.judge` 为非负整数并合计等于 `question_count`。
 - 固定试卷分值按 `total_score / question_count` 均分为整数；不能整除时余数按试卷顺序分配到前若干题。
 - 空 `{}` 保留旧行为：开始考试时抽取全部 active 题目。
+- `available_from` / `available_until` 只限制新开考；已有 `in_progress` attempt 仍按 `started_at + duration_minutes` 恢复和到时提交。
+- draft 切换 active 时冻结该考试题池；active 后 `duration_minutes` 和 `question_rule` 不允许修改。
 - 已生成的 attempt 仍以 `exam_attempt_question` 快照为准，不受后续 `question_rule` 或题库修改影响。
+
+### exam_question_pool
+
+考试发布后的冻结题池表。
+
+关键字段：`id`、`exam_id`、`question_id`、`sort_order`、`created_at`。
+
+说明：
+
+- 考试从 draft 发布到 active 时，从当时 active 题库写入本表。
+- 正式开始考试时先从本表取题，再按 `question_rule` 抽取等价试卷。
+- 保留 `exam_attempt_question` 快照机制；历史 attempt 仍以快照为准。
 
 ### exam_attempt
 
@@ -110,11 +124,21 @@
 
 关键字段：`id`、`candidate_id`、`question_id`、`selected_answer`、`is_correct`、`practiced_at`。
 
+说明：
+
+- 练习提交通过 `X-Candidate-Token` 解析当前考生，不接受请求体里的 `candidate_id`。
+- 练习题列表不返回正确答案和解析；提交练习答案后才返回 `correct_answer` 和 `analysis`。
+
 ### import_batch
 
 导入批次表。
 
 关键字段：`id`、`import_type`、`file_name`、`total_count`、`success_count`、`failed_count`、`status`、`error_report`、`created_at`。
+
+说明：
+
+- 题库导入、人员导入、单场考试名单导入均写入本表。
+- 失败报告下载基于本表生成 Excel，包含导入类型、文件名、总数、成功数、失败数、生成时间和逐行失败原因。
 
 ### exam_candidate_scope
 

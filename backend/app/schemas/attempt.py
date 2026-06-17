@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -48,7 +48,7 @@ class AnswerSaveResponse(BaseModel):
 
 
 class SubmitRequest(BaseModel):
-    submit_type: str = "manual"
+    submit_type: Literal["manual"] = "manual"
 
 
 class AttemptResultQuestion(BaseModel):

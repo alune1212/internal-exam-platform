@@ -69,6 +69,31 @@ def test_score_report_uses_latest_submitted_attempt(db: Session) -> None:
     assert row.score == 0
 
 
+def test_reports_filter_by_exam_id(db: Session) -> None:
+    exam, c1, _c2, r1, r2 = _setup_exam_with_candidates(db)
+    submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
+    submit_answers(db, r2.attempt_id, r2.questions, ["B", "B"])
+
+    second_exam = create_exam(db, title="第二场考试")
+    db.add(ExamCandidateScope(exam_id=second_exam.id, candidate_id=c1.id))
+    db.commit()
+    second_start = exam_service.start_exam(db, second_exam.id, c1.id)
+    submit_answers(db, second_start.attempt_id, second_start.questions, ["B", "B"])
+
+    first_scores = report_service.get_score_report(db, exam_id=exam.id)
+    second_scores = report_service.get_score_report(db, exam_id=second_exam.id)
+    second_accuracy = report_service.get_question_accuracy(db, exam_id=second_exam.id)
+    first_wrong = report_service.get_wrong_questions(db, exam_id=exam.id)
+
+    assert {row.exam_title for row in first_scores} == {"测试考试"}
+    assert {row.candidate_name for row in first_scores} == {"张三", "李四"}
+    assert [row.exam_title for row in second_scores] == ["第二场考试"]
+    assert second_scores[0].score == 0
+    assert all(row.total_count == 1 for row in second_accuracy)
+    assert all(row.correct_count == 0 for row in second_accuracy)
+    assert {row.stem for row in first_wrong} == {"题目A", "题目B"}
+
+
 # --- 题目正确率 ---
 
 
@@ -211,3 +236,21 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
         "考试分组",
         "参考状态",
     ]
+
+
+def test_report_workbook_filters_by_exam_id(db: Session) -> None:
+    from openpyxl import load_workbook
+
+    exam, c1, _c2, r1, _r2 = _setup_exam_with_candidates(db)
+    submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
+    second_exam = create_exam(db, title="第二场考试")
+    db.add(ExamCandidateScope(exam_id=second_exam.id, candidate_id=c1.id))
+    db.commit()
+    second_start = exam_service.start_exam(db, second_exam.id, c1.id)
+    submit_answers(db, second_start.attempt_id, second_start.questions, ["B", "B"])
+
+    workbook_stream = report_service.generate_report_workbook(db, exam_id=exam.id)
+    workbook = load_workbook(workbook_stream)
+
+    assert workbook["成绩报表"].cell(2, 4).value == "测试考试"
+    assert workbook["成绩报表"].cell(3, 4).value is None

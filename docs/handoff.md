@@ -13,8 +13,10 @@ Implemented foundations:
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
+- Failure report Excel download for question, candidate, and exam-candidate import batches.
 - Exam-scoped candidate list persistence via `exam_candidate_scope`, including import, removal, and retake grant endpoints.
-- Exam configuration create/update/list persistence and candidate-facing active exam listing.
+- Exam configuration create/update/list persistence, available time windows, and candidate-facing active exam listing.
+- Publish-time frozen question pool via `exam_question_pool`.
 - Exam start persistence with fixed 50-question equivalent paper generation, attempt creation, and question snapshots.
 - Answer autosave persistence and submit scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
@@ -24,37 +26,35 @@ Implemented foundations:
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
 - Time-based auto-submit background check.
-- Ranking, basic admin report SQL queries, and multi-sheet Excel report export.
+- Ranking, exam-filterable admin report SQL queries, and multi-sheet Excel report export.
 
 ## Verified Commands
 
-Verified on 2026-06-16:
+Quality gates verified on 2026-06-17:
 
 ```bash
 cd backend && uv run pytest
 cd frontend && npm test -- --run
 cd frontend && npm run lint
-cd frontend && npm run format:check
 cd frontend && npm run build
-docker compose up -d --build
-curl http://localhost:8000/api/health
-curl http://localhost:8080/api/health
 ```
 
 Observed results:
 
-- Backend tests: 97 passed, no warnings after adding `httpx2` for Starlette TestClient.
-- Frontend tests: 176 passed in the 2026-06-16 frontend polish verification run.
+- Backend tests: 135 passed.
+- Frontend tests: 189 passed. jsdom still logs the known `Not implemented: navigation to another Document` warning in the 401 redirect test.
 - Frontend lint: 0 errors and 0 warnings.
-- Frontend build: passed, with one Vite chunk size warning.
-- Docker Compose: PostgreSQL healthy; backend, frontend, and Nginx running.
-- `/api/health`: returned `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}` through backend and Nginx.
+- Frontend build: passed, with Vite dynamic-import/chunk-size warnings.
+- Docker Compose and `/api/health` should be rerun during the formal UAT pass in `docs/official-exam-uat-checklist.md`.
 
 ## Implemented Business Loop
 
 - Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
+- Import failure report download returns an Excel workbook with batch metadata and row-level failure details.
 - Exam configuration create/update/list services persist to the `exam` table, and active listing returns only `active` exams.
+- `available_from` and `available_until` limit new exam starts. Existing in-progress attempts can be resumed after `available_until` and still submit based on `started_at + duration_minutes`.
+- Publishing an exam from draft to active freezes the current active question bank into `exam_question_pool`; start exam samples from that frozen pool while keeping attempt question snapshots.
 - Exam start creates an in-progress attempt and stores question snapshots.
 - Non-empty `question_rule` with `question_count` uses fixed-paper mode. The admin editor default template is 50 questions, total score 100, pass score 60, and type counts `single: 30`, `multiple: 10`, `judge: 10`.
 - Fixed-paper rules must explicitly provide positive integer `question_count`, positive integer `total_score`, and `type_counts` whose `single`/`multiple`/`judge` values are non-negative integers summing to `question_count`.
@@ -66,17 +66,19 @@ Observed results:
 - The exam-taking page uses the final question primary action as “提交试卷”; earlier questions still show “下一题”.
 - Time-based auto-submit runs as an asyncio background task, checking every 30 seconds.
 - Ranking and reports (score, accuracy, wrong questions, absent candidates) use real SQL queries.
+- Score, accuracy, wrong-question, absent-candidate, and export reports support `exam_id` filtering. Global reports remain available as an optional view.
 - Report export returns one Excel workbook with sheets for score report, question accuracy, wrong questions, and absent candidates.
 - Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
+- Practice mode uses `X-Candidate-Token` for answer submission; practice question lists do not expose correct answers or analysis before submission.
 
 ## Known Gaps
 
-- Question import failure report download is not implemented.
+- No blocking P0 gap is currently documented in code. Production readiness still requires a real UAT pass through the Docker/Nginx `8080` entrypoint and production secrets/backup checks.
 
 ## Recommended Next Work
 
-1. Add question import failure report download.
-2. Add a visible download path for import failure reports in the admin UI.
+1. Run `docs/official-exam-uat-checklist.md` against the Docker/Nginx `8080` entrypoint.
+2. Before production use, set non-default `ADMIN_PASSWORD`, `TOKEN_SECRET`, and `CORS_ORIGINS`, then back up the database before running migrations.
 3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
 
 ## Phase 7 — States & Polish（完成日期 2026-06-14）

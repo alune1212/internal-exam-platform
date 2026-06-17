@@ -23,6 +23,22 @@ function resolveQuestionCount(rule: Record<string, unknown>): number | null {
 }
 
 function resolveAvailability(exam: Exam, now = new Date()) {
+  if (exam.availability_status === "not_started") {
+    return {
+      status: "not_started",
+      label: "未开始",
+      canEnter: false,
+      detail: exam.available_from ? new Date(exam.available_from).toLocaleString() : null,
+    };
+  }
+  if (exam.availability_status === "ended") {
+    return {
+      status: "ended",
+      label: "已结束",
+      canEnter: false,
+      detail: exam.available_until ? new Date(exam.available_until).toLocaleString() : null,
+    };
+  }
   const from = exam.available_from ? new Date(exam.available_from) : null;
   const until = exam.available_until ? new Date(exam.available_until) : null;
   if (from && now < from) {
@@ -50,6 +66,7 @@ function ExamCard({ exam }: { exam: Exam }) {
     exam.latest_attempt_status === "in_progress" && exam.latest_attempt_id;
   const totalQuestions = resolveQuestionCount(exam.question_rule);
   const availability = resolveAvailability(exam);
+  const canEnter = availability.canEnter || Boolean(hasInProgressAttempt);
   const totalScore =
     typeof exam.question_rule.total_score === "number" ? exam.question_rule.total_score : null;
 
@@ -85,7 +102,7 @@ function ExamCard({ exam }: { exam: Exam }) {
         <p className="text-caption italic text-muted">
           {availability.detail ? `开放时间 · ${availability.detail}` : "随时开考"}
         </p>
-        {availability.canEnter ? (
+        {canEnter ? (
           <Button asChild size="sm">
             <Link
               to={

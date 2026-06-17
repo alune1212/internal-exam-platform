@@ -17,6 +17,19 @@ function statusVariant(status: string): StatusPillVariant {
   return "default";
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "未设置";
+  }
+  return new Date(value).toLocaleString();
+}
+
+function availabilityLabel(status?: Exam["availability_status"]) {
+  if (status === "not_started") return "未开始";
+  if (status === "ended") return "已结束";
+  return "可进入";
+}
+
 const columns: ColumnDef<Exam>[] = [
   {
     accessorKey: "id",
@@ -52,6 +65,37 @@ const columns: ColumnDef<Exam>[] = [
       <StatusPill variant={statusVariant(row.original.status)}>{row.original.status}</StatusPill>
     ),
     meta: { mobilePriority: "primary", mobileLabel: "STATUS" },
+  },
+  {
+    id: "availability",
+    header: "OPEN WINDOW",
+    cell: ({ row }) => (
+      <div className="flex flex-col gap-1 text-body-sm">
+        <span>{availabilityLabel(row.original.availability_status)}</span>
+        <span className="text-caption text-muted">
+          {formatDateTime(row.original.available_from)} -{" "}
+          {formatDateTime(row.original.available_until)}
+        </span>
+      </div>
+    ),
+    meta: { mobileLabel: "OPEN WINDOW" },
+  },
+  {
+    id: "question_pool",
+    header: "POOL",
+    cell: ({ row }) => {
+      const count = row.original.question_pool_count ?? 0;
+      const frozen = row.original.status === "active" || count > 0;
+      return (
+        <div className="flex flex-col gap-1">
+          <StatusPill variant={frozen ? "success" : "default"}>
+            {frozen ? "已冻结" : "未冻结"}
+          </StatusPill>
+          <span className="text-caption text-muted">题池 {count}</span>
+        </div>
+      );
+    },
+    meta: { mobileLabel: "POOL" },
   },
 ];
 

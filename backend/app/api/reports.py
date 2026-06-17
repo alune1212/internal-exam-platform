@@ -19,23 +19,26 @@ router = APIRouter(prefix="/admin/reports", tags=["admin-reports"])
 
 @router.get("/scores", response_model=ApiResponse[list[ScoreReportRow]])
 def get_score_report(
+    exam_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[ScoreReportRow]]:
-    return ApiResponse(data=report_service.get_score_report(db))
+    return ApiResponse(data=report_service.get_score_report(db, exam_id=exam_id))
 
 
 @router.get("/question-accuracy", response_model=ApiResponse[list[QuestionAccuracyRow]])
 def get_question_accuracy(
+    exam_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[QuestionAccuracyRow]]:
-    return ApiResponse(data=report_service.get_question_accuracy(db))
+    return ApiResponse(data=report_service.get_question_accuracy(db, exam_id=exam_id))
 
 
 @router.get("/wrong-questions", response_model=ApiResponse[list[WrongQuestionRow]])
 def get_wrong_questions(
+    exam_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[WrongQuestionRow]]:
-    return ApiResponse(data=report_service.get_wrong_questions(db))
+    return ApiResponse(data=report_service.get_wrong_questions(db, exam_id=exam_id))
 
 
 @router.get("/absent-candidates", response_model=ApiResponse[list[AbsentCandidateRow]])
@@ -50,8 +53,10 @@ def get_absent_candidates(
 
 
 @router.get("/export")
-def export_report(db: Session = Depends(get_db)) -> StreamingResponse:
-    stream = report_service.generate_report_workbook(db)
+def export_report(
+    exam_id: int | None = None, db: Session = Depends(get_db)
+) -> StreamingResponse:
+    stream = report_service.generate_report_workbook(db, exam_id=exam_id)
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

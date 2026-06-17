@@ -5,8 +5,8 @@ import { getErrorMessage } from "@/api/client";
 import { downloadReportExport } from "@/api/reports";
 import { Button } from "@/components/ui/button";
 
-export function ReportExportButton() {
-  const mutation = useMutation({ mutationFn: downloadReportExport });
+export function ReportExportButton({ examId }: { examId?: string | null }) {
+  const mutation = useMutation({ mutationFn: () => downloadReportExport(examId) });
 
   return (
     <div className="flex flex-col items-start gap-2">
@@ -18,7 +18,7 @@ export function ReportExportButton() {
         onClick={() => mutation.mutate()}
       >
         <Download data-icon="inline-start" />
-        {mutation.isPending ? "导出中" : "导出全部报表"}
+        {mutation.isPending ? "导出中" : examId ? "导出当前考试" : "导出全部报表"}
       </Button>
       {mutation.isSuccess ? (
         <span className="text-caption text-success" role="alert">

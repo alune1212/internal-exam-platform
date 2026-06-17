@@ -1,6 +1,10 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
+import { getAdminExams } from "@/api/exams";
 import { getWrongQuestions } from "@/api/reports";
+import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import type { WrongQuestionRow } from "@/types/report";
@@ -41,15 +45,36 @@ const columns: ColumnDef<WrongQuestionRow>[] = [
 ];
 
 export function WrongQuestionPage() {
+  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (selectedExamId !== undefined || !exams.data) {
+      return;
+    }
+    setSelectedExamId(exams.data[0] ? String(exams.data[0].id) : null);
+  }, [exams.data, selectedExamId]);
+
   return (
     <ReportPage
       title="错题排行"
       chapterLabel="CHAPTER 04 · REPORTS"
-      description="答错次数最多的题目。优先用于复盘与培训。"
-      queryKey="wrong-questions"
-      queryFn={getWrongQuestions}
+      description="默认按单场考试查看错题排行。优先用于复盘与培训。"
+      queryKey={["wrong-questions", selectedExamId]}
+      queryFn={() =>
+        selectedExamId === undefined ? Promise.resolve([]) : getWrongQuestions(selectedExamId)
+      }
       columns={columns}
-      actions={<ReportExportButton />}
+      actions={
+        <>
+          <ExamReportFilter
+            exams={exams.data ?? []}
+            value={selectedExamId ?? null}
+            onChange={setSelectedExamId}
+          />
+          <ReportExportButton examId={selectedExamId ?? null} />
+        </>
+      }
     />
   );
 }

@@ -43,6 +43,7 @@ remark
 
 ```json
 {
+  "batch_id": 12,
   "success_count": 10,
   "failed_count": 1,
   "failures": [
@@ -53,6 +54,14 @@ remark
   ]
 }
 ```
+
+失败报告：
+
+- 题库导入、应参人员导入、单场考试名单导入都会写入 `import_batch`。
+- 可通过管理端导入结果入口或 `GET /api/admin/imports/{batch_id}/failure-report` 下载 Excel。
+- 工作簿包含 `导入批次` 和 `失败明细` 两个 sheet。
+- `导入批次` 包含导入类型、文件名、总数、成功数、失败数、生成时间。
+- `失败明细` 包含 `row_number` 和 `reason`；没有失败行时保留表头。
 
 ## 应参人员 Excel
 

@@ -7,26 +7,45 @@ import type {
   WrongQuestionRow,
 } from "@/types/report";
 
-export function getScoreReport() {
-  return apiRequest<ScoreReportRow[]>("/api/admin/reports/scores");
+function withExamFilter(path: string, examId?: string | null) {
+  if (!examId) {
+    return path;
+  }
+  const params = new URLSearchParams({ exam_id: examId });
+  return `${path}?${params.toString()}`;
 }
 
-export function getQuestionAccuracy() {
-  return apiRequest<QuestionAccuracyRow[]>("/api/admin/reports/question-accuracy");
+export function getScoreReport(examId?: string | null) {
+  return apiRequest<ScoreReportRow[]>(withExamFilter("/api/admin/reports/scores", examId));
 }
 
-export function getWrongQuestions() {
-  return apiRequest<WrongQuestionRow[]>("/api/admin/reports/wrong-questions");
+export function getQuestionAccuracy(examId?: string | null) {
+  return apiRequest<QuestionAccuracyRow[]>(
+    withExamFilter("/api/admin/reports/question-accuracy", examId),
+  );
+}
+
+export function getWrongQuestions(examId?: string | null) {
+  return apiRequest<WrongQuestionRow[]>(
+    withExamFilter("/api/admin/reports/wrong-questions", examId),
+  );
 }
 
 export type AttendanceStatus = "not_started" | "in_progress" | "submitted";
 
-export function getAbsentCandidates(status: AttendanceStatus = "not_started") {
-  return apiRequest<AbsentCandidateRow[]>(`/api/admin/reports/absent-candidates?status=${status}`);
+export function getAbsentCandidates(
+  status: AttendanceStatus = "not_started",
+  examId?: string | null,
+) {
+  const params = new URLSearchParams({ status });
+  if (examId) {
+    params.set("exam_id", examId);
+  }
+  return apiRequest<AbsentCandidateRow[]>(`/api/admin/reports/absent-candidates?${params}`);
 }
 
-export async function downloadReportExport(): Promise<void> {
-  const response = await fetch("/api/admin/reports/export", {
+export async function downloadReportExport(examId?: string | null): Promise<void> {
+  const response = await fetch(withExamFilter("/api/admin/reports/export", examId), {
     headers: { "X-Admin-Token": getAdminToken() ?? "" },
   });
   if (!response.ok) throw new Error("报表导出失败");

@@ -63,4 +63,29 @@ describe("AdminExamListPage", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("创建失败");
   });
+
+  it("shows open window and frozen pool status", async () => {
+    examApi.getAdminExams.mockResolvedValue([
+      {
+        id: 1,
+        title: "正式考试",
+        description: null,
+        duration_minutes: 60,
+        question_rule: {},
+        status: "active",
+        show_answer_after_submit: true,
+        available_from: "2026-06-20T01:00:00Z",
+        available_until: "2026-06-20T02:00:00Z",
+        availability_status: "open",
+        question_pool_count: 50,
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("正式考试")).toBeInTheDocument();
+    expect(screen.getByText("可进入")).toBeInTheDocument();
+    expect(screen.getByText("已冻结")).toBeInTheDocument();
+    expect(screen.getByText("题池 50")).toBeInTheDocument();
+  });
 });

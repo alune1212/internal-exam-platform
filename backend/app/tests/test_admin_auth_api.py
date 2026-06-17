@@ -15,7 +15,14 @@ from app.core.config import Settings, settings
 from app.core.database import Base, get_db
 from app.core.security import create_session_token
 from app.main import create_app
-from app.models import ImportBatch
+from app.models import ExamCandidateScope, ImportBatch
+from app.services import exam_service
+from app.tests.conftest import (
+    create_candidate,
+    create_exam,
+    create_question_with_options,
+    submit_answers,
+)
 
 
 def _build_client() -> tuple[TestClient, Session]:
@@ -174,10 +181,68 @@ def test_admin_import_failure_report_download_returns_workbook() -> None:
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     workbook = load_workbook(BytesIO(resp.content))
-    sheet = workbook.active
+    assert workbook.sheetnames == ["导入批次", "失败明细"]
+    meta = workbook["导入批次"]
+    assert meta.cell(1, 1).value == "字段"
+    assert meta.cell(1, 2).value == "值"
+    assert meta.cell(2, 1).value == "导入类型"
+    assert meta.cell(2, 2).value == "questions"
+    assert meta.cell(3, 2).value == "questions.xlsx"
+    assert meta.cell(4, 2).value == 2
+    assert meta.cell(5, 2).value == 1
+    assert meta.cell(6, 2).value == 1
+    sheet = workbook["失败明细"]
     assert sheet.cell(1, 1).value == "row_number"
     assert sheet.cell(2, 1).value == 3
     assert sheet.cell(2, 2).value == "题干不能为空"
+
+
+def test_admin_import_failure_report_returns_empty_detail_sheet_without_failures() -> (
+    None
+):
+    client, db = _build_client()
+    db.add(
+        ImportBatch(
+            import_type="exam_candidates",
+            file_name="名单.xlsx",
+            total_count=2,
+            success_count=2,
+            failed_count=0,
+            status="completed",
+            error_report=[],
+        )
+    )
+    db.commit()
+    batch = db.query(ImportBatch).one()
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    resp = client.get(
+        f"/api/admin/imports/{batch.id}/failure-report",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 200
+    workbook = load_workbook(BytesIO(resp.content))
+    assert workbook["导入批次"].cell(2, 2).value == "exam_candidates"
+    assert workbook["失败明细"].max_row == 1
+
+
+def test_admin_import_failure_report_returns_404_for_missing_batch() -> None:
+    client, _ = _build_client()
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    resp = client.get(
+        "/api/admin/imports/999/failure-report",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 404
 
 
 def test_admin_candidate_template_download_returns_workbook() -> None:
@@ -222,3 +287,37 @@ def test_admin_report_export_returns_workbook() -> None:
     )
     workbook = load_workbook(BytesIO(resp.content))
     assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "参考状态"]
+
+
+def test_admin_score_report_accepts_exam_filter() -> None:
+    client, db = _build_client()
+    first_exam = create_exam(db, title="第一场")
+    second_exam = create_exam(db, title="第二场")
+    candidate = create_candidate(db, employee_no="E001")
+    db.add_all(
+        [
+            ExamCandidateScope(exam_id=first_exam.id, candidate_id=candidate.id),
+            ExamCandidateScope(exam_id=second_exam.id, candidate_id=candidate.id),
+        ]
+    )
+    db.commit()
+    create_question_with_options(db)
+    first_start = exam_service.start_exam(db, first_exam.id, candidate.id)
+    submit_answers(db, first_start.attempt_id, first_start.questions, ["A"])
+    second_start = exam_service.start_exam(db, second_exam.id, candidate.id)
+    submit_answers(db, second_start.attempt_id, second_start.questions, ["B"])
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    resp = client.get(
+        "/api/admin/reports/scores",
+        params={"exam_id": first_exam.id},
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 200
+    rows = resp.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["exam_title"] == "第一场"

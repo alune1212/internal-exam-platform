@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 from typing import Any
@@ -158,11 +159,27 @@ def generate_failure_report(db: Session, batch_id: int) -> BytesIO:
         raise ImportBatchNotFoundError(batch_id)
 
     workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "失败明细"
-    sheet.append(["row_number", "reason"])
-    for failure in batch.error_report:
-        sheet.append([failure.get("row_number"), failure.get("reason")])
+    meta_sheet = workbook.active
+    meta_sheet.title = "导入批次"
+    meta_sheet.append(["字段", "值"])
+    meta_sheet.append(["导入类型", batch.import_type])
+    meta_sheet.append(["文件名", batch.file_name])
+    meta_sheet.append(["总数", batch.total_count])
+    meta_sheet.append(["成功数", batch.success_count])
+    meta_sheet.append(["失败数", batch.failed_count])
+    meta_sheet.append(["生成时间", datetime.now(UTC).isoformat()])
+
+    detail_sheet = workbook.create_sheet("失败明细")
+    detail_sheet.append(["row_number", "reason"])
+    for failure in batch.error_report or []:
+        detail_sheet.append([failure.get("row_number"), failure.get("reason")])
+
+    for sheet in workbook.worksheets:
+        for column_cells in sheet.columns:
+            max_length = max(len(str(cell.value or "")) for cell in column_cells)
+            sheet.column_dimensions[column_cells[0].column_letter].width = min(
+                max(max_length + 2, 10), 48
+            )
 
     stream = BytesIO()
     workbook.save(stream)

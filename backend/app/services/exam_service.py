@@ -522,6 +522,36 @@ def _assert_exam_available(exam: Exam) -> None:
         raise ExamNotAvailableError("考试已结束")
 
 
+def _exam_availability_status(exam: Exam) -> str:
+    now = datetime.now(UTC)
+    if exam.available_from is not None and now < ensure_aware(exam.available_from):
+        return "not_started"
+    if exam.available_until is not None and now > ensure_aware(exam.available_until):
+        return "ended"
+    return "open"
+
+
+def _question_pool_count(db: Session, exam_id: int) -> int:
+    return (
+        db.query(func.count(ExamQuestionPool.id))
+        .filter(ExamQuestionPool.exam_id == exam_id)
+        .scalar()
+        or 0
+    )
+
+
+def _build_exam_read(
+    db: Session, exam: Exam, updates: dict[str, object] | None = None
+) -> ExamRead:
+    data = {
+        "question_pool_count": _question_pool_count(db, exam.id),
+        "availability_status": _exam_availability_status(exam),
+    }
+    if updates:
+        data.update(updates)
+    return ExamRead.model_validate(exam).model_copy(update=data)
+
+
 def _ensure_exam_has_scope(db: Session, exam_id: int) -> None:
     scope_count = (
         db.query(func.count(ExamCandidateScope.id))
@@ -634,7 +664,7 @@ def _list_exams(db: Session, *, status: str | None = None) -> list[ExamRead]:
     query = db.query(Exam)
     if status is not None:
         query = query.filter(Exam.status == status)
-    return [ExamRead.model_validate(exam) for exam in query.order_by(Exam.id).all()]
+    return [_build_exam_read(db, exam) for exam in query.order_by(Exam.id).all()]
 
 
 def _build_exam_read_for_candidate(
@@ -659,12 +689,14 @@ def _build_exam_read_for_candidate(
     if latest and latest.status in SUBMITTED_STATUSES and not has_unused_retake_grant:
         return None
 
-    return ExamRead.model_validate(exam).model_copy(
-        update={
+    return _build_exam_read(
+        db,
+        exam,
+        {
             "latest_attempt_id": latest.id if latest else None,
             "latest_attempt_status": latest.status if latest else None,
             "has_unused_retake_grant": has_unused_retake_grant,
-        }
+        },
     )
 
 
@@ -699,7 +731,7 @@ def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
     db.add(exam)
     db.commit()
     db.refresh(exam)
-    return ExamRead.model_validate(exam)
+    return _build_exam_read(db, exam)
 
 
 def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
@@ -738,7 +770,8 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
         _freeze_question_pool(db, exam)
 
     db.commit()
-    return ExamRead.model_validate(exam)
+    db.refresh(exam)
+    return _build_exam_read(db, exam)
 
 
 def create_retake_grant(
@@ -955,7 +988,6 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         raise ExamNotFoundError(exam_id)
     if exam.status != "active":
         raise ExamNotActiveError(exam_id)
-    _assert_exam_available(exam)
 
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
@@ -998,6 +1030,8 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         )
         if retake_grant is None:
             raise AttemptAlreadySubmittedError(submitted_attempts[0].id)
+
+    _assert_exam_available(exam)
 
     attempt_no = (existing_attempts[0].attempt_no if existing_attempts else 0) + 1
     attempt_kind = "retake" if submitted_attempts else "initial"

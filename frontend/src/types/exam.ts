@@ -11,6 +11,8 @@ export type Exam = {
   latest_attempt_id?: number | null;
   latest_attempt_status?: string | null;
   has_unused_retake_grant?: boolean;
+  question_pool_count?: number;
+  availability_status?: "not_started" | "open" | "ended";
 };
 
 export type ExamCandidateRow = {

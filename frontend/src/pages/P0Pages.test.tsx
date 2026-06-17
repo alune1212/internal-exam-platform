@@ -423,6 +423,8 @@ describe("P0 pages", () => {
         ...exam,
         latest_attempt_id: 10,
         latest_attempt_status: "in_progress",
+        availability_status: "ended",
+        available_until: new Date(Date.now() - 60_000).toISOString(),
       },
     ]);
 

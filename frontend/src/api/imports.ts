@@ -1,4 +1,5 @@
 import { uploadRequest } from "@/api/client";
+import { getAdminToken } from "@/lib/adminSession";
 import type { QuestionImportResult } from "@/types/imports";
 
 export function importQuestions(file: File) {
@@ -10,7 +11,6 @@ export function importCandidates(examId: string, file: File) {
 }
 
 export async function downloadImportTemplate(type: "questions" | "candidates"): Promise<void> {
-  const { getAdminToken } = await import("@/lib/adminSession");
   const response = await fetch(`/api/admin/imports/templates/${type}`, {
     headers: { "X-Admin-Token": getAdminToken() ?? "" },
   });
@@ -25,7 +25,6 @@ export async function downloadImportTemplate(type: "questions" | "candidates"): 
 }
 
 export async function downloadImportFailureReport(batchId: number): Promise<void> {
-  const { getAdminToken } = await import("@/lib/adminSession");
   const response = await fetch(`/api/admin/imports/${batchId}/failure-report`, {
     headers: { "X-Admin-Token": getAdminToken() ?? "" },
   });

@@ -21,12 +21,27 @@ const STATUS_OPTIONS = [
   { value: "archived", label: "ENDED · 已结束", variant: "warning" },
 ] as const;
 
-const schema = z.object({
-  title: z.string().min(1, "请输入考试名称"),
-  duration_minutes: z.coerce.number().int().min(1, "时长必须 >= 1 分钟"),
-  status: z.enum(["draft", "active", "archived"]),
-  question_rule_json: z.string().min(2, "抽题规则不能为空"),
-});
+const schema = z
+  .object({
+    title: z.string().min(1, "请输入考试名称"),
+    duration_minutes: z.coerce.number().int().min(1, "时长必须 >= 1 分钟"),
+    status: z.enum(["draft", "active", "archived"]),
+    question_rule_json: z.string().min(2, "抽题规则不能为空"),
+    available_from: z.string(),
+    available_until: z.string(),
+  })
+  .superRefine((values, context) => {
+    if (!values.available_from || !values.available_until) {
+      return;
+    }
+    if (new Date(values.available_from) >= new Date(values.available_until)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["available_until"],
+        message: "结束时间必须晚于开始时间",
+      });
+    }
+  });
 
 type ExamEditForm = z.infer<typeof schema>;
 
@@ -46,6 +61,22 @@ function normalizeStatus(status: string): ExamEditForm["status"] {
   return STATUS_OPTIONS.some((option) => option.value === status)
     ? (status as ExamEditForm["status"])
     : "draft";
+}
+
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocalValue(value: string) {
+  return value ? new Date(value).toISOString() : null;
 }
 
 function StatusDropdown({
@@ -116,6 +147,8 @@ export function ExamEditPage() {
       duration_minutes: 60,
       status: "draft",
       question_rule_json: formatQuestionRule(DEFAULT_FIXED_RULE),
+      available_from: "",
+      available_until: "",
     },
   });
   const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
@@ -130,6 +163,8 @@ export function ExamEditPage() {
       const payload = {
         title: values.title,
         status: values.status,
+        available_from: fromDateTimeLocalValue(values.available_from),
+        available_until: fromDateTimeLocalValue(values.available_until),
       };
       if (!isPublished) {
         let questionRule: Record<string, unknown>;
@@ -165,6 +200,8 @@ export function ExamEditPage() {
       duration_minutes: currentExam.duration_minutes,
       status: normalizeStatus(currentExam.status),
       question_rule_json: formatQuestionRule(currentExam.question_rule),
+      available_from: toDateTimeLocalValue(currentExam.available_from),
+      available_until: toDateTimeLocalValue(currentExam.available_until),
     });
   }, [currentExam, form]);
 
@@ -230,6 +267,19 @@ export function ExamEditPage() {
             render={({ field }) => <StatusDropdown value={field.value} onChange={field.onChange} />}
           />
         </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="available_from">开放开始时间 · Available From</Label>
+          <Input id="available_from" type="datetime-local" {...form.register("available_from")} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="available_until">开放结束时间 · Available Until</Label>
+          <Input id="available_until" type="datetime-local" {...form.register("available_until")} />
+          {form.formState.errors.available_until ? (
+            <p className="text-body-sm text-error">
+              {form.formState.errors.available_until.message}
+            </p>
+          ) : null}
+        </div>
         <div className="flex flex-col gap-2 lg:col-span-2">
           <Label htmlFor="question_rule_json">抽题规则 · JSON</Label>
           <textarea
@@ -241,8 +291,14 @@ export function ExamEditPage() {
             {...form.register("question_rule_json")}
           />
           {isPublished ? (
-            <p className="text-body-sm text-muted">考试已发布，时长和抽题规则已冻结。</p>
-          ) : null}
+            <p className="text-body-sm text-muted">
+              考试已发布，题池、时长、抽题规则和应考名单已冻结。
+            </p>
+          ) : (
+            <p className="text-body-sm text-muted">
+              切换为 active 会冻结题池、时长、抽题规则和应考名单。
+            </p>
+          )}
           {form.formState.errors.question_rule_json ? (
             <p className="text-body-sm text-error">
               {form.formState.errors.question_rule_json.message}
