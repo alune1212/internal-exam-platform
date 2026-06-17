@@ -314,6 +314,8 @@ def _extract_options(row: dict[str, Any], question_type: str) -> list[tuple[str,
 
 
 def _text(value: Any) -> str:
+    if value is None:
+        return ""
     return str(value).strip()
 
 

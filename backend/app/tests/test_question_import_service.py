@@ -137,6 +137,34 @@ def test_import_questions_skips_invalid_rows_and_records_failures(db: Session) -
     ]
 
 
+def test_import_questions_rejects_blank_required_cells(db: Session) -> None:
+    workbook = build_workbook(
+        QUESTION_HEADERS,
+        [
+            {
+                "question_type": "single",
+                "stem": None,
+                "option_a": "正确选项",
+                "option_b": "错误选项",
+                "correct_answer": "A",
+                "score": 1,
+                "status": "active",
+            },
+        ],
+    )
+
+    result = import_questions_from_workbook(db, workbook, file_name="blank.xlsx")
+
+    questions = db.scalars(select(Question)).all()
+    batch = db.scalars(select(ImportBatch)).one()
+
+    assert result.success_count == 0
+    assert result.failed_count == 1
+    assert result.failures[0].reason == "题干不能为空"
+    assert questions == []
+    assert batch.error_report == [{"row_number": 2, "reason": "题干不能为空"}]
+
+
 def test_import_questions_marks_judge_answer_from_true_false(db: Session) -> None:
     workbook = build_workbook(
         QUESTION_HEADERS,
