@@ -275,6 +275,25 @@ describe("P0 pages", () => {
     ]);
   });
 
+  it("uses the public manual submit contract when the exam timer expires", async () => {
+    const expiredAt = new Date().toISOString();
+    vi.mocked(getAttempt).mockResolvedValue({
+      ...attempt,
+      ends_at: expiredAt,
+      server_now: expiredAt,
+    });
+    vi.mocked(submitAttempt).mockReturnValue(new Promise(() => {}));
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    await waitFor(() => expect(submitAttempt).toHaveBeenCalledWith("10", "manual"));
+  });
+
   it("selects the current exam option with an A-D keyboard shortcut", async () => {
     const user = userEvent.setup();
 

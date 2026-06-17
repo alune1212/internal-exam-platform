@@ -169,19 +169,15 @@ def _build_options_snapshot(options: list) -> list[dict]:
     ]
 
 
-def _is_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
 def _require_positive_int(value: object, field_name: str) -> int:
-    if not _is_int(value) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         separator = "" if field_name == "考试时长" else " "
         raise ExamConfigError(f"{field_name}{separator}必须为正整数")
     return value
 
 
 def _require_non_negative_int(value: object, field_name: str) -> int:
-    if not _is_int(value) or value < 0:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ExamConfigError(f"{field_name} 必须为非负整数")
     return value
 
@@ -543,7 +539,7 @@ def _question_pool_count(db: Session, exam_id: int) -> int:
 def _build_exam_read(
     db: Session, exam: Exam, updates: dict[str, object] | None = None
 ) -> ExamRead:
-    data = {
+    data: dict[str, object] = {
         "question_pool_count": _question_pool_count(db, exam.id),
         "availability_status": _exam_availability_status(exam),
     }

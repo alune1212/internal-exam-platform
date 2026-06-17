@@ -89,7 +89,11 @@ def downgrade() -> None:
     op.create_index(
         op.f("ix_question_question_type"), "question", ["question_type"], unique=False
     )
-    op.drop_constraint(None, "exam_attempt_question", type_="foreignkey")
+    op.drop_constraint(
+        op.f("exam_attempt_question_original_question_id_fkey"),
+        "exam_attempt_question",
+        type_="foreignkey",
+    )
     op.create_foreign_key(
         op.f("exam_attempt_question_original_question_id_fkey"),
         "exam_attempt_question",
@@ -127,8 +131,16 @@ def downgrade() -> None:
         ["attempt_question_id"],
         postgresql_nulls_not_distinct=False,
     )
-    op.drop_constraint(None, "exam_attempt", type_="foreignkey")
-    op.drop_constraint(None, "exam_attempt", type_="foreignkey")
+    op.drop_constraint(
+        op.f("exam_attempt_candidate_id_fkey"),
+        "exam_attempt",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        op.f("exam_attempt_exam_id_fkey"),
+        "exam_attempt",
+        type_="foreignkey",
+    )
     op.create_foreign_key(
         op.f("exam_attempt_candidate_id_fkey"),
         "exam_attempt",

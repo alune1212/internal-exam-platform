@@ -61,7 +61,7 @@ export function ExamTakingPage() {
   });
 
   const submitMutation = useMutation({
-    mutationFn: async (submitType: "manual" | "auto" = "manual") => {
+    mutationFn: async (submitType: "manual" = "manual") => {
       if (!attempt) {
         return null;
       }
@@ -92,7 +92,7 @@ export function ExamTakingPage() {
   );
 
   const requestSubmit = useCallback(
-    (submitType: "manual" | "auto") => {
+    (submitType: "manual") => {
       if (submitStartedRef.current || submitMutation.isPending) {
         return;
       }
@@ -157,7 +157,7 @@ export function ExamTakingPage() {
       return;
     }
     autoSubmittedRef.current = true;
-    requestSubmit("auto");
+    requestSubmit("manual");
   }, [attempt, remainingSeconds, requestSubmit, submitMutation.isPending]);
 
   const sortedQuestions: AttemptQuestion[] = attempt

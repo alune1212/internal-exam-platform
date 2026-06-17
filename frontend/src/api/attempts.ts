@@ -19,7 +19,7 @@ export function saveAttemptAnswers(attemptId: string, answers: AnswerSaveItem[])
   );
 }
 
-export function submitAttempt(attemptId: string, submitType: "manual" | "auto" = "manual") {
+export function submitAttempt(attemptId: string, submitType: "manual" = "manual") {
   return apiRequest<AttemptResult>(`/api/attempts/${attemptId}/submit`, {
     method: "POST",
     body: JSON.stringify({ submit_type: submitType }),
