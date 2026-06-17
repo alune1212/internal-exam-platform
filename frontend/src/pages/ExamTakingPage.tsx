@@ -342,7 +342,8 @@ export function ExamTakingPage() {
     );
   }
 
-  const isMultiple = activeQuestion.question_type === "multiple";
+  const questionType = activeQuestion.question_type as "single" | "multiple" | "judge";
+  const isMultiple = questionType === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
   const perTypeNumber = perTypeIndexOf(sortedQuestions, activeQuestion.id);
@@ -389,7 +390,7 @@ export function ExamTakingPage() {
             remainingSeconds={remainingSeconds}
             stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem_snapshot }}
             options={options}
-            selectionType={isMultiple ? "multiple" : "single"}
+            selectionType={questionType}
             onSelectOption={handleSelectOption}
             nav={{
               onPrev: goPrev,
@@ -421,7 +422,7 @@ export function ExamTakingPage() {
           remainingSeconds={remainingSeconds}
           stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem_snapshot }}
           options={options}
-          selectionType={isMultiple ? "multiple" : "single"}
+          selectionType={questionType}
           onSelectOption={handleSelectOption}
           nav={{
             onPrev: goPrev,

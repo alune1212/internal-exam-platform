@@ -1,3 +1,5 @@
+import { Check, X } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 export type OptionCardProps = {
@@ -7,6 +9,7 @@ export type OptionCardProps = {
   onSelect: (label: string) => void;
   disabled?: boolean;
   selectionRole?: "radio" | "checkbox";
+  questionType?: "single" | "multiple" | "judge";
 };
 
 export function OptionCard({
@@ -16,7 +19,10 @@ export function OptionCard({
   onSelect,
   disabled,
   selectionRole = "radio",
+  questionType = "single",
 }: OptionCardProps) {
+  const isJudge = questionType === "judge";
+
   return (
     <button
       type="button"
@@ -26,22 +32,49 @@ export function OptionCard({
       disabled={disabled}
       onClick={() => onSelect(label)}
       className={cn(
-        "flex min-h-12 w-full items-center gap-3 rounded-md border px-4 py-3 text-left md:min-h-14",
+        "flex w-full items-center gap-3 border px-4 py-3 text-left",
         "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
         "disabled:cursor-not-allowed disabled:opacity-50",
+        isJudge
+          ? "min-h-14 justify-center rounded-lg border-[1.5px] text-center md:min-h-16"
+          : "min-h-12 rounded-md md:min-h-14",
         selected ? "border-ink bg-surface-card ring-1 ring-ink" : "border-hairline bg-canvas",
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
-          "font-mono text-caption font-semibold tabular-nums",
-          selected ? "bg-ink text-canvas" : "border border-hairline bg-canvas text-ink",
-        )}
-      >
-        {label}
-      </span>
+      {isJudge ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+            selected ? "bg-ink text-canvas" : "border border-hairline bg-canvas text-muted",
+          )}
+        >
+          {label === "A" ? (
+            <Check className="h-3 w-3" strokeWidth={3} />
+          ) : (
+            <X className="h-3 w-3" strokeWidth={3} />
+          )}
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "inline-flex h-6 w-6 shrink-0 items-center justify-center",
+            "font-mono text-caption font-semibold tabular-nums",
+            selectionRole === "checkbox"
+              ? cn(
+                  "rounded-sm",
+                  selected ? "bg-ink text-canvas" : "border border-hairline bg-canvas text-ink",
+                )
+              : cn(
+                  "rounded-full",
+                  selected ? "bg-ink text-canvas" : "border border-hairline bg-canvas text-ink",
+                ),
+          )}
+        >
+          {label}
+        </span>
+      )}
       <span className="flex-1 text-body leading-relaxed text-ink">{content}</span>
     </button>
   );

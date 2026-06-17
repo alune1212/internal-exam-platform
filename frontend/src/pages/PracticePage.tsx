@@ -167,7 +167,8 @@ export function PracticePage() {
     );
   }
 
-  const isMultiple = activeQuestion.question_type === "multiple";
+  const questionType = activeQuestion.question_type as "single" | "multiple" | "judge";
+  const isMultiple = questionType === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
   const stemChapterLabel = `CHAPTER ${String(
@@ -235,7 +236,7 @@ export function PracticePage() {
             remainingSeconds={Number.POSITIVE_INFINITY}
             stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
             options={options}
-            selectionType={isMultiple ? "multiple" : "single"}
+            selectionType={questionType}
             onSelectOption={handleSelectOption}
             nav={{
               onPrev: goPrev,
@@ -281,7 +282,7 @@ export function PracticePage() {
           remainingSeconds={Number.POSITIVE_INFINITY}
           stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
           options={options}
-          selectionType={isMultiple ? "multiple" : "single"}
+          selectionType={questionType}
           onSelectOption={handleSelectOption}
           nav={{
             onPrev: goPrev,
