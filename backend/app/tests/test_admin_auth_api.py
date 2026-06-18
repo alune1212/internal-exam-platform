@@ -1,6 +1,7 @@
 """admin 鉴权集成测试。"""
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import pytest
@@ -13,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings, settings
 from app.core.database import Base, get_db
-from app.core.security import create_session_token
+from app.core.security import _sign, create_session_token, verify_session_token
 from app.main import create_app
 from app.models import ExamCandidateScope, ImportBatch
 from app.services import exam_service
@@ -118,6 +119,19 @@ def test_admin_exams_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     assert resp.status_code == 401
+
+
+def test_admin_token_rejects_future_issued_at() -> None:
+    issued_at = int((datetime.now(UTC) + timedelta(hours=1)).timestamp())
+    payload = f"{settings.admin_username}.{issued_at}.nonce"
+    token = f"{payload}.{_sign(payload, secret=settings.token_secret)}"
+
+    assert (
+        verify_session_token(
+            token, subject=settings.admin_username, secret=settings.token_secret
+        )
+        is False
+    )
 
 
 def test_production_rejects_default_admin_password_and_token_secret() -> None:

@@ -2,7 +2,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ImportBatch, Question, QuestionOption
-from app.services.import_service import import_questions_from_workbook
+from app.services.import_service import (
+    generate_failure_report,
+    import_questions_from_workbook,
+)
 from app.services.question_service import list_questions
 from app.tests.conftest import build_workbook
 
@@ -135,6 +138,28 @@ def test_import_questions_skips_invalid_rows_and_records_failures(db: Session) -
     assert batch.error_report == [
         {"row_number": 3, "reason": "正确答案必须存在于选项中"}
     ]
+
+
+def test_failure_report_escapes_formula_like_file_name(db: Session) -> None:
+    from openpyxl import load_workbook
+
+    db.add(
+        ImportBatch(
+            import_type="questions",
+            file_name='=HYPERLINK("http://example.test")',
+            total_count=1,
+            success_count=0,
+            failed_count=1,
+            status="completed",
+            error_report=[{"row_number": 2, "reason": "题干不能为空"}],
+        )
+    )
+    db.commit()
+    batch = db.scalars(select(ImportBatch)).one()
+
+    workbook = load_workbook(generate_failure_report(db, batch.id), data_only=False)
+
+    assert workbook["导入批次"].cell(3, 2).value.startswith("'=")
 
 
 def test_import_questions_rejects_blank_required_cells(db: Session) -> None:

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError
 from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
+from app.services.excel_security import escape_excel_cell
 from app.services.scoring_service import normalize_answer_set
 
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
@@ -163,7 +164,7 @@ def generate_failure_report(db: Session, batch_id: int) -> BytesIO:
     meta_sheet.title = "导入批次"
     meta_sheet.append(["字段", "值"])
     meta_sheet.append(["导入类型", batch.import_type])
-    meta_sheet.append(["文件名", batch.file_name])
+    meta_sheet.append(["文件名", escape_excel_cell(batch.file_name)])
     meta_sheet.append(["总数", batch.total_count])
     meta_sheet.append(["成功数", batch.success_count])
     meta_sheet.append(["失败数", batch.failed_count])
@@ -172,7 +173,12 @@ def generate_failure_report(db: Session, batch_id: int) -> BytesIO:
     detail_sheet = workbook.create_sheet("失败明细")
     detail_sheet.append(["row_number", "reason"])
     for failure in batch.error_report or []:
-        detail_sheet.append([failure.get("row_number"), failure.get("reason")])
+        detail_sheet.append(
+            [
+                escape_excel_cell(failure.get("row_number")),
+                escape_excel_cell(failure.get("reason")),
+            ]
+        )
 
     for sheet in workbook.worksheets:
         for column_cells in sheet.columns:

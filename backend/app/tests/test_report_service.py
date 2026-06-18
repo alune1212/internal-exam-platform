@@ -238,6 +238,26 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
     ]
 
 
+def test_report_workbook_escapes_formula_like_text(db: Session) -> None:
+    from openpyxl import load_workbook
+
+    exam = create_exam(db, title="=cmd")
+    candidate = create_candidate(db, name='=HYPERLINK("http://example.test")')
+    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.commit()
+    create_question_with_options(db, stem="+SUM(1,1)")
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    submit_answers(db, start.attempt_id, start.questions, ["B"])
+
+    workbook_stream = report_service.generate_report_workbook(db, exam_id=exam.id)
+    workbook = load_workbook(workbook_stream, data_only=False)
+
+    assert workbook["成绩报表"].cell(2, 1).value.startswith("'=")
+    assert workbook["成绩报表"].cell(2, 4).value == "'=cmd"
+    assert workbook["题目正确率"].cell(2, 2).value == "'+SUM(1,1)"
+    assert workbook["错题统计"].cell(2, 2).value == "'+SUM(1,1)"
+
+
 def test_report_workbook_filters_by_exam_id(db: Session) -> None:
     from openpyxl import load_workbook
 

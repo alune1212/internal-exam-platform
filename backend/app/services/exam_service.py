@@ -206,7 +206,7 @@ def _validate_question_rule(question_rule: object) -> None:
     if pass_score is not None and pass_score < 0:
         raise ExamConfigError("pass_score 不能为负数")
     if "question_count" not in question_rule:
-        return
+        raise ExamConfigError("question_count 必须为正整数")
 
     question_count = _require_positive_int(
         question_rule.get("question_count"), "question_count"
@@ -258,7 +258,7 @@ def _validate_exam_config_values(
 
 
 def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
-    if not question_rule or "question_count" not in question_rule:
+    if not question_rule:
         return None
 
     _validate_question_rule(question_rule)
@@ -612,6 +612,16 @@ def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
     if attempt is None:
         raise AttemptNotFoundError(attempt_id)
     return attempt
+
+
+def _attempt_deadline(attempt: ExamAttempt) -> datetime:
+    return ensure_aware(attempt.started_at) + timedelta(
+        minutes=attempt.exam.duration_minutes
+    )
+
+
+def _is_attempt_expired(attempt: ExamAttempt, now: datetime | None = None) -> bool:
+    return (now or datetime.now(UTC)) >= _attempt_deadline(attempt)
 
 
 def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
@@ -1189,6 +1199,9 @@ def save_answers(
         raise AttemptAlreadySubmittedError(attempt_id)
     if attempt.exam and attempt.exam.status != "active":
         raise ExamNotActiveError(attempt.exam_id)
+    if _is_attempt_expired(attempt):
+        submit_attempt(db, attempt_id, "auto")
+        raise AttemptAlreadySubmittedError(attempt_id)
     questions_by_id = {question.id: question for question in attempt.questions}
     now = datetime.now(UTC)
 
@@ -1238,6 +1251,11 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
         return _build_attempt_result(attempt)
 
     submitted_at = datetime.now(UTC)
+    effective_submit_type = (
+        "auto"
+        if submit_type == "auto" or _is_attempt_expired(attempt, submitted_at)
+        else submit_type
+    )
     score = Decimal("0")
     correct_count = 0
 
@@ -1265,9 +1283,11 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
             correct_count += 1
             score += Decimal(str(scoring.score_awarded))
 
-    attempt.status = "auto_submitted" if submit_type == "auto" else "submitted"
+    attempt.status = (
+        "auto_submitted" if effective_submit_type == "auto" else "submitted"
+    )
     attempt.submitted_at = submitted_at
-    attempt.submit_type = submit_type
+    attempt.submit_type = effective_submit_type
     attempt.score = score
     attempt.correct_count = correct_count
     attempt.wrong_count = len(attempt.questions) - correct_count

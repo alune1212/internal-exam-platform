@@ -20,6 +20,7 @@ from app.schemas.report import (
     ScoreReportRow,
     WrongQuestionRow,
 )
+from app.services.excel_security import escape_excel_cell
 
 ATTENDANCE_STATUS_LABELS = {
     "not_started": "未开始",
@@ -372,7 +373,7 @@ def _append_sheet(
     sheet = workbook.create_sheet(title)
     sheet.append(headers)
     for row in rows:
-        sheet.append(row)
+        sheet.append([escape_excel_cell(value) for value in row])
     for column_cells in sheet.columns:
         max_length = max(len(str(cell.value or "")) for cell in column_cells)
         sheet.column_dimensions[column_cells[0].column_letter].width = min(

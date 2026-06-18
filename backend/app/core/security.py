@@ -26,7 +26,10 @@ def verify_session_token(
 
         max_age_seconds = settings.token_ttl_seconds
     now = int(datetime.now(UTC).timestamp())
-    if now - int(issued_at) > max_age_seconds:
+    issued_at_int = int(issued_at)
+    if issued_at_int > now:
+        return False
+    if now - issued_at_int > max_age_seconds:
         return False
     payload = ".".join(parts[:3])
     return constant_time_equals(signature, _sign(payload, secret=secret))

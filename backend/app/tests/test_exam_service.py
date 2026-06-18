@@ -196,6 +196,20 @@ def test_create_exam_rejects_invalid_fixed_question_rule_values(
         )
 
 
+def test_create_exam_rejects_non_empty_rule_without_question_count(
+    db: Session,
+) -> None:
+    with pytest.raises(exam_service.ExamConfigError, match="question_count"):
+        exam_service.create_exam(
+            db,
+            ExamCreate(
+                title="坏考试",
+                duration_minutes=60,
+                question_rule={"pass_score": 60},
+            ),
+        )
+
+
 def test_list_active_exams_filters(db: Session) -> None:
     exam_service.create_exam(
         db, ExamCreate(title="草稿", duration_minutes=60, status="draft")
@@ -962,7 +976,15 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
 
 
 def test_submit_attempt_includes_pass_status_from_question_rule(db: Session) -> None:
-    exam = create_exam(db, question_rule={"pass_score": 6})
+    exam = create_exam(
+        db,
+        question_rule={
+            "question_count": 2,
+            "total_score": 10,
+            "pass_score": 6,
+            "type_counts": {"single": 2, "multiple": 0, "judge": 0},
+        },
+    )
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db, stem="题目1", score=5)
@@ -991,6 +1013,18 @@ def test_submit_attempt_includes_pass_status_from_question_rule(db: Session) -> 
     assert result.score == 5
     assert result.pass_score == 6
     assert result.is_passed is False
+
+
+def test_start_exam_rejects_persisted_non_empty_rule_without_question_count(
+    db: Session,
+) -> None:
+    exam = create_exam(db, question_rule={"pass_score": 6})
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    with pytest.raises(exam_service.ExamConfigError, match="question_count"):
+        exam_service.start_exam(db, exam.id, candidate.id)
 
 
 def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
@@ -1132,6 +1166,65 @@ def test_save_answers_rejects_after_submit(db: Session) -> None:
                 ]
             ),
         )
+
+
+def test_save_answers_rejects_after_deadline_and_auto_submits(db: Session) -> None:
+    exam = create_exam(db, duration_minutes=1)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    attempt = db.get(ExamAttempt, start.attempt_id)
+    assert attempt is not None
+    attempt.started_at = datetime.now(UTC) - timedelta(minutes=2)
+    db.commit()
+
+    with pytest.raises(AttemptAlreadySubmittedError):
+        exam_service.save_answers(
+            db,
+            start.attempt_id,
+            AnswerSaveRequest(
+                answers=[
+                    AnswerSaveItem(
+                        attempt_question_id=start.questions[0].id,
+                        selected_answer="A",
+                    )
+                ]
+            ),
+        )
+
+    db.expire_all()
+    attempt = db.get(ExamAttempt, start.attempt_id)
+    assert attempt is not None
+    assert attempt.status == "auto_submitted"
+    assert attempt.submit_type == "auto"
+    saved_answer = (
+        db.query(ExamAttemptAnswer)
+        .join(ExamAttemptQuestion)
+        .filter(ExamAttemptQuestion.attempt_id == start.attempt_id)
+        .one()
+    )
+    assert saved_answer.selected_answer is None
+
+
+def test_manual_submit_after_deadline_is_recorded_as_auto_submit(db: Session) -> None:
+    exam = create_exam(db, duration_minutes=1)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    attempt = db.get(ExamAttempt, start.attempt_id)
+    assert attempt is not None
+    attempt.started_at = datetime.now(UTC) - timedelta(minutes=2)
+    db.commit()
+
+    exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    db.expire_all()
+    attempt = db.get(ExamAttempt, start.attempt_id)
+    assert attempt is not None
+    assert attempt.status == "auto_submitted"
+    assert attempt.submit_type == "auto"
 
 
 def test_submit_attempt_with_no_answers_zeros_score(db: Session) -> None:
