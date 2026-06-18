@@ -597,8 +597,10 @@ def _select_exam_questions(
     return selected
 
 
-def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
-    attempt = (
+def _load_attempt_with_snapshots(
+    db: Session, attempt_id: int, *, for_update: bool = False
+) -> ExamAttempt:
+    query = (
         db.query(ExamAttempt)
         .options(
             selectinload(ExamAttempt.questions).selectinload(
@@ -607,8 +609,10 @@ def _load_attempt_with_snapshots(db: Session, attempt_id: int) -> ExamAttempt:
             selectinload(ExamAttempt.exam),
         )
         .filter(ExamAttempt.id == attempt_id)
-        .one_or_none()
     )
+    if for_update:
+        query = query.with_for_update().populate_existing()
+    attempt = query.one_or_none()
     if attempt is None:
         raise AttemptNotFoundError(attempt_id)
     return attempt
@@ -1195,7 +1199,7 @@ def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
 def save_answers(
     db: Session, attempt_id: int, payload: AnswerSaveRequest
 ) -> AnswerSaveResponse:
-    attempt = _load_attempt_with_snapshots(db, attempt_id)
+    attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=True)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
     if attempt.exam and attempt.exam.status != "active":
@@ -1226,28 +1230,7 @@ def save_answers(
 
 
 def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptResultRead:
-    # 轻量快速检查：避免不必要的 FOR UPDATE
-    quick = db.get(ExamAttempt, attempt_id)
-    if quick is None:
-        raise AttemptNotFoundError(attempt_id)
-    if quick.status != "in_progress":
-        return _build_attempt_result(_load_attempt_with_snapshots(db, attempt_id))
-
-    # 加行锁后重新加载完整 attempt + snapshots + exam
-    attempt = (
-        db.query(ExamAttempt)
-        .options(
-            selectinload(ExamAttempt.questions).selectinload(
-                ExamAttemptQuestion.answer
-            ),
-            selectinload(ExamAttempt.exam),
-        )
-        .filter(ExamAttempt.id == attempt_id)
-        .with_for_update()
-        .one_or_none()
-    )
-    if attempt is None:
-        raise AttemptNotFoundError(attempt_id)
+    attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=True)
     if attempt.status != "in_progress":
         return _build_attempt_result(attempt)
 

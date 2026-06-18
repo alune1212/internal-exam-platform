@@ -935,6 +935,63 @@ def test_save_answers_updates_existing_answer(db: Session) -> None:
     assert attempt.questions[0].selected_answer == "A"
 
 
+def test_save_answers_loads_attempt_with_mutation_lock(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start_result = exam_service.start_exam(db, exam.id, candidate.id)
+    original_loader = exam_service._load_attempt_with_snapshots
+    lock_requests: list[bool] = []
+
+    def tracking_loader(
+        db: Session, attempt_id: int, *, for_update: bool = False
+    ) -> ExamAttempt:
+        lock_requests.append(for_update)
+        return original_loader(db, attempt_id, for_update=for_update)
+
+    monkeypatch.setattr(exam_service, "_load_attempt_with_snapshots", tracking_loader)
+
+    exam_service.save_answers(
+        db,
+        start_result.attempt_id,
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=start_result.questions[0].id,
+                    selected_answer="A",
+                )
+            ]
+        ),
+    )
+
+    assert lock_requests == [True]
+
+
+def test_locked_attempt_load_refreshes_cached_attempt_status(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start_result = exam_service.start_exam(db, exam.id, candidate.id)
+    cached = exam_service._load_attempt_with_snapshots(db, start_result.attempt_id)
+    assert cached.status == "in_progress"
+
+    with Session(bind=db.get_bind(), autoflush=False, expire_on_commit=False) as other:
+        same_attempt = other.get(ExamAttempt, start_result.attempt_id)
+        assert same_attempt is not None
+        same_attempt.status = "submitted"
+        other.commit()
+
+    locked = exam_service._load_attempt_with_snapshots(
+        db, start_result.attempt_id, for_update=True
+    )
+
+    assert locked.status == "submitted"
+
+
 def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
@@ -973,6 +1030,30 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
     assert result.questions[1].score_awarded == 0
     assert attempt.status == "submitted"
     assert attempt.submitted_at is not None
+
+
+def test_submit_attempt_loads_attempt_with_mutation_lock(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start_result = exam_service.start_exam(db, exam.id, candidate.id)
+    original_loader = exam_service._load_attempt_with_snapshots
+    lock_requests: list[bool] = []
+
+    def tracking_loader(
+        db: Session, attempt_id: int, *, for_update: bool = False
+    ) -> ExamAttempt:
+        lock_requests.append(for_update)
+        return original_loader(db, attempt_id, for_update=for_update)
+
+    monkeypatch.setattr(exam_service, "_load_attempt_with_snapshots", tracking_loader)
+
+    exam_service.submit_attempt(db, start_result.attempt_id, "manual")
+
+    assert lock_requests == [True]
 
 
 def test_submit_attempt_includes_pass_status_from_question_rule(db: Session) -> None:
