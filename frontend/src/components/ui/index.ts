@@ -14,6 +14,30 @@ export {
 } from "./card";
 export { Input } from "./input";
 export { Label } from "./label";
+export {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+  type FieldProps,
+  type FieldGroupProps,
+  type FieldLabelProps,
+  type FieldDescriptionProps,
+  type FieldErrorProps,
+} from "./field";
+export {
+  Alert,
+  AlertTitle,
+  AlertDescription,
+  type AlertProps,
+  type AlertTitleProps,
+  type AlertDescriptionProps,
+  type AlertVariant,
+} from "./alert";
+export { Separator, type SeparatorProps } from "./separator";
+export { Textarea, type TextareaProps } from "./textarea";
+export { Spinner, type SpinnerProps } from "./spinner";
 export { Badge, type BadgeProps } from "./badge";
 export { badgeVariants } from "./badge-variants";
 export {

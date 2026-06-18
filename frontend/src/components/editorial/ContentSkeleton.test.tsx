@@ -23,4 +23,19 @@ describe("ContentSkeleton", () => {
 
     expect(container.querySelectorAll('[aria-hidden="true"]')).toHaveLength(5);
   });
+
+  it("renders table variant rows with dense table height", () => {
+    const { container } = render(<ContentSkeleton variant="table" rows={2} />);
+
+    const skeletons = container.querySelectorAll('[aria-hidden="true"]');
+    expect(skeletons).toHaveLength(2);
+    expect(skeletons[0]?.className).toContain("h-12");
+  });
+
+  it("renders page variant with wider editorial blocks", () => {
+    const { container } = render(<ContentSkeleton variant="page" />);
+
+    const firstSkeleton = container.querySelector('[aria-hidden="true"]');
+    expect(firstSkeleton?.className).toContain("h-8");
+  });
 });

@@ -16,8 +16,12 @@ import { downloadImportFailureReport, downloadImportTemplate } from "@/api/impor
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill } from "@/components/editorial/StatusPill";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import type { ExamCandidateRow } from "@/types/exam";
 import type { ImportFailure } from "@/types/imports";
 
@@ -182,7 +186,7 @@ export function ExamCandidatesPage() {
     <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           应考人员名单
         </h1>
         <p className="text-body-lg">
@@ -203,20 +207,27 @@ export function ExamCandidatesPage() {
           </StatusPill>
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Input
-            type="file"
-            accept=".xlsx,.xls"
-            disabled={isFrozen}
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            aria-label="选择 Excel 文件"
-          />
+          <Field className="w-full md:max-w-md">
+            <FieldLabel htmlFor="exam-candidate-file">选择 Excel 文件</FieldLabel>
+            <Input
+              id="exam-candidate-file"
+              type="file"
+              accept=".xlsx,.xls"
+              disabled={isFrozen}
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </Field>
           <Button
             type="button"
             className="self-start"
             disabled={!file || importMutation.isPending || isFrozen}
             onClick={() => file && importMutation.mutate(file)}
           >
-            <FileUp data-icon="inline-start" />
+            {importMutation.isPending ? (
+              <Spinner data-icon="inline-start" aria-label="正在导入应考人员" />
+            ) : (
+              <FileUp data-icon="inline-start" />
+            )}
             {importMutation.isPending ? "正在导入..." : "上传应考人员"}
           </Button>
           <Button
@@ -251,23 +262,21 @@ export function ExamCandidatesPage() {
           </div>
         ) : null}
         {importMutation.data?.failures.length ? (
-          <ul className="flex flex-col gap-1 text-caption text-muted">
-            {importMutation.data.failures.map((failure: ImportFailure) => (
-              <li key={failure.row_number} className="font-mono">
-                行 {failure.row_number} · {failure.reason}
-              </li>
-            ))}
-          </ul>
+          <>
+            <Separator />
+            <ul className="flex flex-col gap-1 text-caption text-muted">
+              {importMutation.data.failures.map((failure: ImportFailure) => (
+                <li key={failure.row_number} className="font-mono">
+                  行 {failure.row_number} · {failure.reason}
+                </li>
+              ))}
+            </ul>
+          </>
         ) : null}
         {notice ? (
-          <p
-            className={`rounded-md border bg-canvas p-3 text-body-sm ${
-              notice.tone === "success" ? "border-success text-success" : "border-error text-error"
-            }`}
-            role="alert"
-          >
-            {notice.message}
-          </p>
+          <Alert variant={notice.tone === "success" ? "success" : "error"}>
+            <AlertDescription>{notice.message}</AlertDescription>
+          </Alert>
         ) : null}
       </section>
 

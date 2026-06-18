@@ -14,7 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { MD, useMediaQuery } from "@/lib/use-media-query";
 import type { Candidate } from "@/types/candidate";
 
 type NavItem = {
@@ -73,7 +73,7 @@ function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
 
 export function TopNav({ candidate, onLogout }: TopNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isDesktop = useMediaQuery(MD.lg);
   const location = useLocation();
   const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
   const navItems: NavItem[] = [
@@ -134,11 +134,14 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
             )
           ) : (
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger
-                className="inline-flex size-10 items-center justify-center rounded-pill text-ink transition-colors hover:bg-surface-card"
-                aria-label="打开菜单"
-              >
-                <Menu aria-hidden="true" />
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex size-10 items-center justify-center rounded-pill text-ink transition-colors hover:bg-surface-card"
+                  aria-label="打开菜单"
+                >
+                  <Menu aria-hidden="true" />
+                </button>
               </SheetTrigger>
               <SheetContent side="bottom" className="rounded-t-lg">
                 <SheetHeader>

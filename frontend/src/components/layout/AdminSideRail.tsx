@@ -12,7 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { MD, useMediaQuery } from "@/lib/use-media-query";
 
 type NavItem = {
   to: string;
@@ -63,7 +63,7 @@ function SidebarList({
 
 export function AdminSideRail() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isDesktop = useMediaQuery(MD.lg);
 
   if (isDesktop) {
     return (
@@ -90,11 +90,14 @@ export function AdminSideRail() {
         <Wordmark size="sm" subtitle="admin" />
       </Link>
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetTrigger
-          className="inline-flex size-10 items-center justify-center rounded-pill text-ink transition-colors hover:bg-surface-card"
-          aria-label="打开菜单"
-        >
-          <Menu aria-hidden="true" />
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex size-10 items-center justify-center rounded-pill text-ink transition-colors hover:bg-surface-card"
+            aria-label="打开菜单"
+          >
+            <Menu aria-hidden="true" />
+          </button>
         </SheetTrigger>
         <SheetContent side="bottom" className="rounded-t-lg">
           <SheetHeader>

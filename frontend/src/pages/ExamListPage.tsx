@@ -81,19 +81,19 @@ function ExamCard({ exam }: { exam: Exam }) {
       <dl className="grid grid-cols-3 gap-3 border-y border-hairline-soft py-3 text-caption text-muted">
         <div className="flex flex-col gap-1">
           <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
-            <Clock className="h-3 w-3" /> 时长
+            <Clock className="size-3" /> 时长
           </dt>
           <dd className="font-mono text-body text-ink">{exam.duration_minutes} 分钟</dd>
         </div>
         <div className="flex flex-col gap-1">
           <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
-            <FileText className="h-3 w-3" /> 题数
+            <FileText className="size-3" /> 题数
           </dt>
           <dd className="font-mono text-body text-ink">{totalQuestions ?? "-"}</dd>
         </div>
         <div className="flex flex-col gap-1">
           <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
-            <Hash className="h-3 w-3" /> 总分
+            <Hash className="size-3" /> 总分
           </dt>
           <dd className="font-mono text-body text-ink">{totalScore ?? "-"}</dd>
         </div>

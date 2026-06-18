@@ -9,8 +9,12 @@ import {
   importQuestions,
 } from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import type { ImportFailure } from "@/types/imports";
 
 export function QuestionImportPage() {
@@ -49,7 +53,7 @@ export function QuestionImportPage() {
     <div data-stagger className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 03 · LIBRARY</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           题库导入
         </h1>
         <p className="text-body-lg">
@@ -70,12 +74,17 @@ export function QuestionImportPage() {
           </Button>
         </div>
 
-        <Input
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          aria-label="选择 Excel 文件"
-        />
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="question-file">选择 Excel 文件</FieldLabel>
+            <Input
+              id="question-file"
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </Field>
+        </FieldGroup>
 
         <Button
           type="button"
@@ -84,20 +93,19 @@ export function QuestionImportPage() {
           disabled={!file || mutation.isPending}
           onClick={() => file && mutation.mutate(file)}
         >
-          <FileUp data-icon="inline-start" />
+          {mutation.isPending ? (
+            <Spinner data-icon="inline-start" aria-label="正在导入题库" />
+          ) : (
+            <FileUp data-icon="inline-start" />
+          )}
           {mutation.isPending ? "正在导入..." : "上传并校验"}
         </Button>
       </section>
 
       {notice ? (
-        <p
-          className={`rounded-md border bg-canvas p-3 text-body-sm ${
-            notice.tone === "success" ? "border-success text-success" : "border-error text-error"
-          }`}
-          role="alert"
-        >
-          {notice.message}
-        </p>
+        <Alert variant={notice.tone === "success" ? "success" : "error"}>
+          <AlertDescription>{notice.message}</AlertDescription>
+        </Alert>
       ) : null}
 
       {mutation.data ? (
@@ -119,13 +127,16 @@ export function QuestionImportPage() {
             </Button>
           ) : null}
           {mutation.data.failures.length ? (
-            <ul className="flex flex-col gap-1 border-t border-hairline-soft pt-3 text-caption text-muted">
-              {mutation.data.failures.map((failure: ImportFailure) => (
-                <li key={failure.row_number} className="font-mono">
-                  行 {failure.row_number} · {failure.reason}
-                </li>
-              ))}
-            </ul>
+            <>
+              <Separator />
+              <ul className="flex flex-col gap-1 text-caption text-muted">
+                {mutation.data.failures.map((failure: ImportFailure) => (
+                  <li key={failure.row_number} className="font-mono">
+                    行 {failure.row_number} · {failure.reason}
+                  </li>
+                ))}
+              </ul>
+            </>
           ) : null}
         </section>
       ) : null}

@@ -11,6 +11,8 @@ export const buttonVariants = cva(
     disabled:opacity-50
     [&_[data-icon="inline-end"]]:-mr-0.5
     [&_[data-icon="inline-start"]]:-ml-0.5
+    [&_[data-icon]]:size-4
+    [&_[data-icon]]:shrink-0
   `,
   {
     variants: {

@@ -95,4 +95,27 @@ describe("EmptyState", () => {
     const heading = screen.getByRole("heading", { level: 2, name: "暂无内容" });
     expect(heading.className).toMatch(/font-display/);
   });
+
+  it("accepts explicit role and aria-live for page-level states", () => {
+    render(
+      <EmptyState
+        aria-live="polite"
+        chapter="CHAPTER 00"
+        description="x"
+        role="status"
+        title="暂无内容"
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("muted tone keeps a quiet neutral surface", () => {
+    render(<EmptyState chapter="CHAPTER 00" description="x" title="暂无内容" tone="muted" />);
+
+    expect(screen.getByText("CHAPTER 00").parentElement?.className).toMatch(/text-muted/);
+    expect(screen.getByRole("heading", { level: 2, name: "暂无内容" }).className).toMatch(
+      /text-ink/,
+    );
+  });
 });

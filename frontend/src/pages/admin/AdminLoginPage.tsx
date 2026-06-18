@@ -9,9 +9,11 @@ import { loginAdmin } from "@/api/auth";
 import { setAdminToken } from "@/lib/adminSession";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Wordmark } from "@/components/editorial/Wordmark";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 
 const schema = z.object({
   username: z.string().min(1, "请输入管理员账号"),
@@ -41,7 +43,7 @@ export function AdminLoginPage() {
         <div className="flex flex-1 flex-col justify-center gap-8">
           <header className="flex flex-col gap-3">
             <ChapterNumber>CHAPTER 00 · ADMIN</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-2xl">
+            <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
               安静地工作。
             </h1>
             <p className="text-body-lg">管理员登录后可访问题库、考试配置与所有报表。</p>
@@ -51,27 +53,33 @@ export function AdminLoginPage() {
             className="flex max-w-md flex-col gap-4 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8"
             onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
           >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="username">账号 · Username</Label>
-              <Input id="username" autoComplete="username" {...form.register("username")} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">密码 · Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                {...form.register("password")}
-              />
-            </div>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="username">账号 · Username</FieldLabel>
+                <Input id="username" autoComplete="username" {...form.register("username")} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="password">密码 · Password</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  {...form.register("password")}
+                />
+              </Field>
+            </FieldGroup>
             <Button type="submit" size="lg" disabled={mutation.isPending}>
-              <ShieldCheck data-icon="inline-start" />
+              {mutation.isPending ? (
+                <Spinner data-icon="inline-start" aria-label="正在登录管理后台" />
+              ) : (
+                <ShieldCheck data-icon="inline-start" />
+              )}
               登录管理后台
             </Button>
             {mutation.isError ? (
-              <p className="text-caption text-error" role="alert">
-                账号或密码不正确。
-              </p>
+              <Alert variant="error">
+                <AlertDescription>账号或密码不正确。</AlertDescription>
+              </Alert>
             ) : null}
           </form>
         </div>
@@ -87,7 +95,7 @@ export function AdminLoginPage() {
       >
         <div className="absolute inset-0 flex flex-col items-start justify-end gap-3 p-16 text-footer-soft">
           <p className="text-caption uppercase tracking-[0.18em]">ADMIN CONSOLE</p>
-          <p className="max-w-sm font-display text-display-md font-semibold italic tracking-[-0.04em] text-canvas">
+          <p className="max-w-sm font-display text-display-md font-semibold text-canvas">
             所有考试、题库、报表 — 一处掌控。
           </p>
         </div>

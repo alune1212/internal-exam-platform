@@ -10,9 +10,11 @@ import { getErrorMessage } from "@/api/client";
 import { getAdminExams, updateAdminExam } from "@/api/exams";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS = [
@@ -102,7 +104,7 @@ function StatusDropdown({
           <StatusPill variant={current.variant as StatusPillVariant}>{current.value}</StatusPill>
           {current.label}
         </span>
-        <ChevronDown className="h-4 w-4 text-muted" data-icon="inline-end" />
+        <ChevronDown className="size-4 text-muted" aria-hidden="true" />
       </button>
       {open ? (
         <ul
@@ -210,7 +212,7 @@ export function ExamEditPage() {
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-3">
           <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-          <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
+          <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
             编辑考试 #{examId ?? "-"}
           </h1>
         </div>
@@ -235,76 +237,82 @@ export function ExamEditPage() {
 
       <section className="grid gap-6 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:grid-cols-2 lg:p-8">
         {notice ? (
-          <p
-            className={cn(
-              "rounded-md border p-3 text-body-sm lg:col-span-2",
-              notice.tone === "success" ? "border-success text-success" : "border-error text-error",
-            )}
-            role="alert"
+          <Alert
+            variant={notice.tone === "success" ? "success" : "error"}
+            className="lg:col-span-2"
           >
-            {notice.message}
-          </p>
+            <AlertDescription>{notice.message}</AlertDescription>
+          </Alert>
         ) : null}
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="title">考试名称 · Title</Label>
-          <Input id="title" {...form.register("title")} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="duration_minutes">时长（分钟）· Duration</Label>
-          <Input
-            id="duration_minutes"
-            type="number"
-            min={1}
-            disabled={isPublished}
-            {...form.register("duration_minutes", { valueAsNumber: true })}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="status">状态 · Status</Label>
-          <Controller
-            control={form.control}
-            name="status"
-            render={({ field }) => <StatusDropdown value={field.value} onChange={field.onChange} />}
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="available_from">开放开始时间 · Available From</Label>
-          <Input id="available_from" type="datetime-local" {...form.register("available_from")} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="available_until">开放结束时间 · Available Until</Label>
-          <Input id="available_until" type="datetime-local" {...form.register("available_until")} />
-          {form.formState.errors.available_until ? (
-            <p className="text-body-sm text-error">
-              {form.formState.errors.available_until.message}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-2 lg:col-span-2">
-          <Label htmlFor="question_rule_json">抽题规则 · JSON</Label>
-          <textarea
-            id="question_rule_json"
-            rows={8}
-            spellCheck={false}
-            disabled={isPublished}
-            className="w-full resize-y rounded-md border border-hairline bg-canvas-warm p-4 font-mono text-body-sm leading-relaxed text-ink focus:border-ink focus:outline-none"
-            {...form.register("question_rule_json")}
-          />
-          {isPublished ? (
-            <p className="text-body-sm text-muted">
-              考试已发布，题池、时长、抽题规则和应考名单已冻结。
-            </p>
-          ) : (
-            <p className="text-body-sm text-muted">
-              切换为 active 会冻结题池、时长、抽题规则和应考名单。
-            </p>
-          )}
-          {form.formState.errors.question_rule_json ? (
-            <p className="text-body-sm text-error">
-              {form.formState.errors.question_rule_json.message}
-            </p>
-          ) : null}
-        </div>
+        <FieldGroup className="contents">
+          <Field>
+            <FieldLabel htmlFor="title">考试名称 · Title</FieldLabel>
+            <Input id="title" {...form.register("title")} />
+          </Field>
+          <Field data-disabled={isPublished ? "" : undefined}>
+            <FieldLabel htmlFor="duration_minutes">时长（分钟）· Duration</FieldLabel>
+            <Input
+              id="duration_minutes"
+              type="number"
+              min={1}
+              disabled={isPublished}
+              {...form.register("duration_minutes", { valueAsNumber: true })}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="status">状态 · Status</FieldLabel>
+            <Controller
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <StatusDropdown value={field.value} onChange={field.onChange} />
+              )}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="available_from">开放开始时间 · Available From</FieldLabel>
+            <Input id="available_from" type="datetime-local" {...form.register("available_from")} />
+          </Field>
+          <Field data-invalid={form.formState.errors.available_until ? "" : undefined}>
+            <FieldLabel htmlFor="available_until">开放结束时间 · Available Until</FieldLabel>
+            <Input
+              id="available_until"
+              type="datetime-local"
+              {...form.register("available_until")}
+            />
+            {form.formState.errors.available_until ? (
+              <FieldError>{form.formState.errors.available_until.message}</FieldError>
+            ) : null}
+          </Field>
+          <Field
+            className="lg:col-span-2"
+            data-disabled={isPublished ? "" : undefined}
+            data-invalid={form.formState.errors.question_rule_json ? "" : undefined}
+          >
+            <FieldLabel htmlFor="question_rule_json">抽题规则 · JSON</FieldLabel>
+            <Textarea
+              id="question_rule_json"
+              rows={8}
+              spellCheck={false}
+              disabled={isPublished}
+              className="font-mono"
+              aria-invalid={Boolean(form.formState.errors.question_rule_json)}
+              {...form.register("question_rule_json")}
+            />
+            {isPublished ? (
+              <FieldDescription>
+                考试已发布，题池、时长、抽题规则和应考名单已冻结。
+              </FieldDescription>
+            ) : (
+              <FieldDescription>
+                切换为 active 会冻结题池、时长、抽题规则和应考名单。
+              </FieldDescription>
+            )}
+            {form.formState.errors.question_rule_json ? (
+              <FieldError>{form.formState.errors.question_rule_json.message}</FieldError>
+            ) : null}
+          </Field>
+        </FieldGroup>
         <div className="flex flex-col gap-3 rounded-md bg-surface-card p-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
           <div className="flex flex-col gap-1">
             <span className="text-caption uppercase tracking-[0.16em] text-muted">CANDIDATES</span>

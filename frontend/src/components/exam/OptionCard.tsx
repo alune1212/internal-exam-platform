@@ -45,21 +45,21 @@ export function OptionCard({
         <span
           aria-hidden="true"
           className={cn(
-            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+            "inline-flex size-5 shrink-0 items-center justify-center rounded-full [&_[data-icon]]:size-3 [&_[data-icon]]:shrink-0",
             selected ? "bg-ink text-canvas" : "border border-hairline bg-canvas text-muted",
           )}
         >
           {label === "A" ? (
-            <Check className="h-3 w-3" strokeWidth={3} />
+            <Check data-icon="inline-start" strokeWidth={3} />
           ) : (
-            <X className="h-3 w-3" strokeWidth={3} />
+            <X data-icon="inline-start" strokeWidth={3} />
           )}
         </span>
       ) : (
         <span
           aria-hidden="true"
           className={cn(
-            "inline-flex h-6 w-6 shrink-0 items-center justify-center",
+            "inline-flex size-6 shrink-0 items-center justify-center",
             "font-mono text-caption font-semibold tabular-nums",
             selectionRole === "checkbox"
               ? cn(

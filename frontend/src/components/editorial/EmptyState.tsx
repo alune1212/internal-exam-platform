@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 import { ChapterNumber } from "./ChapterNumber";
 
-export type EmptyStateTone = "default" | "error";
+export type EmptyStateTone = "default" | "error" | "muted";
 
 export interface EmptyStateAction {
   label: string;
@@ -31,6 +31,8 @@ export function EmptyState({
   className,
   ...props
 }: EmptyStateProps) {
+  const chapterClassName = tone === "error" ? "text-error" : undefined;
+
   return (
     <div
       className={cn(
@@ -39,9 +41,7 @@ export function EmptyState({
       )}
       {...props}
     >
-      <ChapterNumber className={tone === "error" ? "text-error" : undefined}>
-        {chapter}
-      </ChapterNumber>
+      <ChapterNumber className={chapterClassName}>{chapter}</ChapterNumber>
       <h2 className="font-display text-display-md text-ink">{title}</h2>
       <p className="text-body text-muted">{description}</p>
       {action || secondaryAction ? (

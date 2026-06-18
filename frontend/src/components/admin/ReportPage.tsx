@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { cn } from "@/lib/utils";
 
 interface ReportPageProps<TData> {
@@ -41,7 +41,7 @@ export function ReportPage<TData>({
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-3">
           <ChapterNumber>{chapterLabel}</ChapterNumber>
-          <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
+          <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
             {title}
           </h1>
           {description ? <p className="max-w-2xl text-body-lg">{description}</p> : null}
@@ -50,12 +50,7 @@ export function ReportPage<TData>({
       </header>
 
       {isLoading ? (
-        <div className="flex flex-col gap-3" aria-busy="true">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <p className="text-caption uppercase tracking-[0.16em] text-muted">Loading · 加载中...</p>
-        </div>
+        <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
       ) : (
         <SimpleDataTable
           columns={columns}

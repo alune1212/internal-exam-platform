@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 interface ContentSkeletonProps {
   rows?: number;
+  variant?: "default" | "page" | "table" | "card";
   /**
    * When true, renders the bilingual "Loading · 加载中" caption. Most
    * skeletons should stay silent — only enable this when a delayed load
@@ -14,9 +15,18 @@ interface ContentSkeletonProps {
 
 export function ContentSkeleton({
   rows = 3,
+  variant = "default",
   showCaption = false,
   className,
 }: ContentSkeletonProps) {
+  const rowClassName = {
+    default: (index: number) => cn("h-4", index % 2 === 0 ? "w-3/4" : "w-1/2"),
+    page: (index: number) =>
+      cn(index === 0 ? "h-8 w-2/3" : "h-5", index % 2 === 0 ? "w-3/4" : "w-1/2"),
+    table: () => "h-12 w-full",
+    card: (index: number) => cn("h-5", index % 2 === 0 ? "w-full" : "w-2/3"),
+  }[variant];
+
   return (
     <div
       role="status"
@@ -25,7 +35,7 @@ export function ContentSkeleton({
       className={cn("flex flex-col gap-3 p-6", className)}
     >
       {Array.from({ length: rows }).map((_, index) => (
-        <Skeleton key={index} className={cn("h-4", index % 2 === 0 ? "w-3/4" : "w-1/2")} />
+        <Skeleton key={index} className={rowClassName(index)} />
       ))}
       {showCaption ? (
         <p className="mt-2 text-caption font-medium uppercase tracking-[0.16em] text-muted">

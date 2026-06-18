@@ -81,10 +81,10 @@ const SheetContent = React.forwardRef<
       <DialogPrimitive.Close
         aria-label="关闭"
         className={cn(
-          `absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-pill text-muted transition-colors hover:bg-surface-card hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink`,
+          `absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-pill text-muted transition-colors hover:bg-surface-card hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink [&_[data-icon]]:size-4 [&_[data-icon]]:shrink-0`,
         )}
       >
-        <X data-icon="inline-end" className="size-4" aria-hidden />
+        <X data-icon="inline-end" aria-hidden />
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </SheetPortal>

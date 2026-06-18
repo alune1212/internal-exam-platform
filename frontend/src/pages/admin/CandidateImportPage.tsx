@@ -3,44 +3,63 @@ import { Download, FileUp } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 
+import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, importCandidates } from "@/api/imports";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import type { ImportFailure } from "@/types/imports";
 
 export function CandidateImportPage() {
   const { examId = "1" } = useParams();
   const [file, setFile] = useState<File | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: (selected: File) => importCandidates(examId, selected),
     onSuccess: () => {
+      setNotice({ tone: "success", message: "应考人员导入完成。" });
       queryClient.invalidateQueries({ queryKey: ["absent-candidates"] });
     },
+    onError: (error) =>
+      setNotice({ tone: "error", message: getErrorMessage(error, "应考人员导入失败") }),
   });
 
-  const handleDownloadFailureReport = (batchId: number) => {
-    void downloadImportFailureReport(batchId);
+  const handleDownloadFailureReport = async (batchId: number) => {
+    try {
+      await downloadImportFailureReport(batchId);
+      setNotice({ tone: "success", message: "失败明细已开始下载。" });
+    } catch (error) {
+      setNotice({ tone: "error", message: getErrorMessage(error, "失败明细下载失败") });
+    }
   };
 
   return (
     <div data-stagger className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
         <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold italic tracking-[-0.04em] text-ink lg:text-display-xl">
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           应考人员导入
         </h1>
         <p className="text-body-lg">参考状态会按未开始、进行中、已提交拆分。导入前请按模板填写。</p>
       </header>
 
       <section className="flex flex-col gap-5 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
-        <Input
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          aria-label="选择 Excel 文件"
-        />
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="candidate-file">选择 Excel 文件</FieldLabel>
+            <Input
+              id="candidate-file"
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </Field>
+        </FieldGroup>
         <Button
           type="button"
           size="lg"
@@ -48,10 +67,20 @@ export function CandidateImportPage() {
           disabled={!file || mutation.isPending}
           onClick={() => file && mutation.mutate(file)}
         >
-          <FileUp data-icon="inline-start" />
+          {mutation.isPending ? (
+            <Spinner data-icon="inline-start" aria-label="正在导入应考人员" />
+          ) : (
+            <FileUp data-icon="inline-start" />
+          )}
           {mutation.isPending ? "正在导入..." : "上传应考人员"}
         </Button>
       </section>
+
+      {notice ? (
+        <Alert variant={notice.tone === "success" ? "success" : "error"}>
+          <AlertDescription>{notice.message}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {mutation.data ? (
         <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-6 shadow-card">
@@ -65,20 +94,23 @@ export function CandidateImportPage() {
               variant="outline"
               size="sm"
               className="self-start"
-              onClick={() => handleDownloadFailureReport(mutation.data.batch_id)}
+              onClick={() => void handleDownloadFailureReport(mutation.data.batch_id)}
             >
               <Download data-icon="inline-start" />
               下载失败明细
             </Button>
           ) : null}
           {mutation.data.failures.length ? (
-            <ul className="flex flex-col gap-1 border-t border-hairline-soft pt-3 text-caption text-muted">
-              {mutation.data.failures.map((failure: ImportFailure) => (
-                <li key={failure.row_number} className="font-mono">
-                  行 {failure.row_number} · {failure.reason}
-                </li>
-              ))}
-            </ul>
+            <>
+              <Separator />
+              <ul className="flex flex-col gap-1 text-caption text-muted">
+                {mutation.data.failures.map((failure: ImportFailure) => (
+                  <li key={failure.row_number} className="font-mono">
+                    行 {failure.row_number} · {failure.reason}
+                  </li>
+                ))}
+              </ul>
+            </>
           ) : null}
         </section>
       ) : null}

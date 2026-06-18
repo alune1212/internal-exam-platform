@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { MD, useMediaQuery } from "@/lib/useMediaQuery";
+import { MD, useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
 type MobilePriority = "primary" | "secondary" | false;

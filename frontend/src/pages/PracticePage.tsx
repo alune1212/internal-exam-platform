@@ -320,9 +320,14 @@ export function PracticePage() {
                 variant="dark"
                 className="flex-1"
               />
-              <SheetTrigger className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-pill text-canvas">
-                <List aria-hidden="true" />
-                <span className="sr-only">打开题号导航</span>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-pill text-canvas"
+                >
+                  <List aria-hidden="true" />
+                  <span className="sr-only">打开题号导航</span>
+                </button>
               </SheetTrigger>
             </div>
           </div>

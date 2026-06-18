@@ -1,6 +1,7 @@
 import { Suspense, lazy, type ComponentType } from "react";
 import { Navigate, createBrowserRouter } from "react-router-dom";
 
+import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { CandidateLayout } from "@/components/layout/CandidateLayout";
 
@@ -13,13 +14,7 @@ function lazyNamed<T extends ComponentType<object>>(
 
 function routeElement(Component: ComponentType) {
   return (
-    <Suspense
-      fallback={
-        <div className="p-6 text-caption uppercase tracking-[0.16em] text-muted" role="status">
-          Loading
-        </div>
-      }
-    >
+    <Suspense fallback={<ContentSkeleton rows={2} showCaption variant="page" />}>
       <Component />
     </Suspense>
   );
