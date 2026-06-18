@@ -1,7 +1,12 @@
+from io import BytesIO
+
+import pytest
+from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ImportBatch, Question, QuestionOption
+from app.services import import_service
 from app.services.import_service import (
     generate_failure_report,
     import_questions_from_workbook,
@@ -160,6 +165,71 @@ def test_failure_report_escapes_formula_like_file_name(db: Session) -> None:
     workbook = load_workbook(generate_failure_report(db, batch.id), data_only=False)
 
     assert workbook["导入批次"].cell(3, 2).value.startswith("'=")
+
+
+def test_import_upload_rejects_files_larger_than_limit() -> None:
+    file_obj = BytesIO(b"abcd")
+
+    with pytest.raises(import_service.ImportLimitError, match="不能超过 3 字节"):
+        import_service.validate_upload_file_size(file_obj, max_bytes=3)
+
+    assert file_obj.tell() == 0
+
+
+def test_parse_workbook_rejects_too_many_sheets() -> None:
+    workbook = Workbook()
+    workbook.active.title = "题库"
+    workbook.create_sheet("额外 sheet")
+    file_obj = BytesIO()
+    workbook.save(file_obj)
+    file_obj.seek(0)
+
+    with pytest.raises(import_service.ImportLimitError, match="不能超过 1 个工作表"):
+        import_service.parse_workbook(file_obj, max_sheets=1)
+
+
+def test_parse_workbook_rejects_rows_beyond_limit() -> None:
+    workbook = build_workbook(
+        QUESTION_HEADERS,
+        [
+            {
+                "question_type": "single",
+                "stem": "第一题",
+                "option_a": "A",
+                "correct_answer": "A",
+                "score": 1,
+            },
+            {
+                "question_type": "single",
+                "stem": "第二题",
+                "option_a": "A",
+                "correct_answer": "A",
+                "score": 1,
+            },
+        ],
+    )
+
+    with pytest.raises(import_service.ImportLimitError, match="不能超过 1 行"):
+        import_service.parse_workbook(workbook, max_rows=1)
+
+
+def test_parse_workbook_accepts_rows_at_limit() -> None:
+    workbook = build_workbook(
+        QUESTION_HEADERS,
+        [
+            {
+                "question_type": "single",
+                "stem": "第一题",
+                "option_a": "A",
+                "correct_answer": "A",
+                "score": 1,
+            }
+        ],
+    )
+
+    parsed = import_service.parse_workbook(workbook, max_rows=1)
+
+    assert parsed.total_count == 1
 
 
 def test_import_questions_rejects_blank_required_cells(db: Session) -> None:

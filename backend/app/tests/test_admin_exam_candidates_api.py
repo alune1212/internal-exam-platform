@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -11,6 +12,7 @@ from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import create_app
 from app.models import Candidate, Exam, ExamAttempt, ExamCandidateScope, ImportBatch
+from app.services import import_service
 from app.tests.conftest import build_workbook, create_question_with_options
 
 
@@ -94,6 +96,45 @@ def test_import_exam_candidates_adds_scope_rows() -> None:
     assert batch.import_type == "exam_candidates"
     assert db.query(Candidate).count() == 1
     assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
+
+
+def test_import_exam_candidates_rejects_oversized_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    exam = _create_exam(db)
+    workbook = build_workbook(
+        [
+            "name",
+            "employee_no",
+            "department",
+            "position",
+            "phone_suffix",
+            "email",
+            "exam_group",
+            "should_attend",
+            "status",
+            "remark",
+        ],
+        [{"name": "张三", "should_attend": True, "status": "active"}],
+    )
+    monkeypatch.setattr(import_service.settings, "import_max_upload_bytes", 1)
+
+    resp = client.post(
+        f"/api/admin/exams/{exam.id}/candidates/import",
+        headers=_admin_headers(client),
+        files={
+            "file": (
+                "candidates.xlsx",
+                workbook.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert resp.status_code == 413
+    assert "导入文件大小不能超过 1 字节" in resp.json()["detail"]
+    assert db.query(ImportBatch).count() == 0
 
 
 def test_import_exam_candidates_reuses_existing_name_without_employee_no() -> None:

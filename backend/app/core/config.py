@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     admin_password: str = "change-me"
     token_secret: str = Field(default="change-me-in-production", min_length=8)
     token_ttl_seconds: int = 12 * 60 * 60
+    import_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
+    import_max_rows: int = Field(default=5000, ge=1)
+    import_max_sheets: int = Field(default=1, ge=1)
 
     @model_validator(mode="after")
     def reject_production_defaults(self) -> "Settings":

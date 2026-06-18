@@ -1,3 +1,4 @@
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -7,6 +8,7 @@ from typing import Any
 from openpyxl import Workbook, load_workbook
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.exceptions import DomainError
 from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
@@ -28,15 +30,41 @@ class ImportBatchNotFoundError(DomainError):
         super().__init__(f"导入批次 #{batch_id} 不存在")
 
 
+class ImportLimitError(DomainError):
+    status_code = 413
+
+
 @dataclass(frozen=True)
 class ParsedWorkbook:
     rows: list[dict[str, Any]]
     total_count: int
 
 
-def parse_workbook(file_obj: Any) -> ParsedWorkbook:
+def validate_upload_file_size(file_obj: Any, *, max_bytes: int | None = None) -> None:
+    limit = max_bytes or settings.import_max_upload_bytes
+    try:
+        file_obj.seek(0, 2)
+        size = file_obj.tell()
+        file_obj.seek(0)
+    except (AttributeError, OSError):
+        return
+
+    if size > limit:
+        raise ImportLimitError(f"导入文件大小不能超过 {limit} 字节")
+
+
+def parse_workbook(
+    file_obj: Any, *, max_rows: int | None = None, max_sheets: int | None = None
+) -> ParsedWorkbook:
+    row_limit = max_rows or settings.import_max_rows
+    sheet_limit = max_sheets or settings.import_max_sheets
+    with suppress(AttributeError, OSError):
+        file_obj.seek(0)
     workbook = load_workbook(file_obj, read_only=True, data_only=True)
     try:
+        if len(workbook.worksheets) > sheet_limit:
+            raise ImportLimitError(f"导入文件不能超过 {sheet_limit} 个工作表")
+
         sheet = workbook.active
         it = sheet.iter_rows(values_only=True)
         headers_row = next(it, None)
@@ -46,9 +74,13 @@ def parse_workbook(file_obj: Any) -> ParsedWorkbook:
         headers = [
             str(cell).strip() if cell is not None else "" for cell in headers_row
         ]
-        parsed_rows = [
-            {headers[i]: v for i, v in enumerate(row) if i < len(headers)} for row in it
-        ]
+        parsed_rows = []
+        for row_number, row in enumerate(it, start=1):
+            if row_number > row_limit:
+                raise ImportLimitError(f"导入数据行数不能超过 {row_limit} 行")
+            parsed_rows.append(
+                {headers[i]: v for i, v in enumerate(row) if i < len(headers)}
+            )
         return ParsedWorkbook(rows=parsed_rows, total_count=len(parsed_rows))
     finally:
         workbook.close()
@@ -59,6 +91,7 @@ def import_questions_from_workbook(
     file_obj: Any,
     file_name: str,
 ) -> QuestionImportResult:
+    validate_upload_file_size(file_obj)
     parsed = parse_workbook(file_obj)
     failures: list[ImportFailure] = []
     imported_questions: list[Question] = []
@@ -97,6 +130,7 @@ def import_candidates_from_workbook(
     file_obj: Any,
     file_name: str,
 ) -> QuestionImportResult:
+    validate_upload_file_size(file_obj)
     parsed = parse_workbook(file_obj)
     failures: list[ImportFailure] = []
     imported_candidates: list[Candidate] = []

@@ -913,6 +913,7 @@ def import_exam_candidates_from_workbook(
     if exam.status != "draft":
         raise ExamFrozenError("考试发布后应考名单已冻结")
 
+    import_service.validate_upload_file_size(file_obj)
     parsed = import_service.parse_workbook(file_obj)
     failures: list[ImportFailure] = []
     success_count = 0
