@@ -74,11 +74,15 @@ cp backend/.env.example backend/.env
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
+| `ENVIRONMENT` | `development` | 运行环境；`production` 会启用默认密钥和 CORS 安全校验 |
 | `DATABASE_URL` | `postgresql+psycopg://exam:exam@db:5432/internal_exam` | 数据库连接串 |
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | 逗号分隔的前端域名 |
 | `ADMIN_USERNAME` | `admin` | 管理员登录用户名 |
 | `ADMIN_PASSWORD` | `change-me` | 管理员登录密码 |
 | `TOKEN_SECRET` | `change-me-in-production` | 会话 token 密钥（≥8 字符） |
+| `IMPORT_MAX_UPLOAD_BYTES` | `5242880` | Excel 导入文件大小上限 |
+| `IMPORT_MAX_ROWS` | `5000` | Excel 导入数据行上限 |
+| `IMPORT_MAX_SHEETS` | `1` | Excel 导入工作表数量上限 |
 
 ## 关键文件
 
@@ -104,7 +108,7 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 
 前端分层：`api/`（请求封装）→ `pages/`（页面组件）→ `components/`（UI 组件）→ `types/`（类型定义）。页面不要手写 fetch。
 
-前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（`AdminLoginPage` 保存后端返回的签名 session token），其余带 `X-Candidate-Id`（从 `lib/candidateSession.ts` 读取）。401 时自动清 session 并跳转登录页。后端 `require_admin` 使用 `TOKEN_SECRET` 校验签名 token，`get_current_candidate_id` 从 `X-Candidate-Id` header 读取整数 ID。
+前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（`AdminLoginPage` 保存后端返回的签名 session token），其余带 `X-Candidate-Token`（从 `lib/candidateSession.ts` 读取签名 candidate token）。401 时自动清 session 并跳转登录页。后端 `require_admin` 使用 `TOKEN_SECRET` 校验签名 admin token，`get_current_candidate_id` 从 `X-Candidate-Token` header 校验并提取候选人 ID。
 
 前端设计系统：`frontend/src/index.css` 定义 CSS 变量，`frontend/tailwind.config.ts` 映射 Tailwind token，`frontend/src/lib/design-tokens.ts` 仅在需要原始值时使用。优先复用本地 UI primitives 和 `components/editorial/`，不要重新引入旧 shadcn HSL token 或页面级临时样式。完整设计规范见 `frontend/DESIGN.md`（含 token 表、组件清单、章节样式），所有 PR 改动若触及视觉需先读它。
 
@@ -150,11 +154,11 @@ uv run alembic downgrade -1  # 回滚一步
 
 ## 当前阶段
 
-第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、candidate header 注入、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，报表导出返回单个多 Sheet Excel。剩余工作：导入失败报告下载。详细交接文档见 `docs/handoff.md`。
+第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、签名 candidate token、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，导入失败报告可下载，报表导出返回单个多 Sheet Excel。当前安全加固包括导入大小/行数/sheet 限制、Excel 公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。详细交接文档见 `docs/handoff.md`。
 
 ## 与 AGENTS.md 的关系
 
-仓库根目录同时存在 `AGENTS.md`，是更早的精简版（英文为主、覆盖面较窄）。本文件（`CLAUDE.md`）是当前权威的 Claude 协作指南，以本文件为准；如两者冲突，遵循本文件并在 PR 中提议收敛 `AGENTS.md`。
+仓库根目录同时存在 `AGENTS.md`，作为跨代理精简协作指南；本文件（`CLAUDE.md`）保留更详细的 Claude 协作约定。若两者冲突，优先按 live code 与 `docs/handoff.md` 核验，并在同一轮变更中收敛两处说明。
 
 ## Commit 规范
 

@@ -37,6 +37,9 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:8080
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=local-dev-admin-password
 TOKEN_SECRET=local-dev-token-secret-change-before-production
+IMPORT_MAX_UPLOAD_BYTES=5242880
+IMPORT_MAX_ROWS=5000
+IMPORT_MAX_SHEETS=1
 ```
 
 直接运行后端服务时也可以参考 `backend/.env.example`：
@@ -47,6 +50,9 @@ CORS_ORIGINS=http://localhost:5173,http://localhost:8080
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=local-dev-admin-password
 TOKEN_SECRET=local-dev-token-secret-change-before-production
+IMPORT_MAX_UPLOAD_BYTES=5242880
+IMPORT_MAX_ROWS=5000
+IMPORT_MAX_SHEETS=1
 ```
 
 前端示例见 `frontend/.env.example`：
@@ -180,7 +186,7 @@ docker-compose --env-file .env config
 
 ## 当前边界
 
-第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表和报表导出已经具备入库/查询闭环。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、消息通知或队列化导入。
+第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表和报表导出已经具备入库/查询闭环。当前加固边界包含 Excel 导入大小/行数/sheet 限制、Excel 导出公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、消息通知或队列化导入。
 
 ## 后续开发计划
 

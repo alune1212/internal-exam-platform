@@ -23,7 +23,8 @@ curl http://localhost:8080/api/health
 - `DATABASE_URL` 使用正式数据库凭据。
 - `ADMIN_PASSWORD` 不是默认值。
 - `TOKEN_SECRET` 不是默认值。
-- `CORS_ORIGINS` 只包含正式前端/Nginx 域名。
+- `ENVIRONMENT=production` 时，后端会拒绝默认 `ADMIN_PASSWORD`、默认 `TOKEN_SECRET`、空 CORS、`*`、非 HTTPS，以及 localhost/127.0.0.1/0.0.0.0；正式环境的 `CORS_ORIGINS` 只包含正式 HTTPS 前端/Nginx 域名。
+- 如需调整导入预算，显式配置 `IMPORT_MAX_UPLOAD_BYTES`、`IMPORT_MAX_ROWS`、`IMPORT_MAX_SHEETS`；默认是 5 MiB、5000 行、1 个工作表。
 - 已做数据库备份，再执行 `alembic upgrade head`。
 
 ## Browser Flow

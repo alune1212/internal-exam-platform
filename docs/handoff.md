@@ -21,6 +21,11 @@ Implemented foundations:
 - Answer autosave persistence and submit scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
 - Signed admin session tokens returned from login and checked by `X-Admin-Token`.
+- Signed candidate tokens checked by `X-Candidate-Token` for candidate-facing exam/practice APIs.
+- Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
+- Excel export cells are escaped before writing failure reports and report workbooks.
+- Production settings reject default admin password, default token secret, and unsafe CORS origins.
+- Save/submit paths reload in-progress attempts with database row locks before mutation.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
 - Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
@@ -30,22 +35,36 @@ Implemented foundations:
 
 ## Verified Commands
 
-Quality gates verified on 2026-06-17:
+Quality gates verified on 2026-06-18:
 
 ```bash
+cd backend && uv run ruff format . --check
+cd backend && uv run ruff check .
+cd backend && uv run ty check
 cd backend && uv run pytest
+cd backend && uv run --with pip-audit pip-audit
+cd frontend && npm run format:check
 cd frontend && npm test -- --run
 cd frontend && npm run lint
 cd frontend && npm run build
+cd frontend && npm audit --audit-level=high
+docker-compose --env-file .env config
+curl http://localhost:8000/api/health
+curl http://localhost:8080/api/health
 ```
 
 Observed results:
 
-- Backend tests: 135 passed.
-- Frontend tests: 189 passed. jsdom still logs the known `Not implemented: navigation to another Document` warning in the 401 redirect test.
+- Backend format/lint/type gates: passed.
+- Backend tests: 161 passed.
+- Backend dependency audit: `No known vulnerabilities found`.
+- Frontend format/lint/build gates: passed.
+- Frontend tests: 39 files / 190 tests passed. jsdom still logs the known `Not implemented: navigation to another Document` warning in the 401 redirect test.
+- Frontend dependency audit: 0 vulnerabilities at `--audit-level=high`.
 - Frontend lint: 0 errors and 0 warnings.
 - Frontend build: passed, with Vite dynamic-import/chunk-size warnings.
-- Docker Compose and `/api/health` should be rerun during the formal UAT pass in `docs/official-exam-uat-checklist.md`.
+- Docker Compose config passed; backend/db/frontend/nginx were Up with the database healthy during the gate.
+- `http://localhost:8000/api/health` and `http://localhost:8080/api/health` returned ok.
 
 ## Implemented Business Loop
 
@@ -73,11 +92,12 @@ Observed results:
 
 ## Known Gaps
 
-- No blocking P0 gap is currently documented in code. Production readiness still requires a real UAT pass through the Docker/Nginx `8080` entrypoint and production secrets/backup checks.
+- No blocking P0 gap is currently documented in code. Production readiness still requires a real human UAT pass through the Docker/Nginx `8080` entrypoint and production secrets/backup checks.
+- Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
 
 ## Recommended Next Work
 
-1. Run `docs/official-exam-uat-checklist.md` against the Docker/Nginx `8080` entrypoint.
+1. Run `docs/official-exam-uat-checklist.md` as a human browser UAT against the Docker/Nginx `8080` entrypoint.
 2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; then back up the database before running migrations.
 3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
 
