@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,17 @@ class Settings(BaseSettings):
                 raise ValueError("production 环境必须配置 ADMIN_PASSWORD")
             if self.token_secret == "change-me-in-production":
                 raise ValueError("production 环境必须配置 TOKEN_SECRET")
+            origins = self.cors_origin_list
+            if not origins:
+                raise ValueError("production 环境必须配置安全的 CORS_ORIGINS")
+            for origin in origins:
+                parsed = urlparse(origin)
+                if (
+                    origin == "*"
+                    or parsed.scheme != "https"
+                    or parsed.hostname in {"localhost", "127.0.0.1", "0.0.0.0"}  # noqa: S104
+                ):
+                    raise ValueError("production 环境必须配置安全的 CORS_ORIGINS")
         return self
 
     @property

@@ -185,5 +185,5 @@ docker-compose --env-file .env config
 ## 后续开发计划
 
 1. 正式使用前按 `docs/official-exam-uat-checklist.md` 走 Docker/Nginx 入口验收。
-2. 生产环境必须配置非默认 `POSTGRES_PASSWORD`、`DATABASE_URL`、`ADMIN_PASSWORD`、`TOKEN_SECRET`、`CORS_ORIGINS`，并准备数据库备份。
+2. 生产环境必须配置非默认 `POSTGRES_PASSWORD`、`DATABASE_URL`、`ADMIN_PASSWORD`、`TOKEN_SECRET`，且 `CORS_ORIGINS` 只能包含正式 HTTPS 域名，不能使用 `*`、localhost、127.0.0.1 或 0.0.0.0；上线前准备数据库备份。
 3. 如需扩展权限，仅增加轻量能力，不引入复杂 RBAC。

@@ -146,6 +146,42 @@ def test_production_rejects_default_admin_password_and_token_secret() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "cors_origins",
+    [
+        "",
+        "*",
+        "https://exam.example.com,*",
+        "http://exam.example.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:8080",
+        "http://0.0.0.0:8080",
+    ],
+)
+def test_production_rejects_dangerous_cors_origins(cors_origins: str) -> None:
+    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
+        Settings(
+            environment="production",
+            admin_password="strong-password",  # noqa: S106
+            token_secret="prod-token-secret",  # noqa: S106
+            cors_origins=cors_origins,
+        )
+
+
+def test_production_accepts_explicit_https_cors_origins() -> None:
+    configured = Settings(
+        environment="production",
+        admin_password="strong-password",  # noqa: S106
+        token_secret="prod-token-secret",  # noqa: S106
+        cors_origins="https://exam.example.com, https://admin.example.com",
+    )
+
+    assert configured.cors_origin_list == [
+        "https://exam.example.com",
+        "https://admin.example.com",
+    ]
+
+
 def test_admin_questions_requires_token() -> None:
     client, _ = _build_client()
     resp = client.get("/api/admin/questions")

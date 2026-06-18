@@ -78,7 +78,7 @@ Observed results:
 ## Recommended Next Work
 
 1. Run `docs/official-exam-uat-checklist.md` against the Docker/Nginx `8080` entrypoint.
-2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, `TOKEN_SECRET`, and `CORS_ORIGINS`, then back up the database before running migrations.
+2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; then back up the database before running migrations.
 3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
 
 ## Phase 7 — States & Polish（完成日期 2026-06-14）
