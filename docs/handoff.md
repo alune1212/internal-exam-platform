@@ -52,7 +52,7 @@ Observed results:
 - Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
 - Import failure report download returns an Excel workbook with batch metadata and row-level failure details.
-- Exam configuration create/update/list services persist to the `exam` table, and active listing returns only `active` exams.
+- Exam configuration create/update/list services persist to the `exam` table, and candidate-facing active listing requires `X-Candidate-Token` and returns only active exams in that candidate's `exam_candidate_scope`.
 - `available_from` and `available_until` limit new exam starts. Existing in-progress attempts can be resumed after `available_until` and still submit based on `started_at + duration_minutes`.
 - Publishing an exam from draft to active freezes the current active question bank into `exam_question_pool`; start exam samples from that frozen pool while keeping attempt question snapshots.
 - Exam start creates an in-progress attempt and stores question snapshots.

@@ -710,10 +710,7 @@ def _build_exam_read_for_candidate(
     )
 
 
-def list_active_exams(db: Session, candidate_id: int | None = None) -> list[ExamRead]:
-    if candidate_id is None:
-        return _list_exams(db, status="active")
-
+def list_active_exams(db: Session, candidate_id: int) -> list[ExamRead]:
     exams = db.query(Exam).filter(Exam.status == "active").order_by(Exam.id).all()
     candidate_exams = [
         exam_read

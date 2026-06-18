@@ -41,8 +41,8 @@ GET  /api/exams/{exam_id}/ranking
 
 说明：
 
-- `/api/exams/active` 已从 `exam` 表读取 `active` 状态考试，按 `id` 排序返回。
-- `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态。
+- `/api/exams/active` 需要 `X-Candidate-Token`，并只返回当前考生在 `exam_candidate_scope` 内、仍可参加的 `active` 状态考试，按 `id` 排序返回。
+- `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态；已提交且无未使用补考授权的考试不会出现在该列表。
 - `/api/exams/{exam_id}/start` 已根据冻结题池和 `exam.question_rule` 创建正式考试记录和题目快照，后续题库修改不影响该 attempt。空 `question_rule` 保留旧逻辑：抽取冻结题池中的全部题目。
 - `available_from` / `available_until` 只限制新开考；已有 `in_progress` attempt 可继续恢复，并按 `started_at + duration_minutes` 到时提交。
 - `/api/attempts/{attempt_id}/answers/save` 已将答案暂存到 `exam_attempt_answer`，暂存不暂停倒计时。

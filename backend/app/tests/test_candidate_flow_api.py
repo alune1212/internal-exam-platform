@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.security import create_candidate_token
 from app.main import create_app
-from app.models import Candidate, Question, QuestionOption
+from app.models import Candidate, Exam, ExamCandidateScope, Question, QuestionOption
 
 
 def _build_client() -> tuple[TestClient, Session]:
@@ -161,6 +161,36 @@ def test_practice_questions_hide_answers_and_analysis() -> None:
     row = response.json()["data"][0]
     assert "analysis" not in row
     assert "is_correct" not in row["options"][0]
+
+
+def test_active_exams_requires_candidate_token() -> None:
+    client, db = _build_client()
+    db.add(Exam(title="安全考试", duration_minutes=60, status="active"))
+    db.commit()
+
+    response = client.get("/api/exams/active")
+
+    assert response.status_code == 401
+
+
+def test_active_exams_returns_only_candidate_scoped_exams() -> None:
+    client, db = _build_client()
+    candidate = Candidate(name="张三", employee_no="YG0001", status="active")
+    scoped_exam = Exam(title="可参加考试", duration_minutes=60, status="active")
+    other_exam = Exam(title="其他考试", duration_minutes=60, status="active")
+    db.add_all([candidate, scoped_exam, other_exam])
+    db.flush()
+    db.add(ExamCandidateScope(exam_id=scoped_exam.id, candidate_id=candidate.id))
+    db.commit()
+
+    response = client.get(
+        "/api/exams/active",
+        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
+    )
+
+    assert response.status_code == 200
+    rows = response.json()["data"]
+    assert [row["title"] for row in rows] == ["可参加考试"]
 
 
 def test_practice_answer_uses_candidate_token_not_request_body() -> None:

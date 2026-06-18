@@ -210,14 +210,21 @@ def test_create_exam_rejects_non_empty_rule_without_question_count(
         )
 
 
-def test_list_active_exams_filters(db: Session) -> None:
+def test_list_active_exams_filters_to_candidate_scope(db: Session) -> None:
+    candidate = create_candidate(db)
     exam_service.create_exam(
         db, ExamCreate(title="草稿", duration_minutes=60, status="draft")
     )
-    exam_service.create_exam(
+    scoped = exam_service.create_exam(
         db, ExamCreate(title="上线", duration_minutes=60, status="active")
     )
-    active = exam_service.list_active_exams(db)
+    exam_service.create_exam(
+        db, ExamCreate(title="未分配", duration_minutes=60, status="active")
+    )
+    add_exam_candidate_scope(db, scoped.id, candidate.id)
+
+    active = exam_service.list_active_exams(db, candidate.id)
+
     assert len(active) == 1
     assert active[0].title == "上线"
 

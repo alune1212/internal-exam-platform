@@ -168,7 +168,7 @@ docker-compose --env-file .env config
 - 应参人员 Excel 导入行级校验、合法人员入库、导入批次记录
 - 单场考试应考名单导入会复用已有人员，并写入 `exam_candidate_scope`
 - 题库导入、人员导入、单场考试名单导入均记录 `import_batch`，失败报告可下载 Excel 明细
-- 考试配置创建、更新、管理端列表和考试人端 active 列表入库，支持 `available_from` / `available_until` 开放窗口
+- 考试配置创建、更新、管理端列表和考试人端 candidate-scoped active 列表入库，支持 `available_from` / `available_until` 开放窗口
 - 考试从 draft 发布为 active 时冻结 `exam_question_pool`；正式开始考试时只从该场 frozen pool 抽题
 - 开始考试时按 `question_rule` 生成固定 50 题等价试卷，题干去重、整数均分，创建 attempt 和题目快照，答案暂存入库，提交后按快照自动判分
 - 考试结果返回及格线和通过状态，当前固定试卷规则为总分 100、及格线 60
