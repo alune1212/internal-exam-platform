@@ -58,11 +58,16 @@ async function parseError(response: Response): Promise<ApiError> {
 function handle401(path: string): void {
   if (path.includes("/api/admin/")) {
     clearAdminToken();
-    window.location.href = "/admin/login";
+    redirectTo("/admin/login");
   } else {
     clearCurrentCandidate();
-    window.location.href = "/login";
+    redirectTo("/login");
   }
+}
+
+function redirectTo(path: string): void {
+  window.history.replaceState(null, "", path);
+  window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {

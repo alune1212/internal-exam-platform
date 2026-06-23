@@ -170,24 +170,24 @@ def test_production_rejects_default_admin_password_and_token_secret() -> None:
         )
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("admin_password", "local-dev-admin-password"),
-        ("token_secret", "local-dev-token-secret-change-before-production"),
-    ],
-)
-def test_production_rejects_repository_sample_secrets(field: str, value: str) -> None:
-    kwargs = {
-        "environment": "production",
-        "admin_password": "strong-password",
-        "token_secret": "prod-token-secret",
-        "cors_origins": "https://exam.example.com",
-    }
-    kwargs[field] = value
+def test_production_rejects_sample_admin_password() -> None:
+    with pytest.raises(ValidationError, match="ADMIN_PASSWORD"):
+        Settings(
+            environment="production",
+            admin_password="local-dev-admin-password",  # noqa: S106
+            token_secret="prod-token-secret",  # noqa: S106
+            cors_origins="https://exam.example.com",
+        )
 
-    with pytest.raises(ValidationError, match=field.upper()):
-        Settings(**kwargs)
+
+def test_production_rejects_sample_token_secret() -> None:
+    with pytest.raises(ValidationError, match="TOKEN_SECRET"):
+        Settings(
+            environment="production",
+            admin_password="strong-password",  # noqa: S106
+            token_secret="local-dev-token-secret-change-before-production",  # noqa: S106
+            cors_origins="https://exam.example.com",
+        )
 
 
 @pytest.mark.parametrize(

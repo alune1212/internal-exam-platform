@@ -55,6 +55,7 @@ function mockFetchJson(data: unknown, status = 200) {
 describe("apiRequest auth headers", () => {
   beforeEach(() => {
     localStorage.clear();
+    window.history.replaceState(null, "", "/");
     vi.restoreAllMocks();
   });
 
@@ -96,5 +97,14 @@ describe("apiRequest auth headers", () => {
     mockFetchJson(null, 401);
     await expect(apiRequest("/api/admin/exams")).rejects.toBeInstanceOf(ApiError);
     expect(localStorage.getItem("internal-exam-admin-token")).toBeNull();
+    expect(window.location.pathname).toBe("/admin/login");
+  });
+
+  it("401 候选人请求清 token", async () => {
+    setCurrentCandidate(mockCandidate);
+    mockFetchJson(null, 401);
+    await expect(apiRequest("/api/exams/active")).rejects.toBeInstanceOf(ApiError);
+    expect(localStorage.getItem("internal-exam-candidate")).toBeNull();
+    expect(window.location.pathname).toBe("/login");
   });
 });
