@@ -6,9 +6,9 @@ import { Navigate, useNavigate, useOutletContext } from "react-router-dom";
 import { z } from "zod";
 
 import { loginCandidate as requestCandidateLogin } from "@/api/auth";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { PageHeader, PageSection } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,18 +45,16 @@ export function LoginPage() {
   }
 
   return (
-    <div data-stagger className="flex w-full max-w-md flex-col gap-6">
+    <PageSection variant="plain" data-stagger className="w-full max-w-md gap-6">
       <div className="flex flex-col gap-4">
         <Wordmark size="md" subtitle="internal exam platform" />
-        <div className="flex flex-col gap-2">
-          <ChapterNumber>{candidatePageCopy.login}</ChapterNumber>
-          <h1 className="font-display text-display-lg font-semibold leading-[1.12] text-ink">
-            登录考试人
-          </h1>
-        </div>
-        <p className="text-body-sm text-muted">
-          请输入姓名和手机号后四位。员工号可帮助系统更准确地匹配应考名单。
-        </p>
+        <PageHeader
+          data-testid="candidate-login-header"
+          eyebrow={candidatePageCopy.login}
+          title="登录考试人"
+          description="请输入姓名和手机号后四位。员工号可帮助系统更准确地匹配应考名单。"
+          className="gap-3 md:flex-col md:items-start"
+        />
       </div>
 
       <Card className="bg-canvas shadow-pop">
@@ -129,6 +127,6 @@ export function LoginPage() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </PageSection>
   );
 }

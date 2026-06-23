@@ -4,8 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { getAttemptResult } from "@/api/attempts";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { EmptyState } from "@/components/editorial/EmptyState";
+import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { candidatePageCopy } from "@/lib/pageCopy";
@@ -27,16 +26,17 @@ export function ExamResultPage() {
     [];
 
   return (
-    <div data-stagger className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
-        <div className="flex flex-col gap-1">
-          <ChapterNumber>{candidatePageCopy.result}</ChapterNumber>
-          <h1 className="font-display text-display-md font-semibold text-ink">考试结果</h1>
-        </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link to="/exams">返回考试列表</Link>
-        </Button>
-      </header>
+    <PageShell density="workbench" width="full" stagger>
+      <PageHeader
+        eyebrow={candidatePageCopy.result}
+        title="考试结果"
+        actions={
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/exams">返回考试列表</Link>
+          </Button>
+        }
+        className="border-b border-hairline pb-4"
+      />
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <Card className="border-0 bg-footer text-canvas shadow-pop">
@@ -92,7 +92,7 @@ export function ExamResultPage() {
           </CardContent>
         </Card>
 
-        <section className="flex flex-col gap-4">
+        <PageSection variant="plain">
           <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
             <div className="flex flex-col gap-1">
               <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
@@ -180,10 +180,15 @@ export function ExamResultPage() {
             ) : (
               <div className="rounded-lg border border-hairline bg-canvas">
                 {isLoading ? (
-                  <ContentSkeleton rows={4} />
+                  <PageState
+                    state="loading"
+                    rows={4}
+                    className="border-0 bg-transparent shadow-none"
+                  />
                 ) : (
-                  <EmptyState
-                    chapter={candidatePageCopy.empty}
+                  <PageState
+                    state="empty"
+                    eyebrow={candidatePageCopy.empty}
                     title="暂无结果，请先完成考试。"
                     description="提交考试后，这里会显示答案、得分与解析。"
                     className="py-10"
@@ -192,8 +197,8 @@ export function ExamResultPage() {
               </div>
             )}
           </div>
-        </section>
+        </PageSection>
       </div>
-    </div>
+    </PageShell>
   );
 }

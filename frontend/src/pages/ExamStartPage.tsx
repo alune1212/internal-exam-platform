@@ -4,10 +4,9 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 
 import { startExam } from "@/api/exams";
 import { ApiError } from "@/api/client";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { EmptyState } from "@/components/editorial/EmptyState";
 import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { candidatePageCopy } from "@/lib/pageCopy";
 
@@ -44,18 +43,18 @@ export function ExamStartPage() {
       : null;
 
   return (
-    <div data-stagger className="mx-auto flex max-w-3xl flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <ChapterNumber>{candidatePageCopy.examRules}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          规则已阅，<em className="italic">开始倒计时</em>。
-        </h1>
-        <p className="text-body-lg">
-          仔细阅读下面的规则，然后开始倒计时。开始后系统会立即生成题目快照。
-        </p>
-      </header>
+    <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
+      <PageHeader
+        eyebrow={candidatePageCopy.examRules}
+        title={
+          <>
+            规则已阅，<em className="italic">开始倒计时</em>。
+          </>
+        }
+        description="仔细阅读下面的规则，然后开始倒计时。开始后系统会立即生成题目快照。"
+      />
 
-      <section className="rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
+      <PageSection variant="panel" className="p-6 lg:p-8">
         <ol className="flex flex-col gap-3 text-body italic text-ink">
           {RULES.map((rule, index) => (
             <li key={rule.text} className="flex gap-3">
@@ -66,7 +65,7 @@ export function ExamStartPage() {
             </li>
           ))}
         </ol>
-      </section>
+      </PageSection>
 
       {candidate ? (
         <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5">
@@ -103,9 +102,9 @@ export function ExamStartPage() {
           </Button>
         )}
         {mutation.isError ? (
-          <EmptyState
-            tone="error"
-            chapter={candidatePageCopy.error}
+          <PageState
+            state="error"
+            eyebrow={candidatePageCopy.error}
             title="开始考试失败。"
             description={errorMessage}
             action={
@@ -129,6 +128,6 @@ export function ExamStartPage() {
           />
         ) : null}
       </div>
-    </div>
+    </PageShell>
   );
 }

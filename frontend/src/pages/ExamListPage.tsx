@@ -3,8 +3,7 @@ import { ArrowUpRight, Clock, FileText, Hash } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { getActiveExams } from "@/api/exams";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { EmptyState } from "@/components/editorial/EmptyState";
+import { PageHeader, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { candidatePageCopy } from "@/lib/pageCopy";
@@ -147,13 +146,11 @@ export function ExamListPage() {
   });
 
   return (
-    <div data-stagger className="flex flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <ChapterNumber>{candidatePageCopy.exams}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          {resolveHeading(data.length, isLoading)}
-        </h1>
-      </header>
+    <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
+      <PageHeader
+        eyebrow={candidatePageCopy.exams}
+        title={resolveHeading(data.length, isLoading)}
+      />
 
       {isLoading ? (
         <div className="grid gap-5 md:grid-cols-2" aria-busy="true">
@@ -167,12 +164,13 @@ export function ExamListPage() {
           ))}
         </div>
       ) : (
-        <EmptyState
-          chapter={candidatePageCopy.exams}
+        <PageState
+          state="empty"
+          eyebrow={candidatePageCopy.empty}
           title="暂无可参加考试。"
           description="管理员发布考试后会显示在这里。"
         />
       )}
-    </div>
+    </PageShell>
   );
 }

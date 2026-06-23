@@ -193,9 +193,15 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
+    expect(screen.getByTestId("candidate-login-header")).toBeInTheDocument();
     expect(screen.getByText("CANDIDATE · 登录")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "登录考试人" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录考试人" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
     expect(screen.getByLabelText("姓名")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 
   it("renders the exam taking page with focus-mode progress and option cards", async () => {
@@ -413,6 +419,7 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
+    expect(await screen.findByTestId("candidate-exam-list-shell")).toHaveClass("gap-8");
     expect(await screen.findByText("今天有一场考试等着你。")).toBeInTheDocument();
     expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "内部考试" })).not.toHaveClass("tracking-[-0.04em]");
