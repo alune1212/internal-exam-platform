@@ -55,10 +55,10 @@ export function QuestionImportPage() {
       <PageHeader
         eyebrow={adminPageCopy.library}
         title="题库导入"
-        description="上传标准 Excel 模板，系统会校验行数据并保存可用题目。"
+        description="仅支持标准 Excel（.xlsx / .xls），不解析 Word。系统会校验行数据并保存可用题目。"
       />
 
-      <PageSection variant="panel" className="lg:p-8">
+      <PageSection variant="panel" className="rounded-lg p-6 lg:p-8">
         <div className="flex items-center gap-3">
           <Button
             type="button"

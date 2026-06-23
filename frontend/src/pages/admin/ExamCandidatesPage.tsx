@@ -191,7 +191,7 @@ export function ExamCandidatesPage() {
         description="本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。"
       />
 
-      <PageSection variant="panel" className="gap-4 lg:p-8">
+      <PageSection variant="panel" className="gap-4 rounded-lg p-6 lg:p-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-caption uppercase tracking-[0.16em] text-muted">IMPORT</p>

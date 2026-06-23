@@ -47,7 +47,7 @@ export function CandidateImportPage() {
         description="上传人员 Excel 模板，系统会按当前考试写入应考名单。"
       />
 
-      <PageSection variant="panel" className="lg:p-8">
+      <PageSection variant="panel" className="rounded-lg p-6 lg:p-8">
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="candidate-file">选择 Excel 文件</FieldLabel>
