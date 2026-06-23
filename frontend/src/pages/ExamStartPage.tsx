@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/editorial/EmptyState";
 import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Button } from "@/components/ui/button";
+import { candidatePageCopy } from "@/lib/pageCopy";
 
 const RULES: { text: string }[] = [
   { text: "考试中答案会自动暂存，但倒计时不会暂停。" },
@@ -45,7 +46,7 @@ export function ExamStartPage() {
   return (
     <div data-stagger className="mx-auto flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
-        <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
+        <ChapterNumber>{candidatePageCopy.examRules}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           规则已阅，<em className="italic">开始倒计时</em>。
         </h1>
@@ -104,7 +105,7 @@ export function ExamStartPage() {
         {mutation.isError ? (
           <EmptyState
             tone="error"
-            chapter="CHAPTER 99 · OOPS"
+            chapter={candidatePageCopy.error}
             title="开始考试失败。"
             description={errorMessage}
             action={

@@ -7,6 +7,7 @@ import {
   getCurrentCandidate,
   setCurrentCandidate,
 } from "@/lib/candidateSession";
+import { cn } from "@/lib/utils";
 import type { Candidate } from "@/types/candidate";
 
 export type CandidateSessionContext = {
@@ -19,8 +20,9 @@ export function CandidateLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [candidate, setCandidate] = useState<Candidate | null>(() => getCurrentCandidate());
+  const isLoginRoute = location.pathname === "/login";
 
-  if (!candidate && location.pathname !== "/login") {
+  if (!candidate && !isLoginRoute) {
     return <Navigate to="/login" replace />;
   }
 
@@ -36,14 +38,21 @@ export function CandidateLayout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas">
-      <TopNav candidate={candidate} onLogout={logoutCandidate} />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-10">
+    <div className={cn("flex min-h-screen flex-col bg-canvas", isLoginRoute && "bg-canvas-warm")}>
+      {isLoginRoute ? null : <TopNav candidate={candidate} onLogout={logoutCandidate} />}
+      <main
+        className={cn(
+          "w-full flex-1",
+          isLoginRoute
+            ? "flex min-h-screen items-center justify-center px-4 py-8 md:px-6"
+            : "mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10",
+        )}
+      >
         <Outlet
           context={{ candidate, loginCandidate, logoutCandidate } satisfies CandidateSessionContext}
         />
       </main>
-      <Footer />
+      {isLoginRoute ? null : <Footer />}
     </div>
   );
 }

@@ -27,6 +27,7 @@ import {
   perTypeIndexOf,
   sortByType,
 } from "@/lib/questionNavigation";
+import { candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, PracticeQuestion } from "@/types/question";
 
@@ -125,7 +126,7 @@ export function PracticePage() {
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">
           <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>CHAPTER 00 · NOT LOGGED IN</ChapterNumber>
+            <ChapterNumber>{candidatePageCopy.notLoggedIn}</ChapterNumber>
             <h1 className="font-display text-display-lg font-semibold text-ink">
               请先登录考试人。
             </h1>
@@ -155,7 +156,7 @@ export function PracticePage() {
     return (
       <div className="mx-auto max-w-3xl py-12">
         <EmptyState
-          chapter="CHAPTER 00 · EMPTY"
+          chapter={candidatePageCopy.empty}
           title="题库为空。"
           description="管理员导入题库后会显示在这里。"
         />
@@ -167,12 +168,11 @@ export function PracticePage() {
   const isMultiple = questionType === "multiple";
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
-  const stemChapterLabel = `CHAPTER ${String(
+  const stemChapterLabel = formatQuestionEyebrow(
     perTypeIndexOf(sortedData, activeQuestion.id),
-  ).padStart(
-    2,
-    "0",
-  )} · ${getQuestionTypeLabel(activeQuestion.question_type)} · ${activeQuestion.score} 分`;
+    getQuestionTypeLabel(activeQuestion.question_type),
+    activeQuestion.score,
+  );
 
   const options = activeQuestion.options.map((option) => ({
     label: option.label,
@@ -208,7 +208,7 @@ export function PracticePage() {
   return (
     <div data-stagger className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 border-b border-hairline pb-4">
-        <ChapterNumber>CHAPTER PR · PRACTICE</ChapterNumber>
+        <ChapterNumber>{candidatePageCopy.practice}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink md:text-display-xl">
           刷一遍，<em className="italic">记一遍</em>。
         </h1>

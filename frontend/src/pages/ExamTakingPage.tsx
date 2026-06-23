@@ -25,6 +25,7 @@ import {
   perTypeIndexOf,
   sortByType,
 } from "@/lib/questionNavigation";
+import { candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
@@ -291,7 +292,7 @@ export function ExamTakingPage() {
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">
           <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>CHAPTER 00 · NOT STARTED</ChapterNumber>
+            <ChapterNumber>{candidatePageCopy.notStarted}</ChapterNumber>
             <h1 className="font-display text-display-lg font-semibold text-ink">未开始考试。</h1>
             <Button asChild>
               <Link to={`/exams/${examId}/start`}>返回考试说明</Link>
@@ -319,7 +320,7 @@ export function ExamTakingPage() {
       <div className="mx-auto max-w-3xl py-12">
         <Card className="bg-surface-card">
           <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>CHAPTER 03 · SUBMITTED</ChapterNumber>
+            <ChapterNumber>{candidatePageCopy.submitted}</ChapterNumber>
             <h1 className="font-display text-display-lg font-semibold text-ink">考试已提交。</h1>
             <Button asChild>
               <Link to={`/exams/${examId}/result?attemptId=${attempt.id}`}>查看成绩</Link>
@@ -347,9 +348,11 @@ export function ExamTakingPage() {
   const selectedLabels = isMultiple ? splitAnswer(answers[activeQuestion.id]) : [];
   const singleValue = !isMultiple ? (answers[activeQuestion.id] ?? "") : "";
   const perTypeNumber = perTypeIndexOf(sortedQuestions, activeQuestion.id);
-  const stemChapterLabel = `CHAPTER ${String(perTypeNumber).padStart(2, "0")} · ${getQuestionTypeLabel(
-    activeQuestion.question_type,
-  )} · ${activeQuestion.score} 分`;
+  const stemChapterLabel = formatQuestionEyebrow(
+    perTypeNumber,
+    getQuestionTypeLabel(activeQuestion.question_type),
+    activeQuestion.score,
+  );
 
   const options = activeQuestion.options_snapshot.map((option) => ({
     label: option.label,

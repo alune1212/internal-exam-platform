@@ -186,16 +186,16 @@ describe("P0 pages", () => {
     >);
   });
 
-  it("renders the Phase 5 login chapter and bilingual name label", () => {
+  it("renders the clean candidate login copy and name field", () => {
     renderPage("login", <LoginPage />, {
       candidate: null,
       loginCandidate: vi.fn(),
       logoutCandidate: vi.fn(),
     });
 
-    expect(screen.getByText("CHAPTER 01 · WELCOME")).toBeInTheDocument();
-    expect(screen.getByText(/报上姓名/)).toBeInTheDocument();
-    expect(screen.getByText(/姓名 ·/)).toBeInTheDocument();
+    expect(screen.getByText("CANDIDATE · 登录")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录考试人" })).toBeInTheDocument();
+    expect(screen.getByLabelText("姓名")).toBeInTheDocument();
   });
 
   it("renders the exam taking page with focus-mode progress and option cards", async () => {
@@ -208,7 +208,7 @@ describe("P0 pages", () => {
 
     expect((await screen.findAllByText(/Q\s*01\s*\/\s*01/)).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：北京/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/CHAPTER 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/QUESTION 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
   });
 
   it("uses submit as the final-question primary action", async () => {
@@ -357,6 +357,7 @@ describe("P0 pages", () => {
 
     expect(await screen.findByText(/刷一遍/)).toBeInTheDocument();
     expect(await screen.findByText(/记一遍/)).toBeInTheDocument();
+    expect(screen.getByText("PRACTICE · 练习")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("region", { name: "题号导航" })[0].parentElement).toHaveClass(
@@ -413,6 +414,7 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByText("今天有一场考试等着你。")).toBeInTheDocument();
+    expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
     const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);

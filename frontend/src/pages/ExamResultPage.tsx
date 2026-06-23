@@ -8,6 +8,7 @@ import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { EmptyState } from "@/components/editorial/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { candidatePageCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 export function ExamResultPage() {
@@ -29,7 +30,7 @@ export function ExamResultPage() {
     <div data-stagger className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-hairline pb-4">
         <div className="flex flex-col gap-1">
-          <ChapterNumber>CHAPTER 99 · RESULT</ChapterNumber>
+          <ChapterNumber>{candidatePageCopy.result}</ChapterNumber>
           <h1 className="font-display text-display-md font-semibold text-ink">考试结果</h1>
         </div>
         <Button asChild variant="ghost" size="sm">
@@ -40,7 +41,7 @@ export function ExamResultPage() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <Card className="border-0 bg-footer text-canvas shadow-pop">
           <CardContent className="flex flex-col gap-6 p-6 md:p-8">
-            <ChapterNumber className="text-footer-soft">CHAPTER 99 · RESULT</ChapterNumber>
+            <ChapterNumber className="text-footer-soft">{candidatePageCopy.result}</ChapterNumber>
             <h1 className="font-display text-display-xl font-semibold leading-[1.08] text-canvas">
               考试结束。
             </h1>
@@ -95,7 +96,7 @@ export function ExamResultPage() {
           <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
             <div className="flex flex-col gap-1">
               <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
-                CHAPTER R · REVIEW
+                {candidatePageCopy.review}
               </span>
               <h2 className="font-display text-display-md font-semibold text-ink">
                 {result?.show_answer_after_submit === false ? "答题结果" : "答案与解析"}
@@ -182,7 +183,7 @@ export function ExamResultPage() {
                   <ContentSkeleton rows={4} />
                 ) : (
                   <EmptyState
-                    chapter="CHAPTER 00 · EMPTY"
+                    chapter={candidatePageCopy.empty}
                     title="暂无结果，请先完成考试。"
                     description="提交考试后，这里会显示答案、得分与解析。"
                     className="py-10"

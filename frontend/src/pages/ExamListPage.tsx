@@ -7,6 +7,7 @@ import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { EmptyState } from "@/components/editorial/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { candidatePageCopy } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
 function resolveQuestionCount(rule: Record<string, unknown>): number | null {
@@ -148,7 +149,7 @@ export function ExamListPage() {
   return (
     <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
-        <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
+        <ChapterNumber>{candidatePageCopy.exams}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           {resolveHeading(data.length, isLoading)}
         </h1>
@@ -167,9 +168,9 @@ export function ExamListPage() {
         </div>
       ) : (
         <EmptyState
-          chapter="CHAPTER 02 · EXAMS"
+          chapter={candidatePageCopy.exams}
           title="暂无可参加考试。"
-          description="管理员发布 active 考试后会显示在这里。"
+          description="管理员发布考试后会显示在这里。"
         />
       )}
     </div>

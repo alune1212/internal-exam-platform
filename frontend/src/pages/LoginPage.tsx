@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { loginCandidate as requestCandidateLogin } from "@/api/auth";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { candidatePageCopy } from "@/lib/pageCopy";
 
 const schema = z.object({
   name: z.string().min(1, "请输入姓名"),
@@ -43,18 +45,21 @@ export function LoginPage() {
   }
 
   return (
-    <div data-stagger className="flex min-h-[calc(100vh-10rem)] flex-col justify-center gap-8">
-      <div className="flex flex-col gap-6">
-        <ChapterNumber>CHAPTER 01 · WELCOME</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold leading-[1.08] text-ink lg:text-display-xl">
-          报上姓名，<em className="italic">开始答题</em>。
-        </h1>
-        <p className="max-w-xl text-body-lg text-muted">
-          填写姓名和手机号后四位即可进入练习或考试。系统会先在应考名单中匹配；如有员工号会优先用于识别。整个过程不会发送邮件或短信。
+    <div data-stagger className="flex w-full max-w-md flex-col gap-6">
+      <div className="flex flex-col gap-4">
+        <Wordmark size="md" subtitle="internal exam platform" />
+        <div className="flex flex-col gap-2">
+          <ChapterNumber>{candidatePageCopy.login}</ChapterNumber>
+          <h1 className="font-display text-display-lg font-semibold leading-[1.12] text-ink">
+            登录考试人
+          </h1>
+        </div>
+        <p className="text-body-sm text-muted">
+          请输入姓名和手机号后四位。员工号可帮助系统更准确地匹配应考名单。
         </p>
       </div>
 
-      <Card className="max-w-3xl bg-canvas-warm">
+      <Card className="bg-canvas shadow-pop">
         <CardContent className="p-6 md:p-8">
           <form
             className="flex flex-col gap-5"
@@ -63,9 +68,7 @@ export function LoginPage() {
           >
             <FieldGroup>
               <Field data-invalid={form.formState.errors.name ? "" : undefined}>
-                <FieldLabel htmlFor="name">
-                  姓名 · <span className="text-muted">Name</span>
-                </FieldLabel>
+                <FieldLabel htmlFor="name">姓名</FieldLabel>
                 <Input
                   id="name"
                   autoComplete="name"
@@ -79,8 +82,7 @@ export function LoginPage() {
 
               <Field>
                 <FieldLabel htmlFor="employee_no">
-                  员工号 · <span className="text-muted">Employee No.</span>
-                  <span className="ml-1 text-muted">（可选）</span>
+                  员工号<span className="ml-1 text-muted">（可选）</span>
                 </FieldLabel>
                 <Input
                   id="employee_no"
@@ -91,9 +93,7 @@ export function LoginPage() {
               </Field>
 
               <Field data-invalid={form.formState.errors.phone_suffix ? "" : undefined}>
-                <FieldLabel htmlFor="phone_suffix">
-                  手机号后四位 · <span className="text-muted">Phone Suffix</span>
-                </FieldLabel>
+                <FieldLabel htmlFor="phone_suffix">手机号后四位</FieldLabel>
                 <Input
                   id="phone_suffix"
                   autoComplete="off"

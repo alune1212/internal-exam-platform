@@ -27,7 +27,8 @@ Implemented foundations:
 - Production settings reject default admin password, default token secret, and unsafe CORS origins.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
-- Candidate pages for login, practice, exam list, exam start, exam taking, result, and ranking.
+- Candidate login uses a clean auth canvas without candidate navigation/footer; authenticated candidate pages keep the shared top navigation and footer.
+- Candidate page eyebrow copy is centralized in `frontend/src/lib/pageCopy.ts`; page/state labels are descriptive, while numbered labels are reserved for real question positions.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
 - Time-based auto-submit background check.

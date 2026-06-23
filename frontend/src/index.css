@@ -69,6 +69,10 @@
     min-height: 100%;
   }
 
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     @apply min-h-screen bg-canvas text-ink antialiased;
     font-family: var(--font-body);
@@ -122,6 +126,12 @@
   body > #root {
     position: relative;
     z-index: 1;
+  }
+
+  @supports not (scrollbar-gutter: stable) {
+    html {
+      overflow-y: scroll;
+    }
   }
 }
 
