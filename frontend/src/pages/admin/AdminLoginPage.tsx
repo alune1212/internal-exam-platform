@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { adminPageCopy } from "@/lib/pageCopy";
 
 const schema = z.object({
   username: z.string().min(1, "请输入管理员账号"),
@@ -42,7 +43,7 @@ export function AdminLoginPage() {
         <Wordmark subtitle="— admin console" />
         <div className="flex flex-1 flex-col justify-center gap-8">
           <header className="flex flex-col gap-3">
-            <ChapterNumber>CHAPTER 00 · ADMIN</ChapterNumber>
+            <ChapterNumber>{adminPageCopy.login}</ChapterNumber>
             <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
               安静地工作。
             </h1>

@@ -55,6 +55,12 @@ describe("AdminLoginPage", () => {
     });
   });
 
+  it("renders the semantic admin login eyebrow", () => {
+    renderPage();
+
+    expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
+  });
+
   it("stores the returned session token instead of the password", async () => {
     const user = userEvent.setup();
     renderPage();

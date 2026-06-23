@@ -33,6 +33,18 @@ function renderDashboard() {
 }
 
 describe("AdminDashboardPage", () => {
+  it("renders semantic overview and empty-state copy", async () => {
+    vi.mocked(getAdminQuestions).mockResolvedValue([]);
+    vi.mocked(getAdminExams).mockResolvedValue([]);
+    vi.mocked(getScoreReport).mockResolvedValue([]);
+    vi.mocked(getAbsentCandidates).mockResolvedValue([]);
+
+    renderDashboard();
+
+    expect(screen.getByText("OVERVIEW · 仪表盘")).toBeInTheDocument();
+    expect(await screen.findByText("STATE · 空状态")).toBeInTheDocument();
+  });
+
   it("keeps activity heading typography within the design system tracking scale", () => {
     vi.mocked(getAdminQuestions).mockResolvedValue([]);
     vi.mocked(getAdminExams).mockResolvedValue([]);

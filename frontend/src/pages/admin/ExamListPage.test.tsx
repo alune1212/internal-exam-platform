@@ -44,6 +44,12 @@ describe("AdminExamListPage", () => {
     });
   });
 
+  it("renders semantic exams copy", async () => {
+    renderPage();
+
+    expect(await screen.findByText("EXAMS · 考试")).toBeInTheDocument();
+  });
+
   it("creates a draft exam before navigating to edit", async () => {
     const user = userEvent.setup();
     renderPage();

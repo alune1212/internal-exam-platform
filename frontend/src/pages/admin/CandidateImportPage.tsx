@@ -12,6 +12,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
 export function CandidateImportPage() {
@@ -41,7 +42,7 @@ export function CandidateImportPage() {
   return (
     <div data-stagger className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
-        <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
+        <ChapterNumber>{adminPageCopy.candidates}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           应考人员导入
         </h1>

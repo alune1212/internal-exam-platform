@@ -93,6 +93,12 @@ describe("ExamCandidatesPage", () => {
     });
   });
 
+  it("renders semantic candidate copy", async () => {
+    renderPage();
+
+    expect(await screen.findByText("CANDIDATES · 应考人员")).toBeInTheDocument();
+  });
+
   it("lists scoped candidates and can grant retake", async () => {
     const user = userEvent.setup();
 

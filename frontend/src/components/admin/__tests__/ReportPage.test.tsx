@@ -28,7 +28,7 @@ describe("ReportPage", () => {
     renderWithClient(
       <ReportPage
         title="个人成绩"
-        chapterLabel="CHAPTER 04 · REPORTS"
+        chapterLabel="REPORTS · 报表"
         description="每次考试的提交结果"
         queryKey="score-report"
         queryFn={queryFn}
@@ -36,9 +36,22 @@ describe("ReportPage", () => {
       />,
     );
 
-    expect(screen.getByText("CHAPTER 04 · REPORTS")).toBeInTheDocument();
+    expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "个人成绩" })).toBeInTheDocument();
     expect(screen.getByText("每次考试的提交结果")).toBeInTheDocument();
+  });
+
+  it("uses semantic reports copy by default", () => {
+    renderWithClient(
+      <ReportPage
+        title="题目正确率"
+        queryKey="question-accuracy"
+        queryFn={queryFn}
+        columns={columns}
+      />,
+    );
+
+    expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
   });
 
   it("calls queryFn with the expected queryKey and renders the rows", async () => {

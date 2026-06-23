@@ -54,6 +54,12 @@ describe("ExamEditPage", () => {
     vi.mocked(updateAdminExam).mockResolvedValue(exam);
   });
 
+  it("renders semantic exams copy", async () => {
+    renderExamEditPage();
+
+    expect(await screen.findByText("EXAMS · 考试")).toBeInTheDocument();
+  });
+
   it("loads the current exam and saves the fixed 50-question rule", async () => {
     const user = userEvent.setup();
 

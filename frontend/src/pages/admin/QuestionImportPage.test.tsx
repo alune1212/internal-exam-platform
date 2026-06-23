@@ -40,6 +40,12 @@ describe("QuestionImportPage", () => {
     });
   });
 
+  it("renders semantic library copy", () => {
+    renderPage();
+
+    expect(screen.getByText("LIBRARY · 题库")).toBeInTheDocument();
+  });
+
   it("offers failure report download after question import failures", async () => {
     const user = userEvent.setup();
     const file = new File(["x"], "questions.xlsx", {

@@ -15,6 +15,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
 export function QuestionImportPage() {
@@ -52,7 +53,7 @@ export function QuestionImportPage() {
   return (
     <div data-stagger className="flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
-        <ChapterNumber>CHAPTER 03 · LIBRARY</ChapterNumber>
+        <ChapterNumber>{adminPageCopy.library}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           题库导入
         </h1>

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { Question, QuestionOptionPayload, QuestionPayload } from "@/types/question";
 
 type Notice = { tone: "success" | "error"; message: string };
@@ -249,7 +250,7 @@ export function QuestionListPage() {
     <div className="flex flex-col gap-4">
       <ReportPage
         title="题库管理"
-        chapterLabel="CHAPTER 03 · LIBRARY"
+        chapterLabel={adminPageCopy.library}
         description="所有题目的列表与状态。点击右上「导入题库」批量上传 Excel。"
         queryKey="admin-questions"
         queryFn={getAdminQuestions}
@@ -273,7 +274,7 @@ export function QuestionListPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader chapter="CHAPTER 03 · LIBRARY">
+          <DialogHeader chapter={adminPageCopy.library}>
             <DialogTitle>{editing ? "编辑题目" : "新增题目"}</DialogTitle>
             <DialogDescription>填写题干、选项和正确答案后保存。</DialogDescription>
           </DialogHeader>
@@ -379,7 +380,7 @@ export function QuestionListPage() {
 
       <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
-          <DialogHeader chapter="CHAPTER 03 · LIBRARY">
+          <DialogHeader chapter={adminPageCopy.library}>
             <DialogTitle>删除题目</DialogTitle>
             <DialogDescription>
               删除只影响当前题库记录，已生成的考试快照不会改变。

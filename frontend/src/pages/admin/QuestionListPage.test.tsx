@@ -61,6 +61,24 @@ describe("QuestionListPage", () => {
     vi.mocked(deleteAdminQuestion).mockResolvedValue({ deleted_id: 1 });
   });
 
+  it("renders semantic library copy", async () => {
+    renderPage();
+
+    expect(await screen.findByText("LIBRARY · 题库")).toBeInTheDocument();
+  });
+
+  it("uses semantic library copy in question dialogs", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /新增题目/ }));
+    expect(screen.getAllByText("LIBRARY · 题库")).toHaveLength(2);
+
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    await user.click(await screen.findByRole("button", { name: /删除/ }));
+    expect(screen.getAllByText("LIBRARY · 题库")).toHaveLength(2);
+  });
+
   it("creates a question from the dialog and shows feedback", async () => {
     const user = userEvent.setup();
     renderPage();

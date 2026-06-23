@@ -7,6 +7,7 @@ import { getWrongQuestions } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { WrongQuestionRow } from "@/types/report";
 
 const columns: ColumnDef<WrongQuestionRow>[] = [
@@ -58,7 +59,7 @@ export function WrongQuestionPage() {
   return (
     <ReportPage
       title="错题排行"
-      chapterLabel="CHAPTER 04 · REPORTS"
+      chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看错题排行。优先用于复盘与培训。"
       queryKey={["wrong-questions", selectedExamId]}
       queryFn={() =>

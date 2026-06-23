@@ -7,6 +7,7 @@ import { getQuestionAccuracy } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { QuestionAccuracyRow } from "@/types/report";
 
 const columns: ColumnDef<QuestionAccuracyRow>[] = [
@@ -67,7 +68,7 @@ export function QuestionAccuracyPage() {
   return (
     <ReportPage
       title="题目正确率"
-      chapterLabel="CHAPTER 04 · REPORTS"
+      chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看题目正确率。数字越高表示越简单。"
       queryKey={["question-accuracy", selectedExamId]}
       queryFn={() =>

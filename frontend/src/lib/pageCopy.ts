@@ -12,6 +12,17 @@ export const candidatePageCopy = {
   error: "STATE · 异常状态",
 } as const;
 
+export const adminPageCopy = {
+  login: "ADMIN · 登录",
+  overview: "OVERVIEW · 仪表盘",
+  exams: "EXAMS · 考试",
+  candidates: "CANDIDATES · 应考人员",
+  library: "LIBRARY · 题库",
+  reports: "REPORTS · 报表",
+  empty: "STATE · 空状态",
+  error: "STATE · 异常状态",
+} as const;
+
 export function formatQuestionEyebrow(index: number, typeLabel: string, score: number) {
   return `QUESTION ${String(index).padStart(2, "0")} · ${typeLabel} · ${score} 分`;
 }

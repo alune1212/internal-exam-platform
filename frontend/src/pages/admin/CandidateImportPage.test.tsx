@@ -39,6 +39,12 @@ describe("CandidateImportPage", () => {
     });
   });
 
+  it("renders semantic candidate copy", () => {
+    renderPage();
+
+    expect(screen.getByText("CANDIDATES · 应考人员")).toBeInTheDocument();
+  });
+
   it("imports candidates for the current exam and offers failure report download", async () => {
     const user = userEvent.setup();
     const file = new File(["x"], "candidates.xlsx", {

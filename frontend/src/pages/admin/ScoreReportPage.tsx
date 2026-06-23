@@ -7,6 +7,7 @@ import { getScoreReport } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { ScoreReportRow } from "@/types/report";
 
 const columns: ColumnDef<ScoreReportRow>[] = [
@@ -67,7 +68,7 @@ export function ScoreReportPage() {
   return (
     <ReportPage
       title="个人成绩"
-      chapterLabel="CHAPTER 04 · REPORTS"
+      chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看个人提交结果，避免正式成绩混场。"
       queryKey={["score-report", selectedExamId]}
       queryFn={() =>

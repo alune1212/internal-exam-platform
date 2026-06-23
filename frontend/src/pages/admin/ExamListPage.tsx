@@ -10,6 +10,7 @@ import { ReportPage } from "@/components/admin/ReportPage";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { adminPageCopy } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
 function statusVariant(status: string): StatusPillVariant {
@@ -122,7 +123,7 @@ export function AdminExamListPage() {
     <div className="flex flex-col gap-4">
       <ReportPage
         title="考试配置"
-        chapterLabel="CHAPTER 02 · EXAMS"
+        chapterLabel={adminPageCopy.exams}
         description="所有考试的配置入口。点击考试名进入编辑页。"
         queryKey="admin-exams"
         queryFn={getAdminExams}

@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
+import { adminPageCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 interface ReportPageProps<TData> {
@@ -27,7 +28,7 @@ export function ReportPage<TData>({
   queryFn,
   columns,
   actions,
-  chapterLabel = "CHAPTER · REPORTS",
+  chapterLabel = adminPageCopy.reports,
   description,
   rowKey,
   rowClassName,

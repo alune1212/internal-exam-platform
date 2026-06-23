@@ -94,7 +94,7 @@ Add `data-stagger` to a top-level page container to opt into the editorial entra
 
 Candidate pages use `CandidateLayout` with top navigation, footer, warm editorial surfaces, and exam-focused content bands. The `/login` route is the exception: it keeps the candidate session context but renders as a clean auth canvas without candidate navigation or footer. Exam-taking uses focus mode, question navigation, answer cards, timer state, and keyboard shortcuts.
 
-Candidate-facing page eyebrow copy is centralized in `src/lib/pageCopy.ts`. Use descriptive labels such as `PRACTICE · 练习` and `EXAMS · 考试` for pages and states; reserve numbered `QUESTION NN · 类型 · 分值` labels for real question position inside the taking/practice focus card.
+Candidate and admin page-level eyebrow copy is centralized in `src/lib/pageCopy.ts`. Use descriptive labels such as `PRACTICE · 练习`, `OVERVIEW · 仪表盘`, `REPORTS · 报表`, and `STATE · 空状态` for pages and states. Page-level labels must not use fictional chapter numbers; reserve numbered `QUESTION NN · 类型 · 分值` labels for real question position inside the taking/practice focus card.
 
 Admin pages use `AdminLayout` with side rail navigation, compact page headers, metric rows, table/report sections, and mobile fallbacks. Admin screens should remain operational and scan-friendly, with no marketing hero sections.
 

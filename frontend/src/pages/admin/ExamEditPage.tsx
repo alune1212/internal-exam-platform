@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { adminPageCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS = [
@@ -211,7 +212,7 @@ export function ExamEditPage() {
     <div data-stagger className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="flex flex-col gap-3">
-          <ChapterNumber>CHAPTER 02 · EXAMS</ChapterNumber>
+          <ChapterNumber>{adminPageCopy.exams}</ChapterNumber>
           <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
             编辑考试 #{examId ?? "-"}
           </h1>
@@ -315,7 +316,9 @@ export function ExamEditPage() {
         </FieldGroup>
         <div className="flex flex-col gap-3 rounded-md bg-surface-card p-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
           <div className="flex flex-col gap-1">
-            <span className="text-caption uppercase tracking-[0.16em] text-muted">CANDIDATES</span>
+            <span className="text-caption uppercase tracking-[0.16em] text-muted">
+              {adminPageCopy.candidates}
+            </span>
             <span className="text-body text-ink">应考人员 · 在此页维护本场名单</span>
           </div>
           <Button asChild variant="outline" size="sm">
