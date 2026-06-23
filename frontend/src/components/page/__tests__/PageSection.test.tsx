@@ -1,0 +1,38 @@
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import { PageSection } from "../PageSection";
+
+describe("PageSection", () => {
+  it("renders a plain section without framed card styling", () => {
+    render(<PageSection variant="plain">普通区块</PageSection>);
+
+    const section = screen.getByText("普通区块");
+    expect(section).toHaveClass("flex", "flex-col");
+    expect(section).not.toHaveClass("shadow-card");
+  });
+
+  it("renders a card section for display content", () => {
+    render(<PageSection variant="card">展示卡片</PageSection>);
+
+    expect(screen.getByText("展示卡片")).toHaveClass(
+      "rounded-lg",
+      "border",
+      "border-hairline",
+      "bg-canvas",
+      "shadow-card",
+    );
+  });
+
+  it("renders a panel section for dense forms", () => {
+    render(<PageSection variant="panel">表单面板</PageSection>);
+
+    expect(screen.getByText("表单面板")).toHaveClass("rounded-md", "bg-surface-card");
+  });
+
+  it("renders a table section for admin data tables", () => {
+    render(<PageSection variant="table">表格区块</PageSection>);
+
+    expect(screen.getByText("表格区块")).toHaveClass("overflow-hidden", "rounded-lg");
+  });
+});
