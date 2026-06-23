@@ -12,7 +12,9 @@ export function PageActions({
   "aria-label": ariaLabel = "页面操作",
   ...props
 }: PageActionsProps) {
-  if (!children) {
+  const hasRenderableChildren = React.Children.toArray(children).length > 0;
+
+  if (!hasRenderableChildren) {
     return null;
   }
 

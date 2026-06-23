@@ -6,6 +6,24 @@ import { Button } from "@/components/ui/button";
 import { PageActions } from "../PageActions";
 
 describe("PageActions", () => {
+  it("does not render an action group for empty child values", () => {
+    const { rerender } = render(<PageActions>{[]}</PageActions>);
+
+    expect(screen.queryByRole("group", { name: "页面操作" })).not.toBeInTheDocument();
+
+    rerender(<PageActions />);
+    expect(screen.queryByRole("group", { name: "页面操作" })).not.toBeInTheDocument();
+
+    rerender(<PageActions>{null}</PageActions>);
+    expect(screen.queryByRole("group", { name: "页面操作" })).not.toBeInTheDocument();
+
+    rerender(<PageActions>{undefined}</PageActions>);
+    expect(screen.queryByRole("group", { name: "页面操作" })).not.toBeInTheDocument();
+
+    rerender(<PageActions>{false}</PageActions>);
+    expect(screen.queryByRole("group", { name: "页面操作" })).not.toBeInTheDocument();
+  });
+
   it("wraps actions without forcing one-line overflow", () => {
     render(
       <PageActions>
