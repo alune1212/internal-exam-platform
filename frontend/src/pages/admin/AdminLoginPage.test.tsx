@@ -61,6 +61,20 @@ describe("AdminLoginPage", () => {
     expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
   });
 
+  it("renders as a clean auth canvas without admin navigation or footer", () => {
+    renderPage();
+
+    expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "安静地工作。" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
+    expect(screen.getByTestId("admin-login-header")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-login-form-section")).toHaveClass("rounded-md");
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+
   it("stores the returned session token instead of the password", async () => {
     const user = userEvent.setup();
     renderPage();
