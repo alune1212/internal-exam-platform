@@ -1,6 +1,6 @@
 import { Menu } from "lucide-react";
 import { useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 
 import { Wordmark } from "@/components/editorial/Wordmark";
 import {
@@ -18,14 +18,16 @@ import { MD, useMediaQuery } from "@/lib/use-media-query";
 type NavItem = {
   to: string;
   label: string;
+  end?: boolean;
+  activePattern?: RegExp;
 };
 
 const navItems: NavItem[] = [
-  { to: "/admin/dashboard", label: "仪表盘" },
-  { to: "/admin/questions", label: "题库" },
-  { to: "/admin/questions/import", label: "导入" },
-  { to: "/admin/exams", label: "考试" },
-  { to: "/admin/reports/scores", label: "报表" },
+  { to: "/admin/dashboard", label: "仪表盘", end: true },
+  { to: "/admin/exams", label: "考试", activePattern: /^\/admin\/exams(?:\/|$)/ },
+  { to: "/admin/questions", label: "题库", end: true },
+  { to: "/admin/questions/import", label: "导入", end: true },
+  { to: "/admin/reports/scores", label: "报表", activePattern: /^\/admin\/reports(?:\/|$)/ },
 ];
 
 function SidebarList({
@@ -35,25 +37,30 @@ function SidebarList({
   onNavigate?: () => void;
   tone?: "dark" | "light";
 }) {
+  const { pathname } = useLocation();
+
   return (
     <nav className="flex flex-col gap-1">
       {navItems.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
+          end={item.end}
           onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
+          className={({ isActive }) => {
+            const active = isActive || Boolean(item.activePattern?.test(pathname));
+
+            return cn(
               "flex h-12 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
               tone === "dark"
-                ? isActive
+                ? active
                   ? "bg-canvas text-ink"
                   : "text-footer-soft hover:bg-white/10 hover:text-canvas"
-                : isActive
+                : active
                   ? "bg-surface-card text-ink"
-                  : "text-body hover:bg-surface-card hover:text-ink",
-            )
-          }
+                  : "text-muted hover:bg-surface-card hover:text-ink",
+            );
+          }}
         >
           {item.label}
         </NavLink>

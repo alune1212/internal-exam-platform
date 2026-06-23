@@ -49,7 +49,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
   return (
     <li className="flex items-center gap-4 border-b border-hairline-soft py-3 last:border-b-0">
-      <span className={cn("h-1.5 w-1.5 rounded-pill", TONE_DOT[item.tone])} aria-hidden="true" />
+      <span className={cn("size-1.5 rounded-pill", TONE_DOT[item.tone])} aria-hidden="true" />
       <div className="flex flex-1 flex-col gap-1">
         <span className="text-body font-medium text-ink">{item.title}</span>
         <span className="text-caption italic text-muted">{item.caption}</span>

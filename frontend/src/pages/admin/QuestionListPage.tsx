@@ -13,6 +13,7 @@ import {
 } from "@/api/questions";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { StatusPill } from "@/components/editorial/StatusPill";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,7 +25,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import type { Question, QuestionOptionPayload, QuestionPayload } from "@/types/question";
 
 type Notice = { tone: "success" | "error"; message: string };
@@ -103,15 +103,9 @@ function cleanForm(form: QuestionFormState): QuestionPayload {
 function NoticeText({ notice }: { notice: Notice | null }) {
   if (!notice) return null;
   return (
-    <p
-      className={cn(
-        "rounded-md border bg-canvas p-3 text-body-sm",
-        notice.tone === "success" ? "border-success text-success" : "border-error text-error",
-      )}
-      role="alert"
-    >
-      {notice.message}
-    </p>
+    <Alert variant={notice.tone === "success" ? "success" : "error"}>
+      <AlertDescription>{notice.message}</AlertDescription>
+    </Alert>
   );
 }
 

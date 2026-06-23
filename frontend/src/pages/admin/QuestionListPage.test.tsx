@@ -72,7 +72,7 @@ describe("QuestionListPage", () => {
     await user.click(within(dialog).getByRole("button", { name: "保存题目" }));
 
     await waitFor(() => expect(createAdminQuestion).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole("alert")).toHaveTextContent("题目已保存");
+    expect(await screen.findByRole("status")).toHaveTextContent("题目已保存");
   });
 
   it("updates an existing question", async () => {

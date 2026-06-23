@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/api/client";
 import { createAdminExam, getAdminExams } from "@/api/exams";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { Exam } from "@/types/exam";
 
@@ -134,12 +135,9 @@ export function AdminExamListPage() {
         }
       />
       {createError ? (
-        <p
-          className="rounded-md border border-error bg-canvas p-3 text-body-sm text-error"
-          role="alert"
-        >
-          {createError}
-        </p>
+        <Alert variant="error">
+          <AlertDescription>{createError}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   );
