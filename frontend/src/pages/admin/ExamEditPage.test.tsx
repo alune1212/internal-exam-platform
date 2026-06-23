@@ -58,6 +58,11 @@ describe("ExamEditPage", () => {
     renderExamEditPage();
 
     expect(await screen.findByText("EXAMS · 考试")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "编辑考试 #1" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
+    expect(screen.getByTestId("exam-edit-shell")).toHaveClass("gap-6");
   });
 
   it("loads the current exam and saves the fixed 50-question rule", async () => {

@@ -8,7 +8,7 @@ import {
   downloadImportTemplate,
   importQuestions,
 } from "@/api/imports";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -51,18 +51,14 @@ export function QuestionImportPage() {
   };
 
   return (
-    <div data-stagger className="flex max-w-3xl flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <ChapterNumber>{adminPageCopy.library}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          题库导入
-        </h1>
-        <p className="text-body-lg">
-          仅支持标准 Excel（.xlsx / .xls），不解析 Word。导入前请先下载模板，按列填写题目。
-        </p>
-      </header>
+    <PageShell data-testid="question-import-shell" density="workbench" width="default" stagger>
+      <PageHeader
+        eyebrow={adminPageCopy.library}
+        title="题库导入"
+        description="上传标准 Excel 模板，系统会校验行数据并保存可用题目。"
+      />
 
-      <section className="flex flex-col gap-5 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
+      <PageSection variant="panel" className="lg:p-8">
         <div className="flex items-center gap-3">
           <Button
             type="button"
@@ -101,7 +97,7 @@ export function QuestionImportPage() {
           )}
           {mutation.isPending ? "正在导入..." : "上传并校验"}
         </Button>
-      </section>
+      </PageSection>
 
       {notice ? (
         <Alert variant={notice.tone === "success" ? "success" : "error"}>
@@ -110,7 +106,7 @@ export function QuestionImportPage() {
       ) : null}
 
       {mutation.data ? (
-        <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-6 shadow-card">
+        <PageSection variant="card" className="gap-3 p-6">
           <p className="text-body text-ink">
             成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
             <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
@@ -139,8 +135,8 @@ export function QuestionImportPage() {
               </ul>
             </>
           ) : null}
-        </section>
+        </PageSection>
       ) : null}
-    </div>
+    </PageShell>
   );
 }

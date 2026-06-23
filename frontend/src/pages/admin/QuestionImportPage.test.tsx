@@ -44,6 +44,11 @@ describe("QuestionImportPage", () => {
     renderPage();
 
     expect(screen.getByText("LIBRARY · 题库")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "题库导入" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
+    expect(screen.getByTestId("question-import-shell")).toHaveClass("gap-6");
   });
 
   it("offers failure report download after question import failures", async () => {

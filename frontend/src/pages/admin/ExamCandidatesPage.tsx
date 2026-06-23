@@ -14,8 +14,8 @@ import {
 import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, downloadImportTemplate } from "@/api/imports";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill } from "@/components/editorial/StatusPill";
+import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -184,18 +184,14 @@ export function ExamCandidatesPage() {
   );
 
   return (
-    <div data-stagger className="flex flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <ChapterNumber>{adminPageCopy.candidates}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          应考人员名单
-        </h1>
-        <p className="text-body-lg">
-          本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。
-        </p>
-      </header>
+    <PageShell data-testid="exam-candidates-shell" density="workbench" width="full" stagger>
+      <PageHeader
+        eyebrow={adminPageCopy.candidates}
+        title="应考人员名单"
+        description="本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。"
+      />
 
-      <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
+      <PageSection variant="panel" className="gap-4 lg:p-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-caption uppercase tracking-[0.16em] text-muted">IMPORT</p>
@@ -279,16 +275,16 @@ export function ExamCandidatesPage() {
             <AlertDescription>{notice.message}</AlertDescription>
           </Alert>
         ) : null}
-      </section>
+      </PageSection>
 
-      <section className="overflow-hidden rounded-lg border border-hairline bg-canvas shadow-card">
+      <PageSection variant="table">
         <SimpleDataTable
           columns={columns}
           data={candidates.data ?? []}
           emptyText="暂无应考人员"
           rowKey={(row) => row.candidate_id}
         />
-      </section>
-    </div>
+      </PageSection>
+    </PageShell>
   );
 }

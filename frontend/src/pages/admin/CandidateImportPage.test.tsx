@@ -43,6 +43,11 @@ describe("CandidateImportPage", () => {
     renderPage();
 
     expect(screen.getByText("CANDIDATES · 应考人员")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "应考人员导入" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
+    expect(screen.getByTestId("candidate-import-shell")).toHaveClass("gap-6");
   });
 
   it("imports candidates for the current exam and offers failure report download", async () => {

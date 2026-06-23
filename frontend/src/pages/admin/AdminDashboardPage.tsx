@@ -4,9 +4,8 @@ import { getAdminExams } from "@/api/exams";
 import { getAdminQuestions } from "@/api/questions";
 import { getAbsentCandidates, getScoreReport } from "@/api/reports";
 import { MetricCard } from "@/components/admin/MetricCard";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { EmptyState } from "@/components/editorial/EmptyState";
+import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { adminPageCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
@@ -97,14 +96,12 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <div data-stagger className="flex flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <ChapterNumber>{adminPageCopy.overview}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          一切就绪。
-        </h1>
-        <p className="text-body-lg">最近一次刷新 · {new Date().toLocaleString("zh-CN")}</p>
-      </header>
+    <PageShell data-testid="admin-dashboard-shell" density="workbench" width="full" stagger>
+      <PageHeader
+        eyebrow={adminPageCopy.overview}
+        title="一切就绪。"
+        description={`最近一次刷新 · ${new Date().toLocaleString("zh-CN")}`}
+      />
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
@@ -135,7 +132,7 @@ export function AdminDashboardPage() {
         />
       </section>
 
-      <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
+      <PageSection variant="card" className="gap-4">
         <header className="flex flex-col gap-1">
           <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
           <h2 className="font-display text-display-sm font-semibold text-ink">提交与未开始</h2>
@@ -149,14 +146,15 @@ export function AdminDashboardPage() {
             ))}
           </ul>
         ) : (
-          <EmptyState
-            chapter={adminPageCopy.empty}
+          <PageState
+            state="empty"
+            eyebrow={adminPageCopy.empty}
             title="暂无活动记录。"
             description="当有人交卷或缺席名单产生后，最近活动会显示在这里。"
             className="py-8"
           />
         )}
-      </section>
-    </div>
+      </PageSection>
+    </PageShell>
   );
 }

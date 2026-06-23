@@ -97,6 +97,11 @@ describe("ExamCandidatesPage", () => {
     renderPage();
 
     expect(await screen.findByText("CANDIDATES · 应考人员")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "应考人员名单" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
+    expect(screen.getByTestId("exam-candidates-shell")).toHaveClass("gap-6");
   });
 
   it("lists scoped candidates and can grant retake", async () => {

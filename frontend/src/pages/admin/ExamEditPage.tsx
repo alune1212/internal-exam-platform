@@ -8,8 +8,8 @@ import { z } from "zod";
 
 import { getErrorMessage } from "@/api/client";
 import { getAdminExams, updateAdminExam } from "@/api/exams";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
+import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -209,34 +209,32 @@ export function ExamEditPage() {
   }, [currentExam, form]);
 
   return (
-    <div data-stagger className="flex flex-col gap-8">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-col gap-3">
-          <ChapterNumber>{adminPageCopy.exams}</ChapterNumber>
-          <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-            编辑考试 #{examId ?? "-"}
-          </h1>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link to="/admin/exams">
-              <X data-icon="inline-start" />
-              取消
-            </Link>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={mutation.isPending}
-            onClick={form.handleSubmit((values) => mutation.mutate(values))}
-          >
-            <Save data-icon="inline-start" />
-            {mutation.isPending ? "保存中" : "保存配置"}
-          </Button>
-        </div>
-      </header>
+    <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+      <PageHeader
+        eyebrow={adminPageCopy.exams}
+        title={`编辑考试 #${examId ?? "-"}`}
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/exams">
+                <X data-icon="inline-start" />
+                取消
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={mutation.isPending}
+              onClick={form.handleSubmit((values) => mutation.mutate(values))}
+            >
+              <Save data-icon="inline-start" />
+              {mutation.isPending ? "保存中" : "保存配置"}
+            </Button>
+          </>
+        }
+      />
 
-      <section className="grid gap-6 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:grid-cols-2 lg:p-8">
+      <PageSection variant="card" className="grid gap-6 lg:grid-cols-2 lg:p-8">
         {notice ? (
           <Alert
             variant={notice.tone === "success" ? "success" : "error"}
@@ -325,7 +323,7 @@ export function ExamEditPage() {
             <Link to={`/admin/exams/${examId ?? "1"}/candidates`}>管理应考</Link>
           </Button>
         </div>
-      </section>
-    </div>
+      </PageSection>
+    </PageShell>
   );
 }

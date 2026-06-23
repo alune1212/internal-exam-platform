@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom";
 
 import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, importCandidates } from "@/api/imports";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
+import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -40,16 +40,14 @@ export function CandidateImportPage() {
   };
 
   return (
-    <div data-stagger className="flex max-w-3xl flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <ChapterNumber>{adminPageCopy.candidates}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          应考人员导入
-        </h1>
-        <p className="text-body-lg">参考状态会按未开始、进行中、已提交拆分。导入前请按模板填写。</p>
-      </header>
+    <PageShell data-testid="candidate-import-shell" density="workbench" width="default" stagger>
+      <PageHeader
+        eyebrow={adminPageCopy.candidates}
+        title="应考人员导入"
+        description="上传人员 Excel 模板，系统会按当前考试写入应考名单。"
+      />
 
-      <section className="flex flex-col gap-5 rounded-lg border border-hairline bg-surface-card p-6 lg:p-8">
+      <PageSection variant="panel" className="lg:p-8">
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="candidate-file">选择 Excel 文件</FieldLabel>
@@ -75,7 +73,7 @@ export function CandidateImportPage() {
           )}
           {mutation.isPending ? "正在导入..." : "上传应考人员"}
         </Button>
-      </section>
+      </PageSection>
 
       {notice ? (
         <Alert variant={notice.tone === "success" ? "success" : "error"}>
@@ -84,7 +82,7 @@ export function CandidateImportPage() {
       ) : null}
 
       {mutation.data ? (
-        <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-6 shadow-card">
+        <PageSection variant="card" className="gap-3 p-6">
           <p className="text-body text-ink">
             成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
             <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
@@ -113,8 +111,8 @@ export function CandidateImportPage() {
               </ul>
             </>
           ) : null}
-        </section>
+        </PageSection>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
