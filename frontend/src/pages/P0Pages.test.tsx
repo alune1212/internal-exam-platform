@@ -217,6 +217,17 @@ describe("P0 pages", () => {
     expect(screen.getAllByText(/QUESTION 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
   });
 
+  it("shows the not-started state when entering the taking page without an attempt", () => {
+    renderPage("exams/:examId/taking", <ExamTakingPage />, undefined, "exams/1/taking");
+
+    expect(screen.getByText("STATE · 未开始")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "未开始考试。" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "返回考试说明" })).toHaveAttribute(
+      "href",
+      "/exams/1/start",
+    );
+  });
+
   it("uses submit as the final-question primary action", async () => {
     const user = userEvent.setup();
     vi.mocked(submitAttempt).mockReturnValue(new Promise(() => {}));
@@ -379,6 +390,7 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
+    expect(screen.getByText("STATE · 未登录")).toBeInTheDocument();
     expect(getPracticeQuestions).not.toHaveBeenCalled();
   });
 
@@ -550,6 +562,7 @@ describe("P0 pages", () => {
     );
 
     expect(await screen.findByText("考试已提交。")).toBeInTheDocument();
+    expect(screen.getByText("STATE · 已提交")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看成绩" })).toHaveAttribute(
       "href",
       "/exams/1/result?attemptId=10",

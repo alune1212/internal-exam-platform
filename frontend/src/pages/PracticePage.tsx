@@ -8,11 +8,9 @@ import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { EmptyState } from "@/components/editorial/EmptyState";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -124,18 +122,20 @@ export function PracticePage() {
   if (!candidate) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <Card className="bg-surface-card">
-          <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>{candidatePageCopy.notLoggedIn}</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold text-ink">
-              请先登录考试人。
-            </h1>
-            <p className="text-body text-muted">登录后可提交练习答案并记录练习结果。</p>
+        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+          <PageState
+            state="notLoggedIn"
+            eyebrow={candidatePageCopy.notLoggedIn}
+            title="请先登录考试人。"
+            description="登录后可提交练习答案并记录练习结果。"
+            className="py-0"
+          />
+          <div className="mt-6 flex justify-center">
             <Button asChild>
               <Link to="/login">去登录</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -143,11 +143,7 @@ export function PracticePage() {
   if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <Card className="bg-surface-card">
-          <CardContent className="p-8">
-            <ContentSkeleton rows={4} className="p-0" />
-          </CardContent>
-        </Card>
+        <PageState state="loading" rows={4} className="bg-surface-card p-8" />
       </div>
     );
   }
@@ -155,8 +151,9 @@ export function PracticePage() {
   if (total === 0 || !activeQuestion) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <EmptyState
-          chapter={candidatePageCopy.empty}
+        <PageState
+          state="empty"
+          eyebrow={candidatePageCopy.empty}
           title="题库为空。"
           description="管理员导入题库后会显示在这里。"
         />
@@ -206,7 +203,7 @@ export function PracticePage() {
   );
 
   return (
-    <div data-stagger className="flex flex-col gap-6">
+    <PageShell density="focus" width="full" stagger className="relative">
       <div className="flex flex-col gap-3 border-b border-hairline pb-4">
         <ChapterNumber>{candidatePageCopy.practice}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink md:text-display-xl">
@@ -329,6 +326,6 @@ export function PracticePage() {
           </SheetContent>
         </Sheet>
       </div>
-    </div>
+    </PageShell>
   );
 }

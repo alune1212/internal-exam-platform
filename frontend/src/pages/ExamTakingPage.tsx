@@ -7,10 +7,8 @@ import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
+import { PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -290,15 +288,20 @@ export function ExamTakingPage() {
   if (!attemptId) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <Card className="bg-surface-card">
-          <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>{candidatePageCopy.notStarted}</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold text-ink">未开始考试。</h1>
+        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+          <PageState
+            state="notStarted"
+            eyebrow={candidatePageCopy.notStarted}
+            title="未开始考试。"
+            description="请从考试列表进入并确认考试规则。"
+            className="py-0"
+          />
+          <div className="mt-6 flex justify-center">
             <Button asChild>
               <Link to={`/exams/${examId}/start`}>返回考试说明</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -306,11 +309,7 @@ export function ExamTakingPage() {
   if (isLoading || !attempt) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <Card className="bg-surface-card">
-          <CardContent className="p-8">
-            <ContentSkeleton rows={4} className="p-0" />
-          </CardContent>
-        </Card>
+        <PageState state="loading" rows={4} className="bg-surface-card p-8" />
       </div>
     );
   }
@@ -318,15 +317,20 @@ export function ExamTakingPage() {
   if (SUBMITTED_STATUSES.has(attempt.status)) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <Card className="bg-surface-card">
-          <CardContent className="flex flex-col gap-4 p-8">
-            <ChapterNumber>{candidatePageCopy.submitted}</ChapterNumber>
-            <h1 className="font-display text-display-lg font-semibold text-ink">考试已提交。</h1>
+        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+          <PageState
+            state="submitted"
+            eyebrow={candidatePageCopy.submitted}
+            title="考试已提交。"
+            description="你可以前往结果页查看本次提交。"
+            className="py-0"
+          />
+          <div className="mt-6 flex justify-center">
             <Button asChild>
               <Link to={`/exams/${examId}/result?attemptId=${attempt.id}`}>查看成绩</Link>
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -334,11 +338,7 @@ export function ExamTakingPage() {
   if (!activeQuestion) {
     return (
       <div className="mx-auto max-w-3xl py-12">
-        <Card className="bg-surface-card">
-          <CardContent className="p-8">
-            <ContentSkeleton rows={4} className="p-0" />
-          </CardContent>
-        </Card>
+        <PageState state="loading" rows={4} className="bg-surface-card p-8" />
       </div>
     );
   }
@@ -385,7 +385,7 @@ export function ExamTakingPage() {
     : "下一题";
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col gap-6">
+    <PageShell density="focus" width="full" stagger className="relative min-h-[calc(100vh-10rem)]">
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
         <div id="exam-question-focus">
           <ExamFocusMode
@@ -501,6 +501,6 @@ export function ExamTakingPage() {
           交卷失败，请确认考试仍在进行中。
         </p>
       ) : null}
-    </div>
+    </PageShell>
   );
 }
