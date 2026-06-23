@@ -51,14 +51,19 @@ export function PageState({
   ...props
 }: PageStateProps) {
   if (state === "loading") {
-    return (
-      <ContentSkeleton
-        rows={rows}
-        variant={skeletonVariant}
-        showCaption={showLoadingCaption}
-        className={cn("rounded-lg border border-hairline bg-canvas shadow-card", className)}
-      />
-    );
+    const skeleton = ContentSkeleton({
+      rows,
+      variant: skeletonVariant,
+      showCaption: showLoadingCaption,
+      className: cn("rounded-lg border border-hairline bg-canvas shadow-card", className),
+    });
+
+    return React.cloneElement(skeleton, {
+      ...props,
+      role: "status",
+      "aria-live": "polite",
+      "aria-busy": true,
+    });
   }
 
   return (

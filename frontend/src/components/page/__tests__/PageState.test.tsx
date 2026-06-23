@@ -10,6 +10,14 @@ describe("PageState", () => {
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
   });
 
+  it("forwards native props to the loading status element", () => {
+    render(<PageState state="loading" data-testid="loading-state" aria-label="正在加载" />);
+
+    const loading = screen.getByRole("status");
+    expect(loading).toHaveAttribute("data-testid", "loading-state");
+    expect(loading).toHaveAttribute("aria-label", "正在加载");
+  });
+
   it("renders empty state through EmptyState", () => {
     render(
       <PageState

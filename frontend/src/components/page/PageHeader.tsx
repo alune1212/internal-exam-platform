@@ -31,7 +31,7 @@ export function PageHeader({
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           {title}
         </h1>
-        {description ? <p className="max-w-3xl text-body text-body-lg">{description}</p> : null}
+        {description ? <p className="max-w-3xl text-body-lg text-muted">{description}</p> : null}
         {children}
       </div>
       {actions ? <PageActions className="md:justify-end">{actions}</PageActions> : null}
