@@ -18,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 const schema = z.object({
   name: z.string().min(1, "请输入姓名"),
   employee_no: z.string().optional(),
+  phone_suffix: z.string().min(1, "请输入手机号后四位"),
 });
 
 type LoginForm = z.infer<typeof schema>;
@@ -27,7 +28,7 @@ export function LoginPage() {
   const { candidate, loginCandidate } = useOutletContext<CandidateSessionContext>();
   const form = useForm<LoginForm>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", employee_no: "" },
+    defaultValues: { name: "", employee_no: "", phone_suffix: "" },
   });
   const mutation = useMutation({
     mutationFn: requestCandidateLogin,
@@ -49,7 +50,7 @@ export function LoginPage() {
           报上姓名，<em className="italic">开始答题</em>。
         </h1>
         <p className="max-w-xl text-body-lg text-muted">
-          填写姓名即可进入练习或考试。系统会先在应考名单中匹配；如有员工号会优先用于识别。整个过程不会发送邮件或短信。
+          填写姓名和手机号后四位即可进入练习或考试。系统会先在应考名单中匹配；如有员工号会优先用于识别。整个过程不会发送邮件或短信。
         </p>
       </div>
 
@@ -87,6 +88,22 @@ export function LoginPage() {
                   placeholder="例如 10042"
                   {...form.register("employee_no")}
                 />
+              </Field>
+
+              <Field data-invalid={form.formState.errors.phone_suffix ? "" : undefined}>
+                <FieldLabel htmlFor="phone_suffix">
+                  手机号后四位 · <span className="text-muted">Phone Suffix</span>
+                </FieldLabel>
+                <Input
+                  id="phone_suffix"
+                  autoComplete="off"
+                  inputMode="numeric"
+                  aria-invalid={Boolean(form.formState.errors.phone_suffix)}
+                  {...form.register("phone_suffix")}
+                />
+                {form.formState.errors.phone_suffix ? (
+                  <FieldError>{form.formState.errors.phone_suffix.message}</FieldError>
+                ) : null}
               </Field>
             </FieldGroup>
 

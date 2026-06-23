@@ -177,11 +177,7 @@ describe("P0 pages", () => {
     vi.mocked(submitPracticeAnswer).mockResolvedValue({
       question_id: 201,
       selected_answer: "A",
-      correct_answer: "A",
-      is_correct: true,
-      score_awarded: 2,
       score: 2,
-      analysis: "解析",
     });
     vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
     vi.mocked(submitAttempt).mockResolvedValue(result);
@@ -367,6 +363,16 @@ describe("P0 pages", () => {
       "lg:sticky",
       "lg:top-24",
     );
+  });
+
+  it("does not fetch practice questions before candidate login", () => {
+    renderPage("practice", <PracticePage />, {
+      candidate: null,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(getPracticeQuestions).not.toHaveBeenCalled();
   });
 
   it("submits practice answers without candidate_id in the request payload", async () => {

@@ -41,14 +41,16 @@ GET  /api/exams/{exam_id}/ranking
 
 说明：
 
+- `/api/candidates/login` 需要 `name`、`phone_suffix`，可选 `employee_no`；传入员工号时也必须同时匹配姓名和手机号后四位。
+- `/api/candidates/login` 和 `/api/admin/login` 带应用层限流，超过阈值返回 429。
 - `/api/exams/active` 需要 `X-Candidate-Token`，并只返回当前考生在 `exam_candidate_scope` 内、仍可参加的 `active` 状态考试，按 `id` 排序返回。
 - `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态；已提交且无未使用补考授权的考试不会出现在该列表。
 - `/api/exams/{exam_id}/start` 已根据冻结题池和 `exam.question_rule` 创建正式考试记录和题目快照，后续题库修改不影响该 attempt。空 `question_rule` 保留旧逻辑：抽取冻结题池中的全部题目。
 - `available_from` / `available_until` 只限制新开考；已有 `in_progress` attempt 可继续恢复，并按 `started_at + duration_minutes` 到时提交。
 - `/api/attempts/{attempt_id}/answers/save` 已将答案暂存到 `exam_attempt_answer`，暂存不暂停倒计时。
 - 公开 `/api/attempts/{attempt_id}/submit` 只接受 `submit_type = "manual"`；`auto` 仅由后端 scheduler 内部调用 service。
-- `/api/attempts/{attempt_id}/result` 已从已保存的 attempt、快照题和答案读取成绩结果，不重新提交；结果包含 `pass_score` 和 `is_passed`。
-- `/api/practice/questions` 使用练习专用响应，不返回正确答案和解析；`/api/practice/answers` 通过 `X-Candidate-Token` 解析考生，提交后才返回正确答案和解析。
+- `/api/attempts/{attempt_id}/result` 仅允许已提交或自动提交的 attempt 读取成绩结果；结果包含 `pass_score` 和 `is_passed`。
+- `/api/practice/questions` 需要 `X-Candidate-Token`，使用练习专用响应，不返回正确答案和解析；`/api/practice/answers` 通过 `X-Candidate-Token` 解析考生，提交响应不返回正确答案、解析、对错或判分结果。
 
 ## 管理员端
 

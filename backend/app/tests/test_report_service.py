@@ -1,7 +1,9 @@
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models import ExamCandidateScope
 from app.services import exam_service, report_service
+from app.services.excel_security import escape_excel_cell
 from app.tests.conftest import (
     create_candidate,
     create_exam,
@@ -236,6 +238,21 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
         "考试分组",
         "参考状态",
     ]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "=SUM(1,1)",
+        "\t=SUM(1,1)",
+        "\r=SUM(1,1)",
+        "\n=SUM(1,1)",
+    ],
+)
+def test_escape_excel_cell_quotes_control_character_prefixed_formulas(
+    value: str,
+) -> None:
+    assert escape_excel_cell(value) == f"'{value}"
 
 
 def test_report_workbook_escapes_formula_like_text(db: Session) -> None:

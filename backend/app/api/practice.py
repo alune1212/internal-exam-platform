@@ -14,6 +14,7 @@ router = APIRouter(prefix="/practice", tags=["practice"])
 @router.get("/questions", response_model=ApiResponse[list[PracticeQuestionRead]])
 def list_practice_questions(
     db: Session = Depends(get_db),
+    _candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[list[PracticeQuestionRead]]:
     questions = question_service.list_active_questions(db)
     return ApiResponse(

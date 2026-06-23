@@ -6,6 +6,7 @@ from app.schemas.common import ORMModel
 class CandidateLoginRequest(BaseModel):
     name: str
     employee_no: str | None = None
+    phone_suffix: str | None = None
 
 
 class CandidateBase(BaseModel):

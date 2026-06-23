@@ -90,6 +90,13 @@ class CandidateNotEligibleError(DomainError):
         super().__init__(f"考生 #{candidate_id} 当前不可参加考试")
 
 
+class AttemptResultNotReadyError(DomainError):
+    status_code = 409
+
+    def __init__(self, attempt_id: int) -> None:
+        super().__init__(f"答题记录 #{attempt_id} 尚未交卷，不能查看成绩结果")
+
+
 class AttemptAlreadyExistsError(DomainError):
     status_code = 409
 
@@ -1282,4 +1289,7 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
 
 
 def get_attempt_result(db: Session, attempt_id: int) -> AttemptResultRead:
-    return _build_attempt_result(_load_attempt_with_snapshots(db, attempt_id))
+    attempt = _load_attempt_with_snapshots(db, attempt_id)
+    if attempt.status not in SUBMITTED_STATUSES:
+        raise AttemptResultNotReadyError(attempt_id)
+    return _build_attempt_result(attempt)

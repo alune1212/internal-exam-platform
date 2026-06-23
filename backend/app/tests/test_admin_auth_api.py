@@ -44,6 +44,30 @@ def _build_client() -> tuple[TestClient, Session]:
     return TestClient(app), db
 
 
+def test_admin_login_throttles_repeated_public_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "public_token_rate_limit_count", 2, raising=False)
+    monkeypatch.setattr(
+        settings, "public_token_rate_limit_window_seconds", 60, raising=False
+    )
+    client, _ = _build_client()
+
+    for _ in range(2):
+        resp = client.post(
+            "/api/admin/login",
+            json={"username": "rate-limit-admin", "password": "wrong"},
+        )
+        assert resp.status_code == 401
+
+    blocked = client.post(
+        "/api/admin/login",
+        json={"username": "rate-limit-admin", "password": "wrong"},
+    )
+
+    assert blocked.status_code == 429
+
+
 def test_admin_login_returns_token() -> None:
     client, _ = _build_client()
     resp = client.post(
@@ -144,6 +168,26 @@ def test_production_rejects_default_admin_password_and_token_secret() -> None:
             admin_password="strong-password",  # noqa: S106
             token_secret="change-me-in-production",  # noqa: S106
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("admin_password", "local-dev-admin-password"),
+        ("token_secret", "local-dev-token-secret-change-before-production"),
+    ],
+)
+def test_production_rejects_repository_sample_secrets(field: str, value: str) -> None:
+    kwargs = {
+        "environment": "production",
+        "admin_password": "strong-password",
+        "token_secret": "prod-token-secret",
+        "cors_origins": "https://exam.example.com",
+    }
+    kwargs[field] = value
+
+    with pytest.raises(ValidationError, match=field.upper()):
+        Settings(**kwargs)
 
 
 @pytest.mark.parametrize(

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, List, Send, XCircle } from "lucide-react";
+import { List, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 
@@ -27,7 +27,7 @@ import {
   perTypeIndexOf,
   sortByType,
 } from "@/lib/questionNavigation";
-import { cn, splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
+import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, PracticeQuestion } from "@/types/question";
 
 type AnswerMap = Record<number, string>;
@@ -43,6 +43,7 @@ export function PracticePage() {
   const { data = [], isLoading } = useQuery({
     queryKey: ["practice-questions"],
     queryFn: getPracticeQuestions,
+    enabled: Boolean(candidate),
   });
 
   const mutation = useMutation({
@@ -66,13 +67,9 @@ export function PracticePage() {
       buildQuestionNavItems({
         questions: sortedData,
         answers,
-        getSubmittedResult: (question) => {
-          const result = results[question.id];
-          return result ? (result.is_correct ? "correct" : "wrong") : undefined;
-        },
         getTargetId: () => "practice-question-focus",
       }),
-    [answers, sortedData, results],
+    [answers, sortedData],
   );
 
   function handleSingleChange(question: PracticeQuestion, label: string) {
@@ -203,17 +200,9 @@ export function PracticePage() {
   };
 
   const answerFeedback = activeResult ? (
-    <span
-      className={cn(
-        "inline-flex items-center gap-2 text-body",
-        activeResult.is_correct ? "text-success" : "text-error",
-      )}
-    >
-      {activeResult.is_correct ? <CheckCircle2 /> : <XCircle />}
-      {activeResult.is_correct ? "回答正确" : "回答错误"}，正确答案：{activeResult.correct_answer}
-    </span>
+    <span className="inline-flex items-center gap-2 text-body text-success">已保存本题作答。</span>
   ) : (
-    <span className="text-body-sm text-muted">提交后显示正确答案和解析。</span>
+    <span className="text-body-sm text-muted">提交后保存本题作答。</span>
   );
 
   return (
@@ -224,7 +213,7 @@ export function PracticePage() {
           刷一遍，<em className="italic">记一遍</em>。
         </h1>
         <p className="max-w-2xl text-body-lg text-muted">
-          练习结果不计入正式成绩。提交后即时显示对错与解析。
+          练习结果不计入正式成绩。提交后记录本题作答。
         </p>
       </div>
 
@@ -256,12 +245,6 @@ export function PracticePage() {
               </Button>
               {answerFeedback}
             </div>
-            {activeResult?.analysis ? (
-              <p className="text-body-sm text-muted">
-                <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
-                {activeResult.analysis}
-              </p>
-            ) : null}
           </ExamFocusMode>
         </div>
 
@@ -302,12 +285,6 @@ export function PracticePage() {
             </Button>
             {activeResult ? answerFeedback : null}
           </div>
-          {activeResult?.analysis ? (
-            <p className="text-body-sm text-muted">
-              <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
-              {activeResult.analysis}
-            </p>
-          ) : null}
         </ExamFocusMode>
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>

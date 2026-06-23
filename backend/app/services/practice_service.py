@@ -59,11 +59,7 @@ def submit_practice_answer(
     return PracticeAnswerResult(
         question_id=question.id,
         selected_answer=payload.selected_answer,
-        correct_answer=correct_answer,
-        is_correct=scoring.is_correct,
-        score_awarded=scoring.score_awarded,
         score=float(question.score),
-        analysis=question.analysis,
     )
 
 

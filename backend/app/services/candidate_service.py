@@ -35,11 +35,17 @@ def _with_token(candidate: Candidate) -> CandidateLoginResponse:
 def login_candidate(
     db: Session, payload: CandidateLoginRequest
 ) -> CandidateLoginResponse:
+    phone_suffix = payload.phone_suffix.strip() if payload.phone_suffix else None
+    if not phone_suffix:
+        raise CandidateLoginError()
+
     if payload.employee_no:
         candidate = (
             db.query(Candidate)
             .filter(
+                Candidate.name == payload.name,
                 Candidate.employee_no == payload.employee_no,
+                Candidate.phone_suffix == phone_suffix,
                 Candidate.status == "active",
             )
             .one_or_none()
@@ -50,7 +56,11 @@ def login_candidate(
 
     candidates = (
         db.query(Candidate)
-        .filter(Candidate.name == payload.name, Candidate.status == "active")
+        .filter(
+            Candidate.name == payload.name,
+            Candidate.phone_suffix == phone_suffix,
+            Candidate.status == "active",
+        )
         .order_by(Candidate.id)
         .limit(2)
         .all()

@@ -41,9 +41,5 @@ export type QuestionPayload = Omit<AdminQuestion, "id" | "options"> & {
 export type PracticeAnswerResult = {
   question_id: number;
   selected_answer: string;
-  correct_answer: string;
-  is_correct: boolean;
-  score_awarded: number;
   score: number;
-  analysis?: string | null;
 };

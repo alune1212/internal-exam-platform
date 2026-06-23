@@ -104,3 +104,21 @@ def test_result_requires_candidate_header() -> None:
     client, _ = _build_client()
     resp = client.get("/api/attempts/1/result")
     assert resp.status_code == 401
+
+
+def test_result_rejects_in_progress_attempt_before_submission() -> None:
+    client, db = _build_client()
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.commit()
+    create_question_with_options(db, analysis="答案解析")
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+
+    resp = client.get(
+        f"/api/attempts/{start.attempt_id}/result",
+        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
+    )
+
+    assert resp.status_code == 409
+    assert "交卷" in resp.json()["detail"]
