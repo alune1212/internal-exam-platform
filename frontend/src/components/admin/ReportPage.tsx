@@ -4,10 +4,9 @@ import type { QueryKey } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
+import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { adminPageCopy } from "@/lib/pageCopy";
-import { cn } from "@/lib/utils";
 
 interface ReportPageProps<TData> {
   title: string;
@@ -35,31 +34,37 @@ export function ReportPage<TData>({
   className,
 }: ReportPageProps<TData>) {
   const resolvedQueryKey = Array.isArray(queryKey) ? queryKey : [queryKey];
-  const { data = [], isLoading } = useQuery({ queryKey: resolvedQueryKey, queryFn });
+  const query = useQuery({ queryKey: resolvedQueryKey, queryFn });
 
   return (
-    <section data-stagger className={cn("flex flex-col gap-8", className)}>
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-col gap-3">
-          <ChapterNumber>{chapterLabel}</ChapterNumber>
-          <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-            {title}
-          </h1>
-          {description ? <p className="max-w-2xl text-body-lg">{description}</p> : null}
-        </div>
-        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
-      </header>
+    <PageShell
+      data-testid="report-page-shell"
+      density="workbench"
+      width="full"
+      className={className}
+    >
+      <PageHeader
+        eyebrow={chapterLabel}
+        title={title}
+        description={description}
+        actions={actions}
+        className="items-start"
+      />
 
-      {isLoading ? (
-        <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
+      {query.isLoading ? (
+        <PageSection variant="table" data-testid="report-page-table-section">
+          <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
+        </PageSection>
       ) : (
-        <SimpleDataTable
-          columns={columns}
-          data={data}
-          rowKey={rowKey}
-          rowClassName={rowClassName}
-        />
+        <PageSection variant="table" data-testid="report-page-table-section">
+          <SimpleDataTable
+            columns={columns}
+            data={query.data ?? []}
+            rowKey={rowKey}
+            rowClassName={rowClassName}
+          />
+        </PageSection>
       )}
-    </section>
+    </PageShell>
   );
 }

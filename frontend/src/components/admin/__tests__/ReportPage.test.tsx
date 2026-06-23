@@ -41,6 +41,29 @@ describe("ReportPage", () => {
     expect(screen.getByText("每次考试的提交结果")).toBeInTheDocument();
   });
 
+  it("uses shared page shell and section structure", async () => {
+    renderWithClient(
+      <ReportPage
+        title="个人成绩"
+        chapterLabel="REPORTS · 报表"
+        queryKey="score-report"
+        queryFn={queryFn}
+        columns={columns}
+      />,
+    );
+
+    expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "个人成绩" })).toHaveClass(
+      "font-display",
+      "text-display-lg",
+    );
+    expect(screen.getByTestId("report-page-shell")).toHaveClass("gap-6");
+    expect(screen.getByTestId("report-page-table-section")).toHaveClass(
+      "rounded-lg",
+      "shadow-card",
+    );
+  });
+
   it("uses semantic reports copy by default", () => {
     renderWithClient(
       <ReportPage
