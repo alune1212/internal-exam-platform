@@ -41,6 +41,7 @@ export function ReportPage<TData>({
       data-testid="report-page-shell"
       density="workbench"
       width="full"
+      stagger
       className={className}
     >
       <PageHeader

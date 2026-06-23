@@ -58,6 +58,7 @@ describe("ReportPage", () => {
       "text-display-lg",
     );
     expect(screen.getByTestId("report-page-shell")).toHaveClass("gap-6");
+    expect(screen.getByTestId("report-page-shell")).toHaveAttribute("data-stagger");
     expect(screen.getByTestId("report-page-table-section")).toHaveClass(
       "rounded-lg",
       "shadow-card",
@@ -89,6 +90,10 @@ describe("ReportPage", () => {
 
     await waitFor(() => expect(screen.getByText("first")).toBeInTheDocument());
     expect(screen.getByText("second")).toBeInTheDocument();
+    expect(screen.getByTestId("report-page-table-section")).toHaveClass(
+      "rounded-lg",
+      "shadow-card",
+    );
   });
 
   it("renders an optional actions node", () => {
