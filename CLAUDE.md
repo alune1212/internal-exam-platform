@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-公司内部轻量级临时考试与刷题平台。第一阶段核心功能已实现，含题库导入、考试名单 scope、固定 50 题考试快照、均分判分、及格状态、排名、报表查询/导出、自动提交和 Academic Editorial 前端 redesign。
+公司内部轻量级临时考试与刷题平台。第一阶段核心功能已实现，含题库导入、考试名单 scope、补考授权、固定 50 题考试快照、均分判分、及格状态、排名、报表查询/导出、自动提交和 Academic Editorial 前端 redesign。
 
 ## 命令
 
@@ -154,7 +154,7 @@ uv run alembic downgrade -1  # 回滚一步
 
 ## 当前阶段
 
-第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、签名 candidate token、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，导入失败报告可下载，报表导出返回单个多 Sheet Excel。当前安全加固包括导入大小/行数/sheet 限制、Excel 公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。详细交接文档见 `docs/handoff.md`。
+第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、签名 candidate token、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，单场名单支持导入、列表、移除和补考授权；导入失败报告可下载，报表导出返回单个多 Sheet Excel。当前安全加固包括导入大小/行数/sheet 限制、Excel 公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。详细交接文档见 `docs/handoff.md`。
 
 ## 与 AGENTS.md 的关系
 

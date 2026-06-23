@@ -97,6 +97,11 @@
 - `submitted`
 - `auto_submitted`
 
+说明：
+
+- `attempt_no` 和 `attempt_kind` 区分首次考试与补考；默认首次 attempt 使用 `initial`，补考授权消耗后创建 `retake` attempt。
+- 报表和名单页以考生在该考试中的最新提交 attempt 作为当前参考状态。
+
 ### exam_attempt_question
 
 考试题目快照表。
@@ -156,3 +161,9 @@
 补考授权表。
 
 关键字段：`id`、`exam_id`、`candidate_id`、`used_attempt_id`、`used_at`、`created_at`、`updated_at`。
+
+说明：
+
+- 管理员可为单场考试内的考生创建补考授权。
+- 未使用授权会让已提交考生重新出现在可参加考试列表；开始补考时写入 `used_attempt_id` 和 `used_at`。
+- 补考 attempt 仍从发布时冻结题池按 `question_rule` 生成等价试卷，并继续使用题目快照。

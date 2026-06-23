@@ -11,6 +11,12 @@
 - 默认只读取第 1 个工作表；包含更多工作表会被拒绝。
 - 这些限制同样适用于题库、应参人员和单场考试名单导入。
 
+模板下载：
+
+- 题库模板：`GET /api/admin/imports/templates/questions`
+- 应参人员模板：`GET /api/admin/imports/templates/candidates`
+- 模板接口返回带表头和示例行的 Excel 文件，并使用 `filename*` 兼容中文文件名。
+
 建议字段：
 
 ```text

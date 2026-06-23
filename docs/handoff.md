@@ -14,7 +14,7 @@ Implemented foundations:
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
 - Failure report Excel download for question, candidate, and exam-candidate import batches.
-- Exam-scoped candidate list persistence via `exam_candidate_scope`, including import, removal, and retake grant endpoints.
+- Exam-scoped candidate list persistence via `exam_candidate_scope`, including import, listing, removal, and retake grant endpoints.
 - Exam configuration create/update/list persistence, available time windows, and candidate-facing active exam listing.
 - Publish-time frozen question pool via `exam_question_pool`.
 - Exam start persistence with fixed 50-question equivalent paper generation, attempt creation, and question snapshots.
@@ -81,6 +81,7 @@ Observed results:
 - Fixed-paper scores are integer and evenly distributed from `question_rule.total_score`; 50 questions with total score 100 gives every question 2 points.
 - Empty `question_rule = {}` remains compatible with the legacy all-active question behavior.
 - Exam candidate import adds rows to `exam_candidate_scope`; existing candidates are reused by employee number, or by name when no employee number exists.
+- Exam candidate management can list scoped candidates, remove a candidate from one exam scope, and grant one retake. An unused retake grant allows a submitted candidate to start a new `retake` attempt, which consumes the grant.
 - Answer autosave writes to `exam_attempt_answer`; submit scoring updates persisted answers and attempt totals.
 - The exam-taking page uses the final question primary action as “提交试卷”; earlier questions still show “下一题”.
 - Time-based auto-submit runs as an asyncio background task, checking every 30 seconds.
@@ -100,27 +101,3 @@ Observed results:
 1. Run `docs/official-exam-uat-checklist.md` as a human browser UAT against the Docker/Nginx `8080` entrypoint.
 2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; then back up the database before running migrations.
 3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
-
-## Phase 7 — States & Polish（完成日期 2026-06-14）
-
-- **视觉系统**：前端已完成 Academic Editorial redesign。设计令牌、UI primitives、editorial components、candidate/admin layouts、P0/P1/P2 页面和报表容器均已接入。
-- **空态 / 错态**：共享 `EmptyState` 支持 `tone="error"` 和主/次操作按钮；页面级空态、加载态和部分操作错误已统一到 shared primitives。
-- **加载态**：新增 `ContentSkeleton`，基于 `Skeleton` shimmer 和 `role="status"` / `aria-busy`。
-- **倒计时 pulse**：`Timer.tsx` 在剩余时间小于等于 5 分钟时使用 `text-error` + pulse，并保留 `aria-live="polite"`。
-- **键盘快捷键**：考试作答页支持 `←/→` 切题、`1-9` 与 `A-D` 选择当前题选项；input / textarea / contenteditable 聚焦时不拦截快捷键。最后一道题的主按钮显示“提交试卷”并走现有手动交卷流程。
-- **可访问性**：移动端题号导航使用 Radix Sheet；选项卡暴露 radio / checkbox 语义；图标按钮均保留可访问名称。
-- **当前验证口径**：`npm test`、`npx tsc --noEmit`、`npm run lint`、`npm run format:check`、`npm run build` 均需通过。2026-06-16 前端打磨验证中，`npm run lint` 为 0 errors / 0 warnings。
-
-## Frontend Polish Audit — 2026-06-16
-
-- 管理登录页浅底 `Wordmark` 改回默认浅背景配色，避免白色品牌字在白底上失去对比。
-- 管理仪表盘活动列表将 ISO 时间显示为 `MM/DD HH:mm`，同时保留 `<time datetime>` 语义。
-- `data-stagger` 入场动画收敛为 280ms、40ms delay step，并从 72% opacity 开始，避免移动端截图/首帧显得页面未加载完成。
-- 浏览器验证覆盖 `/admin/login`、`/admin/dashboard`、`/exams` 桌面视口，以及 `/exams` 移动视口菜单交互。
-
-## Docker Rebuild — 2026-06-15
-
-- `docker compose up -d --build` 已完成，backend 与 frontend 容器已重新创建。
-- `http://localhost:8000/api/health` 与 `http://localhost:8080/api/health` 均返回 `{"success":true,"data":{"status":"ok","service":"internal-exam-platform"},"message":"ok"}`。
-- Docker build 期间 frontend build 仍有 Vite chunk size warning；这不是当前功能阻断项。
-- Compose no longer embeds default database/admin credentials; copy `.env.example` to `.env`, replace secrets, and use `docker compose --env-file .env config` for config validation.
