@@ -71,6 +71,18 @@ Display headings use modest negative letter spacing (`-0.01em` / `-0.02em`) thro
 - For admin tables, prefer `SimpleDataTable` and its mobile card renderer instead of creating separate mobile-only lists.
 - For metric summaries, use `MetricCard` so tone, label, value, unit, and caption styling stay consistent.
 
+## Page Primitives
+
+Use `src/components/page/` for shared page-level structure:
+
+- `PageShell` controls page rhythm, width, density, and stagger entrance.
+- `PageHeader` controls page eyebrow, H1, description, and actions.
+- `PageSection` controls repeated content surfaces with `plain`, `card`, `panel`, and `table` variants.
+- `PageState` wraps `ContentSkeleton` and `EmptyState` for loading, empty, error, and candidate attempt states.
+- `PageActions` keeps page-level action buttons wrapping predictably on mobile.
+
+Candidate and admin pages should share these primitives while keeping their navigation models different. Candidate pages keep top navigation. Admin pages keep side rail navigation. Exam-taking and practice pages may use `PageShell density="focus"` and `PageState`, but their question layout, timer, autosave, and navigator remain specialized.
+
 ## Neutral chip & surface rule
 
 `StatusPill` default and `Badge` muted share the same neutral surface (`bg-canvas-warm`). If you need a different neutral (e.g. on a dark card), use a surface-specific variant rather than introducing a new shade.
@@ -95,6 +107,8 @@ Add `data-stagger` to a top-level page container to opt into the editorial entra
 Candidate pages use `CandidateLayout` with top navigation, footer, warm editorial surfaces, and exam-focused content bands. The `/login` route is the exception: it keeps the candidate session context but renders as a clean auth canvas without candidate navigation or footer. Exam-taking uses focus mode, question navigation, answer cards, timer state, and keyboard shortcuts.
 
 Candidate and admin page-level eyebrow copy is centralized in `src/lib/pageCopy.ts`. Use descriptive labels such as `PRACTICE · 练习`, `OVERVIEW · 仪表盘`, `REPORTS · 报表`, and `STATE · 空状态` for pages and states. Page-level labels must not use fictional chapter numbers; reserve numbered `QUESTION NN · 类型 · 分值` labels for real question position inside the taking/practice focus card.
+
+Ordinary candidate and admin pages should compose `PageShell`, `PageHeader`, `PageSection`, and `PageState` before adding page-specific content. Avoid hand-written page headers unless the page is a specialized focus-mode workflow.
 
 Admin pages use `AdminLayout` with side rail navigation, compact page headers, metric rows, table/report sections, and mobile fallbacks. Admin screens should remain operational and scan-friendly, with no marketing hero sections.
 
