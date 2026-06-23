@@ -26,3 +26,4 @@ tmp/
 
 # Local brainstorm / visual-companion artifacts
 .superpowers/
+.worktrees/
