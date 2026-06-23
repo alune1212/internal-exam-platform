@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
 import type { Candidate } from "@/types/candidate";
 
@@ -73,6 +74,7 @@ function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
 
 export function TopNav({ candidate, onLogout }: TopNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const scrolled = useScrolled();
   const isDesktop = useMediaQuery(MD.lg);
   const location = useLocation();
   const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
@@ -82,7 +84,10 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
   ];
 
   return (
-    <header className="sticky top-0 z-40 h-16 border-b border-hairline-soft bg-canvas">
+    <header
+      data-scrolled={scrolled}
+      className="sticky top-0 z-40 h-16 border-b border-hairline-soft bg-canvas"
+    >
       <div className="mx-auto grid h-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-8">
         <Link
           to="/exams"

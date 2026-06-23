@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -79,5 +79,17 @@ describe("AdminSideRail", () => {
     expect(inactiveLink).toHaveClass("hover:text-ink");
     expect(inactiveLink).not.toHaveClass("text-footer-soft");
     expect(inactiveLink).not.toHaveClass("hover:text-white");
+  });
+
+  it("marks the mobile sticky header as scrolled after the page scrolls", async () => {
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+    const { container } = renderSideRail("/admin/dashboard", false);
+    const header = container.firstElementChild;
+    expect(header).toHaveAttribute("data-scrolled", "false");
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 24 });
+    window.dispatchEvent(new Event("scroll"));
+
+    await waitFor(() => expect(header).toHaveAttribute("data-scrolled", "true"));
   });
 });

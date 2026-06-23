@@ -43,4 +43,10 @@ describe("MetricCard", () => {
 
     expect(screen.getByText("最近更新 2 分钟前")).toBeInTheDocument();
   });
+
+  it("keeps metric typography within the design system tracking scale", () => {
+    render(<MetricCard label="QUESTIONS · 题库" value={42} />);
+
+    expect(screen.getByText("42").parentElement).not.toHaveClass("tracking-[-0.04em]");
+  });
 });

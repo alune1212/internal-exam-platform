@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -126,5 +126,17 @@ describe("TopNav", () => {
     await user.click(screen.getByRole("button", { name: "退出登录" }));
 
     expect(onLogout).toHaveBeenCalledOnce();
+  });
+
+  it("marks the sticky header as scrolled after the page scrolls", async () => {
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 0 });
+    const { container } = renderTopNav({ candidate, onLogout: () => {} });
+    const header = container.querySelector("header");
+    expect(header).toHaveAttribute("data-scrolled", "false");
+
+    Object.defineProperty(window, "scrollY", { configurable: true, value: 24 });
+    window.dispatchEvent(new Event("scroll"));
+
+    await waitFor(() => expect(header).toHaveAttribute("data-scrolled", "true"));
   });
 });

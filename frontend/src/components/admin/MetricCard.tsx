@@ -20,7 +20,7 @@ export function MetricCard({ label, value, unit, tone = "default", caption }: Me
   return (
     <div className="rounded-lg border border-hairline bg-canvas p-5 shadow-card">
       <p className="text-caption font-medium uppercase tracking-[0.16em] text-muted">{label}</p>
-      <p className="mt-3 flex items-baseline gap-1 font-display text-display-md font-semibold leading-none tracking-[-0.04em] lg:text-display-lg">
+      <p className="mt-3 flex items-baseline gap-1 font-display text-display-md font-semibold leading-none lg:text-display-lg">
         <span className={cn(TONE_CLASS[tone])}>{value}</span>
         {unit ? <span className="text-body-sm text-muted">{unit}</span> : null}
       </p>

@@ -137,9 +137,7 @@ export function AdminDashboardPage() {
       <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
         <header className="flex flex-col gap-1">
           <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
-          <h2 className="font-display text-display-sm font-semibold tracking-[-0.04em] text-ink">
-            提交与未开始
-          </h2>
+          <h2 className="font-display text-display-sm font-semibold text-ink">提交与未开始</h2>
         </header>
         {questions.isLoading || exams.isLoading || scores.isLoading || absent.isLoading ? (
           <ContentSkeleton rows={3} className="p-0" />

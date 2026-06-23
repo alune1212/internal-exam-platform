@@ -76,7 +76,7 @@ function ExamCard({ exam }: { exam: Exam }) {
       <p className="font-body text-caption font-medium uppercase italic tracking-[0.18em] text-muted">
         {isLive ? "LIVE · 进行中" : "DRAFT · 未开始"}
       </p>
-      <h2 className="font-display text-display-sm font-semibold tracking-[-0.04em] text-ink lg:text-display-md">
+      <h2 className="font-display text-display-sm font-semibold text-ink lg:text-display-md">
         {exam.title}
       </h2>
       <dl className="grid grid-cols-3 gap-3 border-y border-hairline-soft py-3 text-caption text-muted">

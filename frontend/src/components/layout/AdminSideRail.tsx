@@ -12,6 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
 
 type NavItem = {
@@ -63,6 +64,7 @@ function SidebarList({
 
 export function AdminSideRail() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const scrolled = useScrolled();
   const isDesktop = useMediaQuery(MD.lg);
 
   if (isDesktop) {
@@ -81,7 +83,10 @@ export function AdminSideRail() {
   }
 
   return (
-    <div className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-4">
+    <div
+      data-scrolled={scrolled}
+      className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-4"
+    >
       <Link
         to="/admin/dashboard"
         aria-label="返回管理后台首页"

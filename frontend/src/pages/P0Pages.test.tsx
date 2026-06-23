@@ -415,6 +415,7 @@ describe("P0 pages", () => {
 
     expect(await screen.findByText("今天有一场考试等着你。")).toBeInTheDocument();
     expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "内部考试" })).not.toHaveClass("tracking-[-0.04em]");
     const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
