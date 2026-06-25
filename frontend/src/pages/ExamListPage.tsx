@@ -6,6 +6,7 @@ import { getActiveExams } from "@/api/exams";
 import { PageHeader, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCurrentCandidate } from "@/lib/candidateSession";
 import { candidatePageCopy } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
@@ -140,8 +141,9 @@ function resolveHeading(examCount: number, isLoading: boolean): string {
 }
 
 export function ExamListPage() {
+  const candidateId = getCurrentCandidate()?.id ?? "anonymous";
   const { data = [], isLoading } = useQuery({
-    queryKey: ["active-exams"],
+    queryKey: ["candidate", candidateId, "active-exams"],
     queryFn: getActiveExams,
   });
 

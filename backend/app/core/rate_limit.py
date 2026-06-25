@@ -23,6 +23,7 @@ def check_public_token_rate_limit(
     now = monotonic()
     window_seconds = settings.public_token_rate_limit_window_seconds
     max_attempts = settings.public_token_rate_limit_count
+    _cleanup_attempts(now, window_seconds)
     keys = [
         (bucket, f"ip:{_client_ip(request)}"),
         (bucket, f"id:{_normalize_identifier(identifier)}"),
@@ -34,6 +35,7 @@ def check_public_token_rate_limit(
         raise PublicTokenRateLimitError()
     for queue in queues:
         queue.append(now)
+    _enforce_max_keys()
 
 
 def _client_ip(request: Request) -> str:
@@ -47,3 +49,21 @@ def _normalize_identifier(identifier: str | None) -> str:
 def _prune(queue: deque[float], now: float, window_seconds: int) -> None:
     while queue and now - queue[0] >= window_seconds:
         queue.popleft()
+
+
+def _cleanup_attempts(now: float, window_seconds: int) -> None:
+    for key in list(_attempts):
+        queue = _attempts[key]
+        _prune(queue, now, window_seconds)
+        if not queue:
+            del _attempts[key]
+
+
+def _enforce_max_keys() -> None:
+    max_keys = settings.public_token_rate_limit_max_keys
+    while len(_attempts) > max_keys:
+        oldest_key = min(
+            _attempts,
+            key=lambda key: _attempts[key][0] if _attempts[key] else float("-inf"),
+        )
+        del _attempts[oldest_key]

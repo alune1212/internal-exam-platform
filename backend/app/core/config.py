@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     token_ttl_seconds: int = 12 * 60 * 60
     public_token_rate_limit_count: int = Field(default=60, ge=1)
     public_token_rate_limit_window_seconds: int = Field(default=60, ge=1)
+    public_token_rate_limit_max_keys: int = Field(default=10_000, ge=2)
     import_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     import_max_rows: int = Field(default=5000, ge=1)
     import_max_sheets: int = Field(default=1, ge=1)

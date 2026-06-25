@@ -26,10 +26,9 @@ def _make_started_attempt(db: Session, duration_minutes: int = 60):
 def test_find_expired_attempts_finds_overdue(db: Session) -> None:
     exam, candidate, start_result = _make_started_attempt(db, duration_minutes=1)
 
-    # 手动将 started_at 改为 2 分钟前
     attempt = db.get(ExamAttempt, start_result.attempt_id)
     assert attempt is not None
-    attempt.started_at = datetime.now(UTC) - timedelta(minutes=2)
+    attempt.ends_at = datetime.now(UTC) - timedelta(seconds=1)
     db.commit()
 
     expired = _find_expired_attempts(db)
@@ -47,10 +46,9 @@ def test_find_expired_attempts_skips_submitted(db: Session) -> None:
     exam, candidate, start_result = _make_started_attempt(db, duration_minutes=1)
     exam_service.submit_attempt(db, start_result.attempt_id, "manual")
 
-    # 即使超时，已提交的不应出现在列表中
     attempt = db.get(ExamAttempt, start_result.attempt_id)
     assert attempt is not None
-    attempt.started_at = datetime.now(UTC) - timedelta(minutes=5)
+    attempt.ends_at = datetime.now(UTC) - timedelta(seconds=1)
     db.commit()
 
     expired = _find_expired_attempts(db)

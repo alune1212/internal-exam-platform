@@ -66,11 +66,11 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export function AdminDashboardPage() {
-  const questions = useQuery({ queryKey: ["admin-questions"], queryFn: getAdminQuestions });
-  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
-  const scores = useQuery({ queryKey: ["score-report"], queryFn: () => getScoreReport() });
+  const questions = useQuery({ queryKey: ["admin", "questions"], queryFn: getAdminQuestions });
+  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
+  const scores = useQuery({ queryKey: ["admin", "score-report"], queryFn: () => getScoreReport() });
   const absent = useQuery({
-    queryKey: ["absent-candidates", "not_started"],
+    queryKey: ["admin", "absent-candidates", "not_started"],
     queryFn: () => getAbsentCandidates("not_started"),
   });
 

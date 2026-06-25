@@ -26,7 +26,7 @@ export function QuestionImportPage() {
     mutationFn: importQuestions,
     onSuccess: () => {
       setNotice({ tone: "success", message: "题库导入完成。" });
-      queryClient.invalidateQueries({ queryKey: ["admin-questions"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "questions"] });
     },
     onError: (error) =>
       setNotice({ tone: "error", message: getErrorMessage(error, "题库导入失败") }),

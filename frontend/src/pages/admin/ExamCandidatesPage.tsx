@@ -44,8 +44,8 @@ export function ExamCandidatesPage() {
   const [file, setFile] = useState<File | null>(null);
   const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const queryClient = useQueryClient();
-  const candidatesKey = ["exam-candidates", examId];
-  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const candidatesKey = ["admin", "exam-candidates", examId];
+  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
   const isFrozen = currentExam?.status === "active";
   const candidates = useQuery({
@@ -57,7 +57,7 @@ export function ExamCandidatesPage() {
     onSuccess: () => {
       setNotice({ tone: "success", message: "应考人员导入完成。" });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
-      void queryClient.invalidateQueries({ queryKey: ["absent-candidates"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "absent-candidates"] });
     },
     onError: (error) =>
       setNotice({ tone: "error", message: getErrorMessage(error, "应考人员导入失败") }),

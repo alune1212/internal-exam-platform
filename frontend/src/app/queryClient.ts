@@ -1,5 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 
+import { subscribeSessionChanges } from "@/lib/sessionEvents";
+
 export function createAppQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -12,5 +14,11 @@ export function createAppQueryClient() {
         retry: false,
       },
     },
+  });
+}
+
+export function bindSessionCacheClearing(queryClient: QueryClient): () => void {
+  return subscribeSessionChanges(() => {
+    queryClient.clear();
   });
 }

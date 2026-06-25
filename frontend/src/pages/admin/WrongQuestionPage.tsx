@@ -46,7 +46,7 @@ const columns: ColumnDef<WrongQuestionRow>[] = [
 ];
 
 export function WrongQuestionPage() {
-  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export function WrongQuestionPage() {
       title="错题排行"
       chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看错题排行。优先用于复盘与培训。"
-      queryKey={["wrong-questions", selectedExamId]}
+      queryKey={["admin", "wrong-questions", selectedExamId]}
       queryFn={() =>
         selectedExamId === undefined ? Promise.resolve([]) : getWrongQuestions(selectedExamId)
       }

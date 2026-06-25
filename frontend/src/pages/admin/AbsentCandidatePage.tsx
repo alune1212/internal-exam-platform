@@ -62,7 +62,7 @@ export function AbsentCandidatePage() {
       title="参考状态"
       chapterLabel={adminPageCopy.reports}
       description="按未开始、进行中、已提交拆分应考人员状态，避免把进行中考试计为缺考。"
-      queryKey={`absent-candidates-${status}`}
+      queryKey={["admin", "absent-candidates", status]}
       queryFn={() => getAbsentCandidates(status)}
       columns={columns}
       actions={

@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from uuid import uuid4
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -151,6 +151,11 @@ class ExamConfigError(DomainError):
         super().__init__(reason)
 
 
+class ExamQuestionPoolMissingError(ExamConfigError):
+    def __init__(self, exam_id: int) -> None:
+        super().__init__(f"考试 #{exam_id} 已发布但缺少冻结题池，请先执行题池修复")
+
+
 @dataclass(frozen=True)
 class FixedPaperRule:
     question_count: int
@@ -281,6 +286,13 @@ def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None
         total_score=total_score,
         type_counts=type_counts,
     )
+
+
+def _pass_score_from_rule(question_rule: dict | None) -> Decimal | None:
+    if not question_rule:
+        return None
+    pass_score = question_rule.get("pass_score")
+    return _optional_decimal(pass_score, "pass_score")
 
 
 def _questions_by_type(questions: list[Question]) -> dict[str, list[Question]]:
@@ -578,6 +590,31 @@ def _ensure_candidate_in_scope(db: Session, exam_id: int, candidate_id: int) -> 
         raise CandidateNotEligibleError(candidate_id)
 
 
+def _load_candidate_scope_for_update(
+    db: Session, exam_id: int, candidate_id: int
+) -> ExamCandidateScope:
+    scope = db.execute(
+        select(ExamCandidateScope)
+        .where(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+    if scope is None:
+        raise CandidateNotEligibleError(candidate_id)
+    return scope
+
+
+def _load_exam_for_start(db: Session, exam_id: int) -> Exam:
+    exam = db.execute(
+        select(Exam).where(Exam.id == exam_id).with_for_update(read=True)
+    ).scalar_one_or_none()
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    return exam
+
+
 def _select_exam_questions(
     db: Session, exam: Exam, paper_seed: str | None = None
 ) -> list[Question]:
@@ -626,9 +663,7 @@ def _load_attempt_with_snapshots(
 
 
 def _attempt_deadline(attempt: ExamAttempt) -> datetime:
-    return ensure_aware(attempt.started_at) + timedelta(
-        minutes=attempt.exam.duration_minutes
-    )
+    return ensure_aware(attempt.ends_at)
 
 
 def _is_attempt_expired(attempt: ExamAttempt, now: datetime | None = None) -> bool:
@@ -637,9 +672,7 @@ def _is_attempt_expired(attempt: ExamAttempt, now: datetime | None = None) -> bo
 
 def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
     questions: list[AttemptResultQuestion] = []
-    show_answer = bool(
-        attempt.exam.show_answer_after_submit if attempt.exam is not None else True
-    )
+    show_answer = bool(attempt.show_answer_after_submit_snapshot)
     for question in attempt.questions:
         answer = question.answer
         questions.append(
@@ -657,10 +690,11 @@ def _build_attempt_result(attempt: ExamAttempt) -> AttemptResultRead:
             )
         )
 
-    raw_pass_score = (
-        attempt.exam.question_rule.get("pass_score") if attempt.exam else None
+    pass_score = (
+        float(attempt.pass_score_snapshot)
+        if attempt.pass_score_snapshot is not None
+        else None
     )
-    pass_score = float(raw_pass_score) if raw_pass_score is not None else None
 
     return AttemptResultRead(
         attempt_id=attempt.id,
@@ -754,13 +788,14 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
         raise ExamNotFoundError(exam_id)
 
     updates = payload.model_dump(exclude_unset=True)
-    if exam.status == "active":
+    next_status = updates.get("status", exam.status)
+    _validate_exam_status_transition(exam.status, next_status)
+    if exam.status in {"active", "archived"}:
         frozen_fields = {"duration_minutes", "question_rule"}
         if frozen_fields.intersection(updates):
             raise ExamFrozenError()
 
     next_duration_minutes = updates.get("duration_minutes", exam.duration_minutes)
-    next_status = updates.get("status", exam.status)
     next_question_rule = updates.get("question_rule", exam.question_rule)
     next_available_from = updates.get("available_from", exam.available_from)
     next_available_until = updates.get("available_until", exam.available_until)
@@ -788,6 +823,20 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
     return _build_exam_read(db, exam)
 
 
+def _validate_exam_status_transition(current_status: str, next_status: str) -> None:
+    if next_status not in VALID_EXAM_STATUSES:
+        raise ExamConfigError("考试状态只能是 draft、active 或 archived")
+    if current_status == next_status:
+        return
+    if current_status == "draft" and next_status == "active":
+        return
+    if current_status == "active" and next_status == "archived":
+        return
+    if current_status == "archived":
+        raise ExamFrozenError("已归档考试不得重新激活")
+    raise ExamFrozenError("考试状态流转不合法")
+
+
 def create_retake_grant(
     db: Session, exam_id: int, candidate_id: int
 ) -> ExamRetakeGrant:
@@ -808,9 +857,36 @@ def create_retake_grant(
     )
     if submitted is None:
         raise AttemptNotFoundError(0)
+    existing = (
+        db.query(ExamRetakeGrant)
+        .filter(
+            ExamRetakeGrant.exam_id == exam_id,
+            ExamRetakeGrant.candidate_id == candidate_id,
+            ExamRetakeGrant.used_at.is_(None),
+        )
+        .first()
+    )
+    if existing is not None:
+        return existing
     grant = ExamRetakeGrant(exam_id=exam_id, candidate_id=candidate_id)
     db.add(grant)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        if _is_unused_retake_grant_unique_violation(exc):
+            existing = (
+                db.query(ExamRetakeGrant)
+                .filter(
+                    ExamRetakeGrant.exam_id == exam_id,
+                    ExamRetakeGrant.candidate_id == candidate_id,
+                    ExamRetakeGrant.used_at.is_(None),
+                )
+                .one_or_none()
+            )
+            if existing is not None:
+                return existing
+        raise
     db.refresh(grant)
     return grant
 
@@ -838,6 +914,31 @@ def _has_unused_retake_grant(db: Session, exam_id: int, candidate_id: int) -> bo
         )
         .first()
         is not None
+    )
+
+
+def _constraint_name(exc: IntegrityError) -> str:
+    orig = getattr(exc, "orig", None)
+    diag = getattr(orig, "diag", None)
+    name = getattr(diag, "constraint_name", None)
+    if name:
+        return str(name)
+    return str(orig or exc)
+
+
+def _is_in_progress_attempt_unique_violation(exc: IntegrityError) -> bool:
+    message = _constraint_name(exc)
+    return (
+        "ux_exam_attempt_one_in_progress" in message
+        or "exam_attempt.exam_id, exam_attempt.candidate_id" in message
+    )
+
+
+def _is_unused_retake_grant_unique_violation(exc: IntegrityError) -> bool:
+    message = _constraint_name(exc)
+    return (
+        "ux_exam_retake_grant_one_unused" in message
+        or "exam_retake_grant.exam_id, exam_retake_grant.candidate_id" in message
     )
 
 
@@ -998,9 +1099,7 @@ def import_exam_candidates_from_workbook(
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
     """开始考试：创建 attempt 并生成题目快照。"""
-    exam = db.query(Exam).filter(Exam.id == exam_id).with_for_update().one_or_none()
-    if exam is None:
-        raise ExamNotFoundError(exam_id)
+    exam = _load_exam_for_start(db, exam_id)
     if exam.status != "active":
         raise ExamNotActiveError(exam_id)
 
@@ -1009,7 +1108,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         raise CandidateNotFoundError(candidate_id)
     if candidate.status != "active" or not candidate.should_attend:
         raise CandidateNotEligibleError(candidate_id)
-    _ensure_candidate_in_scope(db, exam_id, candidate_id)
+    _load_candidate_scope_for_update(db, exam_id, candidate_id)
 
     existing_attempts = (
         db.query(ExamAttempt)
@@ -1052,8 +1151,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     attempt_kind = "retake" if submitted_attempts else "initial"
     paper_seed = uuid4().hex
     if not _exam_has_question_pool(db, exam_id):
-        _freeze_question_pool(db, exam, require_questions=False)
-        db.flush()
+        raise ExamQuestionPoolMissingError(exam_id)
     questions = _select_exam_questions(db, exam, paper_seed)
 
     # 持久化 exam 行锁相关状态，释放行锁
@@ -1061,6 +1159,10 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     db.flush()
 
     now = datetime.now(UTC)
+    duration_minutes_snapshot = exam.duration_minutes
+    ends_at = now + timedelta(minutes=duration_minutes_snapshot)
+    pass_score_snapshot = _pass_score_from_rule(exam.question_rule)
+    show_answer_snapshot = exam.show_answer_after_submit
 
     # 固定试卷按 question_rule.total_score 和题量均分；原始题目 score 不修改
     rule = _parse_fixed_paper_rule(exam.question_rule)
@@ -1077,6 +1179,10 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         candidate_id=candidate_id,
         status="in_progress",
         started_at=now,
+        ends_at=ends_at,
+        duration_minutes_snapshot=duration_minutes_snapshot,
+        pass_score_snapshot=pass_score_snapshot,
+        show_answer_after_submit_snapshot=show_answer_snapshot,
         total_score=total_score,
         attempt_no=attempt_no,
         attempt_kind=attempt_kind,
@@ -1085,11 +1191,12 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     db.add(attempt)
     try:
         db.flush()  # 获取 attempt.id
-    except IntegrityError:
+    except IntegrityError as exc:
         db.rollback()
-        existing = _latest_attempt_for_candidate(db, exam_id, candidate_id)
-        if existing is not None and existing.status == "in_progress":
-            return _build_exam_start_response_from_attempt(existing)
+        if _is_in_progress_attempt_unique_violation(exc):
+            existing = _latest_attempt_for_candidate(db, exam_id, candidate_id)
+            if existing is not None and existing.status == "in_progress":
+                return _build_exam_start_response_from_attempt(existing)
         raise
     if retake_grant is not None:
         retake_grant.used_attempt_id = attempt.id
@@ -1135,7 +1242,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         exam=ExamRead.model_validate(exam),
         questions=question_reads,
         started_at=now,
-        ends_at=now + timedelta(minutes=exam.duration_minutes),
+        ends_at=ends_at,
     )
 
 
@@ -1159,8 +1266,7 @@ def _build_exam_start_response_from_attempt(attempt: ExamAttempt) -> ExamStartRe
         exam=ExamRead.model_validate(attempt.exam),
         questions=questions,
         started_at=attempt.started_at,
-        ends_at=ensure_aware(attempt.started_at)
-        + timedelta(minutes=attempt.exam.duration_minutes),
+        ends_at=ensure_aware(attempt.ends_at),
     )
 
 
@@ -1187,9 +1293,8 @@ def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
         candidate_id=attempt.candidate_id,
         status=attempt.status,
         started_at=ensure_aware(attempt.started_at),
-        duration_minutes=attempt.exam.duration_minutes,
-        ends_at=ensure_aware(attempt.started_at)
-        + timedelta(minutes=attempt.exam.duration_minutes),
+        duration_minutes=attempt.duration_minutes_snapshot,
+        ends_at=ensure_aware(attempt.ends_at),
         server_now=datetime.now(UTC),
         submitted_at=attempt.submitted_at,
         score=float(attempt.score),
@@ -1206,8 +1311,6 @@ def save_answers(
     attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=True)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
-    if attempt.exam and attempt.exam.status != "active":
-        raise ExamNotActiveError(attempt.exam_id)
     if _is_attempt_expired(attempt):
         submit_attempt(db, attempt_id, "auto")
         raise AttemptAlreadySubmittedError(attempt_id)
@@ -1235,10 +1338,19 @@ def save_answers(
 
 def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptResultRead:
     attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=True)
+    result = score_and_mark_attempt_submitted(
+        attempt, submit_type=submit_type, submitted_at=datetime.now(UTC)
+    )
+    db.commit()
+    return result
+
+
+def score_and_mark_attempt_submitted(
+    attempt: ExamAttempt, *, submit_type: str, submitted_at: datetime
+) -> AttemptResultRead:
     if attempt.status != "in_progress":
         return _build_attempt_result(attempt)
 
-    submitted_at = datetime.now(UTC)
     effective_submit_type = (
         "auto"
         if submit_type == "auto" or _is_attempt_expired(attempt, submitted_at)
@@ -1284,7 +1396,6 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
     )
 
     result = _build_attempt_result(attempt)
-    db.commit()
     return result
 
 

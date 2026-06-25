@@ -11,12 +11,13 @@ from app.models import (
     ExamAttemptQuestion,
     ExamCandidateScope,
     ExamQuestionPool,
+    ExamRetakeGrant,
     Question,
     QuestionOption,
 )
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamCreate, ExamUpdate
-from app.services import exam_service
+from app.services import exam_service, question_service
 from app.services.exam_service import (
     AttemptAlreadySubmittedError,
     AttemptNotFoundError,
@@ -393,6 +394,7 @@ def test_start_exam_returns_existing_in_progress_attempt(db: Session) -> None:
     exam = create_exam(db)
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
     first = exam_service.start_exam(db, exam.id, candidate.id)
     second = exam_service.start_exam(db, exam.id, candidate.id)
 
@@ -762,6 +764,41 @@ def test_update_exam_to_active_freezes_question_pool(db: Session) -> None:
     assert [row.question_id for row in rows] == [first.id, second.id]
 
 
+def test_update_exam_status_machine_rejects_archived_to_active(db: Session) -> None:
+    exam = create_exam(db, status="archived")
+
+    with pytest.raises(ExamFrozenError, match="归档"):
+        exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+
+
+def test_update_exam_rejects_structural_fields_after_archive(db: Session) -> None:
+    exam = create_exam(db, status="active")
+    exam_service.update_exam(db, exam.id, ExamUpdate(status="archived"))
+
+    with pytest.raises(ExamFrozenError):
+        exam_service.update_exam(db, exam.id, ExamUpdate(duration_minutes=90))
+
+    with pytest.raises(ExamFrozenError):
+        exam_service.update_exam(db, exam.id, ExamUpdate(question_rule={}))
+
+
+def test_start_exam_requires_existing_active_question_pool(db: Session) -> None:
+    create_question_with_options(db, stem="不应临时冻结")
+    exam = create_exam(db, status="active")
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    db.query(ExamQuestionPool).filter(ExamQuestionPool.exam_id == exam.id).delete()
+    db.commit()
+
+    with pytest.raises(exam_service.ExamConfigError, match="题池"):
+        exam_service.start_exam(db, exam.id, candidate.id)
+
+    assert (
+        db.query(ExamQuestionPool).filter(ExamQuestionPool.exam_id == exam.id).count()
+        == 0
+    )
+
+
 def test_start_exam_uses_frozen_pool_after_question_bank_changes(db: Session) -> None:
     exam = create_exam(
         db,
@@ -790,6 +827,26 @@ def test_start_exam_uses_frozen_pool_after_question_bank_changes(db: Session) ->
         "发布前题目1",
         "发布后修改不应影响选题快照来源",
     ]
+
+
+def test_active_exam_pool_question_cannot_be_updated_or_deleted(
+    db: Session,
+) -> None:
+    exam = create_exam(db, status="draft")
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    question = create_question_with_options(db, stem="发布题", question_type="single")
+    exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+
+    with pytest.raises(question_service.QuestionFrozenError, match="已发布考试"):
+        question_service.update_question(
+            db,
+            question.id,
+            question_service.QuestionUpdate(stem="发布后修改"),
+        )
+
+    with pytest.raises(question_service.QuestionFrozenError, match="已发布考试"):
+        question_service.delete_question(db, question.id)
 
 
 def test_start_exam_rejects_before_available_from(db: Session) -> None:
@@ -1150,6 +1207,8 @@ def test_submit_attempt_scores_multiple_choice_by_set(db: Session) -> None:
         ]
     )
     db.commit()
+    db.add(ExamQuestionPool(exam_id=exam.id, question_id=question.id, sort_order=0))
+    db.commit()
     start_result = exam_service.start_exam(db, exam.id, candidate.id)
 
     exam_service.save_answers(
@@ -1202,6 +1261,30 @@ def test_submit_attempt_is_idempotent_after_submitted(db: Session) -> None:
     assert again.score == 0
 
 
+def test_retake_grant_is_idempotent_for_unused_grant(db: Session) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    first = exam_service.create_retake_grant(db, exam.id, candidate.id)
+    second = exam_service.create_retake_grant(db, exam.id, candidate.id)
+
+    assert second.id == first.id
+    assert (
+        db.query(ExamRetakeGrant)
+        .filter(
+            ExamRetakeGrant.exam_id == exam.id,
+            ExamRetakeGrant.candidate_id == candidate.id,
+            ExamRetakeGrant.used_at.is_(None),
+        )
+        .count()
+        == 1
+    )
+
+
 def test_get_attempt_includes_timer_fields_from_attempt_exam(db: Session) -> None:
     exam = create_exam(db, duration_minutes=45)
     candidate = create_candidate(db)
@@ -1219,6 +1302,59 @@ def test_get_attempt_includes_timer_fields_from_attempt_exam(db: Session) -> Non
     assert attempt.server_now >= attempt.started_at
 
 
+def test_attempt_uses_own_deadline_snapshot_after_exam_duration_changes(
+    db: Session,
+) -> None:
+    exam = create_exam(db, duration_minutes=45)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam.duration_minutes = 5
+    db.commit()
+
+    attempt = exam_service.get_attempt(db, start.attempt_id)
+
+    assert attempt.duration_minutes == 45
+    assert attempt.ends_at == start.ends_at
+
+
+def test_result_uses_pass_score_and_review_snapshots_after_exam_changes(
+    db: Session,
+) -> None:
+    exam = create_exam(
+        db,
+        show_answer_after_submit=False,
+        question_rule={
+            "question_count": 1,
+            "total_score": 10,
+            "pass_score": 8,
+            "type_counts": {"single": 1, "multiple": 0, "judge": 0},
+        },
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db, score=10)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+
+    exam.question_rule = {
+        "question_count": 1,
+        "total_score": 10,
+        "pass_score": 1,
+        "type_counts": {"single": 1, "multiple": 0, "judge": 0},
+    }
+    exam.show_answer_after_submit = True
+    db.commit()
+
+    result = exam_service.submit_attempt(db, start.attempt_id, "manual")
+
+    assert result.pass_score == 8
+    assert result.is_passed is False
+    assert result.show_answer_after_submit is False
+    assert result.questions[0].correct_answer_snapshot is None
+
+
 def test_result_hides_answer_snapshots_when_exam_disables_review(db: Session) -> None:
     exam = create_exam(db, show_answer_after_submit=False)
     candidate = create_candidate(db)
@@ -1231,6 +1367,33 @@ def test_result_hides_answer_snapshots_when_exam_disables_review(db: Session) ->
     assert result.show_answer_after_submit is False
     assert result.questions[0].correct_answer_snapshot is None
     assert result.questions[0].analysis_snapshot is None
+
+
+def test_save_answers_allows_in_progress_attempt_after_exam_archived(
+    db: Session,
+) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    start = exam_service.start_exam(db, exam.id, candidate.id)
+    exam.status = "archived"
+    db.commit()
+
+    result = exam_service.save_answers(
+        db,
+        start.attempt_id,
+        AnswerSaveRequest(
+            answers=[
+                AnswerSaveItem(
+                    attempt_question_id=start.questions[0].id,
+                    selected_answer="A",
+                )
+            ]
+        ),
+    )
+
+    assert result.saved_count == 1
 
 
 def test_save_answers_rejects_after_submit(db: Session) -> None:
@@ -1264,7 +1427,7 @@ def test_save_answers_rejects_after_deadline_and_auto_submits(db: Session) -> No
     start = exam_service.start_exam(db, exam.id, candidate.id)
     attempt = db.get(ExamAttempt, start.attempt_id)
     assert attempt is not None
-    attempt.started_at = datetime.now(UTC) - timedelta(minutes=2)
+    attempt.ends_at = datetime.now(UTC) - timedelta(seconds=1)
     db.commit()
 
     with pytest.raises(AttemptAlreadySubmittedError):
@@ -1303,7 +1466,7 @@ def test_manual_submit_after_deadline_is_recorded_as_auto_submit(db: Session) ->
     start = exam_service.start_exam(db, exam.id, candidate.id)
     attempt = db.get(ExamAttempt, start.attempt_id)
     assert attempt is not None
-    attempt.started_at = datetime.now(UTC) - timedelta(minutes=2)
+    attempt.ends_at = datetime.now(UTC) - timedelta(seconds=1)
     db.commit()
 
     exam_service.submit_attempt(db, start.attempt_id, "manual")

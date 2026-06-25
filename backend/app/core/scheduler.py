@@ -1,14 +1,13 @@
-"""后台定时任务：自动提交超时考试。"""
+"""Legacy auto-submit helpers kept for tests and backwards-compatible imports."""
 
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
 from app.core.database import SessionLocal
-from app.core.time import ensure_aware
-from app.models import Exam, ExamAttempt
+from app.models import ExamAttempt
 from app.services.exam_service import submit_attempt
 
 logger = logging.getLogger(__name__)
@@ -20,15 +19,11 @@ def _find_expired_attempts(db) -> list[int]:
     """查找已超时的 in_progress attempt。"""
     now = datetime.now(UTC)
     rows = db.execute(
-        select(ExamAttempt.id, ExamAttempt.started_at, Exam.duration_minutes)
-        .join(Exam, Exam.id == ExamAttempt.exam_id)
+        select(ExamAttempt.id)
         .where(ExamAttempt.status == "in_progress")
+        .where(ExamAttempt.ends_at <= now)
     ).all()
-    return [
-        attempt_id
-        for attempt_id, started_at, duration_minutes in rows
-        if ensure_aware(started_at) + timedelta(minutes=duration_minutes) <= now
-    ]
+    return [attempt_id for (attempt_id,) in rows]
 
 
 async def auto_submit_loop() -> None:

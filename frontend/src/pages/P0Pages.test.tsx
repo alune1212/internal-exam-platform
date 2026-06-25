@@ -288,6 +288,31 @@ describe("P0 pages", () => {
     ]);
   });
 
+  it("shows visible autosave failure and retries the latest answer snapshot", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveAttemptAnswers)
+      .mockRejectedValueOnce(new ApiError("保存失败", 409, "保存失败"))
+      .mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    const optionB = await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    await user.click(optionB[0]);
+
+    expect(await screen.findByText("保存失败")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "重试保存" }));
+
+    await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(2));
+    expect(saveAttemptAnswers).toHaveBeenLastCalledWith("10", [
+      { attempt_question_id: 101, selected_answer: "B" },
+    ]);
+  });
+
   it("uses the public manual submit contract when the exam timer expires", async () => {
     const expiredAt = new Date().toISOString();
     vi.mocked(getAttempt).mockResolvedValue({

@@ -7,6 +7,7 @@ import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getCurrentCandidate } from "@/lib/candidateSession";
 import { candidatePageCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
@@ -14,9 +15,10 @@ export function ExamResultPage() {
   const [searchParams] = useSearchParams();
   const attemptId = searchParams.get("attemptId");
   const [filter, setFilter] = useState<"all" | "wrong">("all");
+  const candidateId = getCurrentCandidate()?.id ?? "anonymous";
 
   const { data: result, isLoading } = useQuery({
-    queryKey: ["attempt-result", attemptId],
+    queryKey: ["candidate", candidateId, "attempt-result", attemptId],
     queryFn: () => getAttemptResult(attemptId ?? ""),
     enabled: Boolean(attemptId),
   });

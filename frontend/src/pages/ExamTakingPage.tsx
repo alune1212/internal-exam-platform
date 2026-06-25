@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
+import { ApiError } from "@/api/client";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
@@ -23,14 +24,17 @@ import {
   perTypeIndexOf,
   sortByType,
 } from "@/lib/questionNavigation";
+import { getCurrentCandidate } from "@/lib/candidateSession";
 import { candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
 type AnswerMap = Record<number, string>;
+type SaveStatus = "saved" | "pending" | "saving" | "error";
 
 const EMPTY_QUESTIONS: AttemptQuestion[] = [];
 const SUBMITTED_STATUSES = new Set(["submitted", "auto_submitted"]);
+const SAVE_DEBOUNCE_MS = 150;
 
 export function ExamTakingPage() {
   const { examId = "1" } = useParams();
@@ -45,31 +49,80 @@ export function ExamTakingPage() {
   );
   const [activeIndex, setActiveIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [submitErrorVisible, setSubmitErrorVisible] = useState(false);
+  const latestAnswersRef = useRef<AnswerMap>({});
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const saveDebounceRef = useRef<number | null>(null);
   const submitStartedRef = useRef(false);
+  const candidateId = getCurrentCandidate()?.id ?? "anonymous";
 
   const { data: attempt, isLoading } = useQuery({
-    queryKey: ["attempt", attemptId],
+    queryKey: ["candidate", candidateId, "attempt", attemptId],
     queryFn: () => getAttempt(attemptId ?? ""),
     enabled: Boolean(attemptId),
   });
 
+  const sortedQuestions: AttemptQuestion[] = attempt
+    ? sortByType(attempt.questions)
+    : EMPTY_QUESTIONS;
+  const total = sortedQuestions.length;
+  const activeQuestion: AttemptQuestion | undefined = sortedQuestions[activeIndex];
+  const isLastQuestion = total > 0 && activeIndex === total - 1;
+
+  const buildAnswerItems = useCallback(
+    () =>
+      sortedQuestions.map((question) => ({
+        attempt_question_id: question.id,
+        selected_answer: latestAnswersRef.current[question.id] ?? "",
+      })),
+    [sortedQuestions],
+  );
+
   const saveMutation = useMutation({
     mutationFn: (items: Array<{ attempt_question_id: number; selected_answer: string }>) =>
       saveAttemptAnswers(attemptId ?? "", items),
+    retry: (failureCount, error) => !(error instanceof ApiError) && failureCount < 2,
+    scope: { id: `attempt-save-${attemptId ?? "missing"}` },
   });
+
+  const performFullSave = useCallback(
+    async ({ throwOnError = false }: { throwOnError?: boolean } = {}) => {
+      if (!attempt) {
+        return;
+      }
+      const items = buildAnswerItems();
+      const run = saveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          setSaveStatus("saving");
+          setSubmitErrorVisible(false);
+          await saveMutation.mutateAsync(items);
+          setSaveStatus("saved");
+        });
+      const guarded = run.catch((error: unknown) => {
+        setSaveStatus("error");
+        if (throwOnError) {
+          throw error;
+        }
+      });
+      saveQueueRef.current = guarded;
+      await guarded;
+    },
+    [attempt, buildAnswerItems, saveMutation],
+  );
 
   const submitMutation = useMutation({
     mutationFn: async (submitType: "manual" = "manual") => {
       if (!attempt) {
         return null;
       }
-      const items = sortedQuestions.map((question) => ({
-        attempt_question_id: question.id,
-        selected_answer: answers[question.id] ?? "",
-      }));
+      if (saveDebounceRef.current) {
+        window.clearTimeout(saveDebounceRef.current);
+        saveDebounceRef.current = null;
+      }
       await saveQueueRef.current.catch(() => undefined);
-      await saveAttemptAnswers(String(attempt.id), items);
+      await performFullSave({ throwOnError: true });
       return submitAttempt(String(attempt.id), submitType);
     },
     onSuccess: (result) => {
@@ -77,17 +130,34 @@ export function ExamTakingPage() {
         navigate(`/exams/${examId}/result?attemptId=${result.attempt_id}`);
       }
     },
+    onError: () => {
+      setSubmitErrorVisible(true);
+    },
+    retry: false,
   });
 
-  const queueSave = useCallback(
-    (items: Array<{ attempt_question_id: number; selected_answer: string }>) => {
-      const nextSave = saveQueueRef.current
-        .catch(() => undefined)
-        .then(() => saveMutation.mutateAsync(items));
-      saveQueueRef.current = nextSave;
-      return nextSave;
+  const scheduleFullSave = useCallback(() => {
+    if (!attempt) {
+      return;
+    }
+    setSaveStatus("pending");
+    setSubmitErrorVisible(false);
+    if (saveDebounceRef.current) {
+      window.clearTimeout(saveDebounceRef.current);
+    }
+    saveDebounceRef.current = window.setTimeout(() => {
+      saveDebounceRef.current = null;
+      void performFullSave();
+    }, SAVE_DEBOUNCE_MS);
+  }, [attempt, performFullSave]);
+
+  useEffect(
+    () => () => {
+      if (saveDebounceRef.current) {
+        window.clearTimeout(saveDebounceRef.current);
+      }
     },
-    [saveMutation],
+    [],
   );
 
   const requestSubmit = useCallback(
@@ -112,11 +182,12 @@ export function ExamTakingPage() {
     if (SUBMITTED_STATUSES.has(attempt.status)) {
       return;
     }
-    setAnswers(
-      Object.fromEntries(
-        attempt.questions.map((question) => [question.id, question.selected_answer ?? ""]),
-      ),
+    const initialAnswers = Object.fromEntries(
+      attempt.questions.map((question) => [question.id, question.selected_answer ?? ""]),
     );
+    latestAnswersRef.current = initialAnswers;
+    setAnswers(initialAnswers);
+    setSaveStatus("saved");
   }, [attempt]);
 
   useEffect(() => {
@@ -159,13 +230,6 @@ export function ExamTakingPage() {
     requestSubmit("manual");
   }, [attempt, remainingSeconds, requestSubmit, submitMutation.isPending]);
 
-  const sortedQuestions: AttemptQuestion[] = attempt
-    ? sortByType(attempt.questions)
-    : EMPTY_QUESTIONS;
-  const total = sortedQuestions.length;
-  const activeQuestion: AttemptQuestion | undefined = sortedQuestions[activeIndex];
-  const isLastQuestion = total > 0 && activeIndex === total - 1;
-
   const answeredCount = useMemo(() => {
     return sortedQuestions.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0);
   }, [answers, sortedQuestions]);
@@ -182,31 +246,34 @@ export function ExamTakingPage() {
 
   const handleSingleChange = useCallback(
     (question: AttemptQuestion, label: string) => {
-      setAnswers((current) => ({ ...current, [question.id]: label }));
-      void queueSave([{ attempt_question_id: question.id, selected_answer: label }]);
+      const nextAnswers = { ...latestAnswersRef.current, [question.id]: label };
+      latestAnswersRef.current = nextAnswers;
+      setAnswers(nextAnswers);
+      scheduleFullSave();
     },
-    [queueSave],
+    [scheduleFullSave],
   );
 
   const handleMultipleChange = useCallback(
     (question: AttemptQuestion, label: string, checked: boolean) => {
-      const next = toggleMultipleAnswer(answers[question.id], label, checked);
-      setAnswers((current) => ({ ...current, [question.id]: next }));
-      void queueSave([{ attempt_question_id: question.id, selected_answer: next }]);
+      const next = toggleMultipleAnswer(latestAnswersRef.current[question.id], label, checked);
+      const nextAnswers = { ...latestAnswersRef.current, [question.id]: next };
+      latestAnswersRef.current = nextAnswers;
+      setAnswers(nextAnswers);
+      scheduleFullSave();
     },
-    [answers, queueSave],
+    [scheduleFullSave],
   );
 
   function handleSave() {
     if (!attempt) {
       return;
     }
-    void queueSave(
-      sortedQuestions.map((question) => ({
-        attempt_question_id: question.id,
-        selected_answer: answers[question.id] ?? "",
-      })),
-    );
+    if (saveDebounceRef.current) {
+      window.clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    }
+    void performFullSave();
   }
 
   const goPrev = useCallback(() => {
@@ -383,9 +450,47 @@ export function ExamTakingPage() {
       ? "正在交卷"
       : "提交试卷"
     : "下一题";
+  const saveStatusLabel: Record<SaveStatus, string> = {
+    pending: "待保存",
+    saving: "正在保存",
+    saved: "已保存",
+    error: "保存失败",
+  };
 
   return (
     <PageShell density="focus" width="full" stagger className="relative min-h-[calc(100vh-10rem)]">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas px-4 py-3 text-body-sm shadow-card"
+        aria-live="polite"
+      >
+        <span
+          className={
+            saveStatus === "error"
+              ? "font-medium text-error"
+              : saveStatus === "saved"
+                ? "font-medium text-success"
+                : "font-medium text-muted"
+          }
+        >
+          {saveStatusLabel[saveStatus]}
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          {submitErrorVisible ? (
+            <span className="text-error">交卷失败，请先确认答案已保存并重试。</span>
+          ) : null}
+          {saveStatus === "error" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void performFullSave()}
+              disabled={submitMutation.isPending}
+            >
+              重试保存
+            </Button>
+          ) : null}
+        </div>
+      </div>
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
         <div id="exam-question-focus">
           <ExamFocusMode
@@ -402,7 +507,7 @@ export function ExamTakingPage() {
               prevDisabled: activeIndex === 0,
               nextDisabled: isLastQuestion && submitMutation.isPending,
               nextLabel: nextQuestionLabel,
-              saving: saveMutation.isPending,
+              saving: saveStatus === "saving",
             }}
           />
         </div>
@@ -491,11 +596,6 @@ export function ExamTakingPage() {
         </Sheet>
       </div>
 
-      {saveMutation.isError ? (
-        <p className="sr-only" role="alert">
-          暂存失败，请稍后重试。
-        </p>
-      ) : null}
       {submitMutation.isError ? (
         <p className="sr-only" role="alert">
           交卷失败，请确认考试仍在进行中。

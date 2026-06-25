@@ -55,7 +55,7 @@ const columns: ColumnDef<ScoreReportRow>[] = [
 ];
 
 export function ScoreReportPage() {
-  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function ScoreReportPage() {
       title="个人成绩"
       chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看个人提交结果，避免正式成绩混场。"
-      queryKey={["score-report", selectedExamId]}
+      queryKey={["admin", "score-report", selectedExamId]}
       queryFn={() =>
         selectedExamId === undefined ? Promise.resolve([]) : getScoreReport(selectedExamId)
       }

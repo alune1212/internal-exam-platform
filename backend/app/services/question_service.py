@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.exceptions import DomainError
-from app.models import Question, QuestionOption
+from app.models import Exam, ExamQuestionPool, Question, QuestionOption
 from app.schemas.question import QuestionCreate, QuestionRead, QuestionUpdate
 
 VALID_QUESTION_TYPES = {"single", "multiple", "judge"}
@@ -19,6 +19,13 @@ class QuestionNotFoundError(DomainError):
 
 class QuestionValidationError(DomainError):
     status_code = 422
+
+
+class QuestionFrozenError(DomainError):
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("题目已被 active 已发布考试题池引用，不能修改或删除。")
 
 
 def list_questions(db: Session, *, status: str | None = None) -> list[QuestionRead]:
@@ -59,6 +66,7 @@ def update_question(
     )
     if question is None:
         raise QuestionNotFoundError(question_id)
+    _ensure_question_not_in_active_exam_pool(db, question_id)
 
     data = payload.model_dump(exclude_unset=True)
     merged = QuestionCreate(
@@ -107,8 +115,23 @@ def delete_question(db: Session, question_id: int) -> None:
     question = db.get(Question, question_id)
     if question is None:
         raise QuestionNotFoundError(question_id)
+    _ensure_question_not_in_active_exam_pool(db, question_id)
     db.delete(question)
     db.commit()
+
+
+def _ensure_question_not_in_active_exam_pool(db: Session, question_id: int) -> None:
+    referenced = (
+        db.query(ExamQuestionPool.id)
+        .join(Exam, Exam.id == ExamQuestionPool.exam_id)
+        .filter(
+            ExamQuestionPool.question_id == question_id,
+            Exam.status == "active",
+        )
+        .first()
+    )
+    if referenced is not None:
+        raise QuestionFrozenError()
 
 
 def _read_question(db: Session, question_id: int) -> QuestionRead:

@@ -23,7 +23,7 @@ function renderSideRail(initialPath: string, matches = true) {
 
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
-      <AdminSideRail />
+      <AdminSideRail onLogout={() => {}} />
     </MemoryRouter>,
   );
 }
@@ -36,6 +36,7 @@ describe("AdminSideRail", () => {
     expect(screen.getByRole("link", { name: "导入" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "报表" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
   });
 
   it("orders nav items to match the admin chapter sequence", () => {

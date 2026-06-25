@@ -55,6 +55,7 @@ function mockFetchJson(data: unknown, status = 200) {
 describe("apiRequest auth headers", () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
     window.history.replaceState(null, "", "/");
     vi.restoreAllMocks();
   });
@@ -64,7 +65,8 @@ describe("apiRequest auth headers", () => {
     mockFetchJson([]);
     await apiRequest("/api/admin/exams");
     const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).toMatchObject({ "X-Admin-Token": "admin-pass" });
+    const headers = init?.headers as Headers;
+    expect(headers.get("X-Admin-Token")).toBe("admin-pass");
   });
 
   it("admin 路径无 token 时不带 header", async () => {
@@ -72,7 +74,8 @@ describe("apiRequest auth headers", () => {
     mockFetchJson([]);
     await apiRequest("/api/admin/exams");
     const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).not.toHaveProperty("X-Admin-Token");
+    const headers = init?.headers as Headers;
+    expect(headers.get("X-Admin-Token")).toBeNull();
   });
 
   it("候选人路径自动带 X-Candidate-Token", async () => {
@@ -80,8 +83,40 @@ describe("apiRequest auth headers", () => {
     mockFetchJson({ attempt_id: 1 });
     await apiRequest("/api/exams/1/start", { method: "POST" });
     const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).toMatchObject({ "X-Candidate-Token": "candidate-token" });
-    expect(init?.headers).not.toHaveProperty("X-Candidate-Id");
+    const headers = init?.headers as Headers;
+    expect(headers.get("X-Candidate-Token")).toBe("candidate-token");
+    expect(headers.get("X-Candidate-Id")).toBeNull();
+  });
+
+  it("调用方 headers 不会覆盖认证 header", async () => {
+    setAdminToken("admin-pass");
+    mockFetchJson([]);
+
+    await apiRequest("/api/admin/exams", {
+      headers: { "X-Admin-Token": "caller-token", "X-Trace-Id": "trace-1" },
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const headers = init?.headers as Headers;
+    expect(headers.get("X-Admin-Token")).toBe("admin-pass");
+    expect(headers.get("X-Trace-Id")).toBe("trace-1");
+  });
+
+  it("FormData 请求不强制 JSON Content-Type", async () => {
+    setAdminToken("admin-pass");
+    mockFetchJson([]);
+    const formData = new FormData();
+    formData.append("file", new File(["x"], "x.xlsx"));
+
+    await apiRequest("/api/admin/questions/import", {
+      method: "POST",
+      body: formData,
+    });
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    const headers = init?.headers as Headers;
+    expect(headers.get("Content-Type")).toBeNull();
+    expect(headers.get("X-Admin-Token")).toBe("admin-pass");
   });
 
   it("公开路径无候选人时不带 candidate header", async () => {
@@ -89,14 +124,15 @@ describe("apiRequest auth headers", () => {
     mockFetchJson([]);
     await apiRequest("/api/exams/active");
     const [, init] = vi.mocked(fetch).mock.calls[0];
-    expect(init?.headers).not.toHaveProperty("X-Candidate-Token");
+    const headers = init?.headers as Headers;
+    expect(headers.get("X-Candidate-Token")).toBeNull();
   });
 
   it("401 admin 请求清 token", async () => {
     setAdminToken("old-pass");
     mockFetchJson(null, 401);
     await expect(apiRequest("/api/admin/exams")).rejects.toBeInstanceOf(ApiError);
-    expect(localStorage.getItem("internal-exam-admin-token")).toBeNull();
+    expect(sessionStorage.getItem("internal-exam-admin-token")).toBeNull();
     expect(window.location.pathname).toBe("/admin/login");
   });
 
@@ -104,7 +140,7 @@ describe("apiRequest auth headers", () => {
     setCurrentCandidate(mockCandidate);
     mockFetchJson(null, 401);
     await expect(apiRequest("/api/exams/active")).rejects.toBeInstanceOf(ApiError);
-    expect(localStorage.getItem("internal-exam-candidate")).toBeNull();
+    expect(sessionStorage.getItem("internal-exam-candidate")).toBeNull();
     expect(window.location.pathname).toBe("/login");
   });
 });

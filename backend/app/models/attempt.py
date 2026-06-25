@@ -3,12 +3,15 @@ from decimal import Decimal
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +27,14 @@ class ExamAttempt(TimestampMixin, Base):
         UniqueConstraint(
             "exam_id", "candidate_id", "attempt_no", name="uq_exam_attempt_no"
         ),
+        Index(
+            "ux_exam_attempt_one_in_progress",
+            "exam_id",
+            "candidate_id",
+            unique=True,
+            postgresql_where=text("status = 'in_progress'"),
+            sqlite_where=text("status = 'in_progress'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -38,6 +49,12 @@ class ExamAttempt(TimestampMixin, Base):
     )
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
+    )
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    duration_minutes_snapshot: Mapped[int] = mapped_column(Integer, nullable=False)
+    pass_score_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(8, 2))
+    show_answer_after_submit_snapshot: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
     )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     submit_type: Mapped[str | None] = mapped_column(String(20))

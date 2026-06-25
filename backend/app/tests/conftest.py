@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 from io import BytesIO
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +11,14 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
 from app.main import app
-from app.models import Candidate, Exam, Question, QuestionOption
+from app.models import (
+    Candidate,
+    Exam,
+    ExamAttempt,
+    ExamQuestionPool,
+    Question,
+    QuestionOption,
+)
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.services import exam_service
 
@@ -34,14 +42,25 @@ def db() -> Iterator[Session]:
     Base.metadata.drop_all(engine)
 
 
+def _test_auto_pool_exam_ids(db: Session) -> set[int]:
+    return cast(
+        "set[int]",
+        db.info.setdefault("test_auto_pool_exam_ids", set()),
+    )
+
+
 def create_exam(db: Session, **kwargs) -> Exam:
     """创建考试的测试辅助函数。"""
     defaults = {"title": "默认考试", "duration_minutes": 60, "status": "active"}
     defaults.update(kwargs)
     exam = Exam(**defaults)
+    auto_pool = defaults.get("status") == "active"
     db.add(exam)
     db.commit()
     db.refresh(exam)
+    if auto_pool:
+        _test_auto_pool_exam_ids(db).add(exam.id)
+        _repair_missing_active_exam_pools_for_test(db)
     return exam
 
 
@@ -87,7 +106,40 @@ def create_question_with_options(db: Session, **kwargs) -> Question:
     db.add_all(options)
     db.commit()
     db.refresh(question)
+    _repair_missing_active_exam_pools_for_test(db)
     return question
+
+
+def _repair_missing_active_exam_pools_for_test(db: Session) -> None:
+    auto_pool_exam_ids = _test_auto_pool_exam_ids(db)
+    exam_ids = [
+        exam.id
+        for exam in db.identity_map.values()
+        if isinstance(exam, Exam)
+        and exam.id in auto_pool_exam_ids
+        and exam.status == "active"
+        and db.query(ExamAttempt.id).filter(ExamAttempt.exam_id == exam.id).first()
+        is None
+    ]
+    if not exam_ids:
+        return
+    questions = (
+        db.query(Question)
+        .filter(Question.status == "active")
+        .order_by(Question.id)
+        .all()
+    )
+    for exam_id in exam_ids:
+        db.query(ExamQuestionPool).filter(ExamQuestionPool.exam_id == exam_id).delete()
+        for index, active_question in enumerate(questions):
+            db.add(
+                ExamQuestionPool(
+                    exam_id=exam_id,
+                    question_id=active_question.id,
+                    sort_order=index,
+                )
+            )
+    db.commit()
 
 
 def submit_answers(

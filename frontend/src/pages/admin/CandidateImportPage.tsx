@@ -24,7 +24,7 @@ export function CandidateImportPage() {
     mutationFn: (selected: File) => importCandidates(examId, selected),
     onSuccess: () => {
       setNotice({ tone: "success", message: "应考人员导入完成。" });
-      queryClient.invalidateQueries({ queryKey: ["absent-candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "absent-candidates"] });
     },
     onError: (error) =>
       setNotice({ tone: "error", message: getErrorMessage(error, "应考人员导入失败") }),

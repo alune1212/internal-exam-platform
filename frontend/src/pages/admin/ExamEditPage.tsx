@@ -154,7 +154,7 @@ export function ExamEditPage() {
       available_until: "",
     },
   });
-  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
   const isPublished = currentExam?.status === "active";
   const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
@@ -187,7 +187,7 @@ export function ExamEditPage() {
     },
     onSuccess: () => {
       setNotice({ tone: "success", message: "考试配置已保存。" });
-      void queryClient.invalidateQueries({ queryKey: ["admin-exams"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "exams"] });
     },
     onError: (error) => {
       setNotice({ tone: "error", message: getErrorMessage(error, "保存考试失败") });

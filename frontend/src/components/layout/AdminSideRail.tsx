@@ -1,4 +1,4 @@
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
@@ -69,14 +69,38 @@ function SidebarList({
   );
 }
 
-export function AdminSideRail() {
+function LogoutButton({
+  onLogout,
+  tone = "dark",
+}: {
+  onLogout: () => void;
+  tone?: "dark" | "light";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onLogout}
+      className={cn(
+        "flex h-12 items-center gap-2 rounded-md px-3 text-body-sm font-medium transition-colors",
+        tone === "dark"
+          ? "text-footer-soft hover:bg-white/10 hover:text-canvas"
+          : "text-muted hover:bg-surface-card hover:text-ink",
+      )}
+    >
+      <LogOut className="size-4" aria-hidden="true" />
+      退出登录
+    </button>
+  );
+}
+
+export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const scrolled = useScrolled();
   const isDesktop = useMediaQuery(MD.lg);
 
   if (isDesktop) {
     return (
-      <aside className="w-60 shrink-0 border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft">
         <Link
           to="/admin/dashboard"
           aria-label="返回管理后台首页"
@@ -85,6 +109,9 @@ export function AdminSideRail() {
           <Wordmark size="sm" tone="dark" subtitle="admin" />
         </Link>
         <SidebarList />
+        <div className="mt-auto border-t border-footer-soft pt-4">
+          <LogoutButton onLogout={onLogout} />
+        </div>
       </aside>
     );
   }
@@ -118,6 +145,15 @@ export function AdminSideRail() {
           </SheetHeader>
           <div className="px-4 pb-6">
             <SidebarList tone="light" onNavigate={() => setMobileOpen(false)} />
+            <div className="mt-4 border-t border-hairline pt-3">
+              <LogoutButton
+                tone="light"
+                onLogout={() => {
+                  setMobileOpen(false);
+                  onLogout();
+                }}
+              />
+            </div>
           </div>
         </SheetContent>
       </Sheet>

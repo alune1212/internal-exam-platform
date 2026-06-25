@@ -125,7 +125,7 @@ export function AdminExamListPage() {
         title="考试配置"
         chapterLabel={adminPageCopy.exams}
         description="所有考试的配置入口。点击考试名进入编辑页。"
-        queryKey="admin-exams"
+        queryKey={["admin", "exams"]}
         queryFn={getAdminExams}
         columns={columns}
         actions={

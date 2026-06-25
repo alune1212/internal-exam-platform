@@ -40,7 +40,7 @@ export function PracticePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["practice-questions"],
+    queryKey: ["candidate", candidate?.id ?? "anonymous", "practice-questions"],
     queryFn: getPracticeQuestions,
     enabled: Boolean(candidate),
   });

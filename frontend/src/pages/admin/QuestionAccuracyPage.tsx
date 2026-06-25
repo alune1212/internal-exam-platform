@@ -55,7 +55,7 @@ const columns: ColumnDef<QuestionAccuracyRow>[] = [
 ];
 
 export function QuestionAccuracyPage() {
-  const exams = useQuery({ queryKey: ["admin-exams"], queryFn: getAdminExams });
+  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function QuestionAccuracyPage() {
       title="题目正确率"
       chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看题目正确率。数字越高表示越简单。"
-      queryKey={["question-accuracy", selectedExamId]}
+      queryKey={["admin", "question-accuracy", selectedExamId]}
       queryFn={() =>
         selectedExamId === undefined ? Promise.resolve([]) : getQuestionAccuracy(selectedExamId)
       }

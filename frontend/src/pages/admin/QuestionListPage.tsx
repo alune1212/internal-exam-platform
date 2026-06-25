@@ -119,7 +119,7 @@ export function QuestionListPage() {
   const [deleteTarget, setDeleteTarget] = useState<Question | null>(null);
 
   const invalidateQuestions = () => {
-    void queryClient.invalidateQueries({ queryKey: ["admin-questions"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin", "questions"] });
   };
 
   const saveMutation = useMutation({
@@ -252,7 +252,7 @@ export function QuestionListPage() {
         title="题库管理"
         chapterLabel={adminPageCopy.library}
         description="所有题目的列表与状态。点击右上「导入题库」批量上传 Excel。"
-        queryKey="admin-questions"
+        queryKey={["admin", "questions"]}
         queryFn={getAdminQuestions}
         columns={columns}
         actions={

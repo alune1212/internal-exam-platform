@@ -6,10 +6,12 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -92,6 +94,16 @@ class ExamCandidateScope(TimestampMixin, Base):
 
 class ExamRetakeGrant(TimestampMixin, Base):
     __tablename__ = "exam_retake_grant"
+    __table_args__ = (
+        Index(
+            "ux_exam_retake_grant_one_unused",
+            "exam_id",
+            "candidate_id",
+            unique=True,
+            postgresql_where=text("used_at IS NULL"),
+            sqlite_where=text("used_at IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     exam_id: Mapped[int] = mapped_column(

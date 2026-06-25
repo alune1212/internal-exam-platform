@@ -200,12 +200,17 @@ def test_list_exam_candidates_returns_attempt_and_retake_state() -> None:
     db.add(candidate)
     db.flush()
     db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    started_at = create_question_with_options(db).created_at
+    submitted_at = create_question_with_options(db, stem="x").created_at
     attempt = ExamAttempt(
         exam_id=exam.id,
         candidate_id=candidate.id,
         status="submitted",
-        started_at=create_question_with_options(db).created_at,
-        submitted_at=create_question_with_options(db, stem="x").created_at,
+        started_at=started_at,
+        ends_at=started_at,
+        duration_minutes_snapshot=60,
+        show_answer_after_submit_snapshot=True,
+        submitted_at=submitted_at,
         total_score=100,
         score=88,
         attempt_no=1,
@@ -261,13 +266,18 @@ def test_create_retake_grant_endpoint() -> None:
     db.add(candidate)
     db.flush()
     db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    started_at = create_question_with_options(db).created_at
+    submitted_at = create_question_with_options(db, stem="y").created_at
     db.add(
         ExamAttempt(
             exam_id=exam.id,
             candidate_id=candidate.id,
             status="submitted",
-            started_at=create_question_with_options(db).created_at,
-            submitted_at=create_question_with_options(db, stem="y").created_at,
+            started_at=started_at,
+            ends_at=started_at,
+            duration_minutes_snapshot=60,
+            show_answer_after_submit_snapshot=True,
+            submitted_at=submitted_at,
             total_score=100,
             score=72,
             attempt_no=1,

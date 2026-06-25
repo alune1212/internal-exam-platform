@@ -57,10 +57,10 @@ async function parseError(response: Response): Promise<ApiError> {
 
 function handle401(path: string): void {
   if (path.includes("/api/admin/")) {
-    clearAdminToken();
+    clearAdminToken("unauthorized");
     redirectTo("/admin/login");
   } else {
-    clearCurrentCandidate();
+    clearCurrentCandidate("unauthorized");
     redirectTo("/login");
   }
 }
@@ -71,13 +71,17 @@ function redirectTo(path: string): void {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const { headers: initHeaders, body: requestBody, ...restInit } = init ?? {};
+  const headers = new Headers(initHeaders);
+  if (!(requestBody instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  Object.entries(resolveAuthHeaders(path)).forEach(([key, value]) => headers.set(key, value));
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...resolveAuthHeaders(path),
-      ...init?.headers,
-    },
-    ...init,
+    ...restInit,
+    body: requestBody,
+    headers,
   });
 
   if (!response.ok) {
@@ -87,8 +91,8 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     throw await parseError(response);
   }
 
-  const body = (await response.json()) as ApiResponse<T>;
-  return body.data;
+  const responseBody = (await response.json()) as ApiResponse<T>;
+  return responseBody.data;
 }
 
 export async function uploadRequest<T>(path: string, file: File): Promise<T> {
@@ -97,9 +101,7 @@ export async function uploadRequest<T>(path: string, file: File): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     body: formData,
-    headers: {
-      ...resolveAuthHeaders(path),
-    },
+    headers: new Headers(resolveAuthHeaders(path)),
   });
   if (!response.ok) {
     if (response.status === 401) {
