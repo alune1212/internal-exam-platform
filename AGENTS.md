@@ -6,20 +6,26 @@ This project is a lightweight internal exam and practice platform. Keep changes 
 
 - Backend: `backend/`, FastAPI, Pydantic, SQLAlchemy 2.0, Alembic, PostgreSQL, openpyxl.
 - Frontend: `frontend/`, React, TypeScript, Vite, Tailwind CSS, shadcn-compatible local components, React Router, TanStack Query/Table, React Hook Form, Zod.
-- Deployment: `docker-compose.yml` starts PostgreSQL, backend, frontend, and Nginx. Public API paths stay under `/api`.
-- Docs: `README.md` is the startup guide. `docs/requirements.md`, `docs/database-design.md`, `docs/api-design.md`, `docs/import-templates.md`, and `docs/handoff.md` are the handoff references.
+- Deployment: `docker-compose.yml` launches PostgreSQL, backend, frontend, and Nginx. Public API paths stay under `/api`.
+- Runtime entrypoints: backend dev port `8000`, browser entry (Compose/Nginx) `8080`.
+- Docs: `README.md` as startup guide; `docs/requirements.md`, `docs/database-design.md`, `docs/api-design.md`, `docs/import-templates.md`, `docs/official-exam-uat-checklist.md`, and `docs/handoff.md` are the reference docs.
 
 ## Hard Boundaries
 
-- Do not add Redis, Celery, microservices, or complex RBAC in the first phase.
+- Do not add Redis, Celery, microservices, complex RBAC, or queue-based imports in the first phase.
 - Do not add Word parsing. The first import path is standardized Excel only.
 - Keep backend business logic in `backend/app/services/`; route files should stay thin.
 - All request and response shapes should use Pydantic schemas from `backend/app/schemas/`.
 - Preserve exam snapshot semantics: historical attempts must use saved question, option, answer, analysis, score, and order snapshots.
-- Preserve fixed-paper semantics: non-empty `exam.question_rule` with `question_count` samples an active, unique-stem paper by rule, assigns integer scores evenly from `total_score`, and stores attempt snapshots; empty `{}` keeps the legacy all-active behavior.
+- Preserve fixed-paper semantics:
+  - empty `exam.question_rule = {}` keeps legacy all-active behavior.
+  - non-empty `question_rule` with `question_count` must pick active unique stems from frozen paper rules, using `type_counts` that sum to `question_count`.
+  - integer scores must be distributed evenly from `total_score`.
+  - snapshots must be persisted per attempt.
 - Multiple-choice scoring must compare answer sets, not raw strings.
 - Keep frontend API calls in `frontend/src/api/`; pages should not hand-roll fetch details.
 - Preserve the frontend redesign system: use `frontend/src/index.css` tokens, Tailwind aliases, local UI primitives, and editorial components instead of reintroducing HSL shadcn tokens or ad hoc page styling.
+- Current hardening boundary remains lightweight internal-tool scope (no LMS, no full anti-cheat/monitoring suite).
 
 ## Commands
 
@@ -27,6 +33,10 @@ Backend:
 
 ```bash
 cd backend
+uv sync
+uv run ruff format . --check
+uv run ruff check .
+uv run ty check
 uv run pytest
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
@@ -37,6 +47,9 @@ Frontend:
 ```bash
 cd frontend
 npm install
+npm run format:check
+npm test -- --run
+npm run lint
 npm run build
 npm run dev
 ```
@@ -44,7 +57,7 @@ npm run dev
 Docker:
 
 ```bash
-docker-compose config
+docker-compose --env-file .env config
 docker-compose up -d --build
 ```
 
@@ -53,8 +66,22 @@ Health checks:
 ```bash
 curl http://localhost:8000/api/health
 curl http://localhost:8080/api/health
+curl http://localhost:8080/docs
 ```
 
 ## Current Stage
 
-The scaffold is runnable and the first-phase business loop is implemented. Question Excel import and candidate Excel import validate rows and persist records plus import batches; import failure reports are downloadable as Excel. Exam configuration create/update/list, exam-scoped candidate import/list/remove, retake grants, candidate-scoped active exam listing, fixed 50-question equivalent papers, exam start snapshots, answer autosave, submit scoring with pass status, time-based auto-submit checks, ranking, report SQL queries, Excel report export, and signed admin session tokens persist/query real database state. The hardening gate adds bounded Excel uploads, escaped Excel exports, production config checks for secrets/CORS, and locked save/submit attempt loading. The frontend has completed the Academic Editorial redesign across tokens, primitives, layouts, P0/P1/P2 pages, states, polish, and Docker rebuild verification.
+The project has an end-to-end first-phase business loop and completed Academic Editorial frontend redesign, with DB migration and deployment wiring in place.
+
+- Question Excel import and candidate Excel import validate rows, enforce bounded uploads (default 5 MiB, 5000 rows, 1 sheet), persist valid records, and persist `import_batch` metadata.
+- Failure report export is available as Excel for question, candidate, and exam-candidate imports.
+- Exam configuration create/update/list, candidate-scoped active exam listing, publish-time frozen `exam_question_pool`, and fixed-paper generation are implemented.
+- Exam start creates in-progress attempts with persisted question snapshots and supports answer autosave + resume.
+- Submit flow persists answers, scores from snapshot data, calculates pass status, and handles retake grants.
+- Time-based auto-submit background checks run periodically (every 30s).
+- Ranking and report SQL queries support exam filter and multi-sheet Excel report export (score, accuracy, wrong questions, absent candidates).
+- Candidate login uses name + phone last 4 digits (optional employee number), and candidate-practice APIs are token-gated via `X-Candidate-Token`.
+- Admin login/session uses signed tokens, with `X-Admin-Token` protection and production-safe defaults checks for secret/password/CORS.
+- Route/service boundaries, token handling, schema usage, and import/report persistence are all persisted against real DB state.
+
+Current known quality baseline includes passing backend format/lint/type/tests and frontend format/lint/build/tests from the latest verification pass.

@@ -75,14 +75,15 @@ cp backend/.env.example backend/.env
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `ENVIRONMENT` | `development` | 运行环境；`production` 会启用默认密钥和 CORS 安全校验 |
-| `DATABASE_URL` | `postgresql+psycopg://exam:exam@db:5432/internal_exam` | 数据库连接串 |
+| `DATABASE_URL` | `postgresql+psycopg://exam:local-dev-postgres-password@db:5432/internal_exam` | 数据库连接串 |
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:8080` | 逗号分隔的前端域名 |
 | `ADMIN_USERNAME` | `admin` | 管理员登录用户名 |
-| `ADMIN_PASSWORD` | `change-me` | 管理员登录密码 |
-| `TOKEN_SECRET` | `change-me-in-production` | 会话 token 密钥（≥8 字符） |
+| `ADMIN_PASSWORD` | `local-dev-admin-password` | 管理员登录密码（生产环境请改成安全值） |
+| `TOKEN_SECRET` | `local-dev-token-secret-change-before-production` | 会话 token 密钥（生产环境请改成安全值） |
 | `IMPORT_MAX_UPLOAD_BYTES` | `5242880` | Excel 导入文件大小上限 |
 | `IMPORT_MAX_ROWS` | `5000` | Excel 导入数据行上限 |
 | `IMPORT_MAX_SHEETS` | `1` | Excel 导入工作表数量上限 |
+| `PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS` | `10000` | 公开 token 限流字典容量上限 |
 
 ## 关键文件
 
