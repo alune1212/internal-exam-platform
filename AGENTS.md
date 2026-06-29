@@ -84,4 +84,4 @@ The project has an end-to-end first-phase business loop and completed Academic E
 - Admin login/session uses signed tokens, with `X-Admin-Token` protection and production-safe defaults checks for secret/password/CORS.
 - Route/service boundaries, token handling, schema usage, and import/report persistence are all persisted against real DB state.
 
-Current known quality baseline includes passing backend format/lint/type/tests and frontend format/lint/build/tests from the latest verification pass.
+Current known quality baseline is recorded in `docs/handoff.md` and should be refreshed after each verification pass.

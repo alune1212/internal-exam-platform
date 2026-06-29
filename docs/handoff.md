@@ -22,6 +22,7 @@ Implemented foundations:
 - Attempt result pass status based on `question_rule.pass_score`.
 - Signed admin session tokens returned from login and checked by `X-Admin-Token`.
 - Signed candidate tokens checked by `X-Candidate-Token` for candidate-facing exam/practice APIs.
+- Candidate frontend clears stale sessions on logout or 401 responses; `/exams` only queries `/api/exams/active` when a candidate session exists.
 - Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
 - Excel export cells are escaped before writing failure reports and report workbooks.
 - Production settings reject default admin password, default token secret, and unsafe CORS origins.
@@ -36,36 +37,54 @@ Implemented foundations:
 
 ## Verified Commands
 
-Quality gates verified on 2026-06-18:
+Quality gates verified on 2026-06-29:
 
 ```bash
-cd backend && uv run ruff format . --check
-cd backend && uv run ruff check .
-cd backend && uv run ty check
-cd backend && uv run pytest
-cd backend && uv run --with pip-audit pip-audit
-cd frontend && npm run format:check
-cd frontend && npm test -- --run
-cd frontend && npm run lint
-cd frontend && npm run build
-cd frontend && npm audit --audit-level=high
-docker-compose --env-file .env config
-curl http://localhost:8000/api/health
-curl http://localhost:8080/api/health
+cd backend
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff format . --check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff check .
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ty check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run pytest
+cd ../frontend
+npm run format:check
+npm test -- --run
+npm run lint
+npm run build
+cd ..
+docker compose --env-file .env config
+docker compose --env-file .env up -d --build
+docker compose exec -T backend uv run alembic upgrade head
+docker compose exec -T nginx nginx -t
+curl -f http://localhost:8080/api/health
+curl -f http://localhost:8080/docs
 ```
 
 Observed results:
 
 - Backend format/lint/type gates: passed.
-- Backend tests: 161 passed.
-- Backend dependency audit: `No known vulnerabilities found`.
+- Backend tests: 186 passed, 4 skipped.
 - Frontend format/lint/build gates: passed.
-- Frontend tests: 39 files / 190 tests passed. jsdom still logs the known `Not implemented: navigation to another Document` warning in the 401 redirect test.
-- Frontend dependency audit: 0 vulnerabilities at `--audit-level=high`.
+- Frontend tests: 55 files / 257 tests passed.
 - Frontend lint: 0 errors and 0 warnings.
-- Frontend build: passed, with Vite dynamic-import/chunk-size warnings.
-- Docker Compose config passed; backend/db/frontend/nginx were Up with the database healthy during the gate.
-- `http://localhost:8000/api/health` and `http://localhost:8080/api/health` returned ok.
+- Frontend build: passed.
+- Docker Compose config and build passed; db, backend, auto-submit-worker, frontend, and nginx stayed Up.
+- Container Alembic upgrade reached head; `nginx -t` passed.
+- `http://localhost:8080/api/health` returned ok; `http://localhost:8080/docs` returned the Swagger UI HTML.
+- Browser smoke through `8080` rendered `/exams` without a session as the candidate login page, rendered `/admin/login`, and produced no console warning/error. Nginx logs showed no anonymous `/api/exams/active` request for the no-session `/exams` load.
+
+## 8080 Business UAT Evidence
+
+Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
+
+- UAT prefix: `UAT-20260629110754-77f1db`.
+- Temporary local artifacts: `/private/tmp/internal-exam-uat/UAT-20260629110754-77f1db-questions.xlsx`, `/private/tmp/internal-exam-uat/UAT-20260629110754-77f1db-candidates.xlsx`, and `/private/tmp/internal-exam-uat/UAT-20260629110754-77f1db-report.xlsx`.
+- Covered admin login, question import with a failure row, candidate import with a failure row, exam create/update/publish, candidate login, active exam listing, start, answer save, resume, submit, result, retake grant, retake start, score/accuracy/wrong/absent reports, report export, and template downloads.
+- Question import batch `20`: `success_count=4`, `failed_count=1`; failed row `6`, reason `正确答案必须存在于选项中`.
+- Candidate import batch `21`: `success_count=2`, `failed_count=1`; failed row `4`, reason `姓名不能为空`.
+- Created `exam_id=1`, `primary_candidate_id=1`, `attempt_id=1`, and `retake_attempt_id=2`.
+- Report query sizes: scores `1`, accuracy `4`, wrong questions `1`, absent candidates `1`.
+- Template download smoke: question template sheet `题库模板`, candidate template sheet `人员模板`.
+- Backend and nginx logs for the UAT requests were HTTP 200, and Compose services remained Up after the run.
 
 ## Implemented Business Loop
 
@@ -90,15 +109,17 @@ Observed results:
 - Score, accuracy, wrong-question, absent-candidate, and export reports support `exam_id` filtering. Global reports remain available as an optional view.
 - Report export returns one Excel workbook with sheets for score report, question accuracy, wrong questions, and absent candidates.
 - Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
+- Candidate authentication clears stale local session state on logout or 401, and no-session candidate pages return to `/login` without calling candidate-scoped APIs.
 - Practice mode uses `X-Candidate-Token` for answer submission; practice question lists do not expose correct answers or analysis before submission.
 
 ## Known Gaps
 
-- No blocking P0 gap is currently documented in code. Production readiness still requires a real human UAT pass through the Docker/Nginx `8080` entrypoint and production secrets/backup checks.
+- No blocking P0 gap is currently documented in code. A scripted Docker/Nginx `8080` business UAT passed on 2026-06-29; production rollout should still run a short human browser walkthrough with real exam data and operators.
+- Production readiness still requires non-default production secrets, production HTTPS CORS, and a database backup before migration.
 - Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
 
 ## Recommended Next Work
 
-1. Run `docs/official-exam-uat-checklist.md` as a human browser UAT against the Docker/Nginx `8080` entrypoint.
+1. Run a short human browser walkthrough against the Docker/Nginx `8080` entrypoint with production-like exam data, using `docs/official-exam-uat-checklist.md` as the checklist.
 2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; then back up the database before running migrations.
 3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.

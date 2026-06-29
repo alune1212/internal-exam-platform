@@ -92,7 +92,7 @@ GET /api/admin/reports/export?exam_id={id}
 - `/api/admin/imports/{batch_id}/failure-report` 返回失败报告 Excel，包含批次元信息和失败明细；缺失批次返回 404，无失败行时仍返回空明细 sheet。
 - 模板下载接口返回标准 Excel 模板，`Content-Disposition` 使用 `filename*` 兼容中文文件名。
 - 应参人员导入接口按考试写入 `exam_candidate_scope`；有员工号时按员工号复用已有人员，无员工号时按无员工号姓名复用已有人员，缺失身份或非法状态按行记录失败原因。
-- 单场考试名单列表返回考生基础信息、最近一次 attempt、成绩和 `has_unused_retake_grant`，供管理端名单页展示参考状态和补考按钮。
+- 单场考试名单列表返回考生基础信息、当前参考 attempt、成绩和 `has_unused_retake_grant`，供管理端名单页展示参考状态和补考按钮。
 - 单场考试名单删除接口只移除该考试的 `exam_candidate_scope` 记录，不删除全局 candidate。
 - 补考授权接口创建一条未使用的 `exam_retake_grant`；已提交考生存在未使用授权时会重新出现在候选人 active exam 列表，开始考试时生成 `attempt_kind = "retake"` 的新 attempt 并消耗授权。
 - 报表统计查询已使用真实 SQL；成绩、题目正确率、错题、参考状态和导出均支持 `exam_id` 过滤。省略 `exam_id` 时保留全局视图。

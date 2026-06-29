@@ -100,7 +100,7 @@
 说明：
 
 - `attempt_no` 和 `attempt_kind` 区分首次考试与补考；默认首次 attempt 使用 `initial`，补考授权消耗后创建 `retake` attempt。
-- 报表和名单页以考生在该考试中的最新提交 attempt 作为当前参考状态。
+- 报表和名单页以考生在该考试中提交时间最靠后的已提交 attempt 作为当前参考状态。
 
 ### exam_attempt_question
 
