@@ -9,12 +9,14 @@ import time
 from datetime import UTC, datetime
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.core.time import ensure_aware
-from app.models import ExamAttempt, ExamAttemptQuestion
-from app.services.exam_service import score_and_mark_attempt_submitted
+from app.models import ExamAttempt
+from app.services.exam_service import (
+    _is_attempt_expired,
+    score_and_mark_attempt_submitted,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,20 +43,14 @@ def process_due_attempts(
     db: Session, *, now: datetime | None = None, batch_size: int = DEFAULT_BATCH_SIZE
 ) -> int:
     due_at = now or datetime.now(UTC)
-    attempts = (
-        db.execute(
-            _expired_attempts_query(due_at, batch_size).options(
-                selectinload(ExamAttempt.questions).selectinload(
-                    ExamAttemptQuestion.answer
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    attempts = db.execute(_expired_attempts_query(due_at, batch_size)).scalars().all()
     processed = 0
     for attempt in attempts:
-        if attempt.status != "in_progress" or ensure_aware(attempt.ends_at) > due_at:
+        # Re-check the deadline inside the loop: another worker may have
+        # already submitted (or the row may have been touched between
+        # the query and the lock). Reuse the service-layer predicate so
+        # "what counts as expired" stays in one place.
+        if not _is_attempt_expired(attempt, due_at):
             continue
         score_and_mark_attempt_submitted(
             attempt, submit_type="auto", submitted_at=due_at

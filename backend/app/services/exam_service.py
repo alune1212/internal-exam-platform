@@ -161,6 +161,7 @@ class FixedPaperRule:
     question_count: int
     total_score: Decimal
     type_counts: dict[str, int]
+    pass_score: Decimal | None
 
 
 VALID_EXAM_STATUSES = {"draft", "active", "archived"}
@@ -269,6 +270,13 @@ def _validate_exam_config_values(
     _validate_exam_window(available_from, available_until)
 
 
+def _questions_by_type(questions: list[Question]) -> dict[str, list[Question]]:
+    grouped: dict[str, list[Question]] = defaultdict(list)
+    for question in questions:
+        grouped[question.question_type].append(question)
+    return grouped
+
+
 def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
     if not question_rule:
         return None
@@ -281,25 +289,13 @@ def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None
         question_type: int(raw_type_counts.get(question_type, 0))
         for question_type in ("single", "multiple", "judge")
     }
+    pass_score = _optional_decimal(question_rule.get("pass_score"), "pass_score")
     return FixedPaperRule(
         question_count=question_count,
         total_score=total_score,
         type_counts=type_counts,
+        pass_score=pass_score,
     )
-
-
-def _pass_score_from_rule(question_rule: dict | None) -> Decimal | None:
-    if not question_rule:
-        return None
-    pass_score = question_rule.get("pass_score")
-    return _optional_decimal(pass_score, "pass_score")
-
-
-def _questions_by_type(questions: list[Question]) -> dict[str, list[Question]]:
-    grouped: dict[str, list[Question]] = defaultdict(list)
-    for question in questions:
-        grouped[question.question_type].append(question)
-    return grouped
 
 
 def _category_key(question: Question) -> str:
@@ -555,11 +551,33 @@ def _question_pool_count(db: Session, exam_id: int) -> int:
     )
 
 
+def _question_pool_counts_by_exam(db: Session, exam_ids: list[int]) -> dict[int, int]:
+    """Batch variant that resolves the count for many exams in one round-trip."""
+    if not exam_ids:
+        return {}
+    rows = (
+        db.query(ExamQuestionPool.exam_id, func.count(ExamQuestionPool.id))
+        .filter(ExamQuestionPool.exam_id.in_(exam_ids))
+        .group_by(ExamQuestionPool.exam_id)
+        .all()
+    )
+    return {exam_id: int(count) for exam_id, count in rows}
+
+
 def _build_exam_read(
-    db: Session, exam: Exam, updates: dict[str, object] | None = None
+    db: Session,
+    exam: Exam,
+    updates: dict[str, object] | None = None,
+    *,
+    pool_counts: dict[int, int] | None = None,
 ) -> ExamRead:
+    pool_count = (
+        pool_counts[exam.id]
+        if pool_counts is not None
+        else _question_pool_count(db, exam.id)
+    )
     data: dict[str, object] = {
-        "question_pool_count": _question_pool_count(db, exam.id),
+        "question_pool_count": pool_count,
         "availability_status": _exam_availability_status(exam),
     }
     if updates:
@@ -588,31 +606,6 @@ def _ensure_candidate_in_scope(db: Session, exam_id: int, candidate_id: int) -> 
     )
     if scoped is None:
         raise CandidateNotEligibleError(candidate_id)
-
-
-def _load_candidate_scope_for_update(
-    db: Session, exam_id: int, candidate_id: int
-) -> ExamCandidateScope:
-    scope = db.execute(
-        select(ExamCandidateScope)
-        .where(
-            ExamCandidateScope.exam_id == exam_id,
-            ExamCandidateScope.candidate_id == candidate_id,
-        )
-        .with_for_update()
-    ).scalar_one_or_none()
-    if scope is None:
-        raise CandidateNotEligibleError(candidate_id)
-    return scope
-
-
-def _load_exam_for_start(db: Session, exam_id: int) -> Exam:
-    exam = db.execute(
-        select(Exam).where(Exam.id == exam_id).with_for_update(read=True)
-    ).scalar_one_or_none()
-    if exam is None:
-        raise ExamNotFoundError(exam_id)
-    return exam
 
 
 def _select_exam_questions(
@@ -715,7 +708,9 @@ def _list_exams(db: Session, *, status: str | None = None) -> list[ExamRead]:
     query = db.query(Exam)
     if status is not None:
         query = query.filter(Exam.status == status)
-    return [_build_exam_read(db, exam) for exam in query.order_by(Exam.id).all()]
+    exams = query.order_by(Exam.id).all()
+    pool_counts = _question_pool_counts_by_exam(db, [exam.id for exam in exams])
+    return [_build_exam_read(db, exam, pool_counts=pool_counts) for exam in exams]
 
 
 def _build_exam_read_for_candidate(
@@ -837,6 +832,27 @@ def _validate_exam_status_transition(current_status: str, next_status: str) -> N
     raise ExamFrozenError("考试状态流转不合法")
 
 
+def _find_unused_retake_grant(
+    db: Session,
+    exam_id: int,
+    candidate_id: int,
+    *,
+    for_update: bool = False,
+) -> ExamRetakeGrant | None:
+    query = (
+        db.query(ExamRetakeGrant)
+        .filter(
+            ExamRetakeGrant.exam_id == exam_id,
+            ExamRetakeGrant.candidate_id == candidate_id,
+            ExamRetakeGrant.used_at.is_(None),
+        )
+        .order_by(ExamRetakeGrant.created_at)
+    )
+    if for_update:
+        query = query.with_for_update()
+    return query.first()
+
+
 def create_retake_grant(
     db: Session, exam_id: int, candidate_id: int
 ) -> ExamRetakeGrant:
@@ -857,15 +873,7 @@ def create_retake_grant(
     )
     if submitted is None:
         raise AttemptNotFoundError(0)
-    existing = (
-        db.query(ExamRetakeGrant)
-        .filter(
-            ExamRetakeGrant.exam_id == exam_id,
-            ExamRetakeGrant.candidate_id == candidate_id,
-            ExamRetakeGrant.used_at.is_(None),
-        )
-        .first()
-    )
+    existing = _find_unused_retake_grant(db, exam_id, candidate_id)
     if existing is not None:
         return existing
     grant = ExamRetakeGrant(exam_id=exam_id, candidate_id=candidate_id)
@@ -875,15 +883,7 @@ def create_retake_grant(
     except IntegrityError as exc:
         db.rollback()
         if _is_unused_retake_grant_unique_violation(exc):
-            existing = (
-                db.query(ExamRetakeGrant)
-                .filter(
-                    ExamRetakeGrant.exam_id == exam_id,
-                    ExamRetakeGrant.candidate_id == candidate_id,
-                    ExamRetakeGrant.used_at.is_(None),
-                )
-                .one_or_none()
-            )
+            existing = _find_unused_retake_grant(db, exam_id, candidate_id)
             if existing is not None:
                 return existing
         raise
@@ -905,16 +905,7 @@ def _latest_attempt_for_candidate(
 
 
 def _has_unused_retake_grant(db: Session, exam_id: int, candidate_id: int) -> bool:
-    return (
-        db.query(ExamRetakeGrant.id)
-        .filter(
-            ExamRetakeGrant.exam_id == exam_id,
-            ExamRetakeGrant.candidate_id == candidate_id,
-            ExamRetakeGrant.used_at.is_(None),
-        )
-        .first()
-        is not None
-    )
+    return _find_unused_retake_grant(db, exam_id, candidate_id) is not None
 
 
 def _constraint_name(exc: IntegrityError) -> str:
@@ -1099,7 +1090,9 @@ def import_exam_candidates_from_workbook(
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
     """开始考试：创建 attempt 并生成题目快照。"""
-    exam = _load_exam_for_start(db, exam_id)
+    exam = db.execute(select(Exam).where(Exam.id == exam_id)).scalar_one_or_none()
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
     if exam.status != "active":
         raise ExamNotActiveError(exam_id)
 
@@ -1108,60 +1101,82 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         raise CandidateNotFoundError(candidate_id)
     if candidate.status != "active" or not candidate.should_attend:
         raise CandidateNotEligibleError(candidate_id)
-    _load_candidate_scope_for_update(db, exam_id, candidate_id)
+    scope = db.execute(
+        select(ExamCandidateScope.id)
+        .where(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+    if scope is None:
+        raise CandidateNotEligibleError(candidate_id)
 
-    existing_attempts = (
+    # We only need the latest attempt's id/status/no, not the full list.
+    # The hot path is a candidate's first start; this is at most 1-2 rows.
+    in_progress = (
         db.query(ExamAttempt)
         .filter(
             ExamAttempt.exam_id == exam_id,
             ExamAttempt.candidate_id == candidate_id,
+            ExamAttempt.status == "in_progress",
         )
-        .order_by(ExamAttempt.attempt_no.desc())
-        .all()
-    )
-    in_progress = next(
-        (attempt for attempt in existing_attempts if attempt.status == "in_progress"),
-        None,
+        .order_by(ExamAttempt.attempt_no.desc(), ExamAttempt.id.desc())
+        .first()
     )
     if in_progress is not None:
         return _build_exam_start_response_from_attempt(in_progress)
 
-    submitted_attempts = [
-        attempt for attempt in existing_attempts if attempt.status in SUBMITTED_STATUSES
-    ]
+    next_attempt_no = (
+        db.query(func.coalesce(func.max(ExamAttempt.attempt_no), 0))
+        .filter(
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.candidate_id == candidate_id,
+        )
+        .scalar()
+        or 0
+    ) + 1
+    submitted_count = (
+        db.query(func.count(ExamAttempt.id))
+        .filter(
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.candidate_id == candidate_id,
+            ExamAttempt.status.in_(SUBMITTED_STATUSES),
+        )
+        .scalar()
+    )
+    has_submitted = bool(submitted_count)
     retake_grant: ExamRetakeGrant | None = None
-    if submitted_attempts:
-        retake_grant = (
-            db.query(ExamRetakeGrant)
-            .filter(
-                ExamRetakeGrant.exam_id == exam_id,
-                ExamRetakeGrant.candidate_id == candidate_id,
-                ExamRetakeGrant.used_at.is_(None),
-            )
-            .order_by(ExamRetakeGrant.created_at)
-            .with_for_update()
-            .first()
+    if has_submitted:
+        retake_grant = _find_unused_retake_grant(
+            db, exam_id, candidate_id, for_update=True
         )
         if retake_grant is None:
-            raise AttemptAlreadySubmittedError(submitted_attempts[0].id)
+            latest_submitted = (
+                db.query(ExamAttempt)
+                .filter(
+                    ExamAttempt.exam_id == exam_id,
+                    ExamAttempt.candidate_id == candidate_id,
+                    ExamAttempt.status.in_(SUBMITTED_STATUSES),
+                )
+                .order_by(ExamAttempt.attempt_no.desc(), ExamAttempt.id.desc())
+                .first()
+            )
+            assert latest_submitted is not None  # has_submitted guarantees this
+            raise AttemptAlreadySubmittedError(latest_submitted.id)
 
     _assert_exam_available(exam)
 
-    attempt_no = (existing_attempts[0].attempt_no if existing_attempts else 0) + 1
-    attempt_kind = "retake" if submitted_attempts else "initial"
+    attempt_no = next_attempt_no
+    attempt_kind = "retake" if has_submitted else "initial"
     paper_seed = uuid4().hex
     if not _exam_has_question_pool(db, exam_id):
         raise ExamQuestionPoolMissingError(exam_id)
     questions = _select_exam_questions(db, exam, paper_seed)
 
-    # 持久化 exam 行锁相关状态，释放行锁
-    db.add(exam)
-    db.flush()
-
     now = datetime.now(UTC)
     duration_minutes_snapshot = exam.duration_minutes
     ends_at = now + timedelta(minutes=duration_minutes_snapshot)
-    pass_score_snapshot = _pass_score_from_rule(exam.question_rule)
     show_answer_snapshot = exam.show_answer_after_submit
 
     # 固定试卷按 question_rule.total_score 和题量均分；原始题目 score 不修改
@@ -1169,9 +1184,13 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     if rule is not None:
         scaled_pairs = _rescale_scores(questions, rule.total_score)
         total_score = rule.total_score
+        pass_score_snapshot = rule.pass_score
     else:
         scaled_pairs = [(q, q.score) for q in questions]
         total_score = sum(q.score for q in questions)
+        pass_score_snapshot = _optional_decimal(
+            (exam.question_rule or {}).get("pass_score"), "pass_score"
+        )
 
     # 创建 attempt
     attempt = ExamAttempt(

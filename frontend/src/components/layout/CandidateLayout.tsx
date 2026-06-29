@@ -27,8 +27,7 @@ export function CandidateLayout() {
     return subscribeSessionChanges((event) => {
       if (event.reason === "candidate-login") {
         setCandidate(getCurrentCandidate());
-      }
-      if (event.reason === "candidate-logout" || event.reason === "unauthorized") {
+      } else if (event.reason === "candidate-logout" || event.reason === "unauthorized") {
         setCandidate(null);
       }
     });
@@ -40,12 +39,10 @@ export function CandidateLayout() {
 
   function loginCandidate(nextCandidate: Candidate) {
     setCurrentCandidate(nextCandidate);
-    setCandidate(nextCandidate);
   }
 
   function logoutCandidate() {
     clearCurrentCandidate();
-    setCandidate(null);
     navigate("/login", { replace: true });
   }
 

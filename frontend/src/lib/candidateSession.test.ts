@@ -6,31 +6,9 @@ import {
   setCurrentCandidate,
 } from "./candidateSession";
 import type { Candidate } from "@/types/candidate";
+import { installMockStorage } from "@/test/mockStorage";
 
-const localStore = new Map<string, string>();
-const sessionStore = new Map<string, string>();
-
-function makeStorage(store: Map<string, string>): Storage {
-  return {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      store.set(key, value);
-    },
-    removeItem: (key: string) => {
-      store.delete(key);
-    },
-    clear: () => {
-      store.clear();
-    },
-    get length() {
-      return store.size;
-    },
-    key: (index: number) => [...store.keys()][index] ?? null,
-  };
-}
-
-Object.defineProperty(window, "localStorage", { value: makeStorage(localStore) });
-Object.defineProperty(window, "sessionStorage", { value: makeStorage(sessionStore) });
+installMockStorage();
 
 const candidate: Candidate = {
   id: 7,

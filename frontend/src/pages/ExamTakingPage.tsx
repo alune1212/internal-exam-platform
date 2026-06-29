@@ -35,6 +35,12 @@ type SaveStatus = "saved" | "pending" | "saving" | "error";
 const EMPTY_QUESTIONS: AttemptQuestion[] = [];
 const SUBMITTED_STATUSES = new Set(["submitted", "auto_submitted"]);
 const SAVE_DEBOUNCE_MS = 150;
+const SAVE_STATUS_LABEL: Record<SaveStatus, string> = {
+  pending: "待保存",
+  saving: "正在保存",
+  saved: "已保存",
+  error: "保存失败",
+};
 
 export function ExamTakingPage() {
   const { examId = "1" } = useParams();
@@ -63,9 +69,10 @@ export function ExamTakingPage() {
     enabled: Boolean(attemptId),
   });
 
-  const sortedQuestions: AttemptQuestion[] = attempt
-    ? sortByType(attempt.questions)
-    : EMPTY_QUESTIONS;
+  const sortedQuestions = useMemo<AttemptQuestion[]>(
+    () => (attempt ? sortByType(attempt.questions) : EMPTY_QUESTIONS),
+    [attempt],
+  );
   const total = sortedQuestions.length;
   const activeQuestion: AttemptQuestion | undefined = sortedQuestions[activeIndex];
   const isLastQuestion = total > 0 && activeIndex === total - 1;
@@ -83,8 +90,14 @@ export function ExamTakingPage() {
     mutationFn: (items: Array<{ attempt_question_id: number; selected_answer: string }>) =>
       saveAttemptAnswers(attemptId ?? "", items),
     retry: (failureCount, error) => !(error instanceof ApiError) && failureCount < 2,
-    scope: { id: `attempt-save-${attemptId ?? "missing"}` },
   });
+
+  const cancelPendingSave = useCallback(() => {
+    if (saveDebounceRef.current) {
+      window.clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = null;
+    }
+  }, []);
 
   const performFullSave = useCallback(
     async ({ throwOnError = false }: { throwOnError?: boolean } = {}) => {
@@ -117,10 +130,7 @@ export function ExamTakingPage() {
       if (!attempt) {
         return null;
       }
-      if (saveDebounceRef.current) {
-        window.clearTimeout(saveDebounceRef.current);
-        saveDebounceRef.current = null;
-      }
+      cancelPendingSave();
       await saveQueueRef.current.catch(() => undefined);
       await performFullSave({ throwOnError: true });
       return submitAttempt(String(attempt.id), submitType);
@@ -142,14 +152,12 @@ export function ExamTakingPage() {
     }
     setSaveStatus("pending");
     setSubmitErrorVisible(false);
-    if (saveDebounceRef.current) {
-      window.clearTimeout(saveDebounceRef.current);
-    }
+    cancelPendingSave();
     saveDebounceRef.current = window.setTimeout(() => {
       saveDebounceRef.current = null;
       void performFullSave();
     }, SAVE_DEBOUNCE_MS);
-  }, [attempt, performFullSave]);
+  }, [attempt, cancelPendingSave, performFullSave]);
 
   useEffect(
     () => () => {
@@ -269,10 +277,7 @@ export function ExamTakingPage() {
     if (!attempt) {
       return;
     }
-    if (saveDebounceRef.current) {
-      window.clearTimeout(saveDebounceRef.current);
-      saveDebounceRef.current = null;
-    }
+    cancelPendingSave();
     void performFullSave();
   }
 
@@ -450,12 +455,6 @@ export function ExamTakingPage() {
       ? "正在交卷"
       : "提交试卷"
     : "下一题";
-  const saveStatusLabel: Record<SaveStatus, string> = {
-    pending: "待保存",
-    saving: "正在保存",
-    saved: "已保存",
-    error: "保存失败",
-  };
 
   return (
     <PageShell density="focus" width="full" stagger className="relative min-h-[calc(100vh-10rem)]">
@@ -472,7 +471,7 @@ export function ExamTakingPage() {
                 : "font-medium text-muted"
           }
         >
-          {saveStatusLabel[saveStatus]}
+          {SAVE_STATUS_LABEL[saveStatus]}
         </span>
         <div className="flex flex-wrap items-center gap-3">
           {submitErrorVisible ? (

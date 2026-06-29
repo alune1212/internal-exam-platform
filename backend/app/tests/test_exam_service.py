@@ -556,6 +556,7 @@ def test_select_questions_by_type_uses_unique_stems() -> None:
         question_count=3,
         total_score=Decimal("100"),
         type_counts={"single": 3, "multiple": 0, "judge": 0},
+        pass_score=None,
     )
     questions = [
         Question(id=1, question_type="single", stem="题目1", score=1),

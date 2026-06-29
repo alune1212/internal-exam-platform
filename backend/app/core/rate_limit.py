@@ -1,4 +1,4 @@
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from time import monotonic
 
 from fastapi import Request
@@ -14,7 +14,9 @@ class PublicTokenRateLimitError(DomainError):
         super().__init__("请求过于频繁，请稍后再试。")
 
 
-_attempts: dict[tuple[str, str], deque[float]] = defaultdict(deque)
+# OrderedDict preserves insertion order so we can evict the oldest key in O(1)
+# without scanning all keys to find the smallest timestamp.
+_attempts: OrderedDict[tuple[str, str], deque[float]] = OrderedDict()
 
 
 def check_public_token_rate_limit(
@@ -23,19 +25,21 @@ def check_public_token_rate_limit(
     now = monotonic()
     window_seconds = settings.public_token_rate_limit_window_seconds
     max_attempts = settings.public_token_rate_limit_count
-    _cleanup_attempts(now, window_seconds)
     keys = [
         (bucket, f"ip:{_client_ip(request)}"),
         (bucket, f"id:{_normalize_identifier(identifier)}"),
     ]
-    queues = [_attempts[key] for key in keys]
+    for key in keys:
+        if key in _attempts:
+            _attempts.move_to_end(key)
+    queues = [_attempts.setdefault(key, deque()) for key in keys]
     for queue in queues:
         _prune(queue, now, window_seconds)
     if any(len(queue) >= max_attempts for queue in queues):
         raise PublicTokenRateLimitError()
     for queue in queues:
         queue.append(now)
-    _enforce_max_keys()
+    _enforce_max_keys(now, window_seconds)
 
 
 def _client_ip(request: Request) -> str:
@@ -51,19 +55,19 @@ def _prune(queue: deque[float], now: float, window_seconds: int) -> None:
         queue.popleft()
 
 
-def _cleanup_attempts(now: float, window_seconds: int) -> None:
+def _enforce_max_keys(now: float, window_seconds: int) -> None:
+    """Drop expired keys first, then evict the oldest by insertion time."""
+    max_keys = settings.public_token_rate_limit_max_keys
+    if len(_attempts) <= max_keys:
+        return
     for key in list(_attempts):
         queue = _attempts[key]
         _prune(queue, now, window_seconds)
         if not queue:
             del _attempts[key]
-
-
-def _enforce_max_keys() -> None:
-    max_keys = settings.public_token_rate_limit_max_keys
+            if len(_attempts) <= max_keys:
+                return
+    # Still over the cap after pruning: drop the oldest inserted key in O(1)
+    # using OrderedDict's insertion order.
     while len(_attempts) > max_keys:
-        oldest_key = min(
-            _attempts,
-            key=lambda key: _attempts[key][0] if _attempts[key] else float("-inf"),
-        )
-        del _attempts[oldest_key]
+        _attempts.popitem(last=False)

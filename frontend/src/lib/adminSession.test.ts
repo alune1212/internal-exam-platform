@@ -1,36 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { getAdminToken, setAdminToken, clearAdminToken } from "./adminSession";
+import { installMockStorage } from "@/test/mockStorage";
 
-// Node.js v26 has an experimental localStorage that conflicts with jsdom.
-// Create an in-memory mock and install it on window before tests run.
-function createMockStorage() {
-  const store = new Map<string, string>();
-  return {
-    storage: {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        store.set(key, value);
-      },
-      removeItem: (key: string) => {
-        store.delete(key);
-      },
-      clear: () => {
-        store.clear();
-      },
-      get length() {
-        return store.size;
-      },
-      key: (index: number) => [...store.keys()][index] ?? null,
-    } satisfies Storage,
-    store,
-  };
-}
-
-const local = createMockStorage();
-const session = createMockStorage();
-
-Object.defineProperty(window, "localStorage", { value: local.storage });
-Object.defineProperty(window, "sessionStorage", { value: session.storage });
+installMockStorage();
 
 describe("adminSession", () => {
   beforeEach(() => {
