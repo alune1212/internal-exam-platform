@@ -141,10 +141,12 @@ function resolveHeading(examCount: number, isLoading: boolean): string {
 }
 
 export function ExamListPage() {
-  const candidateId = getCurrentCandidate()?.id ?? "anonymous";
+  const candidate = getCurrentCandidate();
+  const candidateId = candidate?.id ?? "anonymous";
   const { data = [], isLoading } = useQuery({
     queryKey: ["candidate", candidateId, "active-exams"],
     queryFn: getActiveExams,
+    enabled: Boolean(candidate),
   });
 
   return (

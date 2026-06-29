@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
@@ -10,6 +10,7 @@ import { ApiError } from "@/api/client";
 import { getActiveExams, startExam } from "@/api/exams";
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { clearCurrentCandidate, setCurrentCandidate } from "@/lib/candidateSession";
 import { ExamResultPage } from "@/pages/ExamResultPage";
 import { ExamTakingPage } from "@/pages/ExamTakingPage";
 import { ExamListPage } from "@/pages/ExamListPage";
@@ -170,6 +171,9 @@ function renderPage(
 describe("P0 pages", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    clearCurrentCandidate();
     vi.mocked(getAttempt).mockResolvedValue(attempt);
     vi.mocked(getAttemptResult).mockResolvedValue(result);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
@@ -452,6 +456,7 @@ describe("P0 pages", () => {
   });
 
   it("renders the exam list heading and question count from the active exam rule", async () => {
+    setCurrentCandidate(candidate);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
 
     renderPage("exams", <ExamListPage />);
@@ -465,7 +470,16 @@ describe("P0 pages", () => {
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
   });
 
+  it("does not request active exams without a candidate session", async () => {
+    renderPage("exams", <ExamListPage />);
+
+    await act(async () => {});
+
+    expect(getActiveExams).not.toHaveBeenCalled();
+  });
+
   it("shows not-started and ended availability states in the exam list", async () => {
+    setCurrentCandidate(candidate);
     vi.mocked(getActiveExams).mockResolvedValue([
       {
         ...exam,
@@ -490,6 +504,7 @@ describe("P0 pages", () => {
   });
 
   it("links in-progress exams directly to the existing attempt", async () => {
+    setCurrentCandidate(candidate);
     vi.mocked(getActiveExams).mockResolvedValue([
       {
         ...exam,
@@ -509,6 +524,7 @@ describe("P0 pages", () => {
   });
 
   it("pluralizes the exam list heading based on the number of active exams", async () => {
+    setCurrentCandidate(candidate);
     vi.mocked(getActiveExams).mockResolvedValue([exam, secondExam]);
 
     renderPage("exams", <ExamListPage />);
@@ -517,6 +533,7 @@ describe("P0 pages", () => {
   });
 
   it("falls back to the empty-state heading when there are no active exams", async () => {
+    setCurrentCandidate(candidate);
     vi.mocked(getActiveExams).mockResolvedValue([]);
 
     renderPage("exams", <ExamListPage />);

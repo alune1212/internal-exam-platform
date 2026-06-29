@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Footer } from "@/components/layout/Footer";
 import { TopNav } from "@/components/layout/TopNav";
@@ -7,6 +7,7 @@ import {
   getCurrentCandidate,
   setCurrentCandidate,
 } from "@/lib/candidateSession";
+import { subscribeSessionChanges } from "@/lib/sessionEvents";
 import { cn } from "@/lib/utils";
 import type { Candidate } from "@/types/candidate";
 
@@ -21,6 +22,17 @@ export function CandidateLayout() {
   const location = useLocation();
   const [candidate, setCandidate] = useState<Candidate | null>(() => getCurrentCandidate());
   const isLoginRoute = location.pathname === "/login";
+
+  useEffect(() => {
+    return subscribeSessionChanges((event) => {
+      if (event.reason === "candidate-login") {
+        setCandidate(getCurrentCandidate());
+      }
+      if (event.reason === "candidate-logout" || event.reason === "unauthorized") {
+        setCandidate(null);
+      }
+    });
+  }, []);
 
   if (!candidate && !isLoginRoute) {
     return <Navigate to="/login" replace />;
