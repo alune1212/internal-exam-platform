@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ReportPage } from "../ReportPage";
 
@@ -121,6 +121,24 @@ describe("ReportPage", () => {
     );
 
     expect(screen.getByText(/LOADING · 加载中/i)).toBeInTheDocument();
+  });
+
+  it("can show prerequisite loading without starting the report query", () => {
+    const disabledQueryFn = vi.fn(queryFn);
+
+    renderWithClient(
+      <ReportPage
+        title="个人成绩"
+        queryKey={["score-report", "exams-loading"]}
+        queryFn={disabledQueryFn}
+        queryEnabled={false}
+        isLoading
+        columns={columns}
+      />,
+    );
+
+    expect(screen.getByText(/LOADING · 加载中/i)).toBeInTheDocument();
+    expect(disabledQueryFn).not.toHaveBeenCalled();
   });
 
   it("renders query failures as an error state instead of an empty table", async () => {

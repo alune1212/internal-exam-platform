@@ -69,14 +69,13 @@ export function WrongQuestionPage() {
         selectedExamId,
         examsLoadError ? "exams-error" : examsPending ? "exams-loading" : "exams-ready",
       ]}
+      queryEnabled={!examsPending}
+      isLoading={examsPending}
       queryFn={() => {
         if (examsLoadError) {
           throw new Error("考试列表加载失败");
         }
-        if (examsPending) {
-          return new Promise<Awaited<ReturnType<typeof getWrongQuestions>>>(() => {});
-        }
-        return getWrongQuestions(selectedExamId);
+        return getWrongQuestions(selectedExamId ?? null);
       }}
       columns={columns}
       actions={

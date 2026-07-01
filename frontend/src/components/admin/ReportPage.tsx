@@ -12,6 +12,8 @@ interface ReportPageProps<TData> {
   title: string;
   queryKey: string | QueryKey;
   queryFn: () => Promise<TData[]>;
+  queryEnabled?: boolean;
+  isLoading?: boolean;
   columns: ColumnDef<TData>[];
   actions?: ReactNode;
   chapterLabel?: string;
@@ -25,6 +27,8 @@ export function ReportPage<TData>({
   title,
   queryKey,
   queryFn,
+  queryEnabled = true,
+  isLoading = false,
   columns,
   actions,
   chapterLabel = adminPageCopy.reports,
@@ -34,7 +38,8 @@ export function ReportPage<TData>({
   className,
 }: ReportPageProps<TData>) {
   const resolvedQueryKey = Array.isArray(queryKey) ? queryKey : [queryKey];
-  const query = useQuery({ queryKey: resolvedQueryKey, queryFn });
+  const query = useQuery({ queryKey: resolvedQueryKey, queryFn, enabled: queryEnabled });
+  const showLoading = isLoading || query.isLoading;
   const hasLoadError = query.isError && !query.data;
 
   return (
@@ -53,7 +58,7 @@ export function ReportPage<TData>({
         className="items-start"
       />
 
-      {query.isLoading ? (
+      {showLoading ? (
         <PageSection variant="table" data-testid="report-page-table-section">
           <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
         </PageSection>
