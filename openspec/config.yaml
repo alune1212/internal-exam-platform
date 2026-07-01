@@ -1,0 +1,40 @@
+schema: spec-driven
+
+context: |
+  Project: lightweight internal exam and practice platform.
+  Backend: FastAPI, Pydantic, SQLAlchemy 2.0, Alembic, PostgreSQL, openpyxl.
+  Frontend: React, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query/Table, React Hook Form, Zod.
+  Deployment: docker-compose.yml runs PostgreSQL, backend, frontend, and Nginx. Public API paths stay under /api.
+  Runtime entrypoints: backend dev port 8000, Compose/Nginx browser entry 8080.
+
+  Keep first-phase scope simple and local. Do not add Redis, Celery, microservices, complex RBAC, queue-based imports, Word parsing, full LMS features, or a full anti-cheat/monitoring suite unless explicitly requested.
+  Backend business logic belongs in backend/app/services/. Route files should stay thin.
+  Request and response shapes should use Pydantic schemas from backend/app/schemas/.
+  Frontend API calls belong in frontend/src/api/. Pages should not hand-roll fetch details.
+  Preserve the Academic Editorial frontend design system: frontend/src/index.css tokens, Tailwind aliases, local UI primitives, and editorial components.
+
+  Critical invariants:
+  - Historical attempts must use persisted question, option, answer, analysis, score, and order snapshots.
+  - Empty exam.question_rule = {} keeps legacy all-active behavior.
+  - Non-empty fixed-paper question_rule must select active unique stems from the frozen exam_question_pool.
+  - Fixed-paper type_counts must sum to question_count and integer scores must be distributed from total_score.
+  - Multiple-choice scoring compares answer sets, not raw strings.
+  - Candidate exam and practice APIs are token-gated by X-Candidate-Token.
+  - Admin APIs are protected by signed session tokens passed as X-Admin-Token.
+
+rules:
+  proposal:
+    - Keep proposals scoped to the first-phase internal-tool boundary.
+    - Include explicit Non-goals when the request could expand into LMS, complex RBAC, anti-cheat, queues, or new document formats.
+    - List modified capabilities using existing openspec/specs capability names whenever behavior changes.
+  specs:
+    - Use SHALL or MUST for normative behavior.
+    - Every requirement must include at least one concrete Scenario with a #### Scenario header.
+    - Preserve existing snapshot, fixed-paper, token, import-limit, and report-filter semantics unless the change explicitly modifies them.
+  design:
+    - Include a design only for cross-module, persistence, security, migration, performance, or compatibility-sensitive changes.
+    - Call out database, public API, auth, snapshot, and frontend design-system risks when touched.
+  tasks:
+    - Keep tasks small, ordered, and verifiable.
+    - Include the minimum relevant backend, frontend, Docker, or browser checks for the changed surface.
+    - Do not include unrelated refactors, broad formatting, dependency changes, or scope expansion.

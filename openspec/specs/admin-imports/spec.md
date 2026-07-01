@@ -1,0 +1,59 @@
+# Admin Imports Specification
+
+## Purpose
+
+Admin imports cover standardized Excel-based question, candidate, and exam-candidate imports plus failure reports.
+
+## Requirements
+
+### Requirement: Excel-Only Import Path
+The system SHALL use standardized Excel templates for first-phase imports and SHALL NOT add Word parsing or queue-based import processing.
+
+#### Scenario: Administrator downloads templates
+- **GIVEN** an administrator needs import input files
+- **WHEN** the administrator requests question or candidate templates
+- **THEN** the system returns Excel templates for the supported import types
+
+#### Scenario: Unsupported document format is requested
+- **GIVEN** the first-phase import boundary is in effect
+- **WHEN** a change proposes Word parsing for imports
+- **THEN** the change is out of scope unless explicitly approved
+
+### Requirement: Bounded Import Validation
+The system MUST enforce upload size, row count, and worksheet count limits before persisting valid import rows.
+
+#### Scenario: Import file exceeds configured limits
+- **GIVEN** an import file exceeds the configured upload, row, or worksheet limits
+- **WHEN** the administrator submits the import
+- **THEN** the system rejects the import with a business error and does not persist imported rows
+
+#### Scenario: Import contains mixed valid and invalid rows
+- **GIVEN** an Excel import contains both valid and invalid rows
+- **WHEN** the administrator submits the import
+- **THEN** the system persists valid rows and records failed rows with reasons in import_batch metadata
+
+### Requirement: Exam Candidate Scope Import
+The system SHALL import exam candidates into exam_candidate_scope without deleting global candidate records.
+
+#### Scenario: Existing candidate is imported into an exam
+- **GIVEN** a candidate already exists by employee number or by no-employee-number name
+- **WHEN** the administrator imports that candidate into an exam list
+- **THEN** the system reuses the candidate and adds an exam_candidate_scope record
+
+#### Scenario: Candidate is removed from an exam list
+- **GIVEN** a candidate is scoped to an exam
+- **WHEN** the administrator removes the candidate from that exam
+- **THEN** the system removes only the exam scope record and preserves the global candidate
+
+### Requirement: Failure Report Export
+The system SHALL provide Excel failure reports for question, candidate, and exam-candidate imports.
+
+#### Scenario: Import batch has failed rows
+- **GIVEN** an import batch has failed rows
+- **WHEN** the administrator downloads the failure report
+- **THEN** the workbook contains batch metadata and row-level failure reasons
+
+#### Scenario: Import batch has no failed rows
+- **GIVEN** an import batch exists with no failed rows
+- **WHEN** the administrator downloads the failure report
+- **THEN** the system still returns a workbook with an empty failure-detail sheet
