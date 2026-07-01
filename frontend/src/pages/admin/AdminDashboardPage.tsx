@@ -6,6 +6,7 @@ import { getAbsentCandidates, getScoreReport } from "@/api/reports";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { adminPageCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
@@ -74,9 +75,19 @@ export function AdminDashboardPage() {
     queryFn: () => getAbsentCandidates("not_started"),
   });
 
+  const questionsLoading = !questions.data && questions.isLoading;
+  const examsLoading = !exams.data && exams.isLoading;
+  const scoresLoading = !scores.data && scores.isLoading;
+  const absentLoading = !absent.data && absent.isLoading;
+  const questionsError = !questions.data && questions.isError;
+  const examsError = !exams.data && exams.isError;
+  const scoresError = !scores.data && scores.isError;
+  const absentError = !absent.data && absent.isError;
   const liveExams = (exams.data ?? []).filter(
     (exam) => exam.status === "active" || exam.status === "live",
   ).length;
+  const hasMetricError = questionsError || examsError || scoresError || absentError;
+  const activityUnavailable = scoresError || absentError;
 
   const activity: ActivityItem[] = [
     ...(scores.data ?? []).slice(0, 5).map((score) => ({
@@ -99,46 +110,61 @@ export function AdminDashboardPage() {
     <PageShell data-testid="admin-dashboard-shell" density="workbench" width="full" stagger>
       <PageHeader
         eyebrow={adminPageCopy.overview}
-        title="一切就绪。"
+        title={hasMetricError ? "部分数据暂不可用。" : "一切就绪。"}
         description={`最近一次刷新 · ${new Date().toLocaleString("zh-CN")}`}
       />
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="QUESTIONS · 题库"
-          value={questions.data?.length ?? 0}
+          value={questionsLoading ? "…" : questionsError ? "—" : (questions.data?.length ?? 0)}
           unit="题"
           caption="所有状态的题目合计"
         />
         <MetricCard
           label="EXAMS LIVE · 进行中"
-          value={liveExams}
+          value={examsLoading ? "…" : examsError ? "—" : liveExams}
           unit="场"
           tone="success"
           caption="status 为 active / live"
         />
         <MetricCard
           label="SUBMITTED · 已提交"
-          value={scores.data?.length ?? 0}
+          value={scoresLoading ? "…" : scoresError ? "—" : (scores.data?.length ?? 0)}
           unit="次"
           caption="所有考试累计提交次数"
         />
         <MetricCard
           label="NOT STARTED · 未开始"
-          value={absent.data?.length ?? 0}
+          value={absentLoading ? "…" : absentError ? "—" : (absent.data?.length ?? 0)}
           unit="人"
           tone="warning"
           caption="应考但尚未开始"
         />
       </section>
+      {hasMetricError ? (
+        <Alert variant="error">
+          <AlertDescription>
+            部分仪表盘指标加载失败，当前数值已标记为不可用，请稍后重试。
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <PageSection variant="card" className="gap-4">
         <header className="flex flex-col gap-1">
           <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
           <h2 className="font-display text-display-sm font-semibold text-ink">提交与未开始</h2>
         </header>
-        {questions.isLoading || exams.isLoading || scores.isLoading || absent.isLoading ? (
+        {scores.isLoading || absent.isLoading ? (
           <ContentSkeleton rows={3} className="p-0" />
+        ) : activityUnavailable ? (
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="最近活动加载失败。"
+            description="请稍后重试，或检查成绩与参考状态接口。"
+            className="py-8"
+          />
         ) : activity.length ? (
           <ul className="flex flex-col">
             {activity.map((item) => (

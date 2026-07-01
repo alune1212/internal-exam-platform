@@ -1,27 +1,25 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Save, X } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
 import { z } from "zod";
 
 import { getErrorMessage } from "@/api/client";
 import { getAdminExams, updateAdminExam } from "@/api/exams";
-import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
-import { PageHeader, PageSection, PageShell } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { adminPageCopy } from "@/lib/pageCopy";
-import { cn } from "@/lib/utils";
 
 const STATUS_OPTIONS = [
-  { value: "draft", label: "DRAFT · 草稿", variant: "default" },
-  { value: "active", label: "LIVE · 进行中", variant: "success" },
-  { value: "archived", label: "ENDED · 已结束", variant: "warning" },
+  { value: "draft", label: "DRAFT · 草稿" },
+  { value: "active", label: "LIVE · 进行中" },
+  { value: "archived", label: "ENDED · 已结束" },
 ] as const;
 
 const schema = z
@@ -80,64 +78,6 @@ function toDateTimeLocalValue(value?: string | null) {
 
 function fromDateTimeLocalValue(value: string) {
   return value ? new Date(value).toISOString() : null;
-}
-
-function StatusDropdown({
-  value,
-  onChange,
-}: {
-  value: ExamEditForm["status"];
-  onChange: (next: ExamEditForm["status"]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = STATUS_OPTIONS.find((status) => status.value === value) ?? STATUS_OPTIONS[0];
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((previous) => !previous)}
-        className="flex h-11 w-full items-center justify-between gap-2 rounded-md border border-hairline bg-canvas px-4 text-body text-ink hover:border-ink"
-      >
-        <span className="flex items-center gap-2">
-          <StatusPill variant={current.variant as StatusPillVariant}>{current.value}</StatusPill>
-          {current.label}
-        </span>
-        <ChevronDown className="size-4 text-muted" aria-hidden="true" />
-      </button>
-      {open ? (
-        <ul
-          role="listbox"
-          className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-hairline bg-surface-elev shadow-pop"
-        >
-          {STATUS_OPTIONS.map((option) => (
-            <li key={option.value}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={option.value === value}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-2 px-4 py-2 text-left text-body hover:bg-surface-card",
-                  option.value === value && "bg-surface-card",
-                )}
-              >
-                <StatusPill variant={option.variant as StatusPillVariant}>
-                  {option.value}
-                </StatusPill>
-                {option.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
 }
 
 export function ExamEditPage() {
@@ -208,6 +148,55 @@ export function ExamEditPage() {
     });
   }, [currentExam, form]);
 
+  if (exams.isLoading) {
+    return (
+      <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+        <PageHeader eyebrow={adminPageCopy.exams} title={`编辑考试 #${examId ?? "-"}`} />
+        <PageSection variant="card">
+          <PageState
+            state="loading"
+            rows={4}
+            className="border-0 bg-transparent py-8 shadow-none"
+          />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  if (exams.isError) {
+    return (
+      <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+        <PageHeader eyebrow={adminPageCopy.exams} title={`编辑考试 #${examId ?? "-"}`} />
+        <PageSection variant="card">
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="考试配置加载失败。"
+            description="请稍后重试，或确认后台服务是否可用。"
+            className="border-0 bg-transparent py-8 shadow-none"
+          />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  if (!currentExam) {
+    return (
+      <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+        <PageHeader eyebrow={adminPageCopy.exams} title={`编辑考试 #${examId ?? "-"}`} />
+        <PageSection variant="card">
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="未找到考试。"
+            description="请返回考试列表确认考试是否仍然存在。"
+            className="border-0 bg-transparent py-8 shadow-none"
+          />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
   return (
     <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
       <PageHeader
@@ -260,13 +249,17 @@ export function ExamEditPage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="status">状态 · Status</FieldLabel>
-            <Controller
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <StatusDropdown value={field.value} onChange={field.onChange} />
-              )}
-            />
+            <select
+              id="status"
+              className="h-11 w-full rounded-md border border-hairline bg-canvas px-3.5 text-body text-ink outline-none transition-colors duration-150 ease-out focus-visible:border-ink focus-visible:ring-1 focus-visible:ring-ink"
+              {...form.register("status")}
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field>
             <FieldLabel htmlFor="available_from">开放开始时间 · Available From</FieldLabel>

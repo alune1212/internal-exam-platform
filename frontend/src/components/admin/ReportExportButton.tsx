@@ -3,6 +3,7 @@ import { Download } from "lucide-react";
 
 import { getErrorMessage } from "@/api/client";
 import { downloadReportExport } from "@/api/reports";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 export function ReportExportButton({ examId }: { examId?: string | null }) {
@@ -21,14 +22,14 @@ export function ReportExportButton({ examId }: { examId?: string | null }) {
         {mutation.isPending ? "导出中" : examId ? "导出当前考试" : "导出全部报表"}
       </Button>
       {mutation.isSuccess ? (
-        <span className="text-caption text-success" role="alert">
-          报表已开始下载。
-        </span>
+        <Alert variant="success" className="py-2">
+          <AlertDescription>报表已开始下载。</AlertDescription>
+        </Alert>
       ) : null}
       {mutation.isError ? (
-        <span className="text-caption text-error" role="alert">
-          {getErrorMessage(mutation.error, "报表导出失败")}
-        </span>
+        <Alert variant="error" className="py-2">
+          <AlertDescription>{getErrorMessage(mutation.error, "报表导出失败")}</AlertDescription>
+        </Alert>
       ) : null}
     </div>
   );

@@ -99,6 +99,7 @@ describe("QuestionListPage", () => {
 
     await user.click(await screen.findByRole("button", { name: /编辑/ }));
     const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("解析")).toHaveClass("bg-canvas-warm", "rounded-md");
     await user.clear(within(dialog).getByLabelText("题干"));
     await user.type(within(dialog).getByLabelText("题干"), "更新题目");
     await user.click(within(dialog).getByRole("button", { name: "保存题目" }));

@@ -39,7 +39,11 @@ export function PracticePage() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const { data = [], isLoading } = useQuery({
+  const {
+    data = [],
+    isError,
+    isLoading,
+  } = useQuery({
     queryKey: ["candidate", candidate?.id ?? "anonymous", "practice-questions"],
     queryFn: getPracticeQuestions,
     enabled: Boolean(candidate),
@@ -54,6 +58,7 @@ export function PracticePage() {
 
   const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data), [data]);
   const total = sortedData.length;
+  const hasLoadError = isError && total === 0;
   const activeQuestion: PracticeQuestion | undefined = sortedData[activeIndex];
   const activeResult = activeQuestion ? results[activeQuestion.id] : undefined;
   const answeredCount = useMemo(
@@ -121,7 +126,7 @@ export function PracticePage() {
 
   if (!candidate) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="notLoggedIn"
@@ -136,28 +141,41 @@ export function PracticePage() {
             </Button>
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <PageState state="loading" rows={4} className="bg-surface-card p-8" />
-      </div>
+      </PageShell>
+    );
+  }
+
+  if (hasLoadError) {
+    return (
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+        <PageState
+          state="error"
+          eyebrow={candidatePageCopy.error}
+          title="练习题加载失败。"
+          description="请稍后重试，或联系管理员确认题库状态。"
+        />
+      </PageShell>
     );
   }
 
   if (total === 0 || !activeQuestion) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <PageState
           state="empty"
           eyebrow={candidatePageCopy.empty}
           title="题库为空。"
           description="管理员导入题库后会显示在这里。"
         />
-      </div>
+      </PageShell>
     );
   }
 
@@ -206,7 +224,7 @@ export function PracticePage() {
     <PageShell density="focus" width="full" stagger className="relative">
       <div className="flex flex-col gap-3 border-b border-hairline pb-4">
         <ChapterNumber>{candidatePageCopy.practice}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink md:text-display-xl">
+        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
           刷一遍，<em className="italic">记一遍</em>。
         </h1>
         <p className="max-w-2xl text-body-lg text-muted">
@@ -306,7 +324,10 @@ export function PracticePage() {
             </div>
           </div>
 
-          <SheetContent side="bottom" className="flex h-[80vh] flex-col gap-4 bg-canvas p-5">
+          <SheetContent
+            side="bottom"
+            className="flex h-[80vh] flex-col gap-4 rounded-t-lg bg-canvas p-5"
+          >
             <SheetHeader className="border-b border-hairline pb-3">
               <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
               <SheetDescription className="sr-only">选择练习题号。</SheetDescription>

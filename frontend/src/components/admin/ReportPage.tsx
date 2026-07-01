@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { PageHeader, PageSection, PageShell } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { adminPageCopy } from "@/lib/pageCopy";
 
 interface ReportPageProps<TData> {
@@ -35,6 +35,7 @@ export function ReportPage<TData>({
 }: ReportPageProps<TData>) {
   const resolvedQueryKey = Array.isArray(queryKey) ? queryKey : [queryKey];
   const query = useQuery({ queryKey: resolvedQueryKey, queryFn });
+  const hasLoadError = query.isError && !query.data;
 
   return (
     <PageShell
@@ -55,6 +56,16 @@ export function ReportPage<TData>({
       {query.isLoading ? (
         <PageSection variant="table" data-testid="report-page-table-section">
           <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
+        </PageSection>
+      ) : hasLoadError ? (
+        <PageSection variant="table" data-testid="report-page-table-section">
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="报表加载失败。"
+            description="请稍后重试，或确认后台服务与筛选条件是否可用。"
+            className="border-0 bg-transparent py-10 shadow-none"
+          />
         </PageSection>
       ) : (
         <PageSection variant="table" data-testid="report-page-table-section">

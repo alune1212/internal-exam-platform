@@ -4,8 +4,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAdminExams } from "@/api/exams";
-import { downloadReportExport, getScoreReport } from "@/api/reports";
+import {
+  downloadReportExport,
+  getQuestionAccuracy,
+  getScoreReport,
+  getWrongQuestions,
+} from "@/api/reports";
+import { QuestionAccuracyPage } from "@/pages/admin/QuestionAccuracyPage";
 import { ScoreReportPage } from "@/pages/admin/ScoreReportPage";
+import { WrongQuestionPage } from "@/pages/admin/WrongQuestionPage";
 
 vi.mock("@/api/exams", () => ({
   getAdminExams: vi.fn(),
@@ -13,18 +20,16 @@ vi.mock("@/api/exams", () => ({
 
 vi.mock("@/api/reports", () => ({
   getScoreReport: vi.fn(),
+  getQuestionAccuracy: vi.fn(),
+  getWrongQuestions: vi.fn(),
   downloadReportExport: vi.fn(),
 }));
 
-function renderPage() {
+function renderReportPage(page = <ScoreReportPage />) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ScoreReportPage />
-    </QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={queryClient}>{page}</QueryClientProvider>);
 }
 
 describe("ScoreReportPage", () => {
@@ -42,12 +47,14 @@ describe("ScoreReportPage", () => {
       },
     ]);
     vi.mocked(getScoreReport).mockResolvedValue([]);
+    vi.mocked(getQuestionAccuracy).mockResolvedValue([]);
+    vi.mocked(getWrongQuestions).mockResolvedValue([]);
     vi.mocked(downloadReportExport).mockResolvedValue();
   });
 
   it("filters and downloads by the selected exam", async () => {
     const user = userEvent.setup();
-    renderPage();
+    renderReportPage();
 
     expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
     await waitFor(() => expect(getScoreReport).toHaveBeenCalledWith("7"));
@@ -56,6 +63,29 @@ describe("ScoreReportPage", () => {
 
     await waitFor(() => expect(downloadReportExport).toHaveBeenCalledTimes(1));
     expect(downloadReportExport).toHaveBeenCalledWith("7");
-    expect(await screen.findByRole("alert")).toHaveTextContent("报表已开始下载");
+    expect(await screen.findByRole("status")).toHaveTextContent("报表已开始下载");
+  });
+
+  it("renders exam-list failures as report errors instead of exporting all scores", async () => {
+    vi.mocked(getAdminExams).mockRejectedValueOnce(new Error("exam list unavailable"));
+
+    renderReportPage();
+
+    expect(await screen.findByRole("heading", { name: "报表加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /导出全部报表/ })).not.toBeInTheDocument();
+    expect(getScoreReport).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["题目正确率", <QuestionAccuracyPage />, getQuestionAccuracy],
+    ["错题排行", <WrongQuestionPage />, getWrongQuestions],
+  ])("renders exam-list failures as report errors for %s", async (_title, page, queryFn) => {
+    vi.mocked(getAdminExams).mockRejectedValueOnce(new Error("exam list unavailable"));
+
+    renderReportPage(page);
+
+    expect(await screen.findByRole("heading", { name: "报表加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /导出全部报表/ })).not.toBeInTheDocument();
+    expect(queryFn).not.toHaveBeenCalled();
   });
 });

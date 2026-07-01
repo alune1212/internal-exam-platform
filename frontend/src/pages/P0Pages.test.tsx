@@ -221,6 +221,34 @@ describe("P0 pages", () => {
     expect(screen.getAllByText(/QUESTION 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
   });
 
+  it("shows exam-taking loading before rendering the focus mode", async () => {
+    vi.mocked(getAttempt).mockReturnValue(new Promise<Attempt>(() => {}));
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText(/Q\s*01\s*\/\s*01/)).not.toBeInTheDocument();
+  });
+
+  it("shows an explicit empty state when an attempt has no questions", async () => {
+    vi.mocked(getAttempt).mockResolvedValue({ ...attempt, questions: [] });
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    expect(await screen.findByRole("heading", { name: "本次考试暂无题目。" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "提交试卷" })).not.toBeInTheDocument();
+  });
+
   it("shows the not-started state when entering the taking page without an attempt", () => {
     renderPage("exams/:examId/taking", <ExamTakingPage />, undefined, "exams/1/taking");
 
@@ -369,6 +397,62 @@ describe("P0 pages", () => {
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
   });
 
+  it("keeps one result page h1 and exposes selected filter state", async () => {
+    const user = userEvent.setup();
+    renderPage(
+      "exams/:examId/result",
+      <ExamResultPage />,
+      undefined,
+      "exams/1/result?attemptId=10",
+    );
+
+    expect(await screen.findByText("考试结束。")).toBeInTheDocument();
+    const h1s = screen.getAllByRole("heading", { level: 1 });
+    expect(h1s).toHaveLength(1);
+    expect(h1s[0]).toHaveTextContent("考试结果");
+
+    const allButton = screen.getByRole("button", { name: /全部/ });
+    const wrongButton = screen.getByRole("button", { name: /只看错题/ });
+    expect(allButton).toHaveAttribute("aria-pressed", "true");
+    expect(wrongButton).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(wrongButton);
+
+    expect(allButton).toHaveAttribute("aria-pressed", "false");
+    expect(wrongButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("renders result query failures as explicit errors", async () => {
+    vi.mocked(getAttemptResult).mockRejectedValueOnce(new Error("result unavailable"));
+
+    renderPage(
+      "exams/:examId/result",
+      <ExamResultPage />,
+      undefined,
+      "exams/1/result?attemptId=10",
+    );
+
+    expect(await screen.findByRole("heading", { name: "考试结果加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByText("考试结束。")).not.toBeInTheDocument();
+    expect(screen.queryByText("YOUR SCORE · 你的分数")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无结果，请先完成考试。")).not.toBeInTheDocument();
+  });
+
+  it("shows result loading without default score placeholders", async () => {
+    vi.mocked(getAttemptResult).mockReturnValue(new Promise<AttemptResult>(() => {}));
+
+    renderPage(
+      "exams/:examId/result",
+      <ExamResultPage />,
+      undefined,
+      "exams/1/result?attemptId=10",
+    );
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("考试结束。")).not.toBeInTheDocument();
+    expect(screen.queryByText("YOUR SCORE · 你的分数")).not.toBeInTheDocument();
+  });
+
   it("hides correct answer and analysis when the exam disables review", async () => {
     vi.mocked(getAttemptResult).mockResolvedValue({
       ...result,
@@ -410,6 +494,32 @@ describe("P0 pages", () => {
       "lg:sticky",
       "lg:top-24",
     );
+  });
+
+  it("renders practice query failures as explicit errors", async () => {
+    vi.mocked(getPracticeQuestions).mockRejectedValueOnce(new Error("practice unavailable"));
+
+    renderPage("practice", <PracticePage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(await screen.findByRole("heading", { name: "练习题加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByText("题库为空。")).not.toBeInTheDocument();
+  });
+
+  it("renders practice empty state after an empty question response", async () => {
+    vi.mocked(getPracticeQuestions).mockResolvedValueOnce([]);
+
+    renderPage("practice", <PracticePage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(await screen.findByRole("heading", { name: "题库为空。" })).toBeInTheDocument();
+    expect(screen.queryByText(/刷一遍/)).not.toBeInTheDocument();
   });
 
   it("does not fetch practice questions before candidate login", () => {
@@ -468,6 +578,17 @@ describe("P0 pages", () => {
     const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);
     expect(screen.getAllByText("100").length).toBeGreaterThan(0);
+  });
+
+  it("renders active exam query failures as explicit errors", async () => {
+    setCurrentCandidate(candidate);
+    vi.mocked(getActiveExams).mockRejectedValueOnce(new Error("exam list unavailable"));
+
+    renderPage("exams", <ExamListPage />);
+
+    expect(await screen.findByText("考试列表暂时无法加载。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "考试列表加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByText("今天暂无考试安排。")).not.toBeInTheDocument();
   });
 
   it("does not request active exams without a candidate session", async () => {
@@ -610,6 +731,23 @@ describe("P0 pages", () => {
       "/exams/1/result?attemptId=10",
     );
     expect(screen.queryByRole("button", { name: "提交试卷" })).not.toBeInTheDocument();
+  });
+
+  it("renders attempt query failures as explicit errors instead of indefinite loading", async () => {
+    vi.mocked(getAttempt).mockRejectedValueOnce(
+      new ApiError("考试记录不可用", 404, "考试记录不可用"),
+    );
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    expect(await screen.findByRole("heading", { name: "考试加载失败。" })).toBeInTheDocument();
+    expect(screen.getByText("考试记录不可用")).toBeInTheDocument();
+    expect(screen.queryByText("Q 01 / 01")).not.toBeInTheDocument();
   });
 
   it("falls back to a generic message when the start-exam error has no detail", async () => {

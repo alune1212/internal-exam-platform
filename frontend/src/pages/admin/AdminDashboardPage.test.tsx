@@ -62,4 +62,32 @@ describe("AdminDashboardPage", () => {
       "tracking-[-0.04em]",
     );
   });
+
+  it("does not collapse failed activity and metrics into empty or zero states", async () => {
+    vi.mocked(getAdminQuestions).mockResolvedValue([]);
+    vi.mocked(getAdminExams).mockResolvedValue([]);
+    vi.mocked(getScoreReport).mockRejectedValue(new Error("score report unavailable"));
+    vi.mocked(getAbsentCandidates).mockResolvedValue([]);
+
+    renderDashboard();
+
+    expect(await screen.findByRole("heading", { name: "最近活动加载失败。" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "部分数据暂不可用。" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("部分仪表盘指标加载失败");
+    expect(screen.queryByText("暂无活动记录。")).not.toBeInTheDocument();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+
+  it("shows explicit metric errors when question or exam queries fail", async () => {
+    vi.mocked(getAdminQuestions).mockRejectedValue(new Error("questions unavailable"));
+    vi.mocked(getAdminExams).mockRejectedValue(new Error("exams unavailable"));
+    vi.mocked(getScoreReport).mockResolvedValue([]);
+    vi.mocked(getAbsentCandidates).mockResolvedValue([]);
+
+    renderDashboard();
+
+    expect(await screen.findByRole("heading", { name: "部分数据暂不可用。" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("部分仪表盘指标加载失败");
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+  });
 });

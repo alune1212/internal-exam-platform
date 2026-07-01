@@ -104,6 +104,38 @@ describe("ExamCandidatesPage", () => {
     expect(screen.getByTestId("exam-candidates-shell")).toHaveClass("gap-6");
   });
 
+  it("blocks candidate mutations while the exam state is unresolved", async () => {
+    vi.mocked(getAdminExams).mockReturnValue(
+      new Promise<Awaited<ReturnType<typeof getAdminExams>>>(() => {}),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("正在确认考试状态，暂不能修改应考名单。")).toBeInTheDocument();
+    expect(screen.getByLabelText("选择 Excel 文件")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "上传应考人员" })).toBeDisabled();
+    expect(getExamCandidates).not.toHaveBeenCalled();
+  });
+
+  it("renders an explicit error when the exam state cannot load", async () => {
+    vi.mocked(getAdminExams).mockRejectedValueOnce(new Error("exam unavailable"));
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "考试状态加载失败。" })).toBeInTheDocument();
+    expect(screen.getByLabelText("选择 Excel 文件")).toBeDisabled();
+    expect(getExamCandidates).not.toHaveBeenCalled();
+  });
+
+  it("renders candidate list errors without falling back to an empty table", async () => {
+    vi.mocked(getExamCandidates).mockRejectedValueOnce(new Error("candidate list unavailable"));
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "应考人员加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByText("暂无应考人员")).not.toBeInTheDocument();
+  });
+
   it("lists scoped candidates and can grant retake", async () => {
     const user = userEvent.setup();
 
@@ -125,8 +157,12 @@ describe("ExamCandidatesPage", () => {
 
     renderPage();
 
-    await user.upload(await screen.findByLabelText("选择 Excel 文件"), file);
-    await user.click(screen.getByRole("button", { name: "上传应考人员" }));
+    const fileInput = await screen.findByLabelText("选择 Excel 文件");
+    await waitFor(() => expect(fileInput).toBeEnabled());
+    await user.upload(fileInput, file);
+    const uploadButton = screen.getByRole("button", { name: "上传应考人员" });
+    await waitFor(() => expect(uploadButton).toBeEnabled());
+    await user.click(uploadButton);
 
     await waitFor(() => expect(importExamCandidates).toHaveBeenCalledWith("1", file));
     expect(await screen.findByText(/成功/)).toBeInTheDocument();
@@ -146,8 +182,12 @@ describe("ExamCandidatesPage", () => {
 
     renderPage();
 
-    await user.upload(await screen.findByLabelText("选择 Excel 文件"), file);
-    await user.click(screen.getByRole("button", { name: "上传应考人员" }));
+    const fileInput = await screen.findByLabelText("选择 Excel 文件");
+    await waitFor(() => expect(fileInput).toBeEnabled());
+    await user.upload(fileInput, file);
+    const uploadButton = screen.getByRole("button", { name: "上传应考人员" });
+    await waitFor(() => expect(uploadButton).toBeEnabled());
+    await user.click(uploadButton);
     await user.click(await screen.findByRole("button", { name: "下载失败明细" }));
 
     expect(downloadImportFailureReport).toHaveBeenCalledWith(9);

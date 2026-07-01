@@ -17,15 +17,91 @@ export function ExamResultPage() {
   const [filter, setFilter] = useState<"all" | "wrong">("all");
   const candidateId = getCurrentCandidate()?.id ?? "anonymous";
 
-  const { data: result, isLoading } = useQuery({
+  const {
+    data: result,
+    isError,
+    isLoading,
+  } = useQuery({
     queryKey: ["candidate", candidateId, "attempt-result", attemptId],
     queryFn: () => getAttemptResult(attemptId ?? ""),
     enabled: Boolean(attemptId),
   });
 
-  const visibleQuestions =
-    result?.questions.filter((question) => (filter === "wrong" ? !question.is_correct : true)) ??
-    [];
+  const hasLoadError = isError && !result;
+
+  if (isLoading) {
+    return (
+      <PageShell density="workbench" width="full" stagger>
+        <PageHeader
+          eyebrow={candidatePageCopy.result}
+          title="考试结果"
+          actions={
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/exams">返回考试列表</Link>
+            </Button>
+          }
+          className="border-b border-hairline pb-4"
+        />
+        <PageSection variant="plain">
+          <PageState state="loading" rows={4} />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  if (hasLoadError) {
+    return (
+      <PageShell density="workbench" width="full" stagger>
+        <PageHeader
+          eyebrow={candidatePageCopy.result}
+          title="考试结果"
+          actions={
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/exams">返回考试列表</Link>
+            </Button>
+          }
+          className="border-b border-hairline pb-4"
+        />
+        <PageSection variant="plain">
+          <PageState
+            state="error"
+            eyebrow={candidatePageCopy.error}
+            title="考试结果加载失败。"
+            description="请稍后重试，或从考试列表重新进入结果页。"
+          />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  if (!result) {
+    return (
+      <PageShell density="workbench" width="full" stagger>
+        <PageHeader
+          eyebrow={candidatePageCopy.result}
+          title="考试结果"
+          actions={
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/exams">返回考试列表</Link>
+            </Button>
+          }
+          className="border-b border-hairline pb-4"
+        />
+        <PageSection variant="plain">
+          <PageState
+            state="empty"
+            eyebrow={candidatePageCopy.empty}
+            title="暂无结果，请先完成考试。"
+            description="提交考试后，这里会显示答案、得分与解析。"
+          />
+        </PageSection>
+      </PageShell>
+    );
+  }
+
+  const visibleQuestions = result.questions.filter((question) =>
+    filter === "wrong" ? !question.is_correct : true,
+  );
 
   return (
     <PageShell density="workbench" width="full" stagger>
@@ -44,9 +120,9 @@ export function ExamResultPage() {
         <Card className="border-0 bg-footer text-canvas shadow-pop">
           <CardContent className="flex flex-col gap-6 p-6 md:p-8">
             <ChapterNumber className="text-footer-soft">{candidatePageCopy.result}</ChapterNumber>
-            <h1 className="font-display text-display-xl font-semibold leading-[1.08] text-canvas">
+            <h2 className="font-display text-display-xl font-semibold leading-[1.08] text-canvas">
               考试结束。
-            </h1>
+            </h2>
 
             <div className="flex flex-col gap-2 border-t border-footer-soft pt-6">
               <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
@@ -107,6 +183,7 @@ export function ExamResultPage() {
             <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas p-1 text-body-sm">
               <button
                 type="button"
+                aria-pressed={filter === "all"}
                 onClick={() => setFilter("all")}
                 className={cn(
                   "rounded-pill px-4 py-1",
@@ -117,6 +194,7 @@ export function ExamResultPage() {
               </button>
               <button
                 type="button"
+                aria-pressed={filter === "wrong"}
                 onClick={() => setFilter("wrong")}
                 className={cn(
                   "rounded-pill px-4 py-1",
@@ -181,21 +259,13 @@ export function ExamResultPage() {
               ))
             ) : (
               <div className="rounded-lg border border-hairline bg-canvas">
-                {isLoading ? (
-                  <PageState
-                    state="loading"
-                    rows={4}
-                    className="border-0 bg-transparent shadow-none"
-                  />
-                ) : (
-                  <PageState
-                    state="empty"
-                    eyebrow={candidatePageCopy.empty}
-                    title="暂无结果，请先完成考试。"
-                    description="提交考试后，这里会显示答案、得分与解析。"
-                    className="py-10"
-                  />
-                )}
+                <PageState
+                  state="empty"
+                  eyebrow={candidatePageCopy.empty}
+                  title="暂无匹配题目。"
+                  description="切换筛选条件后可查看全部答题结果。"
+                  className="py-10"
+                />
               </div>
             )}
           </div>

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { adminPageCopy } from "@/lib/pageCopy";
 import type { Question, QuestionOptionPayload, QuestionPayload } from "@/types/question";
 
@@ -329,10 +330,10 @@ export function QuestionListPage() {
             ))}
             <div className="flex flex-col gap-2 md:col-span-2">
               <Label htmlFor="analysis">解析</Label>
-              <textarea
+              <Textarea
                 id="analysis"
                 rows={3}
-                className="rounded-md border border-hairline bg-canvas p-3 text-body-sm"
+                className="min-h-24"
                 value={form.analysis ?? ""}
                 onChange={(event) => setForm({ ...form, analysis: event.target.value })}
               />

@@ -48,6 +48,8 @@ const columns: ColumnDef<WrongQuestionRow>[] = [
 export function WrongQuestionPage() {
   const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
+  const examsLoadError = exams.isError && !exams.data;
+  const examsPending = selectedExamId === undefined && !examsLoadError;
 
   useEffect(() => {
     if (selectedExamId !== undefined || !exams.data) {
@@ -61,20 +63,33 @@ export function WrongQuestionPage() {
       title="错题排行"
       chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看错题排行。优先用于复盘与培训。"
-      queryKey={["admin", "wrong-questions", selectedExamId]}
-      queryFn={() =>
-        selectedExamId === undefined ? Promise.resolve([]) : getWrongQuestions(selectedExamId)
-      }
+      queryKey={[
+        "admin",
+        "wrong-questions",
+        selectedExamId,
+        examsLoadError ? "exams-error" : examsPending ? "exams-loading" : "exams-ready",
+      ]}
+      queryFn={() => {
+        if (examsLoadError) {
+          throw new Error("考试列表加载失败");
+        }
+        if (examsPending) {
+          return new Promise<Awaited<ReturnType<typeof getWrongQuestions>>>(() => {});
+        }
+        return getWrongQuestions(selectedExamId);
+      }}
       columns={columns}
       actions={
-        <>
-          <ExamReportFilter
-            exams={exams.data ?? []}
-            value={selectedExamId ?? null}
-            onChange={setSelectedExamId}
-          />
-          <ReportExportButton examId={selectedExamId ?? null} />
-        </>
+        examsLoadError || examsPending ? null : (
+          <>
+            <ExamReportFilter
+              exams={exams.data ?? []}
+              value={selectedExamId ?? null}
+              onChange={setSelectedExamId}
+            />
+            <ReportExportButton examId={selectedExamId ?? null} />
+          </>
+        )
       }
     />
   );

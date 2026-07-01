@@ -5,7 +5,6 @@ import { Link } from "react-router-dom";
 import { getActiveExams } from "@/api/exams";
 import { PageHeader, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { getCurrentCandidate } from "@/lib/candidateSession";
 import { candidatePageCopy } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
@@ -127,9 +126,12 @@ function ExamCard({ exam }: { exam: Exam }) {
   );
 }
 
-function resolveHeading(examCount: number, isLoading: boolean): string {
+function resolveHeading(examCount: number, isLoading: boolean, isError: boolean): string {
   if (isLoading) {
     return "正在加载今日考试……";
+  }
+  if (isError) {
+    return "考试列表暂时无法加载。";
   }
   if (examCount === 0) {
     return "今天暂无考试安排。";
@@ -143,24 +145,33 @@ function resolveHeading(examCount: number, isLoading: boolean): string {
 export function ExamListPage() {
   const candidate = getCurrentCandidate();
   const candidateId = candidate?.id ?? "anonymous";
-  const { data = [], isLoading } = useQuery({
+  const {
+    data = [],
+    isError,
+    isLoading,
+  } = useQuery({
     queryKey: ["candidate", candidateId, "active-exams"],
     queryFn: getActiveExams,
     enabled: Boolean(candidate),
   });
+  const hasLoadError = isError && data.length === 0;
 
   return (
     <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
       <PageHeader
         eyebrow={candidatePageCopy.exams}
-        title={resolveHeading(data.length, isLoading)}
+        title={resolveHeading(data.length, isLoading, hasLoadError)}
       />
 
       {isLoading ? (
-        <div className="grid gap-5 md:grid-cols-2" aria-busy="true">
-          <Skeleton className="h-[220px] w-full" />
-          <Skeleton className="h-[220px] w-full" />
-        </div>
+        <PageState state="loading" rows={3} />
+      ) : hasLoadError ? (
+        <PageState
+          state="error"
+          eyebrow={candidatePageCopy.error}
+          title="考试列表加载失败。"
+          description="请稍后重试，或联系管理员确认考试是否已发布。"
+        />
       ) : data.length ? (
         <div className="grid gap-5 md:grid-cols-2">
           {data.map((exam) => (

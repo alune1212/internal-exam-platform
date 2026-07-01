@@ -15,7 +15,7 @@ import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, downloadImportTemplate } from "@/api/imports";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { StatusPill } from "@/components/editorial/StatusPill";
-import { PageHeader, PageSection, PageShell } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -48,10 +48,14 @@ export function ExamCandidatesPage() {
   const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
   const isFrozen = currentExam?.status === "active";
+  const canEditCandidates = Boolean(currentExam) && !isFrozen;
   const candidates = useQuery({
     queryKey: candidatesKey,
     queryFn: () => getExamCandidates(examId),
+    enabled: Boolean(currentExam),
   });
+  const hasExamLoadError = exams.isError && !exams.data;
+  const hasCandidateLoadError = candidates.isError && !candidates.data;
   const importMutation = useMutation({
     mutationFn: (selected: File) => importExamCandidates(examId, selected),
     onSuccess: () => {
@@ -164,7 +168,7 @@ export function ExamCandidatesPage() {
                 {row.original.has_unused_retake_grant ? "已授权" : "授权补考"}
               </Button>
             ) : null}
-            {!isFrozen ? (
+            {canEditCandidates ? (
               <Button
                 type="button"
                 size="sm"
@@ -180,8 +184,14 @@ export function ExamCandidatesPage() {
         ),
       },
     ],
-    [isFrozen, retakeMutation, removeMutation],
+    [canEditCandidates, retakeMutation, removeMutation],
   );
+
+  const examStatusLabel = exams.isLoading
+    ? "loading"
+    : hasExamLoadError
+      ? "error"
+      : (currentExam?.status ?? "missing");
 
   return (
     <PageShell data-testid="exam-candidates-shell" density="workbench" width="full" stagger>
@@ -196,12 +206,18 @@ export function ExamCandidatesPage() {
           <div>
             <p className="text-caption uppercase tracking-[0.16em] text-muted">IMPORT</p>
             <p className="text-body text-ink">
-              {isFrozen ? "考试已发布，不能再修改应考名单。" : "上传 Excel 后写入本场应考名单。"}
+              {exams.isLoading
+                ? "正在确认考试状态，暂不能修改应考名单。"
+                : hasExamLoadError
+                  ? "考试状态加载失败，暂不能修改应考名单。"
+                  : !currentExam
+                    ? "未找到这场考试，暂不能修改应考名单。"
+                    : isFrozen
+                      ? "考试已发布，不能再修改应考名单。"
+                      : "上传 Excel 后写入本场应考名单。"}
             </p>
           </div>
-          <StatusPill variant={isFrozen ? "success" : "default"}>
-            {currentExam?.status ?? "loading"}
-          </StatusPill>
+          <StatusPill variant={isFrozen ? "success" : "default"}>{examStatusLabel}</StatusPill>
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <Field className="w-full md:max-w-md">
@@ -210,14 +226,14 @@ export function ExamCandidatesPage() {
               id="exam-candidate-file"
               type="file"
               accept=".xlsx,.xls"
-              disabled={isFrozen}
+              disabled={!canEditCandidates}
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             />
           </Field>
           <Button
             type="button"
             className="self-start"
-            disabled={!file || importMutation.isPending || isFrozen}
+            disabled={!file || importMutation.isPending || !canEditCandidates}
             onClick={() => file && importMutation.mutate(file)}
           >
             {importMutation.isPending ? (
@@ -278,12 +294,50 @@ export function ExamCandidatesPage() {
       </PageSection>
 
       <PageSection variant="table">
-        <SimpleDataTable
-          columns={columns}
-          data={candidates.data ?? []}
-          emptyText="暂无应考人员"
-          rowKey={(row) => row.candidate_id}
-        />
+        {exams.isLoading ? (
+          <PageState
+            state="loading"
+            rows={3}
+            className="border-0 bg-transparent py-10 shadow-none"
+          />
+        ) : hasExamLoadError ? (
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="考试状态加载失败。"
+            description="应考名单依赖考试状态，暂不能展示或维护。"
+            className="border-0 bg-transparent py-10 shadow-none"
+          />
+        ) : !currentExam ? (
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="未找到考试。"
+            description="请返回考试列表确认考试是否仍然存在。"
+            className="border-0 bg-transparent py-10 shadow-none"
+          />
+        ) : candidates.isLoading ? (
+          <PageState
+            state="loading"
+            rows={3}
+            className="border-0 bg-transparent py-10 shadow-none"
+          />
+        ) : hasCandidateLoadError ? (
+          <PageState
+            state="error"
+            eyebrow={adminPageCopy.error}
+            title="应考人员加载失败。"
+            description="请稍后重试，或检查应考名单接口。"
+            className="border-0 bg-transparent py-10 shadow-none"
+          />
+        ) : (
+          <SimpleDataTable
+            columns={columns}
+            data={candidates.data ?? []}
+            emptyText="暂无应考人员"
+            rowKey={(row) => row.candidate_id}
+          />
+        )}
       </PageSection>
     </PageShell>
   );

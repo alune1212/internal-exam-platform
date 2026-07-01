@@ -1,4 +1,4 @@
-import { apiRequest } from "@/api/client";
+import { apiRequest, resolveApiUrl } from "@/api/client";
 import { getAdminToken } from "@/lib/adminSession";
 import type {
   AbsentCandidateRow,
@@ -45,7 +45,7 @@ export function getAbsentCandidates(
 }
 
 export async function downloadReportExport(examId?: string | null): Promise<void> {
-  const response = await fetch(withExamFilter("/api/admin/reports/export", examId), {
+  const response = await fetch(resolveApiUrl(withExamFilter("/api/admin/reports/export", examId)), {
     headers: { "X-Admin-Token": getAdminToken() ?? "" },
   });
   if (!response.ok) throw new Error("报表导出失败");

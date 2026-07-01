@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { getAttempt, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
-import { ApiError } from "@/api/client";
+import { ApiError, getErrorMessage } from "@/api/client";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
@@ -63,7 +63,12 @@ export function ExamTakingPage() {
   const submitStartedRef = useRef(false);
   const candidateId = getCurrentCandidate()?.id ?? "anonymous";
 
-  const { data: attempt, isLoading } = useQuery({
+  const {
+    data: attempt,
+    error: attemptError,
+    isError: isAttemptError,
+    isLoading,
+  } = useQuery({
     queryKey: ["candidate", candidateId, "attempt", attemptId],
     queryFn: () => getAttempt(attemptId ?? ""),
     enabled: Boolean(attemptId),
@@ -76,6 +81,7 @@ export function ExamTakingPage() {
   const total = sortedQuestions.length;
   const activeQuestion: AttemptQuestion | undefined = sortedQuestions[activeIndex];
   const isLastQuestion = total > 0 && activeIndex === total - 1;
+  const hasAttemptLoadError = isAttemptError && !attempt;
 
   const buildAnswerItems = useCallback(
     () =>
@@ -359,7 +365,7 @@ export function ExamTakingPage() {
 
   if (!attemptId) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="notStarted"
@@ -374,21 +380,55 @@ export function ExamTakingPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
-  if (isLoading || !attempt) {
+  if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <PageState state="loading" rows={4} className="bg-surface-card p-8" />
-      </div>
+      </PageShell>
+    );
+  }
+
+  if (hasAttemptLoadError) {
+    return (
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+          <PageState
+            state="error"
+            eyebrow={candidatePageCopy.error}
+            title="考试加载失败。"
+            description={getErrorMessage(attemptError, "请确认考试仍在开放时间内，并稍后重试。")}
+            className="py-0"
+          />
+          <div className="mt-6 flex justify-center">
+            <Button asChild>
+              <Link to="/exams">返回考试列表</Link>
+            </Button>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (!attempt) {
+    return (
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+        <PageState
+          state="error"
+          eyebrow={candidatePageCopy.error}
+          title="未找到考试记录。"
+          description="请从考试列表重新进入考试。"
+        />
+      </PageShell>
     );
   }
 
   if (SUBMITTED_STATUSES.has(attempt.status)) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="submitted"
@@ -403,15 +443,20 @@ export function ExamTakingPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (!activeQuestion) {
     return (
-      <div className="mx-auto max-w-3xl py-12">
-        <PageState state="loading" rows={4} className="bg-surface-card p-8" />
-      </div>
+      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+        <PageState
+          state="empty"
+          eyebrow={candidatePageCopy.empty}
+          title="本次考试暂无题目。"
+          description="请联系管理员检查考试题池配置。"
+        />
+      </PageShell>
     );
   }
 
@@ -562,7 +607,10 @@ export function ExamTakingPage() {
             </div>
           </div>
 
-          <SheetContent side="bottom" className="flex h-[80vh] flex-col gap-4 bg-canvas p-5">
+          <SheetContent
+            side="bottom"
+            className="flex h-[80vh] flex-col gap-4 rounded-t-lg bg-canvas p-5"
+          >
             <SheetHeader className="border-b border-hairline pb-3">
               <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
               <SheetDescription className="sr-only">选择题号或提前交卷。</SheetDescription>

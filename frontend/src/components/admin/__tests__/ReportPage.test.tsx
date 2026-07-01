@@ -122,4 +122,41 @@ describe("ReportPage", () => {
 
     expect(screen.getByText(/LOADING · 加载中/i)).toBeInTheDocument();
   });
+
+  it("renders query failures as an error state instead of an empty table", async () => {
+    renderWithClient(
+      <ReportPage
+        title="个人成绩"
+        queryKey="score-report"
+        queryFn={async () => {
+          throw new Error("report unavailable");
+        }}
+        columns={columns}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "报表加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByText("暂无数据")).not.toBeInTheDocument();
+  });
+
+  it("keeps stale table data visible when a background refetch fails", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["score-report-stale"], [{ id: 1, label: "cached row" }]);
+
+    render(
+      <QueryClientProvider client={client}>
+        <ReportPage
+          title="个人成绩"
+          queryKey={["score-report-stale"]}
+          queryFn={async () => {
+            throw new Error("background refresh failed");
+          }}
+          columns={columns}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByText("cached row")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "报表加载失败。" })).not.toBeInTheDocument();
+  });
 });

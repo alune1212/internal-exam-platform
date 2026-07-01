@@ -74,6 +74,7 @@ describe("SimpleDataTable", () => {
 
     const cards = screen.getAllByTestId("mobile-row-card");
     expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveClass("rounded-md");
 
     const adaCard = cards[0]!;
     expect(within(adaCard).queryByText("1")).toBeNull();

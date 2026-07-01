@@ -78,6 +78,7 @@ export function AbsentCandidatePage() {
                   "rounded-pill",
                   status === item ? "bg-ink text-canvas hover:bg-ink" : "text-muted",
                 )}
+                aria-pressed={status === item}
                 onClick={() => setStatus(item)}
               >
                 {statusLabels[item]}

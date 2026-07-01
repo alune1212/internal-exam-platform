@@ -57,6 +57,8 @@ const columns: ColumnDef<ScoreReportRow>[] = [
 export function ScoreReportPage() {
   const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
+  const examsLoadError = exams.isError && !exams.data;
+  const examsPending = selectedExamId === undefined && !examsLoadError;
 
   useEffect(() => {
     if (selectedExamId !== undefined || !exams.data) {
@@ -70,20 +72,33 @@ export function ScoreReportPage() {
       title="个人成绩"
       chapterLabel={adminPageCopy.reports}
       description="默认按单场考试查看个人提交结果，避免正式成绩混场。"
-      queryKey={["admin", "score-report", selectedExamId]}
-      queryFn={() =>
-        selectedExamId === undefined ? Promise.resolve([]) : getScoreReport(selectedExamId)
-      }
+      queryKey={[
+        "admin",
+        "score-report",
+        selectedExamId,
+        examsLoadError ? "exams-error" : examsPending ? "exams-loading" : "exams-ready",
+      ]}
+      queryFn={() => {
+        if (examsLoadError) {
+          throw new Error("考试列表加载失败");
+        }
+        if (examsPending) {
+          return new Promise<Awaited<ReturnType<typeof getScoreReport>>>(() => {});
+        }
+        return getScoreReport(selectedExamId);
+      }}
       columns={columns}
       actions={
-        <>
-          <ExamReportFilter
-            exams={exams.data ?? []}
-            value={selectedExamId ?? null}
-            onChange={setSelectedExamId}
-          />
-          <ReportExportButton examId={selectedExamId ?? null} />
-        </>
+        examsLoadError || examsPending ? null : (
+          <>
+            <ExamReportFilter
+              exams={exams.data ?? []}
+              value={selectedExamId ?? null}
+              onChange={setSelectedExamId}
+            />
+            <ReportExportButton examId={selectedExamId ?? null} />
+          </>
+        )
       }
     />
   );

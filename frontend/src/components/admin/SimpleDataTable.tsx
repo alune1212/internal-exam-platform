@@ -40,7 +40,7 @@ type SimpleDataTableProps<TData> = {
 };
 
 function defaultMobileCardClassName(): string {
-  return "rounded-lg border border-hairline bg-canvas p-4 shadow-card";
+  return "rounded-md border border-hairline bg-canvas p-4 shadow-card";
 }
 
 function defaultMobileRow<TData>(row: Row<TData>): ReactNode {
@@ -127,7 +127,7 @@ export function SimpleDataTable<TData>({
     }
 
     return (
-      <div className="rounded-lg border border-hairline bg-canvas p-6 text-center text-muted">
+      <div className="rounded-md border border-hairline bg-canvas p-6 text-center text-muted">
         {emptyText}
       </div>
     );

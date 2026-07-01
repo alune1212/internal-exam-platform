@@ -27,6 +27,10 @@ export function getErrorMessage(error: unknown, fallback = "操作失败，请�
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
+export function resolveApiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
 function resolveAuthHeaders(path: string): Record<string, string> {
   if (path.includes("/api/admin/")) {
     const token = getAdminToken();
@@ -78,7 +82,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
   Object.entries(resolveAuthHeaders(path)).forEach(([key, value]) => headers.set(key, value));
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     ...restInit,
     body: requestBody,
     headers,
@@ -98,7 +102,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 export async function uploadRequest<T>(path: string, file: File): Promise<T> {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(resolveApiUrl(path), {
     method: "POST",
     body: formData,
     headers: new Headers(resolveAuthHeaders(path)),

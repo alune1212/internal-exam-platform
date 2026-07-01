@@ -65,6 +65,36 @@ describe("ExamEditPage", () => {
     expect(screen.getByTestId("exam-edit-shell")).toHaveClass("gap-6");
   });
 
+  it("blocks the form and save action while the target exam is loading", async () => {
+    vi.mocked(getAdminExams).mockReturnValue(
+      new Promise<Awaited<ReturnType<typeof getAdminExams>>>(() => {}),
+    );
+
+    renderExamEditPage();
+
+    expect(await screen.findByText(/LOADING · 加载中/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /保存配置/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/考试名称/)).not.toBeInTheDocument();
+  });
+
+  it("renders an error state when the target exam query fails", async () => {
+    vi.mocked(getAdminExams).mockRejectedValueOnce(new Error("exam unavailable"));
+
+    renderExamEditPage();
+
+    expect(await screen.findByRole("heading", { name: "考试配置加载失败。" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /保存配置/ })).not.toBeInTheDocument();
+  });
+
+  it("renders a missing state when the target exam is not found", async () => {
+    vi.mocked(getAdminExams).mockResolvedValueOnce([]);
+
+    renderExamEditPage();
+
+    expect(await screen.findByRole("heading", { name: "未找到考试。" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /保存配置/ })).not.toBeInTheDocument();
+  });
+
   it("loads the current exam and saves the fixed 50-question rule", async () => {
     const user = userEvent.setup();
 
@@ -73,6 +103,7 @@ describe("ExamEditPage", () => {
     expect(await screen.findByDisplayValue("安全知识竞赛")).toBeInTheDocument();
     expect(screen.getByDisplayValue("60")).toBeInTheDocument();
     expect(screen.getByDisplayValue(/"question_count": 50/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/状态/)).toHaveRole("combobox");
 
     await user.click(screen.getByRole("button", { name: /保存配置/ }));
 
