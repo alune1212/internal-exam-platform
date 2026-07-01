@@ -25,9 +25,7 @@ class PracticeQuestionNotFoundError(DomainError):
 def submit_practice_answer(
     db: Session, candidate_id: int, payload: PracticeAnswerSubmitRequest
 ) -> PracticeAnswerResult:
-    candidate = db.get(Candidate, candidate_id)
-    if candidate is None or candidate.status != "active":
-        raise PracticeCandidateNotFoundError(candidate_id)
+    candidate = get_active_practice_candidate(db, candidate_id)
 
     question = (
         db.query(Question)
@@ -61,6 +59,13 @@ def submit_practice_answer(
         selected_answer=payload.selected_answer,
         score=float(question.score),
     )
+
+
+def get_active_practice_candidate(db: Session, candidate_id: int) -> Candidate:
+    candidate = db.get(Candidate, candidate_id)
+    if candidate is None or candidate.status != "active":
+        raise PracticeCandidateNotFoundError(candidate_id)
+    return candidate
 
 
 def _build_correct_answer(question: Question) -> str:

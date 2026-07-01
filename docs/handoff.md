@@ -26,6 +26,9 @@ Implemented foundations:
 - Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
 - Excel export cells are escaped before writing failure reports and report workbooks.
 - Production settings reject default admin password, default token secret, and unsafe CORS origins.
+- Docker Compose publishes PostgreSQL, frontend, and Nginx on `127.0.0.1` by default for local development.
+- Public login rate limiting hashes unauthenticated identifiers before storing in memory, and login request fields have bounded lengths.
+- Practice question and answer APIs require `X-Candidate-Token` and re-check that the token belongs to an active candidate.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
 - Candidate login uses a clean auth canvas without candidate navigation/footer; authenticated candidate pages keep the shared top navigation and footer.
@@ -72,6 +75,24 @@ Observed results:
 - `http://localhost:8080/api/health` returned ok; `http://localhost:8080/docs` returned the Swagger UI HTML.
 - Browser smoke through `8080` rendered `/exams` without a session as the candidate login page, rendered `/admin/login`, and produced no console warning/error. Nginx logs showed no anonymous `/api/exams/active` request for the no-session `/exams` load.
 
+Security remediation gates verified on 2026-07-01:
+
+```bash
+cd backend
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run pytest
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff check .
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff format . --check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ty check
+cd ..
+docker-compose --env-file .env.example config
+```
+
+Observed results:
+
+- Backend tests: 186 passed, 4 skipped.
+- Backend ruff format/lint and `ty check`: passed.
+- Docker Compose config passed; PostgreSQL, frontend, and Nginx published ports resolved to `host_ip: 127.0.0.1`.
+
 ## 8080 Business UAT Evidence
 
 Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
@@ -110,7 +131,7 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 - Report export returns one Excel workbook with sheets for score report, question accuracy, wrong questions, and absent candidates.
 - Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
 - Candidate authentication clears stale local session state on logout or 401, and no-session candidate pages return to `/login` without calling candidate-scoped APIs.
-- Practice mode uses `X-Candidate-Token` for answer submission; practice question lists do not expose correct answers or analysis before submission.
+- Practice mode uses `X-Candidate-Token` for question listing and answer submission, re-checks active candidate status, and does not expose correct answers or analysis before submission.
 
 ## Known Gaps
 

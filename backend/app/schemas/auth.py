@@ -1,9 +1,13 @@
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, Field
+
+LoginText = Annotated[str, Field(max_length=128)]
 
 
 class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
+    username: LoginText
+    password: LoginText
 
 
 class LoginResponse(BaseModel):

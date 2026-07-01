@@ -1,3 +1,4 @@
+import hashlib
 from collections import OrderedDict, deque
 from time import monotonic
 
@@ -17,6 +18,7 @@ class PublicTokenRateLimitError(DomainError):
 # OrderedDict preserves insertion order so we can evict the oldest key in O(1)
 # without scanning all keys to find the smallest timestamp.
 _attempts: OrderedDict[tuple[str, str], deque[float]] = OrderedDict()
+_IDENTIFIER_KEY_PREFIX = "sha256:"
 
 
 def check_public_token_rate_limit(
@@ -47,7 +49,11 @@ def _client_ip(request: Request) -> str:
 
 
 def _normalize_identifier(identifier: str | None) -> str:
-    return (identifier or "unknown").strip().lower() or "unknown"
+    normalized = (identifier or "unknown").strip().lower() or "unknown"
+    if normalized == "unknown":
+        return normalized
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return f"{_IDENTIFIER_KEY_PREFIX}{digest}"
 
 
 def _prune(queue: deque[float], now: float, window_seconds: int) -> None:

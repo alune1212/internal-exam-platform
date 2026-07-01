@@ -1,12 +1,18 @@
-from pydantic import BaseModel, EmailStr
+from typing import Annotated
+
+from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.common import ORMModel
 
+CandidateLoginName = Annotated[str, Field(max_length=100)]
+CandidateLoginEmployeeNo = Annotated[str, Field(max_length=100)]
+CandidateLoginPhoneSuffix = Annotated[str, Field(max_length=20)]
+
 
 class CandidateLoginRequest(BaseModel):
-    name: str
-    employee_no: str | None = None
-    phone_suffix: str | None = None
+    name: CandidateLoginName
+    employee_no: CandidateLoginEmployeeNo | None = None
+    phone_suffix: CandidateLoginPhoneSuffix | None = None
 
 
 class CandidateBase(BaseModel):

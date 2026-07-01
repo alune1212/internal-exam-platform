@@ -278,6 +278,26 @@ def test_practice_questions_hide_answers_and_analysis_for_authenticated_candidat
     assert "is_correct" not in row["options"][0]
 
 
+def test_practice_questions_reject_inactive_candidate_token() -> None:
+    client, db = _build_client()
+    candidate = Candidate(name="张三", employee_no="YG0001", status="inactive")
+    question = Question(
+        question_type="single",
+        stem="安全题",
+        score=2,
+        status="active",
+    )
+    db.add_all([candidate, question])
+    db.commit()
+
+    response = client.get(
+        "/api/practice/questions",
+        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
+    )
+
+    assert response.status_code == 404
+
+
 def test_active_exams_requires_candidate_token() -> None:
     client, db = _build_client()
     db.add(Exam(title="安全考试", duration_minutes=60, status="active"))
