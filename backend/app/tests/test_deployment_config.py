@@ -27,8 +27,13 @@ def _compose_service_ports(service_name: str) -> list[str]:
     return ports
 
 
-def test_default_nginx_publish_uses_loopback_host() -> None:
-    assert _compose_service_ports("nginx") == ["127.0.0.1:8080:80"]
+def test_default_nginx_publish_allows_lan_access() -> None:
+    assert _compose_service_ports("nginx") == ["0.0.0.0:8080:80"]
+
+
+def test_database_and_direct_frontend_ports_stay_loopback_only() -> None:
+    assert _compose_service_ports("db") == ["127.0.0.1:5432:5432"]
+    assert _compose_service_ports("frontend") == ["127.0.0.1:5173:80"]
 
 
 def test_frontend_csp_allows_configured_font_hosts() -> None:

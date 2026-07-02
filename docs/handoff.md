@@ -27,7 +27,7 @@ Implemented foundations:
 - Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
 - Excel export cells are escaped before writing failure reports and report workbooks.
 - Production settings reject default admin password, default token secret, and unsafe CORS origins.
-- Docker Compose publishes PostgreSQL, frontend, and Nginx on `127.0.0.1` by default for local development.
+- Docker Compose publishes Nginx on `0.0.0.0:8080` so the browser entry can be used from the same LAN; PostgreSQL `5432` and the direct frontend `5173` stay bound to `127.0.0.1`.
 - Public login rate limiting hashes unauthenticated identifiers before storing in memory, and login request fields have bounded lengths.
 - Practice question and answer APIs require `X-Candidate-Token` and re-check that the token belongs to an active candidate.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.

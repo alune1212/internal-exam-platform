@@ -121,7 +121,7 @@ http://localhost:8080/api/health
 http://localhost:8080/docs
 ```
 
-Compose 会启动 PostgreSQL、后端、前端和 Nginx。后端容器启动时会执行 `alembic upgrade head`。
+Compose 会启动 PostgreSQL、后端、前端和 Nginx。后端容器启动时会执行 `alembic upgrade head`。Nginx 的 `8080` 端口默认绑定到 `0.0.0.0`，同一局域网设备可以使用本机局域网 IP 访问，例如 `http://192.168.2.35:8080`；PostgreSQL `5432` 和前端直连 `5173` 仍只绑定本机回环地址。
 
 学习视频文件保存在 Compose named volume `learning_media`，Nginx 通过 `/media/learning/` 只读提供播放，并启用匹配的 500 MiB 上传大小限制。生产备份需要同时覆盖 PostgreSQL 数据库和 `learning_media`，否则视频元数据与媒体文件会不一致。
 
@@ -200,7 +200,7 @@ docker-compose --env-file .env config
 
 ## 当前边界
 
-第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单管理、补考授权、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表、报表导出、视频学习上传和学习完成报表已经具备入库/查询闭环。当前加固边界包含候选人手机号后四位登录校验、公开 token 颁发限流、Excel 导入大小/行数/sheet 限制、视频上传类型/大小限制、Excel 导出公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、消息通知或队列化导入。
+第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单管理、补考授权、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表、报表导出、视频学习上传和学习完成报表已经具备入库/查询闭环。当前加固边界包含候选人手机号后四位登录校验、公开 token 颁发限流、Excel 导入大小/行数/sheet 限制、视频上传类型/大小限制、Excel 导出公式转义、生产默认密钥/CORS 拒绝、保存/提交时锁定 attempt 读取、以及仅通过 Nginx 8080 对局域网开放浏览器入口。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、消息通知或队列化导入。
 
 ## 后续开发计划
 
