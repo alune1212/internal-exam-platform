@@ -1,4 +1,4 @@
-import { LogIn, LogOut, Menu } from "lucide-react";
+import { ArrowLeft, LogIn, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { candidateActionCopy } from "@/lib/pageCopy";
 import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
 import type { Candidate } from "@/types/candidate";
@@ -91,7 +92,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
       <div className="mx-auto grid h-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-8">
         <Link
           to="/exams"
-          aria-label="返回考试首页"
+          aria-label="返回考试列表首页"
           className="justify-self-start rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
         >
           <Wordmark size="sm" subtitle="internal exam platform" />
@@ -112,9 +113,9 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                 <NamePlate name={candidate.name} subtitle={candidateSubtitle(candidate)} />
                 {isInExam ? (
                   <Button asChild variant="outline" size="sm">
-                    <Link to="/exams" aria-label="退出考试">
-                      <LogOut data-icon="inline-start" aria-hidden="true" />
-                      退出考试
+                    <Link to="/exams" aria-label={candidateActionCopy.returnExamList}>
+                      <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+                      {candidateActionCopy.returnExamList}
                     </Link>
                   </Button>
                 ) : null}
@@ -151,7 +152,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
               <SheetContent side="bottom" className="rounded-t-lg">
                 <SheetHeader>
                   <SheetTitle className="font-display text-display-sm">导航</SheetTitle>
-                  <SheetDescription className="sr-only">候选人导航菜单</SheetDescription>
+                  <SheetDescription className="sr-only">考试人导航菜单</SheetDescription>
                 </SheetHeader>
                 <nav className="flex flex-col gap-1 px-4 pb-6">
                   {navItems.map((item) => (
@@ -178,8 +179,8 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                       {isInExam ? (
                         <Button asChild variant="outline">
                           <Link to="/exams" onClick={() => setMobileOpen(false)}>
-                            <LogOut data-icon="inline-start" aria-hidden="true" />
-                            退出考试
+                            <ArrowLeft data-icon="inline-start" aria-hidden="true" />
+                            {candidateActionCopy.returnExamList}
                           </Link>
                         </Button>
                       ) : null}

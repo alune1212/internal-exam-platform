@@ -45,7 +45,7 @@ function renderTopNav(props: {
 describe("TopNav", () => {
   it("renders the wordmark linking to the home route", () => {
     renderTopNav({ candidate, onLogout: () => {} });
-    const wordmarkLink = screen.getByRole("link", { name: /返回考试首页/ });
+    const wordmarkLink = screen.getByRole("link", { name: /返回考试列表首页/ });
     expect(wordmarkLink).toHaveAttribute("href", "/exams");
   });
 
@@ -108,14 +108,14 @@ describe("TopNav", () => {
     expect(screen.getByRole("link", { name: /登录/ })).toBeInTheDocument();
   });
 
-  it("shows an exit-exam button on the exam taking route", () => {
+  it("shows a return-to-list button on the exam taking route", () => {
     renderTopNav({ candidate, onLogout: () => {}, initialEntry: "/exams/1/taking" });
-    expect(screen.getByRole("link", { name: /退出考试/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "返回考试列表" })).toBeInTheDocument();
   });
 
-  it("hides the exit-exam button on the exam list route", () => {
+  it("hides the return-to-list button on the exam list route", () => {
     renderTopNav({ candidate, onLogout: () => {}, initialEntry: "/exams" });
-    expect(screen.queryByRole("link", { name: /退出考试/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "返回考试列表" })).not.toBeInTheDocument();
   });
 
   it("invokes onLogout when the logout icon button is clicked", async () => {

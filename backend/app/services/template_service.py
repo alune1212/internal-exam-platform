@@ -135,8 +135,8 @@ def _build_workbook(
 
 
 def generate_question_template() -> BytesIO:
-    return _build_workbook("题库模板", QUESTION_HEADERS, QUESTION_EXAMPLES)
+    return _build_workbook("题库导入模板", QUESTION_HEADERS, QUESTION_EXAMPLES)
 
 
 def generate_candidate_template() -> BytesIO:
-    return _build_workbook("人员模板", CANDIDATE_HEADERS, CANDIDATE_EXAMPLES)
+    return _build_workbook("应考名单导入模板", CANDIDATE_HEADERS, CANDIDATE_EXAMPLES)

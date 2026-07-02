@@ -198,7 +198,7 @@ describe("P0 pages", () => {
     });
 
     expect(screen.getByTestId("candidate-login-header")).toBeInTheDocument();
-    expect(screen.getByText("CANDIDATE · 登录")).toBeInTheDocument();
+    expect(screen.getByText("EXAM TAKER · 登录")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "登录考试人" })).toHaveClass(
       "font-display",
       "text-display-lg",
@@ -246,7 +246,7 @@ describe("P0 pages", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "本次考试暂无题目。" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "提交试卷" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "交卷" })).not.toBeInTheDocument();
   });
 
   it("shows the not-started state when entering the taking page without an attempt", () => {
@@ -273,7 +273,7 @@ describe("P0 pages", () => {
 
     await screen.findAllByRole("radio", { name: /选项 A：北京/ });
 
-    const submitButtons = screen.getAllByRole("button", { name: "提交试卷" });
+    const submitButtons = screen.getAllByRole("button", { name: "交卷" });
     expect(submitButtons.length).toBeGreaterThan(0);
     submitButtons.forEach((button) => expect(button).toBeEnabled());
 
@@ -304,7 +304,7 @@ describe("P0 pages", () => {
     await user.click(optionB[0]);
 
     await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(1));
-    const submitButton = screen.getByRole("button", { name: /提前交卷/ });
+    const submitButton = screen.getAllByRole("button", { name: "交卷" })[0];
     await user.click(submitButton);
     await user.click(submitButton);
 
@@ -392,8 +392,8 @@ describe("P0 pages", () => {
       "exams/1/result?attemptId=10",
     );
 
-    expect(await screen.findByText("考试结束。")).toBeInTheDocument();
-    expect(screen.getByText("YOUR SCORE · 你的分数")).toBeInTheDocument();
+    expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
+    expect(screen.getByText("SCORE · 得分")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
   });
 
@@ -406,7 +406,7 @@ describe("P0 pages", () => {
       "exams/1/result?attemptId=10",
     );
 
-    expect(await screen.findByText("考试结束。")).toBeInTheDocument();
+    expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
     const h1s = screen.getAllByRole("heading", { level: 1 });
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent("考试结果");
@@ -433,8 +433,8 @@ describe("P0 pages", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "考试结果加载失败。" })).toBeInTheDocument();
-    expect(screen.queryByText("考试结束。")).not.toBeInTheDocument();
-    expect(screen.queryByText("YOUR SCORE · 你的分数")).not.toBeInTheDocument();
+    expect(screen.queryByText("考试已交卷。")).not.toBeInTheDocument();
+    expect(screen.queryByText("SCORE · 得分")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无结果，请先完成考试。")).not.toBeInTheDocument();
   });
 
@@ -449,8 +449,8 @@ describe("P0 pages", () => {
     );
 
     expect(await screen.findByRole("status")).toBeInTheDocument();
-    expect(screen.queryByText("考试结束。")).not.toBeInTheDocument();
-    expect(screen.queryByText("YOUR SCORE · 你的分数")).not.toBeInTheDocument();
+    expect(screen.queryByText("考试已交卷。")).not.toBeInTheDocument();
+    expect(screen.queryByText("SCORE · 得分")).not.toBeInTheDocument();
   });
 
   it("hides correct answer and analysis when the exam disables review", async () => {
@@ -485,8 +485,7 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByText(/刷一遍/)).toBeInTheDocument();
-    expect(await screen.findByText(/记一遍/)).toBeInTheDocument();
+    expect(await screen.findByText("练习题库")).toBeInTheDocument();
     expect(screen.getByText("PRACTICE · 练习")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
@@ -506,7 +505,7 @@ describe("P0 pages", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "练习题加载失败。" })).toBeInTheDocument();
-    expect(screen.queryByText("题库为空。")).not.toBeInTheDocument();
+    expect(screen.queryByText("练习题库为空。")).not.toBeInTheDocument();
   });
 
   it("renders practice empty state after an empty question response", async () => {
@@ -518,8 +517,8 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByRole("heading", { name: "题库为空。" })).toBeInTheDocument();
-    expect(screen.queryByText(/刷一遍/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "练习题库为空。" })).toBeInTheDocument();
+    expect(screen.queryByText("练习题库")).not.toBeInTheDocument();
   });
 
   it("does not fetch practice questions before candidate login", () => {
@@ -572,7 +571,7 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByTestId("candidate-exam-list-shell")).toHaveClass("gap-8");
-    expect(await screen.findByText("今天有一场考试等着你。")).toBeInTheDocument();
+    expect(await screen.findByText("今天有一场考试可参加。")).toBeInTheDocument();
     expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "内部考试" })).not.toHaveClass("tracking-[-0.04em]");
     const questionCounts = screen.getAllByText("50");
@@ -586,8 +585,8 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findByText("考试列表暂时无法加载。")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "考试列表加载失败。" })).toBeInTheDocument();
+    expect(await screen.findAllByText("考试列表加载失败。")).toHaveLength(2);
+    expect(screen.getAllByRole("heading", { name: "考试列表加载失败。" })).toHaveLength(2);
     expect(screen.queryByText("今天暂无考试安排。")).not.toBeInTheDocument();
   });
 
@@ -619,8 +618,8 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByText("稍后开放")).toBeInTheDocument();
-    expect(screen.getByText("未开始")).toBeInTheDocument();
-    expect(screen.getByText("已结束")).toBeInTheDocument();
+    expect(screen.getByText("NOT OPEN · 未开放")).toBeInTheDocument();
+    expect(screen.getByText("ENDED · 已结束")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "不可进入" }).length).toBe(2);
   });
 
@@ -650,7 +649,7 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findByText("今天有 2 场考试等着你。")).toBeInTheDocument();
+    expect(await screen.findByText("今天有 2 场考试可参加。")).toBeInTheDocument();
   });
 
   it("falls back to the empty-state heading when there are no active exams", async () => {
@@ -659,14 +658,13 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findByText("今天暂无考试安排。")).toBeInTheDocument();
-    expect(screen.getByText("暂无可参加考试。")).toBeInTheDocument();
+    expect(await screen.findAllByText("暂无可参加考试。")).toHaveLength(2);
   });
 
   it("shows the actual API error when starting an exam fails", async () => {
     const user = userEvent.setup();
     vi.mocked(startExam).mockRejectedValueOnce(
-      new ApiError("考生已有进行中的考试记录 #9", 409, "考生已有进行中的考试记录 #9"),
+      new ApiError("考试人已有进行中的考试记录 #9", 409, "考试人已有进行中的考试记录 #9"),
     );
 
     renderPage("exams/:examId/start", <ExamStartPage />, {
@@ -678,15 +676,15 @@ describe("P0 pages", () => {
     const startButton = await screen.findByRole("button", { name: /开始考试/ });
     await user.click(startButton);
 
-    expect(await screen.findByText("考生已有进行中的考试记录 #9")).toBeInTheDocument();
+    expect(await screen.findByText("考试人已有进行中的考试记录 #9")).toBeInTheDocument();
     expect(screen.queryByText("请确认考试仍处于发布状态。")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续考试" })).toBeInTheDocument();
   });
 
-  it("does not offer continue action after the exam was already submitted", async () => {
+  it("does not offer continue action after the exam was already handed in", async () => {
     const user = userEvent.setup();
     vi.mocked(startExam).mockRejectedValueOnce(
-      new ApiError("考试记录 #10 已提交", 409, "考试记录 #10 已提交"),
+      new ApiError("考试记录 #10 已交卷", 409, "考试记录 #10 已交卷"),
     );
 
     renderPage("exams/:examId/start", <ExamStartPage />, {
@@ -698,7 +696,7 @@ describe("P0 pages", () => {
     const startButton = await screen.findByRole("button", { name: /开始考试/ });
     await user.click(startButton);
 
-    expect(await screen.findByText("考试记录 #10 已提交")).toBeInTheDocument();
+    expect(await screen.findByText("考试记录 #10 已交卷")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "继续考试" })).not.toBeInTheDocument();
   });
 
@@ -724,13 +722,13 @@ describe("P0 pages", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("考试已提交。")).toBeInTheDocument();
-    expect(screen.getByText("STATE · 已提交")).toBeInTheDocument();
+    expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
+    expect(screen.getByText("STATE · 已交卷")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看成绩" })).toHaveAttribute(
       "href",
       "/exams/1/result?attemptId=10",
     );
-    expect(screen.queryByRole("button", { name: "提交试卷" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "交卷" })).not.toBeInTheDocument();
   });
 
   it("renders attempt query failures as explicit errors instead of indefinite loading", async () => {

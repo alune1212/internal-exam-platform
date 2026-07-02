@@ -19,7 +19,7 @@ export async function downloadImportTemplate(type: "questions" | "candidates"): 
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = type === "questions" ? "题库导入模板.xlsx" : "应考人员模板.xlsx";
+  a.download = type === "questions" ? "题库导入模板.xlsx" : "应考名单导入模板.xlsx";
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -33,7 +33,7 @@ export async function downloadImportFailureReport(batchId: number): Promise<void
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "导入失败明细.xlsx";
+  a.download = "失败明细.xlsx";
   a.click();
   URL.revokeObjectURL(url);
 }

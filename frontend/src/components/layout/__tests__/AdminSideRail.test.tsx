@@ -33,7 +33,7 @@ describe("AdminSideRail", () => {
     renderSideRail("/admin/dashboard");
     expect(screen.getByRole("link", { name: "仪表盘" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "导入" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "题库导入" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "报表" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
@@ -45,10 +45,10 @@ describe("AdminSideRail", () => {
       .getAllByRole("link")
       .map((link) => link.textContent)
       .filter((name): name is string =>
-        Boolean(name && ["仪表盘", "考试", "题库", "导入", "报表"].includes(name)),
+        Boolean(name && ["仪表盘", "考试", "题库", "题库导入", "报表"].includes(name)),
       );
 
-    expect(navNames).toEqual(["仪表盘", "考试", "题库", "导入", "报表"]);
+    expect(navNames).toEqual(["仪表盘", "考试", "题库", "题库导入", "报表"]);
   });
 
   it("renders the dark wordmark with the admin subtitle", () => {
@@ -68,7 +68,7 @@ describe("AdminSideRail", () => {
   it("only highlights import on the question import route", () => {
     renderSideRail("/admin/questions/import");
     const questionLink = screen.getByRole("link", { name: "题库" });
-    const importLink = screen.getByRole("link", { name: "导入" });
+    const importLink = screen.getByRole("link", { name: "题库导入" });
 
     expect(importLink).toHaveClass("bg-canvas");
     expect(importLink).toHaveClass("text-ink");

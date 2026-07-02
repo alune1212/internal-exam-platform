@@ -25,7 +25,7 @@ import {
   sortByType,
 } from "@/lib/questionNavigation";
 import { getCurrentCandidate } from "@/lib/candidateSession";
-import { candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
+import { candidateActionCopy, candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { AttemptQuestion } from "@/types/attempt";
 
@@ -36,10 +36,10 @@ const EMPTY_QUESTIONS: AttemptQuestion[] = [];
 const SUBMITTED_STATUSES = new Set(["submitted", "auto_submitted"]);
 const SAVE_DEBOUNCE_MS = 150;
 const SAVE_STATUS_LABEL: Record<SaveStatus, string> = {
-  pending: "待保存",
-  saving: "正在保存",
-  saved: "已保存",
-  error: "保存失败",
+  pending: candidateActionCopy.savePending,
+  saving: candidateActionCopy.savingAnswer,
+  saved: candidateActionCopy.savedAnswer,
+  error: candidateActionCopy.saveFailed,
 };
 
 export function ExamTakingPage() {
@@ -433,8 +433,8 @@ export function ExamTakingPage() {
           <PageState
             state="submitted"
             eyebrow={candidatePageCopy.submitted}
-            title="考试已提交。"
-            description="你可以前往结果页查看本次提交。"
+            title="考试已交卷。"
+            description="你可以前往结果页查看本次交卷记录。"
             className="py-0"
           />
           <div className="mt-6 flex justify-center">
@@ -497,8 +497,8 @@ export function ExamTakingPage() {
   };
   const nextQuestionLabel = isLastQuestion
     ? submitMutation.isPending
-      ? "正在交卷"
-      : "提交试卷"
+      ? candidateActionCopy.submittingExam
+      : candidateActionCopy.submitExam
     : "下一题";
 
   return (
@@ -520,7 +520,9 @@ export function ExamTakingPage() {
         </span>
         <div className="flex flex-wrap items-center gap-3">
           {submitErrorVisible ? (
-            <span className="text-error">交卷失败，请先确认答案已保存并重试。</span>
+            <span className="text-error">
+              {candidateActionCopy.submitFailed}，请先确认答案已保存并重试。
+            </span>
           ) : null}
           {saveStatus === "error" ? (
             <Button
@@ -530,7 +532,7 @@ export function ExamTakingPage() {
               onClick={() => void performFullSave()}
               disabled={submitMutation.isPending}
             >
-              重试保存
+              {candidateActionCopy.retrySave}
             </Button>
           ) : null}
         </div>
@@ -562,7 +564,11 @@ export function ExamTakingPage() {
             desktopLayout
             onJump={(_targetId, id) => jumpToQuestion(id)}
             onSubmit={() => requestSubmit("manual")}
-            submitLabel={submitMutation.isPending ? "正在交卷" : "提前交卷"}
+            submitLabel={
+              submitMutation.isPending
+                ? candidateActionCopy.submittingExam
+                : candidateActionCopy.submitExam
+            }
             submitDisabled={submitMutation.isPending}
           />
         </aside>
@@ -613,7 +619,7 @@ export function ExamTakingPage() {
           >
             <SheetHeader className="border-b border-hairline pb-3">
               <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
-              <SheetDescription className="sr-only">选择题号或提前交卷。</SheetDescription>
+              <SheetDescription className="sr-only">选择题号或交卷。</SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto overscroll-contain">
               <ExamNavigator
@@ -637,7 +643,9 @@ export function ExamTakingPage() {
               className="w-full"
             >
               <Send data-icon="inline-start" />
-              {submitMutation.isPending ? "正在交卷" : "提前交卷"}
+              {submitMutation.isPending
+                ? candidateActionCopy.submittingExam
+                : candidateActionCopy.submitExam}
             </Button>
           </SheetContent>
         </Sheet>
@@ -645,7 +653,7 @@ export function ExamTakingPage() {
 
       {submitMutation.isError ? (
         <p className="sr-only" role="alert">
-          交卷失败，请确认考试仍在进行中。
+          {candidateActionCopy.submitFailed}，请确认考试仍在进行中。
         </p>
       ) : null}
     </PageShell>

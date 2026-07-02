@@ -166,13 +166,15 @@ def _normalize_payload(payload: QuestionCreate) -> QuestionCreate:
 
 def _validate_question_payload(payload: QuestionCreate) -> None:
     if payload.question_type not in VALID_QUESTION_TYPES:
-        raise QuestionValidationError("题型只能是 single、multiple 或 judge")
+        raise QuestionValidationError(
+            "题型只能填写单选（single）、多选（multiple）或判断（judge）"
+        )
     if not payload.stem:
         raise QuestionValidationError("题干不能为空")
     if payload.score <= 0:
         raise QuestionValidationError("分值必须大于 0")
     if payload.status not in VALID_STATUSES:
-        raise QuestionValidationError("status 只能是 active 或 inactive")
+        raise QuestionValidationError("状态只能填写启用（active）或停用（inactive）")
 
     labels = [option.label for option in payload.options]
     if len(labels) != len(set(labels)):

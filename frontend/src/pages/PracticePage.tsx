@@ -172,8 +172,8 @@ export function PracticePage() {
         <PageState
           state="empty"
           eyebrow={candidatePageCopy.empty}
-          title="题库为空。"
-          description="管理员导入题库后会显示在这里。"
+          title="练习题库为空。"
+          description="管理员导入题库并启用题目后会显示在这里。"
         />
       </PageShell>
     );
@@ -217,7 +217,7 @@ export function PracticePage() {
   const answerFeedback = activeResult ? (
     <span className="inline-flex items-center gap-2 text-body text-success">已保存本题作答。</span>
   ) : (
-    <span className="text-body-sm text-muted">提交后保存本题作答。</span>
+    <span className="text-body-sm text-muted">作答后保存本题记录。</span>
   );
 
   return (
@@ -225,10 +225,10 @@ export function PracticePage() {
       <div className="flex flex-col gap-3 border-b border-hairline pb-4">
         <ChapterNumber>{candidatePageCopy.practice}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          刷一遍，<em className="italic">记一遍</em>。
+          练习题库
         </h1>
         <p className="max-w-2xl text-body-lg text-muted">
-          练习结果不计入正式成绩。提交后记录本题作答。
+          练习结果不计入正式成绩。作答后记录本题答案。
         </p>
       </div>
 

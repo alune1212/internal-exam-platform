@@ -12,7 +12,7 @@ class PracticeCandidateNotFoundError(DomainError):
     status_code = 404
 
     def __init__(self, candidate_id: int) -> None:
-        super().__init__(f"考生 #{candidate_id} 不存在")
+        super().__init__(f"考试人 #{candidate_id} 不存在")
 
 
 class PracticeQuestionNotFoundError(DomainError):

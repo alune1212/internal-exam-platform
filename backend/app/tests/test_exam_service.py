@@ -66,7 +66,7 @@ def test_create_exam_rejects_invalid_duration_status_and_rule(db: Session) -> No
     with pytest.raises(exam_service.ExamConfigError, match="考试时长必须为正整数"):
         exam_service.create_exam(db, ExamCreate(title="坏考试", duration_minutes=0))
 
-    with pytest.raises(exam_service.ExamConfigError, match="考试状态只能是"):
+    with pytest.raises(exam_service.ExamConfigError, match="考试状态只能填写"):
         exam_service.create_exam(
             db, ExamCreate(title="坏考试", duration_minutes=60, status="published")
         )
@@ -94,7 +94,7 @@ def test_update_exam_rejects_invalid_duration_status_and_rule(db: Session) -> No
     with pytest.raises(exam_service.ExamConfigError, match="考试时长必须为正整数"):
         exam_service.update_exam(db, exam.id, ExamUpdate(duration_minutes=0))
 
-    with pytest.raises(exam_service.ExamConfigError, match="考试状态只能是"):
+    with pytest.raises(exam_service.ExamConfigError, match="考试状态只能填写"):
         exam_service.update_exam(db, exam.id, ExamUpdate(status="published"))
 
     with pytest.raises(exam_service.ExamConfigError, match="抽题规则必须是对象"):

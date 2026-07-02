@@ -7,46 +7,46 @@ import { getScoreReport } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminTableCopy } from "@/lib/pageCopy";
 import type { ScoreReportRow } from "@/types/report";
 
 const columns: ColumnDef<ScoreReportRow>[] = [
   {
     accessorKey: "candidate_name",
-    header: "NAME",
+    header: adminTableCopy.name,
     cell: ({ row }) => <span className="font-medium">{row.original.candidate_name}</span>,
-    meta: { mobilePriority: "primary", mobileLabel: "NAME" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.name },
   },
   {
     accessorKey: "employee_no",
-    header: "EMP NO",
+    header: adminTableCopy.employeeNo,
     cell: ({ row }) => <span className="font-mono text-sm">{row.original.employee_no ?? "-"}</span>,
-    meta: { mobileLabel: "EMP NO" },
+    meta: { mobileLabel: adminTableCopy.employeeNo },
   },
   {
     accessorKey: "department",
-    header: "DEPT",
+    header: adminTableCopy.department,
     cell: ({ row }) => row.original.department ?? "-",
-    meta: { mobileLabel: "DEPT" },
+    meta: { mobileLabel: adminTableCopy.department },
   },
   {
     accessorKey: "exam_title",
-    header: "EXAM",
-    meta: { mobileLabel: "EXAM" },
+    header: adminTableCopy.exam,
+    meta: { mobileLabel: adminTableCopy.exam },
   },
   {
     accessorKey: "score",
-    header: "SCORE",
+    header: adminTableCopy.score,
     cell: ({ row }) => (
       <span className="font-mono text-sm tabular-nums">
         {row.original.score} / {row.original.total_score}
       </span>
     ),
-    meta: { mobilePriority: "primary", mobileLabel: "SCORE" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.score },
   },
   {
     accessorKey: "total_score",
-    header: "TOTAL",
+    header: adminTableCopy.totalScore,
     cell: ({ row }) => (
       <span className="font-mono text-sm tabular-nums">{row.original.total_score}</span>
     ),
@@ -71,7 +71,7 @@ export function ScoreReportPage() {
     <ReportPage
       title="个人成绩"
       chapterLabel={adminPageCopy.reports}
-      description="默认按单场考试查看个人提交结果，避免正式成绩混场。"
+      description="默认按单场考试查看个人交卷结果，避免正式成绩混场。"
       queryKey={[
         "admin",
         "score-report",

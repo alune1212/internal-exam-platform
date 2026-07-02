@@ -10,7 +10,12 @@ import { ReportPage } from "@/components/admin/ReportPage";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { adminPageCopy } from "@/lib/pageCopy";
+import {
+  adminPageCopy,
+  adminTableCopy,
+  formatExamAvailability,
+  formatExamStatus,
+} from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
 function statusVariant(status: string): StatusPillVariant {
@@ -27,9 +32,7 @@ function formatDateTime(value?: string | null) {
 }
 
 function availabilityLabel(status?: Exam["availability_status"]) {
-  if (status === "not_started") return "未开始";
-  if (status === "ended") return "已结束";
-  return "可进入";
+  return formatExamAvailability(status);
 }
 
 const columns: ColumnDef<Exam>[] = [
@@ -41,7 +44,7 @@ const columns: ColumnDef<Exam>[] = [
   },
   {
     accessorKey: "title",
-    header: "TITLE",
+    header: adminTableCopy.title,
     cell: ({ row }) => (
       <Link
         to={`/admin/exams/${row.original.id}/edit`}
@@ -50,27 +53,29 @@ const columns: ColumnDef<Exam>[] = [
         {row.original.title}
       </Link>
     ),
-    meta: { mobilePriority: "primary", mobileLabel: "TITLE" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.title },
   },
   {
     accessorKey: "duration_minutes",
-    header: "DURATION",
+    header: adminTableCopy.duration,
     cell: ({ row }) => (
       <span className="font-mono text-sm tabular-nums">{row.original.duration_minutes} 分</span>
     ),
-    meta: { mobileLabel: "DURATION" },
+    meta: { mobileLabel: adminTableCopy.duration },
   },
   {
     accessorKey: "status",
-    header: "STATUS",
+    header: adminTableCopy.status,
     cell: ({ row }) => (
-      <StatusPill variant={statusVariant(row.original.status)}>{row.original.status}</StatusPill>
+      <StatusPill variant={statusVariant(row.original.status)}>
+        {formatExamStatus(row.original.status)}
+      </StatusPill>
     ),
-    meta: { mobilePriority: "primary", mobileLabel: "STATUS" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.status },
   },
   {
     id: "availability",
-    header: "OPEN WINDOW",
+    header: adminTableCopy.openWindow,
     cell: ({ row }) => (
       <div className="flex flex-col gap-1 text-body-sm">
         <span>{availabilityLabel(row.original.availability_status)}</span>
@@ -80,11 +85,11 @@ const columns: ColumnDef<Exam>[] = [
         </span>
       </div>
     ),
-    meta: { mobileLabel: "OPEN WINDOW" },
+    meta: { mobileLabel: adminTableCopy.openWindow },
   },
   {
     id: "question_pool",
-    header: "POOL",
+    header: adminTableCopy.questionPool,
     cell: ({ row }) => {
       const count = row.original.question_pool_count ?? 0;
       const frozen = row.original.status === "active" || count > 0;
@@ -97,7 +102,7 @@ const columns: ColumnDef<Exam>[] = [
         </div>
       );
     },
-    meta: { mobileLabel: "POOL" },
+    meta: { mobileLabel: adminTableCopy.questionPool },
   },
 ];
 

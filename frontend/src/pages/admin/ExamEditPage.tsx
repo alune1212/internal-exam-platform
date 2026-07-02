@@ -14,12 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, formatExamStatus } from "@/lib/pageCopy";
 
 const STATUS_OPTIONS = [
-  { value: "draft", label: "DRAFT · 草稿" },
-  { value: "active", label: "LIVE · 进行中" },
-  { value: "archived", label: "ENDED · 已结束" },
+  { value: "draft", label: formatExamStatus("draft") },
+  { value: "active", label: formatExamStatus("active") },
+  { value: "archived", label: formatExamStatus("archived") },
 ] as const;
 
 const schema = z
@@ -297,7 +297,7 @@ export function ExamEditPage() {
               </FieldDescription>
             ) : (
               <FieldDescription>
-                切换为 active 会冻结题池、时长、抽题规则和应考名单。
+                切换为已发布会冻结题池、时长、抽题规则和应考名单。
               </FieldDescription>
             )}
             {form.formState.errors.question_rule_json ? (
@@ -308,12 +308,12 @@ export function ExamEditPage() {
         <div className="flex flex-col gap-3 rounded-md bg-surface-card p-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
           <div className="flex flex-col gap-1">
             <span className="text-caption uppercase tracking-[0.16em] text-muted">
-              {adminPageCopy.candidates}
+              {adminPageCopy.roster}
             </span>
-            <span className="text-body text-ink">应考人员 · 在此页维护本场名单</span>
+            <span className="text-body text-ink">应考名单 · 在此页维护本场考试名单</span>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link to={`/admin/exams/${examId ?? "1"}/candidates`}>管理应考</Link>
+            <Link to={`/admin/exams/${examId ?? "1"}/candidates`}>管理名单</Link>
           </Button>
         </div>
       </PageSection>

@@ -7,41 +7,41 @@ import { getWrongQuestions } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminTableCopy } from "@/lib/pageCopy";
 import type { WrongQuestionRow } from "@/types/report";
 
 const columns: ColumnDef<WrongQuestionRow>[] = [
   {
     accessorKey: "question_id",
-    header: "QID",
+    header: adminTableCopy.questionId,
     cell: ({ row }) => <span className="font-mono text-sm">{row.original.question_id}</span>,
-    meta: { mobileLabel: "QID" },
+    meta: { mobileLabel: adminTableCopy.questionId },
   },
   {
     accessorKey: "stem",
-    header: "STEM",
+    header: adminTableCopy.stem,
     cell: ({ row }) => <span className="line-clamp-1 max-w-md">{row.original.stem}</span>,
-    meta: { mobilePriority: "primary", mobileLabel: "STEM" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.stem },
   },
   {
     accessorKey: "wrong_count",
-    header: "WRONG",
+    header: adminTableCopy.wrong,
     cell: ({ row }) => (
       <span className="font-mono text-sm tabular-nums text-error">{row.original.wrong_count}</span>
     ),
-    meta: { mobilePriority: "primary", mobileLabel: "WRONG" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.wrong },
   },
   {
     accessorKey: "category_1",
-    header: "CAT 1",
+    header: adminTableCopy.category1,
     cell: ({ row }) => row.original.category_1 ?? "-",
-    meta: { mobileLabel: "CAT 1" },
+    meta: { mobileLabel: adminTableCopy.category1 },
   },
   {
     accessorKey: "category_2",
-    header: "CAT 2",
+    header: adminTableCopy.category2,
     cell: ({ row }) => row.original.category_2 ?? "-",
-    meta: { mobileLabel: "CAT 2" },
+    meta: { mobileLabel: adminTableCopy.category2 },
   },
 ];
 

@@ -30,7 +30,7 @@ def download_candidate_template() -> StreamingResponse:
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('应考人员模板.xlsx')}"
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('应考名单导入模板.xlsx')}"
         },
     )
 
@@ -44,6 +44,6 @@ def download_failure_report(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('导入失败明细.xlsx')}"
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote('失败明细.xlsx')}"
         },
     )

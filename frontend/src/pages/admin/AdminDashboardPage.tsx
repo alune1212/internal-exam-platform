@@ -7,7 +7,7 @@ import { MetricCard } from "@/components/admin/MetricCard";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, formatAttemptStatus, formatExamStatus } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 type ActivityTone = "success" | "warning" | "error";
@@ -92,14 +92,14 @@ export function AdminDashboardPage() {
   const activity: ActivityItem[] = [
     ...(scores.data ?? []).slice(0, 5).map((score) => ({
       id: `score-${score.candidate_name}-${score.exam_title}`,
-      title: `${score.candidate_name} 提交了 ${score.exam_title}`,
+      title: `${score.candidate_name} 已交卷：${score.exam_title}`,
       caption: `得分 ${score.score} / ${score.total_score}`,
       when: score.submitted_at ?? "-",
       tone: "success" as const,
     })),
     ...(absent.data ?? []).slice(0, 5).map((candidate) => ({
       id: `absent-${candidate.candidate_id}-${candidate.exam_group ?? ""}`,
-      title: `${candidate.name} 尚未参加考试`,
+      title: `${candidate.name} 尚未开始考试`,
       caption: candidate.exam_group ?? candidate.department ?? "-",
       when: "未到",
       tone: "warning" as const,
@@ -116,26 +116,26 @@ export function AdminDashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          label="QUESTIONS · 题库"
+          label={adminPageCopy.library}
           value={questionsLoading ? "…" : questionsError ? "—" : (questions.data?.length ?? 0)}
           unit="题"
           caption="所有状态的题目合计"
         />
         <MetricCard
-          label="EXAMS LIVE · 进行中"
+          label={formatExamStatus("active")}
           value={examsLoading ? "…" : examsError ? "—" : liveExams}
           unit="场"
           tone="success"
-          caption="status 为 active / live"
+          caption="已发布考试"
         />
         <MetricCard
-          label="SUBMITTED · 已提交"
+          label={formatAttemptStatus("submitted")}
           value={scoresLoading ? "…" : scoresError ? "—" : (scores.data?.length ?? 0)}
           unit="次"
-          caption="所有考试累计提交次数"
+          caption="所有考试累计交卷次数"
         />
         <MetricCard
-          label="NOT STARTED · 未开始"
+          label={formatAttemptStatus("not_started")}
           value={absentLoading ? "…" : absentError ? "—" : (absent.data?.length ?? 0)}
           unit="人"
           tone="warning"
@@ -153,7 +153,7 @@ export function AdminDashboardPage() {
       <PageSection variant="card" className="gap-4">
         <header className="flex flex-col gap-1">
           <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
-          <h2 className="font-display text-display-sm font-semibold text-ink">提交与未开始</h2>
+          <h2 className="font-display text-display-sm font-semibold text-ink">交卷与未开始</h2>
         </header>
         {scores.isLoading || absent.isLoading ? (
           <ContentSkeleton rows={3} className="p-0" />
@@ -176,7 +176,7 @@ export function AdminDashboardPage() {
             state="empty"
             eyebrow={adminPageCopy.empty}
             title="暂无活动记录。"
-            description="当有人交卷或缺席名单产生后，最近活动会显示在这里。"
+            description="当有人交卷或参考状态变化后，最近活动会显示在这里。"
             className="py-8"
           />
         )}

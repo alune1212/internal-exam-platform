@@ -40,12 +40,12 @@ export function AdminLoginPage() {
   return (
     <main className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
       <section className="flex flex-col gap-10 px-6 py-10 lg:px-16 lg:py-16">
-        <Wordmark subtitle="— admin console" />
+        <Wordmark subtitle="admin console" />
         <div className="flex flex-1 flex-col justify-center gap-8">
           <PageHeader
             data-testid="admin-login-header"
             eyebrow={adminPageCopy.login}
-            title="安静地工作。"
+            title="登录管理后台"
             description="管理员登录后可访问题库、考试配置与所有报表。"
             className="md:flex-col md:items-start md:justify-start"
           />
@@ -99,7 +99,7 @@ export function AdminLoginPage() {
         <div className="absolute inset-0 flex flex-col items-start justify-end gap-3 p-16 text-footer-soft">
           <p className="text-caption uppercase tracking-[0.18em]">ADMIN CONSOLE</p>
           <p className="max-w-sm font-display text-display-md font-semibold text-canvas">
-            所有考试、题库、报表 — 一处掌控。
+            考试、题库与报表集中管理。
           </p>
         </div>
       </aside>

@@ -37,5 +37,5 @@ def get_current_candidate_id(
         raise CandidateAuthError()
     candidate_id = parse_candidate_token(x_candidate_token)
     if candidate_id is None:
-        raise CandidateAuthError("无效的候选人身份")
+        raise CandidateAuthError("无效的考试人身份")
     return candidate_id

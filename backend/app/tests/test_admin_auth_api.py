@@ -3,6 +3,7 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from urllib.parse import unquote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -274,19 +275,21 @@ def test_admin_import_failure_report_download_returns_workbook() -> None:
         resp.headers["content-type"]
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    assert "失败明细.xlsx" in unquote(resp.headers["content-disposition"])
     workbook = load_workbook(BytesIO(resp.content))
     assert workbook.sheetnames == ["导入批次", "失败明细"]
     meta = workbook["导入批次"]
     assert meta.cell(1, 1).value == "字段"
     assert meta.cell(1, 2).value == "值"
     assert meta.cell(2, 1).value == "导入类型"
-    assert meta.cell(2, 2).value == "questions"
+    assert meta.cell(2, 2).value == "QUESTION IMPORT · 题库导入"
     assert meta.cell(3, 2).value == "questions.xlsx"
     assert meta.cell(4, 2).value == 2
     assert meta.cell(5, 2).value == 1
     assert meta.cell(6, 2).value == 1
     sheet = workbook["失败明细"]
-    assert sheet.cell(1, 1).value == "row_number"
+    assert sheet.cell(1, 1).value == "ROW · 行号"
+    assert sheet.cell(1, 2).value == "REASON · 原因"
     assert sheet.cell(2, 1).value == 3
     assert sheet.cell(2, 2).value == "题干不能为空"
 
@@ -320,7 +323,7 @@ def test_admin_import_failure_report_returns_empty_detail_sheet_without_failures
 
     assert resp.status_code == 200
     workbook = load_workbook(BytesIO(resp.content))
-    assert workbook["导入批次"].cell(2, 2).value == "exam_candidates"
+    assert workbook["导入批次"].cell(2, 2).value == "ROSTER IMPORT · 应考名单导入"
     assert workbook["失败明细"].max_row == 1
 
 
@@ -357,8 +360,34 @@ def test_admin_candidate_template_download_returns_workbook() -> None:
         resp.headers["content-type"]
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    assert "应考名单导入模板.xlsx" in unquote(resp.headers["content-disposition"])
     workbook = load_workbook(BytesIO(resp.content))
+    assert workbook.active.title == "应考名单导入模板"
     assert workbook.active.cell(1, 1).value == "name"
+
+
+def test_admin_question_template_download_returns_workbook() -> None:
+    client, _ = _build_client()
+    login = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    )
+    token = login.json()["data"]["token"]
+
+    resp = client.get(
+        "/api/admin/imports/templates/questions",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 200
+    assert (
+        resp.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "题库导入模板.xlsx" in unquote(resp.headers["content-disposition"])
+    workbook = load_workbook(BytesIO(resp.content))
+    assert workbook.active.title == "题库导入模板"
+    assert workbook.active.cell(1, 1).value == "category_1"
 
 
 def test_admin_report_export_returns_workbook() -> None:
@@ -380,7 +409,7 @@ def test_admin_report_export_returns_workbook() -> None:
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     workbook = load_workbook(BytesIO(resp.content))
-    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "参考状态"]
+    assert workbook.sheetnames == ["个人成绩", "题目正确率", "错题排行", "参考状态"]
 
 
 def test_admin_score_report_accepts_exam_filter() -> None:

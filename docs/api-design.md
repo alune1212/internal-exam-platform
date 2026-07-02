@@ -43,14 +43,14 @@ GET  /api/exams/{exam_id}/ranking
 
 - `/api/candidates/login` 需要 `name`、`phone_suffix`，可选 `employee_no`；传入员工号时也必须同时匹配姓名和手机号后四位。
 - `/api/candidates/login` 和 `/api/admin/login` 带应用层限流，超过阈值返回 429。
-- `/api/exams/active` 需要 `X-Candidate-Token`，并只返回当前考生在 `exam_candidate_scope` 内、仍可参加的 `active` 状态考试，按 `id` 排序返回。
-- `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态；已提交且无未使用补考授权的考试不会出现在该列表。
+- `/api/exams/active` 需要 `X-Candidate-Token`，并只返回当前考试人在 `exam_candidate_scope` 内、仍可参加的 `active` 状态考试，按 `id` 排序返回。
+- `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态；已交卷且无未使用补考授权的考试不会出现在该列表。
 - `/api/exams/{exam_id}/start` 已根据冻结题池和 `exam.question_rule` 创建正式考试记录和题目快照，后续题库修改不影响该 attempt。空 `question_rule` 保留旧逻辑：抽取冻结题池中的全部题目。
-- `available_from` / `available_until` 只限制新开考；已有 `in_progress` attempt 可继续恢复，并按 `started_at + duration_minutes` 到时提交。
+- `available_from` / `available_until` 只限制新开考；已有 `in_progress` attempt 可继续恢复，并按 `started_at + duration_minutes` 到时交卷。
 - `/api/attempts/{attempt_id}/answers/save` 已将答案暂存到 `exam_attempt_answer`，暂存不暂停倒计时。
 - 公开 `/api/attempts/{attempt_id}/submit` 只接受 `submit_type = "manual"`；`auto` 仅由后端 scheduler 内部调用 service。
-- `/api/attempts/{attempt_id}/result` 仅允许已提交或自动提交的 attempt 读取成绩结果；结果包含 `pass_score` 和 `is_passed`。
-- `/api/practice/questions` 需要 `X-Candidate-Token`，使用练习专用响应，不返回正确答案和解析；`/api/practice/answers` 通过 `X-Candidate-Token` 解析考生，提交响应不返回正确答案、解析、对错或判分结果。
+- `/api/attempts/{attempt_id}/result` 仅允许已交卷或自动交卷的 attempt 读取成绩结果；结果包含 `pass_score` 和 `is_passed`。
+- `/api/practice/questions` 需要 `X-Candidate-Token`，使用练习专用响应，不返回正确答案和解析；`/api/practice/answers` 通过 `X-Candidate-Token` 解析考试人，作答响应不返回正确答案、解析、对错或判分结果。
 
 ## 管理员端
 
@@ -91,8 +91,8 @@ GET /api/admin/reports/export?exam_id={id}
 - Excel 导入默认限制为 5 MiB、5000 行数据、1 个工作表；超限会返回 400 级业务错误，限制可通过后端环境变量调整。
 - `/api/admin/imports/{batch_id}/failure-report` 返回失败报告 Excel，包含批次元信息和失败明细；缺失批次返回 404，无失败行时仍返回空明细 sheet。
 - 模板下载接口返回标准 Excel 模板，`Content-Disposition` 使用 `filename*` 兼容中文文件名。
-- 应参人员导入接口按考试写入 `exam_candidate_scope`；有员工号时按员工号复用已有人员，无员工号时按无员工号姓名复用已有人员，缺失身份或非法状态按行记录失败原因。
-- 单场考试名单列表返回考生基础信息、当前参考 attempt、成绩和 `has_unused_retake_grant`，供管理端名单页展示参考状态和补考按钮。
+- 应考名单导入接口按考试写入 `exam_candidate_scope`；有员工号时按员工号复用已有人员，无员工号时按无员工号姓名复用已有人员，缺失身份或非法状态按行记录失败原因。
+- 单场考试名单列表返回应考人员基础信息、当前参考 attempt、成绩和 `has_unused_retake_grant`，供管理端名单页展示参考状态和补考按钮。
 - 单场考试名单删除接口只移除该考试的 `exam_candidate_scope` 记录，不删除全局 candidate。
-- 补考授权接口创建一条未使用的 `exam_retake_grant`；已提交考生存在未使用授权时会重新出现在候选人 active exam 列表，开始考试时生成 `attempt_kind = "retake"` 的新 attempt 并消耗授权。
+- 补考授权接口创建一条未使用的 `exam_retake_grant`；已交卷人员存在未使用授权时会重新出现在考试人 active exam 列表，开始考试时生成 `attempt_kind = "retake"` 的新 attempt 并消耗授权。
 - 报表统计查询已使用真实 SQL；成绩、题目正确率、错题、参考状态和导出均支持 `exam_id` 过滤。省略 `exam_id` 时保留全局视图。

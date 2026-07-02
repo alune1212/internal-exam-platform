@@ -32,7 +32,7 @@ def _setup_exam_with_candidates(db: Session):
     return exam, c1, c2, r1, r2
 
 
-# --- 成绩报表 ---
+# --- 个人成绩 ---
 
 
 def test_score_report_returns_submitted_attempts(db: Session) -> None:
@@ -128,7 +128,7 @@ def test_question_accuracy_uses_latest_submitted_attempt(db: Session) -> None:
     assert all(row.accuracy_rate == 1.0 for row in report)
 
 
-# --- 错题统计 ---
+# --- 错题排行 ---
 
 
 def test_wrong_questions_counts_failures(db: Session) -> None:
@@ -157,7 +157,7 @@ def test_wrong_questions_uses_latest_submitted_attempt_after_retake(
     assert all(row.stem != "题目B" for row in report)
 
 
-# --- 缺考人员 ---
+# --- 参考状态 ---
 
 
 def test_absent_candidates_splits_not_started_and_in_progress(db: Session) -> None:
@@ -219,25 +219,44 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
     workbook_stream = report_service.generate_report_workbook(db)
     workbook = load_workbook(workbook_stream)
 
-    assert workbook.sheetnames == ["成绩报表", "题目正确率", "错题统计", "参考状态"]
-    assert [cell.value for cell in workbook["成绩报表"][1]] == [
-        "姓名",
-        "员工号",
-        "部门",
-        "考试",
-        "得分",
-        "总分",
-        "提交时间",
+    assert workbook.sheetnames == ["个人成绩", "题目正确率", "错题排行", "参考状态"]
+    assert [cell.value for cell in workbook["个人成绩"][1]] == [
+        "NAME · 姓名",
+        "EMP NO · 工号",
+        "DEPT · 部门",
+        "EXAM · 考试",
+        "SCORE · 得分",
+        "TOTAL · 总分",
+        "SUBMITTED AT · 交卷时间",
     ]
-    assert workbook["成绩报表"].cell(2, 1).value == "张三"
+    assert workbook["个人成绩"].cell(2, 1).value == "张三"
+    assert [cell.value for cell in workbook["题目正确率"][1]] == [
+        "QID · 题目ID",
+        "STEM · 题干",
+        "CORRECT · 正确",
+        "TOTAL · 总数",
+        "RATE · 正确率",
+    ]
+    assert [cell.value for cell in workbook["错题排行"][1]] == [
+        "QID · 题目ID",
+        "STEM · 题干",
+        "WRONG · 错误",
+        "CAT 1 · 一级分类",
+        "CAT 2 · 二级分类",
+    ]
     assert [cell.value for cell in workbook["参考状态"][1]] == [
-        "考生ID",
-        "姓名",
-        "员工号",
-        "部门",
-        "考试分组",
-        "参考状态",
+        "CID · 人员ID",
+        "NAME · 姓名",
+        "EMP NO · 工号",
+        "DEPT · 部门",
+        "GROUP · 分组",
+        "STATUS · 状态",
     ]
+    exported_statuses = [
+        workbook["参考状态"].cell(row, 6).value
+        for row in range(2, workbook["参考状态"].max_row + 1)
+    ]
+    assert exported_statuses == ["进行中", "已交卷"]
 
 
 @pytest.mark.parametrize(
@@ -269,10 +288,10 @@ def test_report_workbook_escapes_formula_like_text(db: Session) -> None:
     workbook_stream = report_service.generate_report_workbook(db, exam_id=exam.id)
     workbook = load_workbook(workbook_stream, data_only=False)
 
-    assert workbook["成绩报表"].cell(2, 1).value.startswith("'=")
-    assert workbook["成绩报表"].cell(2, 4).value == "'=cmd"
+    assert workbook["个人成绩"].cell(2, 1).value.startswith("'=")
+    assert workbook["个人成绩"].cell(2, 4).value == "'=cmd"
     assert workbook["题目正确率"].cell(2, 2).value == "'+SUM(1,1)"
-    assert workbook["错题统计"].cell(2, 2).value == "'+SUM(1,1)"
+    assert workbook["错题排行"].cell(2, 2).value == "'+SUM(1,1)"
 
 
 def test_report_workbook_filters_by_exam_id(db: Session) -> None:
@@ -289,5 +308,5 @@ def test_report_workbook_filters_by_exam_id(db: Session) -> None:
     workbook_stream = report_service.generate_report_workbook(db, exam_id=exam.id)
     workbook = load_workbook(workbook_stream)
 
-    assert workbook["成绩报表"].cell(2, 4).value == "测试考试"
-    assert workbook["成绩报表"].cell(3, 4).value is None
+    assert workbook["个人成绩"].cell(2, 4).value == "测试考试"
+    assert workbook["个人成绩"].cell(3, 4).value is None

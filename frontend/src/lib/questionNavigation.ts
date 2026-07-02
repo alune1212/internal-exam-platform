@@ -1,3 +1,5 @@
+import { formatQuestionTypeShortLabel } from "@/lib/pageCopy";
+
 export type QuestionNavItem = {
   id: number;
   /** 1-based index within the question's own type group (单选 01, 多选 01, ...). */
@@ -27,12 +29,7 @@ type BuildQuestionNavItemsParams<TQuestion extends { id: number; question_type: 
 };
 
 export function getQuestionTypeLabel(questionType: string): string {
-  const labels: Record<string, string> = {
-    single: "单选",
-    multiple: "多选",
-    judge: "判断",
-  };
-  return labels[questionType] ?? questionType;
+  return formatQuestionTypeShortLabel(questionType);
 }
 
 /**

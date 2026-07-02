@@ -39,17 +39,17 @@ describe("CandidateImportPage", () => {
     });
   });
 
-  it("renders semantic candidate copy", () => {
+  it("renders semantic roster copy", () => {
     renderPage();
 
-    expect(screen.getByText("CANDIDATES · 应考人员")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "应考人员导入" })).toHaveClass(
+    expect(screen.getByText("ROSTER · 应考名单")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "应考名单导入" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
     expect(screen.getByTestId("candidate-import-shell")).toHaveClass("gap-6");
     expect(screen.getByText("未选择文件")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "上传应考人员" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "上传应考名单" })).toBeDisabled();
   });
 
   it("imports candidates for the current exam and offers failure report download", async () => {
@@ -61,10 +61,10 @@ describe("CandidateImportPage", () => {
 
     await user.upload(screen.getByLabelText("选择 Excel 文件"), file);
     expect(screen.getByText("candidates.xlsx")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "上传应考人员" }));
+    await user.click(screen.getByRole("button", { name: "上传应考名单" }));
 
     await waitFor(() => expect(importCandidates).toHaveBeenCalledWith("7", file));
-    expect(await screen.findByRole("status")).toHaveTextContent("应考人员导入完成。");
+    expect(await screen.findByRole("status")).toHaveTextContent("应考名单导入完成。");
     expect(screen.getByText("行 3 · 姓名不能为空")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "下载失败明细" }));

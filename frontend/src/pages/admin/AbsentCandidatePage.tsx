@@ -5,52 +5,52 @@ import { getAbsentCandidates, type AttendanceStatus } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import { Button } from "@/components/ui/button";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminTableCopy, formatAttemptStatusShort } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 import type { AbsentCandidateRow } from "@/types/report";
 
 const statusLabels: Record<AttendanceStatus, string> = {
-  not_started: "未开始",
-  in_progress: "进行中",
-  submitted: "已提交",
+  not_started: formatAttemptStatusShort("not_started"),
+  in_progress: formatAttemptStatusShort("in_progress"),
+  submitted: formatAttemptStatusShort("submitted"),
 };
 
 const columns: ColumnDef<AbsentCandidateRow>[] = [
   {
     accessorKey: "candidate_id",
-    header: "CID",
+    header: adminTableCopy.candidateId,
     cell: ({ row }) => <span className="font-mono text-sm">{row.original.candidate_id}</span>,
     meta: { mobilePriority: false },
   },
   {
     accessorKey: "name",
-    header: "NAME",
+    header: adminTableCopy.name,
     cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    meta: { mobilePriority: "primary", mobileLabel: "NAME" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.name },
   },
   {
     accessorKey: "employee_no",
-    header: "EMP NO",
+    header: adminTableCopy.employeeNo,
     cell: ({ row }) => <span className="font-mono text-sm">{row.original.employee_no ?? "-"}</span>,
-    meta: { mobileLabel: "EMP NO" },
+    meta: { mobileLabel: adminTableCopy.employeeNo },
   },
   {
     accessorKey: "department",
-    header: "DEPT",
+    header: adminTableCopy.department,
     cell: ({ row }) => row.original.department ?? "-",
-    meta: { mobileLabel: "DEPT" },
+    meta: { mobileLabel: adminTableCopy.department },
   },
   {
     accessorKey: "exam_group",
-    header: "GROUP",
+    header: adminTableCopy.group,
     cell: ({ row }) => row.original.exam_group ?? "-",
-    meta: { mobilePriority: "primary", mobileLabel: "GROUP" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.group },
   },
   {
     accessorKey: "attendance_status",
-    header: "STATUS",
+    header: adminTableCopy.status,
     cell: ({ row }) => statusLabels[row.original.attendance_status],
-    meta: { mobileLabel: "STATUS" },
+    meta: { mobileLabel: adminTableCopy.status },
   },
 ];
 
@@ -61,7 +61,7 @@ export function AbsentCandidatePage() {
     <ReportPage
       title="参考状态"
       chapterLabel={adminPageCopy.reports}
-      description="按未开始、进行中、已提交拆分应考人员状态，避免把进行中考试计为缺考。"
+      description="按未开始、进行中、已交卷拆分应考人员状态，避免把进行中考试计为缺考。"
       queryKey={["admin", "absent-candidates", status]}
       queryFn={() => getAbsentCandidates(status)}
       columns={columns}

@@ -43,14 +43,14 @@ describe("QuestionImportPage", () => {
   it("renders semantic library copy", () => {
     renderPage();
 
-    expect(screen.getByText("LIBRARY · 题库")).toBeInTheDocument();
+    expect(screen.getByText("QUESTION IMPORT · 题库导入")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "题库导入" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
     expect(screen.getByTestId("question-import-shell")).toHaveClass("gap-6");
     expect(screen.getByText("未选择文件")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "上传并校验" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "上传并校验题库" })).toBeDisabled();
   });
 
   it("offers failure report download after question import failures", async () => {
@@ -62,7 +62,7 @@ describe("QuestionImportPage", () => {
 
     await user.upload(screen.getByLabelText("选择 Excel 文件"), file);
     expect(screen.getByText("questions.xlsx")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "上传并校验" }));
+    await user.click(screen.getByRole("button", { name: "上传并校验题库" }));
     await user.click(await screen.findByRole("button", { name: "下载失败明细" }));
 
     await waitFor(() => expect(downloadImportFailureReport).toHaveBeenCalledWith(11));

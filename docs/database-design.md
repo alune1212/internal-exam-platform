@@ -11,7 +11,7 @@
 
 ### candidate
 
-考试人和应参人员表。
+考试人和应考人员表。
 
 关键字段：`id`、`name`、`employee_no`、`department`、`position`、`phone_suffix`、`email`、`exam_group`、`should_attend`、`status`、`remark`、`created_at`、`updated_at`。
 
@@ -100,7 +100,7 @@
 说明：
 
 - `attempt_no` 和 `attempt_kind` 区分首次考试与补考；默认首次 attempt 使用 `initial`，补考授权消耗后创建 `retake` attempt。
-- 报表和名单页以考生在该考试中提交时间最靠后的已提交 attempt 作为当前参考状态。
+- 报表和名单页以考试人在该考试中交卷时间最靠后的已交卷 attempt 作为当前参考状态。
 
 ### exam_attempt_question
 
@@ -131,7 +131,7 @@
 
 说明：
 
-- 练习提交通过 `X-Candidate-Token` 解析当前考生，不接受请求体里的 `candidate_id`。
+- 练习提交通过 `X-Candidate-Token` 解析当前考试人，不接受请求体里的 `candidate_id`。
 - 练习题列表和提交响应都不返回正确答案、解析、对错或判分结果；判分结果只保存在服务端记录中。
 
 ### import_batch
@@ -154,7 +154,7 @@
 约束：
 
 - `(exam_id, candidate_id)` 唯一。
-- 仅名单内 active 且应参加人员可以开始对应考试。
+- 仅名单内 active 且应考人员可以开始对应考试。
 
 ### exam_retake_grant
 
@@ -164,6 +164,6 @@
 
 说明：
 
-- 管理员可为单场考试内的考生创建补考授权。
-- 未使用授权会让已提交考生重新出现在可参加考试列表；开始补考时写入 `used_attempt_id` 和 `used_at`。
+- 管理员可为单场考试内的应考人员创建补考授权。
+- 未使用授权会让已交卷人员重新出现在可参加考试列表；开始补考时写入 `used_attempt_id` 和 `used_at`。
 - 补考 attempt 仍从发布时冻结题池按 `question_rule` 生成等价试卷，并继续使用题目快照。

@@ -10,7 +10,7 @@ import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, importCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
 export function CandidateImportPage() {
@@ -21,38 +21,38 @@ export function CandidateImportPage() {
   const mutation = useMutation({
     mutationFn: (selected: File) => importCandidates(examId, selected),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "应考人员导入完成。" });
+      setNotice({ tone: "success", message: importCopy.rosterImportComplete });
       queryClient.invalidateQueries({ queryKey: ["admin", "absent-candidates"] });
     },
     onError: (error) =>
-      setNotice({ tone: "error", message: getErrorMessage(error, "应考人员导入失败") }),
+      setNotice({ tone: "error", message: getErrorMessage(error, importCopy.rosterImportFailed) }),
   });
 
   const handleDownloadFailureReport = async (batchId: number) => {
     try {
       await downloadImportFailureReport(batchId);
-      setNotice({ tone: "success", message: "失败明细已开始下载。" });
+      setNotice({ tone: "success", message: importCopy.failureReportStarted });
     } catch (error) {
-      setNotice({ tone: "error", message: getErrorMessage(error, "失败明细下载失败") });
+      setNotice({ tone: "error", message: getErrorMessage(error, importCopy.failureReportFailed) });
     }
   };
 
   return (
     <PageShell data-testid="candidate-import-shell" density="workbench" width="default" stagger>
       <PageHeader
-        eyebrow={adminPageCopy.candidates}
-        title="应考人员导入"
-        description="上传人员 Excel 模板，系统会按当前考试写入应考名单。"
+        eyebrow={adminPageCopy.roster}
+        title="应考名单导入"
+        description="上传应考名单 Excel 模板，系统会按当前考试写入应考名单。"
       />
 
       <ImportPanel
         fileInputId="candidate-file"
-        fileLabel="选择 Excel 文件"
+        fileLabel={importCopy.selectExcelFile}
         selectedFile={file}
         onFileChange={setFile}
-        uploadLabel="上传应考人员"
-        pendingLabel="正在导入..."
-        pendingAriaLabel="正在导入应考人员"
+        uploadLabel={importCopy.uploadRoster}
+        pendingLabel={importCopy.importing}
+        pendingAriaLabel="正在导入应考名单"
         isPending={mutation.isPending}
         onUpload={() => file && mutation.mutate(file)}
       />

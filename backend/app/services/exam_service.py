@@ -80,14 +80,14 @@ class CandidateNotFoundError(DomainError):
 
     def __init__(self, candidate_id: int) -> None:
         self.candidate_id = candidate_id
-        super().__init__(f"考生 #{candidate_id} 不存在")
+        super().__init__(f"考试人 #{candidate_id} 不存在")
 
 
 class CandidateNotEligibleError(DomainError):
     status_code = 403
 
     def __init__(self, candidate_id: int) -> None:
-        super().__init__(f"考生 #{candidate_id} 当前不可参加考试")
+        super().__init__(f"考试人 #{candidate_id} 当前不可参加考试")
 
 
 class AttemptResultNotReadyError(DomainError):
@@ -102,7 +102,7 @@ class AttemptAlreadyExistsError(DomainError):
 
     def __init__(self, attempt_id: int) -> None:
         self.attempt_id = attempt_id
-        super().__init__(f"考生已有进行中的考试记录 #{attempt_id}")
+        super().__init__(f"考试人已有进行中的考试记录 #{attempt_id}")
 
 
 class AttemptNotFoundError(DomainError):
@@ -126,7 +126,7 @@ class AttemptAlreadySubmittedError(DomainError):
 
     def __init__(self, attempt_id: int) -> None:
         self.attempt_id = attempt_id
-        super().__init__(f"考试记录 #{attempt_id} 已提交")
+        super().__init__(f"考试记录 #{attempt_id} 已交卷")
 
 
 class InsufficientQuestionsError(DomainError):
@@ -265,7 +265,9 @@ def _validate_exam_config_values(
 ) -> None:
     _require_positive_int(duration_minutes, "考试时长")
     if status not in VALID_EXAM_STATUSES:
-        raise ExamConfigError("考试状态只能是 draft、active 或 archived")
+        raise ExamConfigError(
+            "考试状态只能填写草稿（draft）、已发布（active）或已归档（archived）"
+        )
     _validate_question_rule(question_rule)
     _validate_exam_window(available_from, available_until)
 
@@ -346,7 +348,7 @@ def _select_questions_by_type(
 ) -> list[Question]:
     questions = _deduplicate_questions_by_stem(questions)
     if len(questions) < rule.question_count:
-        raise InsufficientQuestionsError("active 题目数量不足，无法生成考试试卷")
+        raise InsufficientQuestionsError("启用题目数量不足，无法生成考试试卷")
 
     grouped_by_type = _questions_by_type(questions)
     for question_type, count in rule.type_counts.items():
@@ -475,7 +477,7 @@ def _validate_fixed_rule_capacity(db: Session, question_rule: dict) -> None:
             .scalar()
         )
         if not active_count:
-            raise InsufficientQuestionsError("active 题目数量不足，无法发布考试")
+            raise InsufficientQuestionsError("启用题目数量不足，无法发布考试")
         return
     active_questions = (
         db.query(Question)
@@ -503,7 +505,7 @@ def _freeze_question_pool(
 ) -> None:
     questions = _load_active_question_pool(db)
     if require_questions and not questions:
-        raise InsufficientQuestionsError("active 题目数量不足，无法发布考试")
+        raise InsufficientQuestionsError("启用题目数量不足，无法发布考试")
 
     db.query(ExamQuestionPool).filter(ExamQuestionPool.exam_id == exam.id).delete()
     for index, question in enumerate(questions):
@@ -820,7 +822,9 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
 
 def _validate_exam_status_transition(current_status: str, next_status: str) -> None:
     if next_status not in VALID_EXAM_STATUSES:
-        raise ExamConfigError("考试状态只能是 draft、active 或 archived")
+        raise ExamConfigError(
+            "考试状态只能填写草稿（draft）、已发布（active）或已归档（archived）"
+        )
     if current_status == next_status:
         return
     if current_status == "draft" and next_status == "active":

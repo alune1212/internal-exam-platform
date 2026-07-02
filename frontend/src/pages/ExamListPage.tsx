@@ -6,7 +6,7 @@ import { getActiveExams } from "@/api/exams";
 import { PageHeader, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { getCurrentCandidate } from "@/lib/candidateSession";
-import { candidatePageCopy } from "@/lib/pageCopy";
+import { candidatePageCopy, formatExamAvailability, formatExamStatus } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
 function resolveQuestionCount(rule: Record<string, unknown>): number | null {
@@ -26,17 +26,19 @@ function resolveAvailability(exam: Exam, now = new Date()) {
   if (exam.availability_status === "not_started") {
     return {
       status: "not_started",
-      label: "未开始",
+      label: formatExamAvailability("not_started"),
       canEnter: false,
       detail: exam.available_from ? new Date(exam.available_from).toLocaleString() : null,
+      detailLabel: "开放时间",
     };
   }
   if (exam.availability_status === "ended") {
     return {
       status: "ended",
-      label: "已结束",
+      label: formatExamAvailability("ended"),
       canEnter: false,
       detail: exam.available_until ? new Date(exam.available_until).toLocaleString() : null,
+      detailLabel: "结束时间",
     };
   }
   const from = exam.available_from ? new Date(exam.available_from) : null;
@@ -44,19 +46,27 @@ function resolveAvailability(exam: Exam, now = new Date()) {
   if (from && now < from) {
     return {
       status: "not_started",
-      label: "未开始",
+      label: formatExamAvailability("not_started"),
       canEnter: false,
       detail: from.toLocaleString(),
+      detailLabel: "开放时间",
     };
   }
   if (until && now > until) {
-    return { status: "ended", label: "已结束", canEnter: false, detail: until.toLocaleString() };
+    return {
+      status: "ended",
+      label: formatExamAvailability("ended"),
+      canEnter: false,
+      detail: until.toLocaleString(),
+      detailLabel: "结束时间",
+    };
   }
   return {
     status: "open",
-    label: "可进入",
+    label: formatExamAvailability("open"),
     canEnter: true,
     detail: from?.toLocaleString() ?? null,
+    detailLabel: "开放时间",
   };
 }
 
@@ -73,7 +83,7 @@ function ExamCard({ exam }: { exam: Exam }) {
   return (
     <article className="flex flex-col gap-5 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
       <p className="font-body text-caption font-medium uppercase italic tracking-[0.18em] text-muted">
-        {isLive ? "LIVE · 进行中" : "DRAFT · 未开始"}
+        {formatExamStatus(isLive ? "active" : exam.status)}
       </p>
       <h2 className="font-display text-display-sm font-semibold text-ink lg:text-display-md">
         {exam.title}
@@ -100,7 +110,9 @@ function ExamCard({ exam }: { exam: Exam }) {
       </dl>
       <div className="flex items-center justify-between gap-3">
         <p className="text-caption italic text-muted">
-          {availability.detail ? `开放时间 · ${availability.detail}` : "随时开考"}
+          {availability.detail
+            ? `${availability.detailLabel} · ${availability.detail}`
+            : "随时可进入"}
         </p>
         {canEnter ? (
           <Button asChild size="sm">
@@ -128,18 +140,18 @@ function ExamCard({ exam }: { exam: Exam }) {
 
 function resolveHeading(examCount: number, isLoading: boolean, isError: boolean): string {
   if (isLoading) {
-    return "正在加载今日考试……";
+    return "正在加载考试列表。";
   }
   if (isError) {
-    return "考试列表暂时无法加载。";
+    return "考试列表加载失败。";
   }
   if (examCount === 0) {
-    return "今天暂无考试安排。";
+    return "暂无可参加考试。";
   }
   if (examCount === 1) {
-    return "今天有一场考试等着你。";
+    return "今天有一场考试可参加。";
   }
-  return `今天有 ${examCount} 场考试等着你。`;
+  return `今天有 ${examCount} 场考试可参加。`;
 }
 
 export function ExamListPage() {

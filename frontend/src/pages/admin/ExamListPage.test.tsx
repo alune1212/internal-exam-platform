@@ -90,7 +90,7 @@ describe("AdminExamListPage", () => {
     renderPage();
 
     expect(await screen.findByText("正式考试")).toBeInTheDocument();
-    expect(screen.getByText("可进入")).toBeInTheDocument();
+    expect(screen.getByText("OPEN · 可进入")).toBeInTheDocument();
     expect(screen.getByText("已冻结")).toBeInTheDocument();
     expect(screen.getByText("题池 50")).toBeInTheDocument();
   });

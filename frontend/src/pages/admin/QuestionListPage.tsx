@@ -26,11 +26,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { adminPageCopy } from "@/lib/pageCopy";
+import {
+  adminPageCopy,
+  adminTableCopy,
+  formatQuestionStatus,
+  formatQuestionTypeLabel,
+} from "@/lib/pageCopy";
 import type { Question, QuestionOptionPayload, QuestionPayload } from "@/types/question";
 
 type Notice = { tone: "success" | "error"; message: string };
 type QuestionFormState = QuestionPayload;
+type QuestionStatusValue = "active" | "inactive";
 
 const DEFAULT_OPTIONS: QuestionOptionPayload[] = [
   { label: "A", content: "正确", is_correct: true, sort_order: 1 },
@@ -40,6 +46,14 @@ const DEFAULT_OPTIONS: QuestionOptionPayload[] = [
   { label: "E", content: "", is_correct: false, sort_order: 5 },
   { label: "F", content: "", is_correct: false, sort_order: 6 },
 ];
+
+const QUESTION_STATUS_OPTIONS: QuestionStatusValue[] = ["active", "inactive"];
+
+const OPTIONAL_FIELD_LABELS = {
+  category_1: "一级分类",
+  category_2: "二级分类",
+  difficulty: "难度",
+} as const;
 
 function emptyForm(): QuestionFormState {
   return {
@@ -180,32 +194,33 @@ export function QuestionListPage() {
       },
       {
         accessorKey: "question_type",
-        header: "TYPE",
-        meta: { mobileLabel: "TYPE" },
+        header: adminTableCopy.questionType,
+        cell: ({ row }) => formatQuestionTypeLabel(row.original.question_type),
+        meta: { mobileLabel: adminTableCopy.questionType },
       },
       {
         accessorKey: "stem",
-        header: "STEM",
+        header: adminTableCopy.stem,
         cell: ({ row }) => <span className="line-clamp-1 max-w-md">{row.original.stem}</span>,
-        meta: { mobilePriority: "primary", mobileLabel: "STEM" },
+        meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.stem },
       },
       {
         accessorKey: "score",
-        header: "SCORE",
+        header: adminTableCopy.score,
         cell: ({ row }) => (
           <span className="font-mono text-sm tabular-nums">{row.original.score}</span>
         ),
-        meta: { mobileLabel: "SCORE" },
+        meta: { mobileLabel: adminTableCopy.score },
       },
       {
         accessorKey: "status",
-        header: "STATUS",
+        header: adminTableCopy.status,
         cell: ({ row }) => (
           <StatusPill variant={row.original.status === "active" ? "success" : "warning"}>
-            {row.original.status}
+            {formatQuestionStatus(row.original.status)}
           </StatusPill>
         ),
-        meta: { mobileLabel: "STATUS" },
+        meta: { mobileLabel: adminTableCopy.status },
       },
       {
         id: "actions",
@@ -302,9 +317,9 @@ export function QuestionListPage() {
                 value={form.question_type}
                 onChange={(event) => setForm({ ...form, question_type: event.target.value })}
               >
-                <option value="single">single</option>
-                <option value="multiple">multiple</option>
-                <option value="judge">judge</option>
+                <option value="single">{formatQuestionTypeLabel("single")}</option>
+                <option value="multiple">{formatQuestionTypeLabel("multiple")}</option>
+                <option value="judge">{formatQuestionTypeLabel("judge")}</option>
               </select>
             </div>
             <div className="flex flex-col gap-2">
@@ -318,9 +333,9 @@ export function QuestionListPage() {
                 onChange={(event) => setForm({ ...form, score: Number(event.target.value) })}
               />
             </div>
-            {(["category_1", "category_2", "difficulty", "status"] as const).map((field) => (
+            {(["category_1", "category_2", "difficulty"] as const).map((field) => (
               <div key={field} className="flex flex-col gap-2">
-                <Label htmlFor={field}>{field}</Label>
+                <Label htmlFor={field}>{OPTIONAL_FIELD_LABELS[field]}</Label>
                 <Input
                   id={field}
                   value={String(form[field] ?? "")}
@@ -328,6 +343,21 @@ export function QuestionListPage() {
                 />
               </div>
             ))}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="status">题目状态</Label>
+              <select
+                id="status"
+                className="h-11 rounded-md border border-hairline bg-canvas px-3"
+                value={form.status}
+                onChange={(event) => setForm({ ...form, status: event.target.value })}
+              >
+                {QUESTION_STATUS_OPTIONS.map((status) => (
+                  <option key={status} value={status}>
+                    {formatQuestionStatus(status)}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="flex flex-col gap-2 md:col-span-2">
               <Label htmlFor="analysis">解析</Label>
               <Textarea
@@ -339,7 +369,9 @@ export function QuestionListPage() {
               />
             </div>
             <div className="flex flex-col gap-3 md:col-span-2">
-              <span className="text-caption uppercase tracking-[0.16em] text-muted">OPTIONS</span>
+              <span className="text-caption uppercase tracking-[0.16em] text-muted">
+                OPTIONS · 选项
+              </span>
               {form.options.map((option, index) => (
                 <div key={option.label} className="grid gap-2 md:grid-cols-[80px_1fr_120px]">
                   <Input value={option.label} readOnly aria-label={`选项 ${option.label} 标签`} />

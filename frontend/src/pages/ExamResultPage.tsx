@@ -91,8 +91,8 @@ export function ExamResultPage() {
           <PageState
             state="empty"
             eyebrow={candidatePageCopy.empty}
-            title="暂无结果，请先完成考试。"
-            description="提交考试后，这里会显示答案、得分与解析。"
+            title="暂无考试结果，请先完成考试。"
+            description="交卷后，这里会显示答案、得分与解析。"
           />
         </PageSection>
       </PageShell>
@@ -121,12 +121,12 @@ export function ExamResultPage() {
           <CardContent className="flex flex-col gap-6 p-6 md:p-8">
             <ChapterNumber className="text-footer-soft">{candidatePageCopy.result}</ChapterNumber>
             <h2 className="font-display text-display-xl font-semibold leading-[1.08] text-canvas">
-              考试结束。
+              考试已交卷。
             </h2>
 
             <div className="flex flex-col gap-2 border-t border-footer-soft pt-6">
               <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
-                YOUR SCORE · 你的分数
+                SCORE · 得分
               </span>
               <p className="font-display text-display-xl font-semibold tabular-nums leading-none text-canvas md:text-display-2xl">
                 {result ? `${result.score}` : "—"}

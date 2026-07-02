@@ -41,7 +41,7 @@ describe("AdminDashboardPage", () => {
 
     renderDashboard();
 
-    expect(screen.getByText("OVERVIEW · 仪表盘")).toBeInTheDocument();
+    expect(screen.getByText("DASHBOARD · 仪表盘")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "一切就绪。" })).toHaveClass(
       "font-display",
       "text-display-lg",
@@ -58,7 +58,7 @@ describe("AdminDashboardPage", () => {
 
     renderDashboard();
 
-    expect(screen.getByRole("heading", { name: "提交与未开始" })).not.toHaveClass(
+    expect(screen.getByRole("heading", { name: "交卷与未开始" })).not.toHaveClass(
       "tracking-[-0.04em]",
     );
   });

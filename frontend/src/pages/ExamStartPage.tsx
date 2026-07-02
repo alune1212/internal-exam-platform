@@ -8,16 +8,17 @@ import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { candidatePageCopy } from "@/lib/pageCopy";
+import { candidatePageCopy, productTerms } from "@/lib/pageCopy";
 
 const RULES: { text: string }[] = [
-  { text: "考试中答案会自动暂存，但倒计时不会暂停。" },
-  { text: "可以提前交卷，到时间系统会自动提交。" },
-  { text: "提交后自动判分，并按配置展示答案与解析。" },
+  { text: "考试中答案会自动保存，但倒计时不会暂停。" },
+  { text: "可以主动交卷，到时间系统会自动交卷。" },
+  { text: "交卷后自动判分，并按配置展示答案与解析。" },
   { text: "系统会在开始时生成题目快照，后续题库修改不影响本次结果。" },
 ];
 
 const IN_PROGRESS_PATTERN = /#(\d+)/;
+const SUBMITTED_CONFLICT_PATTERN = /已交卷|已提交/;
 
 export function ExamStartPage() {
   const { examId = "1" } = useParams();
@@ -34,7 +35,7 @@ export function ExamStartPage() {
   const errorMessage = apiError?.message ?? mutation.error?.message ?? "请稍后重试或联系管理员。";
   const isInProgressConflict = apiError?.detail?.includes("进行中") ?? false;
   const submittedAttemptId =
-    apiError?.status === 409 && apiError.detail?.includes("已提交")
+    apiError?.status === 409 && SUBMITTED_CONFLICT_PATTERN.test(apiError.detail ?? "")
       ? Number(apiError.detail?.match(IN_PROGRESS_PATTERN)?.[1] ?? 0) || null
       : null;
   const existingAttemptId =
@@ -46,12 +47,8 @@ export function ExamStartPage() {
     <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
       <PageHeader
         eyebrow={candidatePageCopy.examRules}
-        title={
-          <>
-            规则已阅，<em className="italic">开始倒计时</em>。
-          </>
-        }
-        description="仔细阅读下面的规则，然后开始倒计时。开始后系统会立即生成题目快照。"
+        title="确认考试规则"
+        description="阅读下面的规则后再开始考试。开始后系统会立即生成题目快照并启动倒计时。"
       />
 
       <PageSection variant="panel" className="p-6 lg:p-8">
@@ -69,7 +66,9 @@ export function ExamStartPage() {
 
       {candidate ? (
         <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5">
-          <p className="text-caption uppercase tracking-[0.16em] text-muted">当前考试人</p>
+          <p className="text-caption uppercase tracking-[0.16em] text-muted">
+            当前{productTerms.examTaker}
+          </p>
           <NamePlate
             candidate={{
               name: candidate.name,
@@ -90,13 +89,13 @@ export function ExamStartPage() {
             className="self-start"
           >
             <ClipboardCheck data-icon="inline-start" />
-            {mutation.isPending ? "正在开始..." : "开始考试"}
+            {mutation.isPending ? "正在开始" : "开始考试"}
             <ArrowRight data-icon="inline-end" />
           </Button>
         ) : (
           <Button asChild size="lg" className="self-start">
             <Link to="/login">
-              先登录考试人
+              先登录{productTerms.examTaker}
               <ArrowRight data-icon="inline-end" />
             </Link>
           </Button>

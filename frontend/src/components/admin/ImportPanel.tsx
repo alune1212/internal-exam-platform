@@ -6,6 +6,7 @@ import { PageSection } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
+import { importCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 interface ImportPanelProps {
@@ -73,10 +74,10 @@ export function ImportPanel({
                   selectedFile ? "text-ink" : "text-muted",
                 )}
               >
-                {selectedFile?.name ?? "未选择文件"}
+                {selectedFile?.name ?? importCopy.noFileSelected}
               </p>
               <p className="text-caption uppercase tracking-[0.16em] text-muted">
-                Excel .xlsx / .xls
+                {importCopy.excelFormat}
               </p>
             </div>
             <Button

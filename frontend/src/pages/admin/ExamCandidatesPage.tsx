@@ -20,7 +20,14 @@ import { PageHeader, PageSection, PageShell, PageState } from "@/components/page
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { adminPageCopy } from "@/lib/pageCopy";
+import {
+  adminPageCopy,
+  adminTableCopy,
+  formatAttemptKind,
+  formatAttemptStatus,
+  formatExamStatus,
+  importCopy,
+} from "@/lib/pageCopy";
 import type { ExamCandidateRow } from "@/types/exam";
 import type { ImportFailure } from "@/types/imports";
 
@@ -57,12 +64,12 @@ export function ExamCandidatesPage() {
   const importMutation = useMutation({
     mutationFn: (selected: File) => importExamCandidates(examId, selected),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "应考人员导入完成。" });
+      setNotice({ tone: "success", message: importCopy.rosterImportComplete });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
       void queryClient.invalidateQueries({ queryKey: ["admin", "absent-candidates"] });
     },
     onError: (error) =>
-      setNotice({ tone: "error", message: getErrorMessage(error, "应考人员导入失败") }),
+      setNotice({ tone: "error", message: getErrorMessage(error, importCopy.rosterImportFailed) }),
   });
   const retakeMutation = useMutation({
     mutationFn: (candidateId: number) => createRetakeGrant(examId, candidateId),
@@ -76,28 +83,28 @@ export function ExamCandidatesPage() {
   const removeMutation = useMutation({
     mutationFn: (candidateId: number) => removeExamCandidate(examId, candidateId),
     onSuccess: () => {
-      setNotice({ tone: "success", message: "应考人员已移除。" });
+      setNotice({ tone: "success", message: "应考人员已从名单移除。" });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
     },
     onError: (error) =>
-      setNotice({ tone: "error", message: getErrorMessage(error, "移除应考人员失败") }),
+      setNotice({ tone: "error", message: getErrorMessage(error, "移除应考名单人员失败") }),
   });
 
   const handleDownloadTemplate = async () => {
     try {
       await downloadImportTemplate("candidates");
-      setNotice({ tone: "success", message: "人员模板已开始下载。" });
+      setNotice({ tone: "success", message: "应考名单导入模板已开始下载。" });
     } catch (error) {
-      setNotice({ tone: "error", message: getErrorMessage(error, "人员模板下载失败") });
+      setNotice({ tone: "error", message: getErrorMessage(error, "应考名单导入模板下载失败") });
     }
   };
 
   const handleDownloadFailureReport = async (batchId: number) => {
     try {
       await downloadImportFailureReport(batchId);
-      setNotice({ tone: "success", message: "失败明细已开始下载。" });
+      setNotice({ tone: "success", message: importCopy.failureReportStarted });
     } catch (error) {
-      setNotice({ tone: "error", message: getErrorMessage(error, "失败明细下载失败") });
+      setNotice({ tone: "error", message: getErrorMessage(error, importCopy.failureReportFailed) });
     }
   };
 
@@ -105,8 +112,8 @@ export function ExamCandidatesPage() {
     () => [
       {
         id: "name",
-        header: "NAME",
-        meta: { mobilePriority: "primary", mobileLabel: "姓名" },
+        header: adminTableCopy.name,
+        meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.name },
         cell: ({ row }) => (
           <>
             <span className="font-medium text-ink">{row.original.candidate_name}</span>
@@ -118,22 +125,22 @@ export function ExamCandidatesPage() {
       },
       {
         id: "dept",
-        header: "DEPT",
-        meta: { mobileLabel: "部门" },
+        header: adminTableCopy.department,
+        meta: { mobileLabel: adminTableCopy.department },
         cell: ({ row }) => <span className="text-muted">{row.original.department ?? "-"}</span>,
       },
       {
         id: "attempt",
-        header: "ATTEMPT",
-        meta: { mobileLabel: "状态" },
+        header: adminTableCopy.attempt,
+        meta: { mobileLabel: adminTableCopy.attempt },
         cell: ({ row }) => (
           <>
             <StatusPill variant={statusVariant(row.original.latest_attempt_status)}>
-              {row.original.latest_attempt_status ?? "not_started"}
+              {formatAttemptStatus(row.original.latest_attempt_status)}
             </StatusPill>
             {row.original.attempt_no ? (
               <span className="ml-2 font-mono text-caption text-muted">
-                #{row.original.attempt_no} {row.original.attempt_kind}
+                #{row.original.attempt_no} · {formatAttemptKind(row.original.attempt_kind)}
               </span>
             ) : null}
           </>
@@ -141,8 +148,8 @@ export function ExamCandidatesPage() {
       },
       {
         id: "score",
-        header: "SCORE",
-        meta: { mobileLabel: "分数" },
+        header: adminTableCopy.score,
+        meta: { mobileLabel: adminTableCopy.score },
         cell: ({ row }) => (
           <span className="font-mono tabular-nums">{scoreText(row.original)}</span>
         ),
@@ -186,29 +193,31 @@ export function ExamCandidatesPage() {
   );
 
   const examStatusLabel = exams.isLoading
-    ? "loading"
+    ? "LOADING · 正在确认"
     : hasExamLoadError
-      ? "error"
-      : (currentExam?.status ?? "missing");
+      ? "ERROR · 加载失败"
+      : currentExam
+        ? formatExamStatus(currentExam.status)
+        : "MISSING · 未找到考试";
 
   return (
     <PageShell data-testid="exam-candidates-shell" density="workbench" width="full" stagger>
       <PageHeader
-        eyebrow={adminPageCopy.candidates}
-        title="应考人员名单"
+        eyebrow={adminPageCopy.roster}
+        title="应考名单"
         description="本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。"
       />
 
       <ImportPanel
         fileInputId="exam-candidate-file"
-        fileLabel="选择 Excel 文件"
+        fileLabel={importCopy.selectExcelFile}
         selectedFile={file}
         fileDisabled={!canEditCandidates}
         uploadDisabled={!canEditCandidates}
         onFileChange={setFile}
-        uploadLabel="上传应考人员"
-        pendingLabel="正在导入..."
-        pendingAriaLabel="正在导入应考人员"
+        uploadLabel={importCopy.uploadRoster}
+        pendingLabel={importCopy.importing}
+        pendingAriaLabel="正在导入应考名单"
         isPending={importMutation.isPending}
         onUpload={() => file && importMutation.mutate(file)}
         intro={
@@ -238,7 +247,7 @@ export function ExamCandidatesPage() {
             onClick={() => void handleDownloadTemplate()}
           >
             <Download data-icon="inline-start" />
-            下载人员模板
+            {importCopy.rosterTemplate}
           </Button>
         }
       >
@@ -315,7 +324,7 @@ export function ExamCandidatesPage() {
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
-            title="应考人员加载失败。"
+            title="应考名单加载失败。"
             description="请稍后重试，或检查应考名单接口。"
             className="border-0 bg-transparent py-10 shadow-none"
           />
@@ -323,7 +332,7 @@ export function ExamCandidatesPage() {
           <SimpleDataTable
             columns={columns}
             data={candidates.data ?? []}
-            emptyText="暂无应考人员"
+            emptyText="暂无应考名单人员"
             rowKey={(row) => row.candidate_id}
           />
         )}

@@ -25,12 +25,12 @@ from app.services.excel_security import escape_excel_cell
 ATTENDANCE_STATUS_LABELS = {
     "not_started": "未开始",
     "in_progress": "进行中",
-    "submitted": "已提交",
+    "submitted": "已交卷",
 }
 
 
 def get_score_report(db: Session, exam_id: int | None = None) -> list[ScoreReportRow]:
-    """成绩报表：所有已提交 attempt 的成绩汇总。"""
+    """个人成绩：所有已交卷 attempt 的成绩汇总。"""
     latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
     query = (
         db.query(
@@ -120,7 +120,7 @@ def get_question_accuracy(
 def get_wrong_questions(
     db: Session, exam_id: int | None = None
 ) -> list[WrongQuestionRow]:
-    """错题统计：答错次数最多的题目。"""
+    """错题排行：答错次数最多的题目。"""
     latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
     query = (
         db.query(
@@ -173,7 +173,7 @@ def get_wrong_questions(
 def get_absent_candidates(
     db: Session, exam_id: int | None = None, status: str = "not_started"
 ) -> list[AbsentCandidateRow]:
-    """参考状态：按未开始、进行中、已提交拆分应考人员。"""
+    """参考状态：按未开始、进行中、已交卷拆分应考人员。"""
     if exam_id is not None:
         base = (
             db.query(Candidate)
@@ -302,8 +302,16 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
 
     _append_sheet(
         workbook,
-        "成绩报表",
-        ["姓名", "员工号", "部门", "考试", "得分", "总分", "提交时间"],
+        "个人成绩",
+        [
+            "NAME · 姓名",
+            "EMP NO · 工号",
+            "DEPT · 部门",
+            "EXAM · 考试",
+            "SCORE · 得分",
+            "TOTAL · 总分",
+            "SUBMITTED AT · 交卷时间",
+        ],
         [
             [
                 row.candidate_name,
@@ -320,7 +328,13 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
     _append_sheet(
         workbook,
         "题目正确率",
-        ["题目ID", "题干", "答对次数", "作答次数", "正确率"],
+        [
+            "QID · 题目ID",
+            "STEM · 题干",
+            "CORRECT · 正确",
+            "TOTAL · 总数",
+            "RATE · 正确率",
+        ],
         [
             [
                 row.question_id,
@@ -334,8 +348,14 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
     )
     _append_sheet(
         workbook,
-        "错题统计",
-        ["题目ID", "题干", "错误次数", "一级分类", "二级分类"],
+        "错题排行",
+        [
+            "QID · 题目ID",
+            "STEM · 题干",
+            "WRONG · 错误",
+            "CAT 1 · 一级分类",
+            "CAT 2 · 二级分类",
+        ],
         [
             [row.question_id, row.stem, row.wrong_count, row.category_1, row.category_2]
             for row in get_wrong_questions(db, exam_id=exam_id)
@@ -344,7 +364,14 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
     _append_sheet(
         workbook,
         "参考状态",
-        ["考生ID", "姓名", "员工号", "部门", "考试分组", "参考状态"],
+        [
+            "CID · 人员ID",
+            "NAME · 姓名",
+            "EMP NO · 工号",
+            "DEPT · 部门",
+            "GROUP · 分组",
+            "STATUS · 状态",
+        ],
         [
             [
                 row.candidate_id,

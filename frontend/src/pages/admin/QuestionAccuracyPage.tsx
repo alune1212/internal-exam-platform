@@ -7,41 +7,41 @@ import { getQuestionAccuracy } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminTableCopy } from "@/lib/pageCopy";
 import type { QuestionAccuracyRow } from "@/types/report";
 
 const columns: ColumnDef<QuestionAccuracyRow>[] = [
   {
     accessorKey: "question_id",
-    header: "QID",
+    header: adminTableCopy.questionId,
     cell: ({ row }) => <span className="font-mono text-sm">{row.original.question_id}</span>,
-    meta: { mobileLabel: "QID" },
+    meta: { mobileLabel: adminTableCopy.questionId },
   },
   {
     accessorKey: "stem",
-    header: "STEM",
+    header: adminTableCopy.stem,
     cell: ({ row }) => <span className="line-clamp-1 max-w-md">{row.original.stem}</span>,
-    meta: { mobilePriority: "primary", mobileLabel: "STEM" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.stem },
   },
   {
     accessorKey: "correct_count",
-    header: "CORRECT",
+    header: adminTableCopy.correct,
     cell: ({ row }) => (
       <span className="font-mono text-sm tabular-nums">{row.original.correct_count}</span>
     ),
-    meta: { mobileLabel: "CORRECT" },
+    meta: { mobileLabel: adminTableCopy.correct },
   },
   {
     accessorKey: "total_count",
-    header: "TOTAL",
+    header: adminTableCopy.totalCount,
     cell: ({ row }) => (
       <span className="font-mono text-sm tabular-nums">{row.original.total_count}</span>
     ),
-    meta: { mobileLabel: "TOTAL" },
+    meta: { mobileLabel: adminTableCopy.totalCount },
   },
   {
     accessorKey: "accuracy_rate",
-    header: "RATE",
+    header: adminTableCopy.rate,
     cell: ({ row }) => {
       const rate = row.original.accuracy_rate;
       const pct = rate > 1 ? rate : rate * 100;
@@ -50,7 +50,7 @@ const columns: ColumnDef<QuestionAccuracyRow>[] = [
         <span className="font-mono text-sm tabular-nums">{pct.toFixed(pct >= 100 ? 0 : 1)}%</span>
       );
     },
-    meta: { mobilePriority: "primary", mobileLabel: "RATE" },
+    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.rate },
   },
 ];
 
@@ -71,7 +71,7 @@ export function QuestionAccuracyPage() {
     <ReportPage
       title="题目正确率"
       chapterLabel={adminPageCopy.reports}
-      description="默认按单场考试查看题目正确率。数字越高表示越简单。"
+      description="默认按单场考试查看题目正确率。正确率越高，答对比例越高。"
       queryKey={[
         "admin",
         "question-accuracy",

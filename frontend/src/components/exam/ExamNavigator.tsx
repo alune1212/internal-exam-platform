@@ -6,6 +6,7 @@ import {
   getQuestionTypeLabel,
   type QuestionNavItem,
 } from "@/lib/questionNavigation";
+import { candidateActionCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 export type ExamNavigatorProps = {
@@ -50,7 +51,7 @@ export function ExamNavigator({
   sheetLayout = false,
   onJump,
   onSubmit,
-  submitLabel = "提前交卷",
+  submitLabel = candidateActionCopy.submitExam,
   submitDisabled = false,
 }: ExamNavigatorProps) {
   const groups = groupNavItems(items);

@@ -11,6 +11,7 @@ from app.services.template_service import (
 def test_question_template_has_correct_headers() -> None:
     wb = load_workbook(generate_question_template())
     ws = wb.active
+    assert ws.title == "题库导入模板"
     headers = [cell.value for cell in ws[1]]
     assert headers == [
         "category_1",
@@ -49,6 +50,7 @@ def test_question_template_has_two_example_rows() -> None:
 def test_candidate_template_has_correct_headers() -> None:
     wb = load_workbook(generate_candidate_template())
     ws = wb.active
+    assert ws.title == "应考名单导入模板"
     headers = [cell.value for cell in ws[1]]
     assert headers == [
         "name",

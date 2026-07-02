@@ -28,7 +28,7 @@ describe("PageHeader", () => {
   it("places actions in a responsive action region", () => {
     render(
       <PageHeader
-        eyebrow="LIBRARY · 题库"
+        eyebrow="QUESTION BANK · 题库"
         title="题库管理"
         actions={<Button type="button">新增题目</Button>}
       />,

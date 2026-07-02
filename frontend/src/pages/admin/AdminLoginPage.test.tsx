@@ -65,7 +65,7 @@ describe("AdminLoginPage", () => {
     renderPage();
 
     expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "安静地工作。" })).toHaveClass(
+    expect(screen.getByRole("heading", { level: 1, name: "登录管理后台" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );

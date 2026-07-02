@@ -21,6 +21,11 @@ VALID_STATUSES = {"active", "inactive"}
 DEFAULT_STATUS = "active"
 JUDGE_OPTIONS = [("A", "正确"), ("B", "错误")]
 JUDGE_ANSWER_MAP = {"true": "A", "false": "B"}
+IMPORT_TYPE_LABELS = {
+    "questions": "QUESTION IMPORT · 题库导入",
+    "candidates": "ROSTER IMPORT · 应考名单导入",
+    "exam_candidates": "ROSTER IMPORT · 应考名单导入",
+}
 
 
 class ImportBatchNotFoundError(DomainError):
@@ -197,7 +202,9 @@ def generate_failure_report(db: Session, batch_id: int) -> BytesIO:
     meta_sheet = workbook.active
     meta_sheet.title = "导入批次"
     meta_sheet.append(["字段", "值"])
-    meta_sheet.append(["导入类型", batch.import_type])
+    meta_sheet.append(
+        ["导入类型", IMPORT_TYPE_LABELS.get(batch.import_type, batch.import_type)]
+    )
     meta_sheet.append(["文件名", escape_excel_cell(batch.file_name)])
     meta_sheet.append(["总数", batch.total_count])
     meta_sheet.append(["成功数", batch.success_count])
@@ -205,7 +212,7 @@ def generate_failure_report(db: Session, batch_id: int) -> BytesIO:
     meta_sheet.append(["生成时间", datetime.now(UTC).isoformat()])
 
     detail_sheet = workbook.create_sheet("失败明细")
-    detail_sheet.append(["row_number", "reason"])
+    detail_sheet.append(["ROW · 行号", "REASON · 原因"])
     for failure in batch.error_report or []:
         detail_sheet.append(
             [
@@ -236,11 +243,11 @@ def validate_question_import_row(row: dict[str, Any]) -> str | None:
     if not question_type:
         return "题型不能为空"
     if question_type not in VALID_QUESTION_TYPES:
-        return "题型只能是 single、multiple 或 judge"
+        return "题型只能填写单选（single）、多选（multiple）或判断（judge）"
     if not stem:
         return "题干不能为空"
     if status not in VALID_STATUSES:
-        return "status 只能是 active 或 inactive"
+        return "状态只能填写启用（active）或停用（inactive）"
     if not _is_number(row.get("score")):
         return "分值必须是数字"
 
@@ -308,7 +315,7 @@ def _validate_candidate_import_row(
     if not name:
         return "姓名不能为空"
     if status not in VALID_STATUSES:
-        return "status 只能是 active 或 inactive"
+        return "状态只能填写启用（active）或停用（inactive）"
     if employee_no:
         if employee_no in existing_employee_numbers:
             return "员工号已存在"

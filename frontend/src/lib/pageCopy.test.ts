@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { adminPageCopy, candidatePageCopy, formatQuestionEyebrow } from "./pageCopy";
+import {
+  adminPageCopy,
+  adminTableCopy,
+  candidateActionCopy,
+  candidatePageCopy,
+  formatAttemptKind,
+  formatAttemptStatus,
+  formatExamAvailability,
+  formatExamStatus,
+  formatQuestionEyebrow,
+  formatQuestionStatus,
+  formatQuestionTypeLabel,
+  importCopy,
+} from "./pageCopy";
 
 describe("pageCopy", () => {
   it("keeps candidate and admin page-level copy free of chapter numbers", () => {
@@ -13,14 +26,49 @@ describe("pageCopy", () => {
   it("defines admin page-level copy with semantic module labels", () => {
     expect(adminPageCopy).toMatchObject({
       login: "ADMIN · 登录",
-      overview: "OVERVIEW · 仪表盘",
+      overview: "DASHBOARD · 仪表盘",
       exams: "EXAMS · 考试",
-      candidates: "CANDIDATES · 应考人员",
-      library: "LIBRARY · 题库",
+      participants: "PARTICIPANTS · 应考人员",
+      roster: "ROSTER · 应考名单",
+      library: "QUESTION BANK · 题库",
       reports: "REPORTS · 报表",
       empty: "STATE · 空状态",
       error: "STATE · 异常状态",
     });
+  });
+
+  it("keeps repeated admin table labels synchronized in Chinese and English", () => {
+    expect(adminTableCopy).toMatchObject({
+      name: "NAME · 姓名",
+      employeeNo: "EMP NO · 工号",
+      department: "DEPT · 部门",
+      score: "SCORE · 得分",
+      totalCount: "TOTAL · 总数",
+      status: "STATUS · 状态",
+    });
+  });
+
+  it("maps API enum values to user-facing labels", () => {
+    expect(formatExamStatus("active")).toBe("PUBLISHED · 已发布");
+    expect(formatExamAvailability("not_started")).toBe("NOT OPEN · 未开放");
+    expect(formatExamAvailability()).toBe("UNKNOWN · 未知开放状态");
+    expect(formatAttemptStatus("submitted")).toBe("SUBMITTED · 已交卷");
+    expect(formatAttemptKind("retake")).toBe("RETAKE · 补考");
+    expect(formatQuestionTypeLabel("multiple")).toBe("MULTIPLE · 多选");
+    expect(formatQuestionStatus("inactive")).toBe("INACTIVE · 停用");
+  });
+
+  it("keeps candidate critical action copy distinct", () => {
+    expect(candidateActionCopy).toMatchObject({
+      returnExamList: "返回考试列表",
+      saveAnswer: "保存答案",
+      submitExam: "交卷",
+    });
+  });
+
+  it("keeps import labels tied to the target object", () => {
+    expect(importCopy.uploadQuestionBank).toBe("上传并校验题库");
+    expect(importCopy.uploadRoster).toBe("上传应考名单");
   });
 
   it("keeps real question numbering in question-level copy", () => {

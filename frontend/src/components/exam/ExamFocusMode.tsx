@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Save } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { candidateActionCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 import { OptionCard } from "./OptionCard";
@@ -113,10 +114,12 @@ export function ExamFocusMode({
                 variant="outline"
                 onClick={nav.onSave}
                 disabled={nav.saving}
-                aria-label={nav.saveLabel ?? "暂存答案"}
+                aria-label={nav.saveLabel ?? candidateActionCopy.saveAnswer}
               >
                 <Save data-icon="inline-start" />
-                {nav.saving ? "正在暂存" : (nav.saveLabel ?? "暂存答案")}
+                {nav.saving
+                  ? candidateActionCopy.savingAnswer
+                  : (nav.saveLabel ?? candidateActionCopy.saveAnswer)}
               </Button>
             ) : null}
             {nav.onNext ? (

@@ -18,7 +18,7 @@ Implemented foundations:
 - Exam configuration create/update/list persistence, available time windows, and candidate-facing active exam listing.
 - Publish-time frozen question pool via `exam_question_pool`.
 - Exam start persistence with fixed 50-question equivalent paper generation, attempt creation, and question snapshots.
-- Answer autosave persistence and submit scoring from persisted attempt snapshots.
+- Answer autosave persistence and hand-in scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
 - Signed admin session tokens returned from login and checked by `X-Admin-Token`.
 - Signed candidate tokens checked by `X-Candidate-Token` for candidate-facing exam/practice APIs.
@@ -31,8 +31,8 @@ Implemented foundations:
 - Practice question and answer APIs require `X-Candidate-Token` and re-check that the token belongs to an active candidate.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
-- Candidate login uses a clean auth canvas without candidate navigation/footer; authenticated candidate pages keep the shared top navigation and footer.
-- Candidate page eyebrow copy is centralized in `frontend/src/lib/pageCopy.ts`; page/state labels are descriptive, while numbered labels are reserved for real question positions.
+- Candidate login uses a clean auth canvas without candidate navigation or footer; authenticated candidate pages keep the shared top navigation without a global footer.
+- Candidate page eyebrow copy is centralized in `frontend/src/lib/pageCopy.ts`; page/state labels use the shared product terminology, while numbered labels are reserved for real question positions.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
 - Time-based auto-submit background check.
@@ -108,12 +108,12 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 
 - UAT prefix: `UAT-20260629110754-77f1db`.
 - Temporary local artifacts: `/private/tmp/internal-exam-uat/UAT-20260629110754-77f1db-questions.xlsx`, `/private/tmp/internal-exam-uat/UAT-20260629110754-77f1db-candidates.xlsx`, and `/private/tmp/internal-exam-uat/UAT-20260629110754-77f1db-report.xlsx`.
-- Covered admin login, question import with a failure row, candidate import with a failure row, exam create/update/publish, candidate login, active exam listing, start, answer save, resume, submit, result, retake grant, retake start, score/accuracy/wrong/absent reports, report export, and template downloads.
+- Covered admin login, question import with a failure row, candidate import with a failure row, exam create/update/publish, candidate login, active exam listing, start, answer save, resume, hand-in, result, retake grant, retake start, score/accuracy/wrong/absent reports, report export, and template downloads.
 - Question import batch `20`: `success_count=4`, `failed_count=1`; failed row `6`, reason `正确答案必须存在于选项中`.
 - Candidate import batch `21`: `success_count=2`, `failed_count=1`; failed row `4`, reason `姓名不能为空`.
 - Created `exam_id=1`, `primary_candidate_id=1`, `attempt_id=1`, and `retake_attempt_id=2`.
 - Report query sizes: scores `1`, accuracy `4`, wrong questions `1`, absent candidates `1`.
-- Template download smoke: question template sheet `题库模板`, candidate template sheet `人员模板`.
+- Template download smoke: question template sheet `题库导入模板`, candidate template sheet `应考名单导入模板`.
 - Backend and nginx logs for the UAT requests were HTTP 200, and Compose services remained Up after the run.
 
 ## Implemented Business Loop
@@ -122,7 +122,7 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
 - Import failure report download returns an Excel workbook with batch metadata and row-level failure details.
 - Exam configuration create/update/list services persist to the `exam` table, and candidate-facing active listing requires `X-Candidate-Token` and returns only active exams in that candidate's `exam_candidate_scope`.
-- `available_from` and `available_until` limit new exam starts. Existing in-progress attempts can be resumed after `available_until` and still submit based on `started_at + duration_minutes`.
+- `available_from` and `available_until` limit new exam starts. Existing in-progress attempts can be resumed after `available_until` and still hand in based on `started_at + duration_minutes`.
 - Publishing an exam from draft to active freezes the current active question bank into `exam_question_pool`; start exam samples from that frozen pool while keeping attempt question snapshots.
 - Exam start creates an in-progress attempt and stores question snapshots.
 - Non-empty `question_rule` with `question_count` uses fixed-paper mode. The admin editor default template is 50 questions, total score 100, pass score 60, and type counts `single: 30`, `multiple: 10`, `judge: 10`.
@@ -132,12 +132,12 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 - Empty `question_rule = {}` remains compatible with the legacy all-active question behavior.
 - Exam candidate import adds rows to `exam_candidate_scope`; existing candidates are reused by employee number, or by name when no employee number exists.
 - Exam candidate management can list scoped candidates, remove a candidate from one exam scope, and grant one retake. An unused retake grant allows a submitted candidate to start a new `retake` attempt, which consumes the grant.
-- Answer autosave writes to `exam_attempt_answer`; submit scoring updates persisted answers and attempt totals.
-- The exam-taking page uses the final question primary action as “提交试卷”; earlier questions still show “下一题”.
+- Answer autosave writes to `exam_attempt_answer`; hand-in scoring updates persisted answers and attempt totals.
+- The exam-taking page uses the final question primary action as “交卷”; earlier questions still show “下一题”.
 - Time-based auto-submit runs as an asyncio background task, checking every 30 seconds.
 - Ranking and reports (score, accuracy, wrong questions, absent candidates) use real SQL queries.
 - Score, accuracy, wrong-question, absent-candidate, and export reports support `exam_id` filtering. Global reports remain available as an optional view.
-- Report export returns one Excel workbook with sheets for score report, question accuracy, wrong questions, and absent candidates.
+- Report export returns one Excel workbook with sheets for `个人成绩`, `题目正确率`, `错题排行`, and `参考状态`.
 - Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
 - Candidate authentication clears stale local session state on logout or 401, and no-session candidate pages return to `/login` without calling candidate-scoped APIs.
 - Practice mode uses `X-Candidate-Token` for question listing and answer submission, re-checks active candidate status, and does not expose correct answers or analysis before submission.
