@@ -58,7 +58,7 @@ describe("CandidateLayout", () => {
   it("renders the login route as a clean auth screen without candidate navigation or footer", () => {
     renderCandidateShell("/login");
 
-    expect(screen.getByRole("heading", { name: "登录考试人" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "入场核验" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "练习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "考试" })).not.toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("CandidateLayout", () => {
       clearCurrentCandidate("unauthorized");
     });
 
-    expect(await screen.findByRole("heading", { name: "登录考试人" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "入场核验" })).toBeInTheDocument();
     expect(screen.queryByText("考试列表")).not.toBeInTheDocument();
   });
 });

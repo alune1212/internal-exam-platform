@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   adminPageCopy,
+  adminPageText,
   adminTableCopy,
   formatAttemptKind,
   formatAttemptStatus,
@@ -204,8 +205,8 @@ export function ExamCandidatesPage() {
     <PageShell data-testid="exam-candidates-shell" density="workbench" width="full" stagger>
       <PageHeader
         eyebrow={adminPageCopy.roster}
-        title="应考名单"
-        description="本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。"
+        title={adminPageText.roster.title}
+        description={adminPageText.roster.description}
       />
 
       <ImportPanel
@@ -324,7 +325,7 @@ export function ExamCandidatesPage() {
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
-            title="应考名单加载失败。"
+            title={adminPageText.roster.errorTitle}
             description="请稍后重试，或检查应考名单接口。"
             className="border-0 bg-transparent py-10 shadow-none"
           />

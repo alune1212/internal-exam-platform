@@ -199,7 +199,7 @@ describe("P0 pages", () => {
 
     expect(screen.getByTestId("candidate-login-header")).toBeInTheDocument();
     expect(screen.getByText("EXAM TAKER · 登录")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "登录考试人" })).toHaveClass(
+    expect(screen.getByRole("heading", { name: "入场核验" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
@@ -409,7 +409,7 @@ describe("P0 pages", () => {
     expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
     const h1s = screen.getAllByRole("heading", { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent("考试结果");
+    expect(h1s[0]).toHaveTextContent("本次答卷");
 
     const allButton = screen.getByRole("button", { name: /全部/ });
     const wrongButton = screen.getByRole("button", { name: /只看错题/ });
@@ -432,7 +432,7 @@ describe("P0 pages", () => {
       "exams/1/result?attemptId=10",
     );
 
-    expect(await screen.findByRole("heading", { name: "考试结果加载失败。" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "答卷加载失败。" })).toBeInTheDocument();
     expect(screen.queryByText("考试已交卷。")).not.toBeInTheDocument();
     expect(screen.queryByText("SCORE · 得分")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无结果，请先完成考试。")).not.toBeInTheDocument();
@@ -485,7 +485,7 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByText("练习题库")).toBeInTheDocument();
+    expect(await screen.findByText("日常练习")).toBeInTheDocument();
     expect(screen.getByText("PRACTICE · 练习")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
@@ -504,8 +504,8 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByRole("heading", { name: "练习题加载失败。" })).toBeInTheDocument();
-    expect(screen.queryByText("练习题库为空。")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "练习暂不可用。" })).toBeInTheDocument();
+    expect(screen.queryByText("暂无可练习题目")).not.toBeInTheDocument();
   });
 
   it("renders practice empty state after an empty question response", async () => {
@@ -517,8 +517,8 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByRole("heading", { name: "练习题库为空。" })).toBeInTheDocument();
-    expect(screen.queryByText("练习题库")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "暂无可练习题目" })).toBeInTheDocument();
+    expect(screen.queryByText("日常练习")).not.toBeInTheDocument();
   });
 
   it("does not fetch practice questions before candidate login", () => {
@@ -571,7 +571,7 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByTestId("candidate-exam-list-shell")).toHaveClass("gap-8");
-    expect(await screen.findByText("今天有一场考试可参加。")).toBeInTheDocument();
+    expect(await screen.findByText("待完成的考试")).toBeInTheDocument();
     expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "内部考试" })).not.toHaveClass("tracking-[-0.04em]");
     const questionCounts = screen.getAllByText("50");
@@ -585,8 +585,8 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findAllByText("考试列表加载失败。")).toHaveLength(2);
-    expect(screen.getAllByRole("heading", { name: "考试列表加载失败。" })).toHaveLength(2);
+    expect(await screen.findByRole("heading", { name: "考试列表加载失败。" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "待完成的考试" })).toBeInTheDocument();
     expect(screen.queryByText("今天暂无考试安排。")).not.toBeInTheDocument();
   });
 
@@ -643,13 +643,13 @@ describe("P0 pages", () => {
     );
   });
 
-  it("pluralizes the exam list heading based on the number of active exams", async () => {
+  it("keeps the exam list heading stable with multiple active exams", async () => {
     setCurrentCandidate(candidate);
     vi.mocked(getActiveExams).mockResolvedValue([exam, secondExam]);
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findByText("今天有 2 场考试可参加。")).toBeInTheDocument();
+    expect(await screen.findByText("待完成的考试")).toBeInTheDocument();
   });
 
   it("falls back to the empty-state heading when there are no active exams", async () => {
@@ -658,7 +658,7 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findAllByText("暂无可参加考试。")).toHaveLength(2);
+    expect(await screen.findByRole("heading", { name: "暂无待完成考试。" })).toBeInTheDocument();
   });
 
   it("shows the actual API error when starting an exam fails", async () => {

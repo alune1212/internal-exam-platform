@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminPageCopy,
+  adminPageText,
   adminTableCopy,
   formatQuestionStatus,
   formatQuestionTypeLabel,
@@ -265,9 +266,9 @@ export function QuestionListPage() {
   return (
     <div className="flex flex-col gap-4">
       <ReportPage
-        title="题库管理"
+        title={adminPageText.questionBank.title}
         chapterLabel={adminPageCopy.library}
-        description="所有题目的列表与状态。点击右上「导入题库」批量上传 Excel。"
+        description={adminPageText.questionBank.description}
         queryKey={["admin", "questions"]}
         queryFn={getAdminQuestions}
         columns={columns}

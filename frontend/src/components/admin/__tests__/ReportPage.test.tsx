@@ -27,7 +27,7 @@ describe("ReportPage", () => {
   it("renders the chapter header, italic h1, and description", () => {
     renderWithClient(
       <ReportPage
-        title="个人成绩"
+        title="成绩册"
         chapterLabel="REPORTS · 报表"
         description="每次考试的提交结果"
         queryKey="score-report"
@@ -37,14 +37,14 @@ describe("ReportPage", () => {
     );
 
     expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "个人成绩" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "成绩册" })).toBeInTheDocument();
     expect(screen.getByText("每次考试的提交结果")).toBeInTheDocument();
   });
 
   it("uses shared page shell and section structure", async () => {
     renderWithClient(
       <ReportPage
-        title="个人成绩"
+        title="成绩册"
         chapterLabel="REPORTS · 报表"
         queryKey="score-report"
         queryFn={queryFn}
@@ -53,7 +53,7 @@ describe("ReportPage", () => {
     );
 
     expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "个人成绩" })).toHaveClass(
+    expect(screen.getByRole("heading", { level: 1, name: "成绩册" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
@@ -68,7 +68,7 @@ describe("ReportPage", () => {
   it("uses semantic reports copy by default", () => {
     renderWithClient(
       <ReportPage
-        title="题目正确率"
+        title="题目表现"
         queryKey="question-accuracy"
         queryFn={queryFn}
         columns={columns}
@@ -81,7 +81,7 @@ describe("ReportPage", () => {
   it("calls queryFn with the expected queryKey and renders the rows", async () => {
     renderWithClient(
       <ReportPage
-        title="题目正确率"
+        title="题目表现"
         queryKey="question-accuracy"
         queryFn={queryFn}
         columns={columns}
@@ -99,7 +99,7 @@ describe("ReportPage", () => {
   it("renders an optional actions node", () => {
     renderWithClient(
       <ReportPage
-        title="错题排行"
+        title="错题回看"
         queryKey="wrong-questions"
         queryFn={queryFn}
         columns={columns}
@@ -128,7 +128,7 @@ describe("ReportPage", () => {
 
     renderWithClient(
       <ReportPage
-        title="个人成绩"
+        title="成绩册"
         queryKey={["score-report", "exams-loading"]}
         queryFn={disabledQueryFn}
         queryEnabled={false}
@@ -144,7 +144,7 @@ describe("ReportPage", () => {
   it("renders query failures as an error state instead of an empty table", async () => {
     renderWithClient(
       <ReportPage
-        title="个人成绩"
+        title="成绩册"
         queryKey="score-report"
         queryFn={async () => {
           throw new Error("report unavailable");
@@ -164,7 +164,7 @@ describe("ReportPage", () => {
     render(
       <QueryClientProvider client={client}>
         <ReportPage
-          title="个人成绩"
+          title="成绩册"
           queryKey={["score-report-stale"]}
           queryFn={async () => {
             throw new Error("background refresh failed");

@@ -14,7 +14,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { setAdminToken } from "@/lib/adminSession";
-import { adminPageCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminPageText } from "@/lib/pageCopy";
 
 const schema = z.object({
   username: z.string().min(1, "请输入管理员账号"),
@@ -45,8 +45,8 @@ export function AdminLoginPage() {
           <PageHeader
             data-testid="admin-login-header"
             eyebrow={adminPageCopy.login}
-            title="登录管理后台"
-            description="管理员登录后可访问题库、考试配置与所有报表。"
+            title={adminPageText.login.title}
+            description={adminPageText.login.description}
             className="md:flex-col md:items-start md:justify-start"
           />
 
@@ -72,11 +72,11 @@ export function AdminLoginPage() {
               </FieldGroup>
               <Button type="submit" size="lg" disabled={mutation.isPending}>
                 {mutation.isPending ? (
-                  <Spinner data-icon="inline-start" aria-label="正在登录管理后台" />
+                  <Spinner data-icon="inline-start" aria-label="正在进入管理后台" />
                 ) : (
                   <ShieldCheck data-icon="inline-start" />
                 )}
-                登录管理后台
+                进入管理后台
               </Button>
               {mutation.isError ? (
                 <Alert variant="error">

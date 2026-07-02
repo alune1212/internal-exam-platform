@@ -44,7 +44,7 @@ describe("QuestionImportPage", () => {
     renderPage();
 
     expect(screen.getByText("QUESTION IMPORT · 题库导入")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "题库导入" })).toHaveClass(
+    expect(screen.getByRole("heading", { name: "导入题目" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );

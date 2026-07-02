@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   adminPageCopy,
+  adminPageText,
   adminTableCopy,
   candidateActionCopy,
   candidatePageCopy,
+  candidatePageText,
+  formatAdminExamEditTitle,
   formatAttemptKind,
   formatAttemptStatus,
   formatExamAvailability,
@@ -35,6 +38,29 @@ describe("pageCopy", () => {
       empty: "STATE · 空状态",
       error: "STATE · 异常状态",
     });
+  });
+
+  it("defines restrained page titles separately from domain labels", () => {
+    expect(candidatePageText).toMatchObject({
+      login: { title: "入场核验" },
+      exams: { title: "待完成的考试" },
+      examRules: { title: "阅读规则，开始作答" },
+      result: { title: "本次答卷" },
+      practice: { title: "日常练习", emptyTitle: "暂无可练习题目" },
+    });
+    expect(adminPageText).toMatchObject({
+      questionBank: { title: "题库档案" },
+      questionImport: { title: "导入题目" },
+      exams: { title: "考试编排" },
+      roster: { title: "名单与授权", importTitle: "导入名单" },
+      reports: {
+        score: { title: "成绩册" },
+        questionAccuracy: { title: "题目表现" },
+        wrongQuestions: { title: "错题回看" },
+        attendance: { title: "参考状态" },
+      },
+    });
+    expect(formatAdminExamEditTitle("12")).toBe("编排考试 #12");
   });
 
   it("keeps repeated admin table labels synchronized in Chinese and English", () => {

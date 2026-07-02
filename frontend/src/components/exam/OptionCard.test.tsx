@@ -11,6 +11,16 @@ describe("OptionCard", () => {
     expect(screen.getByText("Beijing")).toBeInTheDocument();
   });
 
+  it("centers the option label without caption letter spacing", () => {
+    render(<OptionCard label="A" content="Beijing" selected={false} onSelect={() => undefined} />);
+
+    const badge = screen.getByText("A").closest("span")!;
+    expect(badge.className).toContain("inline-grid");
+    expect(badge.className).toContain("place-items-center");
+    expect(badge.className).toContain("leading-none");
+    expect(badge.className).toContain("tracking-normal");
+  });
+
   it("applies unselected surface (canvas + hairline) when not selected", () => {
     render(<OptionCard label="A" content="Beijing" selected={false} onSelect={() => undefined} />);
     const card = screen.getByRole("radio");
@@ -85,6 +95,8 @@ describe("OptionCard", () => {
       // Multiple choice uses rounded-sm (square) badge
       const badge = screen.getByText("B").closest("span")!;
       expect(badge.className).toContain("rounded-sm");
+      expect(badge.className).toContain("place-items-center");
+      expect(badge.className).toContain("tracking-normal");
     });
 
     it("renders checkmark icon for judge option A (correct)", () => {

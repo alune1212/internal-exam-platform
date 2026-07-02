@@ -65,7 +65,7 @@ describe("AdminLoginPage", () => {
     renderPage();
 
     expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "登录管理后台" })).toHaveClass(
+    expect(screen.getByRole("heading", { level: 1, name: "进入管理后台" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
@@ -81,7 +81,7 @@ describe("AdminLoginPage", () => {
 
     await user.type(screen.getByLabelText(/Username/), "admin");
     await user.type(screen.getByLabelText(/Password/), "change-me");
-    await user.click(screen.getByRole("button", { name: /登录管理后台/ }));
+    await user.click(screen.getByRole("button", { name: /进入管理后台/ }));
 
     await waitFor(() => expect(getAdminToken()).toBe("signed-session-token"));
     expect(getAdminToken()).not.toBe("change-me");

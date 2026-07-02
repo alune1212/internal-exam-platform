@@ -59,8 +59,8 @@ export function OptionCard({
         <span
           aria-hidden="true"
           className={cn(
-            "inline-flex size-6 shrink-0 items-center justify-center",
-            "font-mono text-caption font-semibold tabular-nums",
+            "inline-grid size-6 shrink-0 place-items-center text-center align-middle",
+            "font-mono text-[11px] font-semibold tabular-nums leading-none tracking-normal",
             selectionRole === "checkbox"
               ? cn(
                   "rounded-sm",

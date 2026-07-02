@@ -13,7 +13,7 @@ import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { adminPageCopy, importCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminPageText, importCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
 export function QuestionImportPage() {
@@ -55,8 +55,8 @@ export function QuestionImportPage() {
     <PageShell data-testid="question-import-shell" density="workbench" width="default" stagger>
       <PageHeader
         eyebrow={adminPageCopy.questionImport}
-        title="题库导入"
-        description="仅支持标准 Excel（.xlsx / .xls），不解析 Word。系统会校验行数据并保存可用题目。"
+        title={adminPageText.questionImport.title}
+        description={adminPageText.questionImport.description}
       />
 
       <ImportPanel

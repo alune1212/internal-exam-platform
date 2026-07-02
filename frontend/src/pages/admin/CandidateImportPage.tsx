@@ -10,7 +10,7 @@ import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { adminPageCopy, importCopy } from "@/lib/pageCopy";
+import { adminPageCopy, adminPageText, importCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
 export function CandidateImportPage() {
@@ -41,8 +41,8 @@ export function CandidateImportPage() {
     <PageShell data-testid="candidate-import-shell" density="workbench" width="default" stagger>
       <PageHeader
         eyebrow={adminPageCopy.roster}
-        title="应考名单导入"
-        description="上传应考名单 Excel 模板，系统会按当前考试写入应考名单。"
+        title={adminPageText.roster.importTitle}
+        description={adminPageText.roster.importDescription}
       />
 
       <ImportPanel

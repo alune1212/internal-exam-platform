@@ -58,7 +58,7 @@ describe("ExamEditPage", () => {
     renderExamEditPage();
 
     expect(await screen.findByText("EXAMS · 考试")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "编辑考试 #1" })).toHaveClass(
+    expect(screen.getByRole("heading", { name: "编排考试 #1" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
@@ -82,7 +82,7 @@ describe("ExamEditPage", () => {
 
     renderExamEditPage();
 
-    expect(await screen.findByRole("heading", { name: "考试配置加载失败。" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "考试编排加载失败。" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /保存配置/ })).not.toBeInTheDocument();
   });
 

@@ -12,6 +12,44 @@ export const candidatePageCopy = {
   error: "STATE · 异常状态",
 } as const;
 
+export const candidatePageText = {
+  login: {
+    title: "入场核验",
+    description: "输入姓名、手机号后四位；员工号用于匹配应考名单。",
+    error: "未找到匹配的应考名单记录，请核对姓名、员工号或手机号后四位。",
+  },
+  exams: {
+    title: "待完成的考试",
+    description: "开放中的考试会显示在这里，开始前请确认规则。",
+    emptyTitle: "暂无待完成考试。",
+    emptyDescription: "考试发布并开放后会显示在这里。",
+    errorTitle: "考试列表加载失败。",
+    errorDescription: "请稍后重试，或联系管理员确认考试是否已发布。",
+  },
+  examRules: {
+    title: "阅读规则，开始作答",
+    description: "开始后生成题目快照并启动倒计时。",
+  },
+  result: {
+    title: "本次答卷",
+    description: "展示得分、通过状态与答题记录。",
+    emptyTitle: "暂无答卷记录。",
+    emptyDescription: "交卷后，这里会显示得分、答案与解析。",
+    errorTitle: "答卷加载失败。",
+    errorDescription: "请稍后重试，或从考试列表重新进入结果页。",
+  },
+  practice: {
+    title: "日常练习",
+    description: "不计入正式成绩，作答后保存本题记录。",
+    emptyTitle: "暂无可练习题目",
+    emptyDescription: "管理员导入并启用题目后会显示。",
+    errorTitle: "练习暂不可用。",
+    errorDescription: "请稍后重试，或联系管理员确认题库状态。",
+    loginTitle: "请先完成入场核验。",
+    loginDescription: "登录后可进入练习，并保留本题记录。",
+  },
+} as const;
+
 export const adminPageCopy = {
   login: "ADMIN · 登录",
   overview: "DASHBOARD · 仪表盘",
@@ -25,6 +63,51 @@ export const adminPageCopy = {
   error: "STATE · 异常状态",
 } as const;
 
+export const adminPageText = {
+  login: {
+    title: "进入管理后台",
+    description: "登录后可访问题库、考试编排与报表。",
+  },
+  questionBank: {
+    title: "题库档案",
+    description: "管理题目、状态与分类。",
+  },
+  questionImport: {
+    title: "导入题目",
+    description: "上传标准 Excel，系统会校验并保存可用题目。",
+  },
+  exams: {
+    title: "考试编排",
+    description: "创建、发布与维护考试规则。",
+    errorTitle: "考试编排加载失败。",
+  },
+  roster: {
+    title: "名单与授权",
+    description: "管理本场考试的应考名单与补考授权。",
+    importTitle: "导入名单",
+    importDescription: "上传应考名单 Excel，写入当前考试。",
+    errorTitle: "名单加载失败。",
+  },
+  reports: {
+    score: {
+      title: "成绩册",
+      description: "按考试查看交卷结果。",
+    },
+    questionAccuracy: {
+      title: "题目表现",
+      description: "查看题目在本场考试中的答对比例。",
+    },
+    wrongQuestions: {
+      title: "错题回看",
+      description: "复盘高频错误题目。",
+    },
+    attendance: {
+      title: "参考状态",
+      description: "按未开始、进行中、已交卷拆分应考人员状态。",
+    },
+  },
+} as const;
+
 export const productTerms = {
   examTaker: "考试人",
   participant: "应考人员",
@@ -32,6 +115,10 @@ export const productTerms = {
   questionBank: "题库",
   questionBankImport: "题库导入",
 } as const;
+
+export function formatAdminExamEditTitle(examId?: string | null) {
+  return `编排考试 #${examId ?? "-"}`;
+}
 
 export const candidateActionCopy = {
   returnExamList: "返回考试列表",

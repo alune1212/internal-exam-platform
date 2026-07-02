@@ -56,6 +56,7 @@ describe("ScoreReportPage", () => {
     const user = userEvent.setup();
     renderReportPage();
 
+    expect(await screen.findByRole("heading", { name: "成绩册" })).toBeInTheDocument();
     expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
     await waitFor(() => expect(getScoreReport).toHaveBeenCalledWith("7"));
 
@@ -77,8 +78,8 @@ describe("ScoreReportPage", () => {
   });
 
   it.each([
-    ["题目正确率", <QuestionAccuracyPage />, getQuestionAccuracy],
-    ["错题排行", <WrongQuestionPage />, getWrongQuestions],
+    ["题目表现", <QuestionAccuracyPage />, getQuestionAccuracy],
+    ["错题回看", <WrongQuestionPage />, getWrongQuestions],
   ])("renders exam-list failures as report errors for %s", async (_title, page, queryFn) => {
     vi.mocked(getAdminExams).mockRejectedValueOnce(new Error("exam list unavailable"));
 
@@ -103,6 +104,7 @@ describe("ScoreReportPage", () => {
 
     renderReportPage(<QuestionAccuracyPage />);
 
+    expect(await screen.findByRole("heading", { name: "题目表现" })).toBeInTheDocument();
     expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
     await waitFor(() => expect(getQuestionAccuracy).toHaveBeenCalledWith("7"));
     expect(await screen.findByText("单选题干")).toBeInTheDocument();
@@ -130,6 +132,7 @@ describe("ScoreReportPage", () => {
 
     renderReportPage(<WrongQuestionPage />);
 
+    expect(await screen.findByRole("heading", { name: "错题回看" })).toBeInTheDocument();
     expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
     await waitFor(() => expect(getWrongQuestions).toHaveBeenCalledWith("7"));
     expect(await screen.findByText("多选题干")).toBeInTheDocument();

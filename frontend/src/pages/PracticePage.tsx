@@ -25,7 +25,7 @@ import {
   perTypeIndexOf,
   sortByType,
 } from "@/lib/questionNavigation";
-import { candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
+import { candidatePageCopy, candidatePageText, formatQuestionEyebrow } from "@/lib/pageCopy";
 import { splitAnswer, toggleMultipleAnswer } from "@/lib/utils";
 import type { PracticeAnswerResult, PracticeQuestion } from "@/types/question";
 
@@ -131,8 +131,8 @@ export function PracticePage() {
           <PageState
             state="notLoggedIn"
             eyebrow={candidatePageCopy.notLoggedIn}
-            title="请先登录考试人。"
-            description="登录后可提交练习答案并记录练习结果。"
+            title={candidatePageText.practice.loginTitle}
+            description={candidatePageText.practice.loginDescription}
             className="py-0"
           />
           <div className="mt-6 flex justify-center">
@@ -159,8 +159,8 @@ export function PracticePage() {
         <PageState
           state="error"
           eyebrow={candidatePageCopy.error}
-          title="练习题加载失败。"
-          description="请稍后重试，或联系管理员确认题库状态。"
+          title={candidatePageText.practice.errorTitle}
+          description={candidatePageText.practice.errorDescription}
         />
       </PageShell>
     );
@@ -172,8 +172,8 @@ export function PracticePage() {
         <PageState
           state="empty"
           eyebrow={candidatePageCopy.empty}
-          title="练习题库为空。"
-          description="管理员导入题库并启用题目后会显示在这里。"
+          title={candidatePageText.practice.emptyTitle}
+          description={candidatePageText.practice.emptyDescription}
         />
       </PageShell>
     );
@@ -225,10 +225,10 @@ export function PracticePage() {
       <div className="flex flex-col gap-3 border-b border-hairline pb-4">
         <ChapterNumber>{candidatePageCopy.practice}</ChapterNumber>
         <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          练习题库
+          {candidatePageText.practice.title}
         </h1>
         <p className="max-w-2xl text-body-lg text-muted">
-          练习结果不计入正式成绩。作答后记录本题答案。
+          {candidatePageText.practice.description}
         </p>
       </div>
 

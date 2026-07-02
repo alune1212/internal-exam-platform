@@ -97,7 +97,7 @@ describe("ExamCandidatesPage", () => {
     renderPage();
 
     expect(await screen.findByText("ROSTER · 应考名单")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "应考名单" })).toHaveClass(
+    expect(screen.getByRole("heading", { name: "名单与授权" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
@@ -134,7 +134,7 @@ describe("ExamCandidatesPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "应考名单加载失败。" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "名单加载失败。" })).toBeInTheDocument();
     expect(screen.queryByText("暂无应考名单人员")).not.toBeInTheDocument();
   });
 

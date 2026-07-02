@@ -8,7 +8,7 @@ import { PageHeader, PageSection, PageShell, PageState } from "@/components/page
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentCandidate } from "@/lib/candidateSession";
-import { candidatePageCopy } from "@/lib/pageCopy";
+import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
 export function ExamResultPage() {
@@ -34,7 +34,8 @@ export function ExamResultPage() {
       <PageShell density="workbench" width="full" stagger>
         <PageHeader
           eyebrow={candidatePageCopy.result}
-          title="考试结果"
+          title={candidatePageText.result.title}
+          description={candidatePageText.result.description}
           actions={
             <Button asChild variant="ghost" size="sm">
               <Link to="/exams">返回考试列表</Link>
@@ -54,7 +55,8 @@ export function ExamResultPage() {
       <PageShell density="workbench" width="full" stagger>
         <PageHeader
           eyebrow={candidatePageCopy.result}
-          title="考试结果"
+          title={candidatePageText.result.title}
+          description={candidatePageText.result.description}
           actions={
             <Button asChild variant="ghost" size="sm">
               <Link to="/exams">返回考试列表</Link>
@@ -66,8 +68,8 @@ export function ExamResultPage() {
           <PageState
             state="error"
             eyebrow={candidatePageCopy.error}
-            title="考试结果加载失败。"
-            description="请稍后重试，或从考试列表重新进入结果页。"
+            title={candidatePageText.result.errorTitle}
+            description={candidatePageText.result.errorDescription}
           />
         </PageSection>
       </PageShell>
@@ -79,7 +81,8 @@ export function ExamResultPage() {
       <PageShell density="workbench" width="full" stagger>
         <PageHeader
           eyebrow={candidatePageCopy.result}
-          title="考试结果"
+          title={candidatePageText.result.title}
+          description={candidatePageText.result.description}
           actions={
             <Button asChild variant="ghost" size="sm">
               <Link to="/exams">返回考试列表</Link>
@@ -91,8 +94,8 @@ export function ExamResultPage() {
           <PageState
             state="empty"
             eyebrow={candidatePageCopy.empty}
-            title="暂无考试结果，请先完成考试。"
-            description="交卷后，这里会显示答案、得分与解析。"
+            title={candidatePageText.result.emptyTitle}
+            description={candidatePageText.result.emptyDescription}
           />
         </PageSection>
       </PageShell>
@@ -107,7 +110,8 @@ export function ExamResultPage() {
     <PageShell density="workbench" width="full" stagger>
       <PageHeader
         eyebrow={candidatePageCopy.result}
-        title="考试结果"
+        title={candidatePageText.result.title}
+        description={candidatePageText.result.description}
         actions={
           <Button asChild variant="ghost" size="sm">
             <Link to="/exams">返回考试列表</Link>

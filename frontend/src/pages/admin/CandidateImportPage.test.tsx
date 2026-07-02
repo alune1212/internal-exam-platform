@@ -43,7 +43,7 @@ describe("CandidateImportPage", () => {
     renderPage();
 
     expect(screen.getByText("ROSTER · 应考名单")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "应考名单导入" })).toHaveClass(
+    expect(screen.getByRole("heading", { name: "导入名单" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );

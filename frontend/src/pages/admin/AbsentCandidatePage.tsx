@@ -5,7 +5,12 @@ import { getAbsentCandidates, type AttendanceStatus } from "@/api/reports";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import { Button } from "@/components/ui/button";
-import { adminPageCopy, adminTableCopy, formatAttemptStatusShort } from "@/lib/pageCopy";
+import {
+  adminPageCopy,
+  adminPageText,
+  adminTableCopy,
+  formatAttemptStatusShort,
+} from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 import type { AbsentCandidateRow } from "@/types/report";
 
@@ -59,9 +64,9 @@ export function AbsentCandidatePage() {
 
   return (
     <ReportPage
-      title="参考状态"
+      title={adminPageText.reports.attendance.title}
       chapterLabel={adminPageCopy.reports}
-      description="按未开始、进行中、已交卷拆分应考人员状态，避免把进行中考试计为缺考。"
+      description={adminPageText.reports.attendance.description}
       queryKey={["admin", "absent-candidates", status]}
       queryFn={() => getAbsentCandidates(status)}
       columns={columns}

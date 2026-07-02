@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { adminPageCopy, formatExamStatus } from "@/lib/pageCopy";
+import {
+  adminPageCopy,
+  adminPageText,
+  formatAdminExamEditTitle,
+  formatExamStatus,
+} from "@/lib/pageCopy";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: formatExamStatus("draft") },
@@ -96,6 +101,7 @@ export function ExamEditPage() {
   });
   const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
+  const pageTitle = formatAdminExamEditTitle(examId);
   const isPublished = currentExam?.status === "active";
   const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const mutation = useMutation({
@@ -151,7 +157,7 @@ export function ExamEditPage() {
   if (exams.isLoading) {
     return (
       <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
-        <PageHeader eyebrow={adminPageCopy.exams} title={`编辑考试 #${examId ?? "-"}`} />
+        <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
         <PageSection variant="card">
           <PageState
             state="loading"
@@ -166,12 +172,12 @@ export function ExamEditPage() {
   if (exams.isError) {
     return (
       <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
-        <PageHeader eyebrow={adminPageCopy.exams} title={`编辑考试 #${examId ?? "-"}`} />
+        <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
         <PageSection variant="card">
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
-            title="考试配置加载失败。"
+            title={adminPageText.exams.errorTitle}
             description="请稍后重试，或确认后台服务是否可用。"
             className="border-0 bg-transparent py-8 shadow-none"
           />
@@ -183,7 +189,7 @@ export function ExamEditPage() {
   if (!currentExam) {
     return (
       <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
-        <PageHeader eyebrow={adminPageCopy.exams} title={`编辑考试 #${examId ?? "-"}`} />
+        <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
         <PageSection variant="card">
           <PageState
             state="error"
@@ -201,7 +207,7 @@ export function ExamEditPage() {
     <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
       <PageHeader
         eyebrow={adminPageCopy.exams}
-        title={`编辑考试 #${examId ?? "-"}`}
+        title={pageTitle}
         actions={
           <>
             <Button asChild variant="outline" size="sm">

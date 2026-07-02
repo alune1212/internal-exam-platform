@@ -371,7 +371,7 @@ export function ExamTakingPage() {
             state="notStarted"
             eyebrow={candidatePageCopy.notStarted}
             title="未开始考试。"
-            description="请从考试列表进入并确认考试规则。"
+            description="请从考试列表进入并阅读规则。"
             className="py-0"
           />
           <div className="mt-6 flex justify-center">

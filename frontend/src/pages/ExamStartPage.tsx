@@ -8,7 +8,7 @@ import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { candidatePageCopy, productTerms } from "@/lib/pageCopy";
+import { candidatePageCopy, candidatePageText, productTerms } from "@/lib/pageCopy";
 
 const RULES: { text: string }[] = [
   { text: "考试中答案会自动保存，但倒计时不会暂停。" },
@@ -47,8 +47,8 @@ export function ExamStartPage() {
     <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
       <PageHeader
         eyebrow={candidatePageCopy.examRules}
-        title="确认考试规则"
-        description="阅读下面的规则后再开始考试。开始后系统会立即生成题目快照并启动倒计时。"
+        title={candidatePageText.examRules.title}
+        description={candidatePageText.examRules.description}
       />
 
       <PageSection variant="panel" className="p-6 lg:p-8">
@@ -95,7 +95,7 @@ export function ExamStartPage() {
         ) : (
           <Button asChild size="lg" className="self-start">
             <Link to="/login">
-              先登录{productTerms.examTaker}
+              先完成入场核验
               <ArrowRight data-icon="inline-end" />
             </Link>
           </Button>

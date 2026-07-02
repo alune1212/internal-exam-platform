@@ -6,7 +6,12 @@ import { getActiveExams } from "@/api/exams";
 import { PageHeader, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { getCurrentCandidate } from "@/lib/candidateSession";
-import { candidatePageCopy, formatExamAvailability, formatExamStatus } from "@/lib/pageCopy";
+import {
+  candidatePageCopy,
+  candidatePageText,
+  formatExamAvailability,
+  formatExamStatus,
+} from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
 function resolveQuestionCount(rule: Record<string, unknown>): number | null {
@@ -123,7 +128,7 @@ function ExamCard({ exam }: { exam: Exam }) {
                   : `/exams/${exam.id}/start`
               }
             >
-              {hasInProgressAttempt ? "继续考试" : isLive ? "进入考试" : "查看说明"}
+              {hasInProgressAttempt ? "继续考试" : isLive ? "开始考试" : "查看说明"}
               <ArrowUpRight data-icon="inline-end" />
             </Link>
           </Button>
@@ -136,22 +141,6 @@ function ExamCard({ exam }: { exam: Exam }) {
       <p className="text-caption uppercase tracking-[0.16em] text-muted">{availability.label}</p>
     </article>
   );
-}
-
-function resolveHeading(examCount: number, isLoading: boolean, isError: boolean): string {
-  if (isLoading) {
-    return "正在加载考试列表。";
-  }
-  if (isError) {
-    return "考试列表加载失败。";
-  }
-  if (examCount === 0) {
-    return "暂无可参加考试。";
-  }
-  if (examCount === 1) {
-    return "今天有一场考试可参加。";
-  }
-  return `今天有 ${examCount} 场考试可参加。`;
 }
 
 export function ExamListPage() {
@@ -172,7 +161,8 @@ export function ExamListPage() {
     <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
       <PageHeader
         eyebrow={candidatePageCopy.exams}
-        title={resolveHeading(data.length, isLoading, hasLoadError)}
+        title={candidatePageText.exams.title}
+        description={candidatePageText.exams.description}
       />
 
       {isLoading ? (
@@ -181,8 +171,8 @@ export function ExamListPage() {
         <PageState
           state="error"
           eyebrow={candidatePageCopy.error}
-          title="考试列表加载失败。"
-          description="请稍后重试，或联系管理员确认考试是否已发布。"
+          title={candidatePageText.exams.errorTitle}
+          description={candidatePageText.exams.errorDescription}
         />
       ) : data.length ? (
         <div className="grid gap-5 md:grid-cols-2">
@@ -194,8 +184,8 @@ export function ExamListPage() {
         <PageState
           state="empty"
           eyebrow={candidatePageCopy.empty}
-          title="暂无可参加考试。"
-          description="管理员发布考试后会显示在这里。"
+          title={candidatePageText.exams.emptyTitle}
+          description={candidatePageText.exams.emptyDescription}
         />
       )}
     </PageShell>

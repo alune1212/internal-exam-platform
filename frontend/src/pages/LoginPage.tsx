@@ -15,7 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { candidatePageCopy, productTerms } from "@/lib/pageCopy";
+import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
 
 const schema = z.object({
   name: z.string().min(1, "请输入姓名"),
@@ -51,8 +51,8 @@ export function LoginPage() {
         <PageHeader
           data-testid="candidate-login-header"
           eyebrow={candidatePageCopy.login}
-          title={`登录${productTerms.examTaker}`}
-          description="请输入姓名和手机号后四位。员工号可帮助系统更准确地匹配应考名单。"
+          title={candidatePageText.login.title}
+          description={candidatePageText.login.description}
           className="gap-3 md:flex-col md:items-start"
         />
       </div>
@@ -111,14 +111,12 @@ export function LoginPage() {
               ) : (
                 <LogIn data-icon="inline-start" />
               )}
-              {mutation.isPending ? "正在进入" : "进入系统"}
+              {mutation.isPending ? "正在进入" : "进入平台"}
             </Button>
 
             {mutation.isError ? (
               <Alert variant="error">
-                <AlertDescription>
-                  未找到匹配的{productTerms.examTaker}，请核对姓名或员工号。
-                </AlertDescription>
+                <AlertDescription>{candidatePageText.login.error}</AlertDescription>
               </Alert>
             ) : null}
             {mutation.data ? (
