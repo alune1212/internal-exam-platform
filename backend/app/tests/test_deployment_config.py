@@ -29,3 +29,10 @@ def _compose_service_ports(service_name: str) -> list[str]:
 
 def test_default_nginx_publish_uses_loopback_host() -> None:
     assert _compose_service_ports("nginx") == ["127.0.0.1:8080:80"]
+
+
+def test_frontend_csp_allows_configured_font_hosts() -> None:
+    nginx_conf = (REPO_ROOT / "nginx" / "default.conf").read_text(encoding="utf-8")
+
+    assert "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com" in nginx_conf
+    assert "font-src 'self' data: https://fonts.gstatic.com" in nginx_conf

@@ -113,6 +113,7 @@ describe("ExamCandidatesPage", () => {
 
     expect(await screen.findByText("正在确认考试状态，暂不能修改应考名单。")).toBeInTheDocument();
     expect(screen.getByLabelText("选择 Excel 文件")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "选择文件" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "上传应考人员" })).toBeDisabled();
     expect(getExamCandidates).not.toHaveBeenCalled();
   });
@@ -124,6 +125,7 @@ describe("ExamCandidatesPage", () => {
 
     expect(await screen.findByRole("heading", { name: "考试状态加载失败。" })).toBeInTheDocument();
     expect(screen.getByLabelText("选择 Excel 文件")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "选择文件" })).toBeDisabled();
     expect(getExamCandidates).not.toHaveBeenCalled();
   });
 
@@ -160,6 +162,7 @@ describe("ExamCandidatesPage", () => {
     const fileInput = await screen.findByLabelText("选择 Excel 文件");
     await waitFor(() => expect(fileInput).toBeEnabled());
     await user.upload(fileInput, file);
+    expect(screen.getByText("candidates.xlsx")).toBeInTheDocument();
     const uploadButton = screen.getByRole("button", { name: "上传应考人员" });
     await waitFor(() => expect(uploadButton).toBeEnabled());
     await user.click(uploadButton);

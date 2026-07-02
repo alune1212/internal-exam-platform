@@ -48,6 +48,8 @@ describe("CandidateImportPage", () => {
       "text-display-lg",
     );
     expect(screen.getByTestId("candidate-import-shell")).toHaveClass("gap-6");
+    expect(screen.getByText("未选择文件")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "上传应考人员" })).toBeDisabled();
   });
 
   it("imports candidates for the current exam and offers failure report download", async () => {
@@ -58,6 +60,7 @@ describe("CandidateImportPage", () => {
     renderPage();
 
     await user.upload(screen.getByLabelText("选择 Excel 文件"), file);
+    expect(screen.getByText("candidates.xlsx")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "上传应考人员" }));
 
     await waitFor(() => expect(importCandidates).toHaveBeenCalledWith("7", file));

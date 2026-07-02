@@ -2,6 +2,8 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+import { BrandMark } from "./BrandMark";
+
 export type WordmarkSize = "sm" | "md";
 export type WordmarkVariant = "light" | "dark";
 
@@ -13,14 +15,12 @@ export interface WordmarkProps extends React.HTMLAttributes<HTMLDivElement> {
   label?: string;
 }
 
-const sizeStyles: Record<WordmarkSize, { circle: string; text: string; subtitle: string }> = {
+const sizeStyles: Record<WordmarkSize, { text: string; subtitle: string }> = {
   sm: {
-    circle: "size-7 text-[12px]",
     text: "text-[18px]",
     subtitle: "text-[11px]",
   },
   md: {
-    circle: "size-9 text-[14px]",
     text: "text-[24px]",
     subtitle: "text-[11px]",
   },
@@ -41,16 +41,7 @@ export function Wordmark({
 
   return (
     <div className={cn("inline-flex items-center gap-2.5", className)} {...props}>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-full font-display font-semibold",
-          styles.circle,
-          isDark ? "bg-canvas text-ink" : "bg-ink text-canvas",
-        )}
-      >
-        知
-      </span>
+      <BrandMark size={size} variant={resolvedVariant} />
       <span className="flex flex-col leading-none">
         <span
           className={cn(

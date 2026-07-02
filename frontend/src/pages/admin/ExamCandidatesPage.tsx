@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Download, FileUp, RotateCcw, Trash2 } from "lucide-react";
+import { Download, RotateCcw, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -13,15 +13,13 @@ import {
 } from "@/api/exams";
 import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, downloadImportTemplate } from "@/api/imports";
+import { ImportPanel } from "@/components/admin/ImportPanel";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { StatusPill } from "@/components/editorial/StatusPill";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { adminPageCopy } from "@/lib/pageCopy";
 import type { ExamCandidateRow } from "@/types/exam";
 import type { ImportFailure } from "@/types/imports";
@@ -201,48 +199,38 @@ export function ExamCandidatesPage() {
         description="本名单决定谁可以进入这场考试。考试发布后名单冻结，只保留补考授权操作。"
       />
 
-      <PageSection variant="panel" className="gap-4 rounded-lg p-6 lg:p-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-caption uppercase tracking-[0.16em] text-muted">IMPORT</p>
-            <p className="text-body text-ink">
-              {exams.isLoading
-                ? "正在确认考试状态，暂不能修改应考名单。"
-                : hasExamLoadError
-                  ? "考试状态加载失败，暂不能修改应考名单。"
-                  : !currentExam
-                    ? "未找到这场考试，暂不能修改应考名单。"
-                    : isFrozen
-                      ? "考试已发布，不能再修改应考名单。"
-                      : "上传 Excel 后写入本场应考名单。"}
-            </p>
+      <ImportPanel
+        fileInputId="exam-candidate-file"
+        fileLabel="选择 Excel 文件"
+        selectedFile={file}
+        fileDisabled={!canEditCandidates}
+        uploadDisabled={!canEditCandidates}
+        onFileChange={setFile}
+        uploadLabel="上传应考人员"
+        pendingLabel="正在导入..."
+        pendingAriaLabel="正在导入应考人员"
+        isPending={importMutation.isPending}
+        onUpload={() => file && importMutation.mutate(file)}
+        intro={
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-caption uppercase tracking-[0.16em] text-muted">IMPORT</p>
+              <p className="text-body text-ink">
+                {exams.isLoading
+                  ? "正在确认考试状态，暂不能修改应考名单。"
+                  : hasExamLoadError
+                    ? "考试状态加载失败，暂不能修改应考名单。"
+                    : !currentExam
+                      ? "未找到这场考试，暂不能修改应考名单。"
+                      : isFrozen
+                        ? "考试已发布，不能再修改应考名单。"
+                        : "上传 Excel 后写入本场应考名单。"}
+              </p>
+            </div>
+            <StatusPill variant={isFrozen ? "success" : "default"}>{examStatusLabel}</StatusPill>
           </div>
-          <StatusPill variant={isFrozen ? "success" : "default"}>{examStatusLabel}</StatusPill>
-        </div>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <Field className="w-full md:max-w-md">
-            <FieldLabel htmlFor="exam-candidate-file">选择 Excel 文件</FieldLabel>
-            <Input
-              id="exam-candidate-file"
-              type="file"
-              accept=".xlsx,.xls"
-              disabled={!canEditCandidates}
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            />
-          </Field>
-          <Button
-            type="button"
-            className="self-start"
-            disabled={!file || importMutation.isPending || !canEditCandidates}
-            onClick={() => file && importMutation.mutate(file)}
-          >
-            {importMutation.isPending ? (
-              <Spinner data-icon="inline-start" aria-label="正在导入应考人员" />
-            ) : (
-              <FileUp data-icon="inline-start" />
-            )}
-            {importMutation.isPending ? "正在导入..." : "上传应考人员"}
-          </Button>
+        }
+        templateAction={
           <Button
             type="button"
             variant="outline"
@@ -252,7 +240,8 @@ export function ExamCandidatesPage() {
             <Download data-icon="inline-start" />
             下载人员模板
           </Button>
-        </div>
+        }
+      >
         {importMutation.data ? (
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <p className="text-body-sm text-muted">
@@ -291,7 +280,7 @@ export function ExamCandidatesPage() {
             <AlertDescription>{notice.message}</AlertDescription>
           </Alert>
         ) : null}
-      </PageSection>
+      </ImportPanel>
 
       <PageSection variant="table">
         {exams.isLoading ? (

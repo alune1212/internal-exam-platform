@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, FileUp } from "lucide-react";
+import { Download } from "lucide-react";
 import { useState } from "react";
 
 import { getErrorMessage } from "@/api/client";
@@ -8,13 +8,11 @@ import {
   downloadImportTemplate,
   importQuestions,
 } from "@/api/imports";
+import { ImportPanel } from "@/components/admin/ImportPanel";
 import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { adminPageCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
@@ -58,8 +56,17 @@ export function QuestionImportPage() {
         description="仅支持标准 Excel（.xlsx / .xls），不解析 Word。系统会校验行数据并保存可用题目。"
       />
 
-      <PageSection variant="panel" className="rounded-lg p-6 lg:p-8">
-        <div className="flex items-center gap-3">
+      <ImportPanel
+        fileInputId="question-file"
+        fileLabel="选择 Excel 文件"
+        selectedFile={file}
+        onFileChange={setFile}
+        uploadLabel="上传并校验"
+        pendingLabel="正在导入..."
+        pendingAriaLabel="正在导入题库"
+        isPending={mutation.isPending}
+        onUpload={() => file && mutation.mutate(file)}
+        templateAction={
           <Button
             type="button"
             variant="outline"
@@ -69,35 +76,8 @@ export function QuestionImportPage() {
             <Download data-icon="inline-start" />
             下载模板
           </Button>
-        </div>
-
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="question-file">选择 Excel 文件</FieldLabel>
-            <Input
-              id="question-file"
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            />
-          </Field>
-        </FieldGroup>
-
-        <Button
-          type="button"
-          size="lg"
-          className="self-start"
-          disabled={!file || mutation.isPending}
-          onClick={() => file && mutation.mutate(file)}
-        >
-          {mutation.isPending ? (
-            <Spinner data-icon="inline-start" aria-label="正在导入题库" />
-          ) : (
-            <FileUp data-icon="inline-start" />
-          )}
-          {mutation.isPending ? "正在导入..." : "上传并校验"}
-        </Button>
-      </PageSection>
+        }
+      />
 
       {notice ? (
         <Alert variant={notice.tone === "success" ? "success" : "error"}>

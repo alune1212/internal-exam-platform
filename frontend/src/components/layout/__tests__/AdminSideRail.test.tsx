@@ -90,6 +90,16 @@ describe("AdminSideRail", () => {
     expect(aside).toHaveClass("bg-footer");
   });
 
+  it("keeps the desktop rail viewport-stable", () => {
+    const { container } = renderSideRail("/admin/questions");
+    const aside = container.querySelector("aside");
+    expect(aside).toHaveClass("sticky");
+    expect(aside).toHaveClass("top-0");
+    expect(aside).toHaveClass("h-dvh");
+    expect(aside).toHaveClass("overflow-hidden");
+    expect(screen.getByRole("button", { name: "退出登录" })).toHaveClass("w-full");
+  });
+
   it("opens the mobile sheet when the menu button is triggered", async () => {
     const user = userEvent.setup();
     renderSideRail("/admin/dashboard", false);
@@ -97,6 +107,7 @@ describe("AdminSideRail", () => {
     await user.click(screen.getByRole("button", { name: "打开菜单" }));
 
     expect(await screen.findByText("导航")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
   });
 
   it("uses high-contrast light link colors inside the mobile sheet", async () => {

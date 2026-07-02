@@ -10,10 +10,12 @@ describe("Wordmark", () => {
     expect(screen.getByText("知试")).toBeInTheDocument();
   });
 
-  it("renders the brand 知 monogram inside the circle", () => {
-    render(<Wordmark data-testid="wm" />);
+  it("renders the shared brand glyph", () => {
+    const { container } = render(<Wordmark data-testid="wm" />);
 
-    expect(screen.getByText("知")).toBeInTheDocument();
+    const mark = container.querySelector("[data-brand-mark]");
+    expect(mark).toBeInTheDocument();
+    expect(mark?.querySelector("svg")).toHaveAttribute("viewBox", "0 0 64 64");
   });
 
   it("renders optional subtitle in italic caption", () => {
@@ -24,39 +26,39 @@ describe("Wordmark", () => {
     expect(sub.className).toMatch(/text-caption|text-\[11px\]/);
   });
 
-  it("uses dark colors on the circle for dark variant", () => {
+  it("uses dark-surface colors on the brand mark for dark variant", () => {
     render(<Wordmark data-testid="wm" variant="dark" />);
 
-    const circle = screen.getByTestId("wm").querySelector("span") as HTMLElement;
-    expect(circle.className).toMatch(/bg-canvas|text-ink/);
+    const mark = screen.getByTestId("wm").querySelector("[data-brand-mark]") as HTMLElement;
+    expect(mark.className).toMatch(/bg-canvas|text-ink/);
   });
 
-  it("uses light colors on the circle for light variant", () => {
+  it("uses light-surface colors on the brand mark for light variant", () => {
     render(<Wordmark data-testid="wm" variant="light" />);
 
-    const circle = screen.getByTestId("wm").querySelector("span") as HTMLElement;
-    expect(circle.className).toMatch(/bg-ink/);
+    const mark = screen.getByTestId("wm").querySelector("[data-brand-mark]") as HTMLElement;
+    expect(mark.className).toMatch(/bg-ink/);
   });
 
-  it("uses size=md circle by default", () => {
-    render(<Wordmark size="md" />);
+  it("uses size=md brand mark by default", () => {
+    const { container } = render(<Wordmark size="md" />);
 
-    const monogram = screen.getByText("知");
-    expect(monogram.className).toMatch(/size-9|h-9|w-9/);
+    const mark = container.querySelector("[data-brand-mark]") as HTMLElement;
+    expect(mark.className).toMatch(/size-9|h-9|w-9/);
   });
 
   it("uses size=sm circle and compact text", () => {
     render(<Wordmark data-testid="wm" size="sm" />);
 
-    const circle = screen.getByTestId("wm").querySelector("span") as HTMLElement;
-    expect(circle.className).toMatch(/size-7|h-7|w-7/);
+    const mark = screen.getByTestId("wm").querySelector("[data-brand-mark]") as HTMLElement;
+    expect(mark.className).toMatch(/size-7|h-7|w-7/);
     expect(screen.getByText("知试").className).toMatch(/text-\[18px\]/);
   });
 
   it("accepts tone as a variant alias", () => {
     render(<Wordmark data-testid="wm" tone="dark" />);
 
-    const circle = screen.getByTestId("wm").querySelector("span") as HTMLElement;
-    expect(circle.className).toMatch(/bg-canvas|text-ink/);
+    const mark = screen.getByTestId("wm").querySelector("[data-brand-mark]") as HTMLElement;
+    expect(mark.className).toMatch(/bg-canvas|text-ink/);
   });
 });

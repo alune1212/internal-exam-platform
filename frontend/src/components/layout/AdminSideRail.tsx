@@ -81,7 +81,7 @@ function LogoutButton({
       type="button"
       onClick={onLogout}
       className={cn(
-        "flex h-12 items-center gap-2 rounded-md px-3 text-body-sm font-medium transition-colors",
+        "flex h-12 w-full items-center gap-2 rounded-md px-3 text-body-sm font-medium transition-colors",
         tone === "dark"
           ? "text-footer-soft hover:bg-white/10 hover:text-canvas"
           : "text-muted hover:bg-surface-card hover:text-ink",
@@ -100,7 +100,7 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
 
   if (isDesktop) {
     return (
-      <aside className="flex w-60 shrink-0 flex-col border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft">
+      <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col overflow-hidden border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft">
         <Link
           to="/admin/dashboard"
           aria-label="返回管理后台首页"
@@ -108,8 +108,10 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
         >
           <Wordmark size="sm" tone="dark" subtitle="admin" />
         </Link>
-        <SidebarList />
-        <div className="mt-auto border-t border-footer-soft pt-4">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <SidebarList />
+        </div>
+        <div className="mt-4 border-t border-footer-soft pt-4">
           <LogoutButton onLogout={onLogout} />
         </div>
       </aside>

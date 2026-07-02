@@ -1,17 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, FileUp } from "lucide-react";
+import { Download } from "lucide-react";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 
 import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, importCandidates } from "@/api/imports";
+import { ImportPanel } from "@/components/admin/ImportPanel";
 import { PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { adminPageCopy } from "@/lib/pageCopy";
 import type { ImportFailure } from "@/types/imports";
 
@@ -47,33 +45,17 @@ export function CandidateImportPage() {
         description="上传人员 Excel 模板，系统会按当前考试写入应考名单。"
       />
 
-      <PageSection variant="panel" className="rounded-lg p-6 lg:p-8">
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="candidate-file">选择 Excel 文件</FieldLabel>
-            <Input
-              id="candidate-file"
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-            />
-          </Field>
-        </FieldGroup>
-        <Button
-          type="button"
-          size="lg"
-          className="self-start"
-          disabled={!file || mutation.isPending}
-          onClick={() => file && mutation.mutate(file)}
-        >
-          {mutation.isPending ? (
-            <Spinner data-icon="inline-start" aria-label="正在导入应考人员" />
-          ) : (
-            <FileUp data-icon="inline-start" />
-          )}
-          {mutation.isPending ? "正在导入..." : "上传应考人员"}
-        </Button>
-      </PageSection>
+      <ImportPanel
+        fileInputId="candidate-file"
+        fileLabel="选择 Excel 文件"
+        selectedFile={file}
+        onFileChange={setFile}
+        uploadLabel="上传应考人员"
+        pendingLabel="正在导入..."
+        pendingAriaLabel="正在导入应考人员"
+        isPending={mutation.isPending}
+        onUpload={() => file && mutation.mutate(file)}
+      />
 
       {notice ? (
         <Alert variant={notice.tone === "success" ? "success" : "error"}>
