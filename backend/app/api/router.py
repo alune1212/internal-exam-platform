@@ -6,6 +6,7 @@ from app.api import (
     candidates,
     exams,
     imports,
+    learning,
     practice,
     questions,
     reports,
@@ -24,9 +25,11 @@ def health_check() -> ApiResponse[dict[str, str]]:
 
 router.include_router(auth.router)
 router.include_router(candidates.router)
+router.include_router(learning.router)
 router.include_router(practice.router)
 router.include_router(exams.router)
 router.include_router(attempts.router)
+router.include_router(learning.admin_router, dependencies=[Depends(require_admin)])
 router.include_router(exams.admin_router, dependencies=[Depends(require_admin)])
 router.include_router(questions.router, dependencies=[Depends(require_admin)])
 router.include_router(reports.router, dependencies=[Depends(require_admin)])

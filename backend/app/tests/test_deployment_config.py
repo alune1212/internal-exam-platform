@@ -36,3 +36,15 @@ def test_frontend_csp_allows_configured_font_hosts() -> None:
 
     assert "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com" in nginx_conf
     assert "font-src 'self' data: https://fonts.gstatic.com" in nginx_conf
+    assert "media-src 'self'" in nginx_conf
+
+
+def test_nginx_serves_learning_media_from_named_volume() -> None:
+    compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    nginx_conf = (REPO_ROOT / "nginx" / "default.conf").read_text(encoding="utf-8")
+
+    assert "learning_media:/app/learning-media" in compose
+    assert "learning_media:/var/lib/nginx/learning-media:ro" in compose
+    assert "location /media/learning/" in nginx_conf
+    assert "alias /var/lib/nginx/learning-media/" in nginx_conf
+    assert "client_max_body_size 500m" in nginx_conf

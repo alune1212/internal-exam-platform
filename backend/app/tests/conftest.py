@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core import rate_limit
+from app.core.config import settings
 from app.core.database import Base
 from app.main import app
 from app.models import (
@@ -34,6 +35,11 @@ def clear_public_token_rate_limit() -> Iterator[None]:
     rate_limit._attempts.clear()
     yield
     rate_limit._attempts.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolate_learning_media(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "learning_media_storage_dir", str(tmp_path / "media"))
 
 
 @pytest.fixture

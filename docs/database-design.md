@@ -134,6 +134,42 @@
 - 练习提交通过 `X-Candidate-Token` 解析当前考试人，不接受请求体里的 `candidate_id`。
 - 练习题列表和提交响应都不返回正确答案、解析、对错或判分结果；判分结果只保存在服务端记录中。
 
+### learning_video
+
+学习视频元数据表；视频文件本体保存在本地媒体目录，不写入数据库。
+
+关键字段：`id`、`title`、`description`、`original_filename`、`storage_key`、`content_type`、`file_size_bytes`、`duration_seconds`、`completion_threshold_percent`、`status`、`uploaded_at`、`created_at`、`updated_at`。
+
+约束和索引：
+
+- `storage_key` 唯一；服务端生成不透明 key，不能直接使用用户上传文件名作为路径。
+- `status` 建索引，状态为 `draft`、`published`、`archived`。
+- 默认完成阈值为 90。
+
+说明：
+
+- 只有 `published` 视频会展示给考试人。
+- `archived` 视频不再出现在考试人学习列表，但管理员报表仍可统计其历史学习记录。
+- 本地媒体目录应与 PostgreSQL 数据库一起备份，否则恢复后元数据和视频文件会不一致。
+
+### learning_video_progress
+
+考试人的视频学习进度表。
+
+关键字段：`id`、`video_id`、`candidate_id`、`last_position_seconds`、`watched_seconds`、`completion_percent`、`watched_intervals`、`completed_at`、`last_heartbeat_at`、`created_at`、`updated_at`。
+
+约束和索引：
+
+- `(video_id, candidate_id)` 唯一，每个考试人对每个视频只有一条进度记录。
+- `video_id` 删除时级联删除对应进度。
+- `candidate_id`、`video_id`、`completed_at` 和 `last_heartbeat_at` 建索引，供学习报表使用。
+
+说明：
+
+- `watched_intervals` 使用 JSON 保存去重后的观看区间，例如 `[{"start": 0, "end": 30}]`。
+- 服务端合并重叠区间，并限制单次心跳可计入长度，避免拖动跳转或重复心跳虚增完成度。
+- 学习进度独立于 `exam_attempt`、`practice_answer` 和考试报表；完成视频不改变考试资格、成绩或排名。
+
 ### import_batch
 
 导入批次表。

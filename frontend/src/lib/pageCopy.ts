@@ -1,5 +1,6 @@
 export const candidatePageCopy = {
   login: "EXAM TAKER · 登录",
+  learning: "LEARNING · 学习",
   practice: "PRACTICE · 练习",
   exams: "EXAMS · 考试",
   examRules: "EXAM RULES · 考试说明",
@@ -25,6 +26,19 @@ export const candidatePageText = {
     emptyDescription: "考试发布并开放后会显示在这里。",
     errorTitle: "考试列表加载失败。",
     errorDescription: "请稍后重试，或联系管理员确认考试是否已发布。",
+  },
+  learning: {
+    title: "视频学习",
+    description: "观看管理员发布的学习视频，完成度达到 90% 后标记为已完成。",
+    emptyTitle: "暂无学习视频。",
+    emptyDescription: "管理员发布视频后会显示在这里。",
+    errorTitle: "学习视频加载失败。",
+    errorDescription: "请稍后重试，或联系管理员确认视频是否已发布。",
+    detailErrorTitle: "视频加载失败。",
+    detailErrorDescription: "请返回学习列表重新进入，或联系管理员确认视频状态。",
+    completed: "已完成",
+    inProgress: "学习中",
+    notStarted: "未开始",
   },
   examRules: {
     title: "阅读规则，开始作答",
@@ -59,6 +73,7 @@ export const adminPageCopy = {
   library: "QUESTION BANK · 题库",
   questionImport: "QUESTION IMPORT · 题库导入",
   reports: "REPORTS · 报表",
+  learning: "LEARNING · 视频学习",
   empty: "STATE · 空状态",
   error: "STATE · 异常状态",
 } as const;
@@ -105,6 +120,12 @@ export const adminPageText = {
       title: "参考状态",
       description: "按未开始、进行中、已交卷拆分应考人员状态。",
     },
+  },
+  learning: {
+    title: "视频学习",
+    description: "上传学习视频并查看考试人的观看完成情况。",
+    reportTitle: "学习报表",
+    reportDescription: "按视频和完成状态查看学习进度。",
   },
 } as const;
 
@@ -161,6 +182,11 @@ export const adminTableCopy = {
   exam: "EXAM · 考试",
   duration: "DURATION · 时长",
   status: "STATUS · 状态",
+  video: "VIDEO · 视频",
+  videoStatus: "VIDEO STATUS · 视频状态",
+  progress: "PROGRESS · 完成度",
+  completedAt: "COMPLETED · 完成时间",
+  lastSeen: "LAST SEEN · 最近学习",
   openWindow: "WINDOW · 开放时间",
   questionPool: "POOL · 题池",
   questionType: "TYPE · 题型",
@@ -216,6 +242,18 @@ const questionStatusCopy: Record<string, string> = {
   inactive: "INACTIVE · 停用",
 };
 
+const learningVideoStatusCopy: Record<string, string> = {
+  draft: "DRAFT · 草稿",
+  published: "PUBLISHED · 已发布",
+  archived: "ARCHIVED · 已归档",
+};
+
+const learningCompletionCopy: Record<string, string> = {
+  not_started: "NOT STARTED · 未开始",
+  in_progress: "IN PROGRESS · 学习中",
+  completed: "COMPLETED · 已完成",
+};
+
 export function formatExamStatus(status?: string | null) {
   return status ? (examStatusCopy[status] ?? "UNKNOWN · 未知状态") : "UNKNOWN · 未知状态";
 }
@@ -253,6 +291,18 @@ export function formatQuestionTypeShortLabel(questionType?: string | null) {
 
 export function formatQuestionStatus(status?: string | null) {
   return status ? (questionStatusCopy[status] ?? "UNKNOWN · 未知状态") : "UNKNOWN · 未知状态";
+}
+
+export function formatLearningVideoStatus(status?: string | null) {
+  return status
+    ? (learningVideoStatusCopy[status] ?? "UNKNOWN · 未知视频状态")
+    : "UNKNOWN · 未知视频状态";
+}
+
+export function formatLearningCompletion(status?: string | null) {
+  return status
+    ? (learningCompletionCopy[status] ?? "UNKNOWN · 未知学习状态")
+    : learningCompletionCopy.not_started;
 }
 
 export function formatQuestionEyebrow(index: number, typeLabel: string, score: number) {

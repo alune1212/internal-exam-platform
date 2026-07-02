@@ -29,12 +29,13 @@ function renderSideRail(initialPath: string, matches = true) {
 }
 
 describe("AdminSideRail", () => {
-  it("renders all five admin nav items", () => {
+  it("renders all six admin nav items", () => {
     renderSideRail("/admin/dashboard");
     expect(screen.getByRole("link", { name: "仪表盘" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库导入" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "学习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "报表" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
   });
@@ -45,10 +46,10 @@ describe("AdminSideRail", () => {
       .getAllByRole("link")
       .map((link) => link.textContent)
       .filter((name): name is string =>
-        Boolean(name && ["仪表盘", "考试", "题库", "题库导入", "报表"].includes(name)),
+        Boolean(name && ["仪表盘", "考试", "题库", "题库导入", "学习", "报表"].includes(name)),
       );
 
-    expect(navNames).toEqual(["仪表盘", "考试", "题库", "题库导入", "报表"]);
+    expect(navNames).toEqual(["仪表盘", "考试", "题库", "题库导入", "学习", "报表"]);
   });
 
   it("renders the dark wordmark with the admin subtitle", () => {
@@ -82,6 +83,14 @@ describe("AdminSideRail", () => {
 
     expect(reportsLink).toHaveClass("bg-canvas");
     expect(reportsLink).toHaveClass("text-ink");
+  });
+
+  it("keeps the learning nav item active across learning subpages", () => {
+    renderSideRail("/admin/learning/reports");
+    const learningLink = screen.getByRole("link", { name: "学习" });
+
+    expect(learningLink).toHaveClass("bg-canvas");
+    expect(learningLink).toHaveClass("text-ink");
   });
 
   it("applies dark background to the desktop aside container", () => {

@@ -21,6 +21,8 @@ function routeElement(Component: ComponentType) {
 }
 
 const LoginPage = lazyNamed(() => import("@/pages/LoginPage"), "LoginPage");
+const LearningListPage = lazyNamed(() => import("@/pages/LearningListPage"), "LearningListPage");
+const LearningVideoPage = lazyNamed(() => import("@/pages/LearningVideoPage"), "LearningVideoPage");
 const PracticePage = lazyNamed(() => import("@/pages/PracticePage"), "PracticePage");
 const ExamListPage = lazyNamed(() => import("@/pages/ExamListPage"), "ExamListPage");
 const ExamStartPage = lazyNamed(() => import("@/pages/ExamStartPage"), "ExamStartPage");
@@ -48,6 +50,14 @@ const ExamCandidatesPage = lazyNamed(
   () => import("@/pages/admin/ExamCandidatesPage"),
   "ExamCandidatesPage",
 );
+const AdminLearningVideoPage = lazyNamed(
+  () => import("@/pages/admin/LearningVideoPage"),
+  "AdminLearningVideoPage",
+);
+const AdminLearningReportPage = lazyNamed(
+  () => import("@/pages/admin/LearningReportPage"),
+  "AdminLearningReportPage",
+);
 const ScoreReportPage = lazyNamed(() => import("@/pages/admin/ScoreReportPage"), "ScoreReportPage");
 const QuestionAccuracyPage = lazyNamed(
   () => import("@/pages/admin/QuestionAccuracyPage"),
@@ -69,6 +79,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/login" replace /> },
       { path: "login", element: routeElement(LoginPage) },
+      { path: "learning", element: routeElement(LearningListPage) },
+      { path: "learning/:videoId", element: routeElement(LearningVideoPage) },
       { path: "practice", element: routeElement(PracticePage) },
       { path: "exams", element: routeElement(ExamListPage) },
       { path: "exams/:examId/start", element: routeElement(ExamStartPage) },
@@ -88,6 +100,8 @@ export const router = createBrowserRouter([
       { path: "exams", element: routeElement(AdminExamListPage) },
       { path: "exams/:examId/edit", element: routeElement(ExamEditPage) },
       { path: "exams/:examId/candidates", element: routeElement(ExamCandidatesPage) },
+      { path: "learning", element: routeElement(AdminLearningVideoPage) },
+      { path: "learning/reports", element: routeElement(AdminLearningReportPage) },
       { path: "reports/scores", element: routeElement(ScoreReportPage) },
       { path: "reports/questions", element: routeElement(QuestionAccuracyPage) },
       { path: "reports/wrong", element: routeElement(WrongQuestionPage) },

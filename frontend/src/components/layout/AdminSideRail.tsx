@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { to: "/admin/exams", label: "考试", activePattern: /^\/admin\/exams(?:\/|$)/ },
   { to: "/admin/questions", label: "题库", end: true },
   { to: "/admin/questions/import", label: "题库导入", end: true },
+  { to: "/admin/learning", label: "学习", activePattern: /^\/admin\/learning(?:\/|$)/ },
   { to: "/admin/reports/scores", label: "报表", activePattern: /^\/admin\/reports(?:\/|$)/ },
 ];
 

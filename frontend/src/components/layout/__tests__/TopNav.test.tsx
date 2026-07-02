@@ -49,8 +49,9 @@ describe("TopNav", () => {
     expect(wordmarkLink).toHaveAttribute("href", "/exams");
   });
 
-  it("renders the two primary nav items", () => {
+  it("renders the primary nav items", () => {
     renderTopNav({ candidate, onLogout: () => {} });
+    expect(screen.getByRole("link", { name: "学习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "练习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
   });

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     import_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     import_max_rows: int = Field(default=5000, ge=1)
     import_max_sheets: int = Field(default=1, ge=1)
+    learning_media_storage_dir: str = "/app/learning-media"
+    learning_media_public_path: str = "/media/learning"
+    learning_video_max_upload_bytes: int = Field(default=500 * 1024 * 1024, ge=1)
+    learning_video_allowed_content_types: str = "video/mp4,video/webm"
 
     @model_validator(mode="after")
     def reject_production_defaults(self) -> "Settings":
@@ -59,6 +63,14 @@ class Settings(BaseSettings):
         return [
             origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
         ]
+
+    @property
+    def learning_video_allowed_content_type_set(self) -> set[str]:
+        return {
+            content_type.strip().lower()
+            for content_type in self.learning_video_allowed_content_types.split(",")
+            if content_type.strip()
+        }
 
 
 @lru_cache

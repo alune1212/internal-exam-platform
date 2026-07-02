@@ -13,6 +13,10 @@ export const adminKeys = {
   questions: () => [...adminKeys.all, "questions"] as const,
   question: (id: number) => [...adminKeys.questions(), id] as const,
   reports: () => [...adminKeys.all, "reports"] as const,
+  learning: () => [...adminKeys.all, "learning"] as const,
+  learningVideos: () => [...adminKeys.learning(), "videos"] as const,
+  learningReport: (videoId: string | null, status: string | null) =>
+    [...adminKeys.learning(), "report", videoId, status] as const,
   scoreReport: (examId: number | null) => [...adminKeys.reports(), "score", examId] as const,
   accuracyReport: (examId: number | null) => [...adminKeys.reports(), "accuracy", examId] as const,
   wrongReport: (examId: number | null) => [...adminKeys.reports(), "wrong", examId] as const,
@@ -29,4 +33,7 @@ export const candidateKeys = {
   attempt: (id: number) => [...candidateKeys.all, candidateKeys.id(), "attempt", id] as const,
   result: (id: number) => [...candidateKeys.all, candidateKeys.id(), "result", id] as const,
   practice: () => [...candidateKeys.all, candidateKeys.id(), "practice"] as const,
+  learningVideos: () => [...candidateKeys.all, candidateKeys.id(), "learning-videos"] as const,
+  learningVideo: (id: number) =>
+    [...candidateKeys.all, candidateKeys.id(), "learning-video", id] as const,
 };

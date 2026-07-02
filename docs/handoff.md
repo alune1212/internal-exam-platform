@@ -14,6 +14,7 @@ Implemented foundations:
 - Question Excel import persistence for valid questions, options, and import batches.
 - Candidate Excel import persistence for valid candidates and import batches.
 - Failure report Excel download for question, candidate, and exam-candidate import batches.
+- Independent video learning module with local admin upload, draft/published/archived video status, candidate playback, 90% completion tracking, and learning report export.
 - Exam-scoped candidate list persistence via `exam_candidate_scope`, including import, listing, removal, and retake grant endpoints.
 - Exam configuration create/update/list persistence, available time windows, and candidate-facing active exam listing.
 - Publish-time frozen question pool via `exam_question_pool`.
@@ -37,8 +38,43 @@ Implemented foundations:
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
 - Time-based auto-submit background check.
 - Ranking, exam-filterable admin report SQL queries, and multi-sheet Excel report export.
+- Learning media served through Nginx `/media/learning/` from the `learning_media` volume.
 
 ## Verified Commands
+
+Video learning gates verified on 2026-07-02:
+
+```bash
+cd backend
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff format . --check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff check .
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ty check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run pytest
+cd ../frontend
+npm run format:check
+npm test -- --run
+npm run lint
+npm run build
+cd ..
+docker compose --env-file .env config
+docker compose --env-file .env up -d --build
+docker compose --env-file .env exec -T backend uv run alembic upgrade head
+docker compose --env-file .env exec -T nginx nginx -t
+curl -f http://127.0.0.1:8080/api/health
+curl -f http://127.0.0.1:8080/docs
+```
+
+Observed results:
+
+- Backend ruff format/lint and `ty check`: passed.
+- Backend tests: 196 passed, 4 skipped.
+- Frontend format/lint/build gates: passed.
+- Frontend tests: 59 files / 300 tests passed.
+- Docker Compose config and build passed; db, backend, auto-submit-worker, frontend, and nginx stayed Up.
+- Container Alembic upgrade used `PostgresqlImpl` and reached head; startup logs ran `202606250001 -> 202607020001, video_learning`.
+- `nginx -t` passed.
+- `http://127.0.0.1:8080/api/health` returned ok; `http://127.0.0.1:8080/docs` returned the Swagger UI HTML.
+- Browser smoke through `8080` covered candidate `/learning` and `/learning/1`, plus admin `/admin/learning` and `/admin/learning/reports`, using local smoke data. The candidate detail rendered one `<video>` element and no console warning/error was observed.
 
 Quality gates verified on 2026-07-02 after the Build Web Apps frontend audit:
 
@@ -141,11 +177,15 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 - Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
 - Candidate authentication clears stale local session state on logout or 401, and no-session candidate pages return to `/login` without calling candidate-scoped APIs.
 - Practice mode uses `X-Candidate-Token` for question listing and answer submission, re-checks active candidate status, and does not expose correct answers or analysis before submission.
+- Video learning uses `X-Candidate-Token` for published video listing, detail, and progress heartbeat. Watched intervals are merged server-side so repeated playback and seek jumps do not inflate completion.
+- Video learning completion is independent from exam eligibility, exam start/submit, scoring, ranking, and practice behavior. The current completion threshold is 90%.
+- Admin learning pages support local `mp4` / `webm` upload, client-side duration extraction, publish/archive actions, title/description edits, video/status-filtered learning report, and Excel export.
 
 ## Known Gaps
 
 - No blocking P0 gap is currently documented in code. A scripted Docker/Nginx `8080` business UAT passed on 2026-06-29; production rollout should still run a short human browser walkthrough with real exam data and operators.
 - Production readiness still requires non-default production secrets, production HTTPS CORS, and a database backup before migration.
+- Production backup must include both PostgreSQL and the `learning_media` volume/local media directory; otherwise learning video metadata may restore without playable files.
 - Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
 
 ## Recommended Next Work

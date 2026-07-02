@@ -102,6 +102,10 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 export async function uploadRequest<T>(path: string, file: File): Promise<T> {
   const formData = new FormData();
   formData.append("file", file);
+  return formRequest<T>(path, formData);
+}
+
+export async function formRequest<T>(path: string, formData: FormData): Promise<T> {
   const response = await fetch(resolveApiUrl(path), {
     method: "POST",
     body: formData,

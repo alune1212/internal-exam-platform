@@ -59,6 +59,7 @@ describe("CandidateLayout", () => {
     renderCandidateShell("/login");
 
     expect(screen.getByRole("heading", { name: "入场核验" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "学习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "练习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "考试" })).not.toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();

@@ -80,8 +80,9 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
   const location = useLocation();
   const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
   const navItems: NavItem[] = [
-    { to: "/practice", label: "练习", mark: "I." },
-    { to: "/exams", label: "考试", mark: "II.", end: true },
+    { to: "/learning", label: "学习", mark: "I.", activePattern: /^\/learning(?:\/|$)/ },
+    { to: "/practice", label: "练习", mark: "II." },
+    { to: "/exams", label: "考试", mark: "III.", end: true },
   ];
 
   return (

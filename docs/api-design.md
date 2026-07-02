@@ -30,6 +30,10 @@ POST /api/candidates/login
 GET  /api/practice/questions
 POST /api/practice/answers
 
+GET  /api/learning/videos
+GET  /api/learning/videos/{video_id}
+POST /api/learning/videos/{video_id}/progress
+
 GET  /api/exams/active
 POST /api/exams/{exam_id}/start
 GET  /api/attempts/{attempt_id}
@@ -51,6 +55,9 @@ GET  /api/exams/{exam_id}/ranking
 - 公开 `/api/attempts/{attempt_id}/submit` 只接受 `submit_type = "manual"`；`auto` 仅由后端 scheduler 内部调用 service。
 - `/api/attempts/{attempt_id}/result` 仅允许已交卷或自动交卷的 attempt 读取成绩结果；结果包含 `pass_score` 和 `is_passed`。
 - `/api/practice/questions` 需要 `X-Candidate-Token`，使用练习专用响应，不返回正确答案和解析；`/api/practice/answers` 通过 `X-Candidate-Token` 解析考试人，作答响应不返回正确答案、解析、对错或判分结果。
+- `/api/learning/videos` 和 `/api/learning/videos/{video_id}` 需要 `X-Candidate-Token`，只返回 `published` 学习视频及当前考试人的学习进度。
+- `/api/learning/videos/{video_id}/progress` 接收当前播放位置和本次观看区间；服务端会合并区间、去重并限制单次可计入长度，完成度达到 90% 时写入 `completed_at`。
+- 视频学习进度不参与考试资格判断，不影响 `/api/exams/active`、考试开始、交卷、评分、排名或练习接口。
 
 ## 管理员端
 
@@ -80,6 +87,14 @@ GET /api/admin/reports/question-accuracy?exam_id={id}
 GET /api/admin/reports/wrong-questions?exam_id={id}
 GET /api/admin/reports/absent-candidates?exam_id={id}&status=not_started
 GET /api/admin/reports/export?exam_id={id}
+
+POST /api/admin/learning/videos
+GET  /api/admin/learning/videos
+PUT  /api/admin/learning/videos/{video_id}
+POST /api/admin/learning/videos/{video_id}/publish
+POST /api/admin/learning/videos/{video_id}/archive
+GET  /api/admin/learning/reports?video_id={id}&status=completed
+GET  /api/admin/learning/reports/export?video_id={id}&status=completed
 ```
 
 说明：
@@ -96,3 +111,7 @@ GET /api/admin/reports/export?exam_id={id}
 - 单场考试名单删除接口只移除该考试的 `exam_candidate_scope` 记录，不删除全局 candidate。
 - 补考授权接口创建一条未使用的 `exam_retake_grant`；已交卷人员存在未使用授权时会重新出现在考试人 active exam 列表，开始考试时生成 `attempt_kind = "retake"` 的新 attempt 并消耗授权。
 - 报表统计查询已使用真实 SQL；成绩、题目正确率、错题、参考状态和导出均支持 `exam_id` 过滤。省略 `exam_id` 时保留全局视图。
+- `/api/admin/learning/videos` 上传接口使用 multipart form，字段为 `title`、可选 `description`、`duration_seconds` 和 `file`；当前允许 `video/mp4` 与 `video/webm`，默认最大 500 MiB。
+- 学习视频上传后为 `draft`；发布后考试人可见，归档后考试人不可见。管理员仍可在列表和学习报表中看到视频状态。
+- 学习报表按 active candidate 和学习视频生成行，可用 `video_id` 与 `status=not_started|in_progress|completed` 过滤，并支持 Excel 导出。
+- 本地视频文件通过 Nginx `/media/learning/` 提供播放，API 只返回播放 URL 和元数据，不把原始文件名作为存储路径。
