@@ -88,4 +88,54 @@ describe("ScoreReportPage", () => {
     expect(screen.queryByRole("button", { name: /导出全部报表/ })).not.toBeInTheDocument();
     expect(queryFn).not.toHaveBeenCalled();
   });
+
+  it("filters and downloads question accuracy by the selected exam", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getQuestionAccuracy).mockResolvedValueOnce([
+      {
+        question_id: 11,
+        stem: "单选题干",
+        correct_count: 7,
+        total_count: 8,
+        accuracy_rate: 0.875,
+      },
+    ]);
+
+    renderReportPage(<QuestionAccuracyPage />);
+
+    expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
+    await waitFor(() => expect(getQuestionAccuracy).toHaveBeenCalledWith("7"));
+    expect(await screen.findByText("单选题干")).toBeInTheDocument();
+    expect(screen.getByText("87.5%")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: /导出当前考试/ }));
+
+    await waitFor(() => expect(downloadReportExport).toHaveBeenCalledTimes(1));
+    expect(downloadReportExport).toHaveBeenCalledWith("7");
+  });
+
+  it("filters and downloads wrong-question rankings by the selected exam", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getWrongQuestions).mockResolvedValueOnce([
+      {
+        question_id: 12,
+        stem: "多选题干",
+        wrong_count: 3,
+        category_1: "制度",
+        category_2: "多选",
+      },
+    ]);
+
+    renderReportPage(<WrongQuestionPage />);
+
+    expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
+    await waitFor(() => expect(getWrongQuestions).toHaveBeenCalledWith("7"));
+    expect(await screen.findByText("多选题干")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: /导出当前考试/ }));
+
+    await waitFor(() => expect(downloadReportExport).toHaveBeenCalledTimes(1));
+    expect(downloadReportExport).toHaveBeenCalledWith("7");
+  });
 });

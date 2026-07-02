@@ -40,29 +40,38 @@ Implemented foundations:
 
 ## Verified Commands
 
-Quality gates verified on 2026-06-29:
+Quality gates verified on 2026-07-02 after the Build Web Apps frontend audit:
 
 ```bash
-cd backend
-UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff format . --check
-UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff check .
-UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ty check
-UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run pytest
-cd ../frontend
+cd frontend
 npm run format:check
 npm test -- --run
 npm run lint
 npm run build
+cd ../backend
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run pytest
 cd ..
 docker compose --env-file .env config
 docker compose --env-file .env up -d --build
 docker compose exec -T backend uv run alembic upgrade head
 docker compose exec -T nginx nginx -t
-curl -f http://localhost:8080/api/health
-curl -f http://localhost:8080/docs
+curl -f http://127.0.0.1:8080/api/health
+curl -f http://127.0.0.1:8080/docs
 ```
 
 Observed results:
+
+- Backend tests: 186 passed, 4 skipped.
+- Frontend format/lint/build gates: passed.
+- Frontend tests: 56 files / 284 tests passed.
+- Frontend lint: 0 errors and 0 warnings.
+- Frontend build: passed.
+- Docker Compose config and build passed; db, backend, auto-submit-worker, frontend, and nginx stayed Up.
+- Container Alembic upgrade reached head; `nginx -t` passed.
+- `http://127.0.0.1:8080/api/health` returned ok; `http://127.0.0.1:8080/docs` returned the Swagger UI HTML.
+- Browser audit through `8080` covered desktop and mobile candidate/admin surfaces: candidate login, no-session `/exams` redirect to login, active exam list, exam start, exam taking, answer selection, submit/result, result wrong-only filter, admin login/dashboard, exam list/edit/candidates, question list/import, report pages, absent status filters, and mobile admin menu. No console warning/error, framework overlay, blank page, or horizontal overflow was observed.
+
+Earlier full quality gates verified on 2026-06-29:
 
 - Backend format/lint/type gates: passed.
 - Backend tests: 186 passed, 4 skipped.
