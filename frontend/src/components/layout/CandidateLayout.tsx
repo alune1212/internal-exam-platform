@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Footer } from "@/components/layout/Footer";
 import { TopNav } from "@/components/layout/TopNav";
 import {
   clearCurrentCandidate,
@@ -61,7 +60,6 @@ export function CandidateLayout() {
           context={{ candidate, loginCandidate, logoutCandidate } satisfies CandidateSessionContext}
         />
       </main>
-      {isLoginRoute ? null : <Footer />}
     </div>
   );
 }

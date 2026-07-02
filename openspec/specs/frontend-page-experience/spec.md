@@ -73,7 +73,7 @@ The system SHALL keep mobile candidate and admin workflows usable without overla
 The system SHALL use a consistent brand glyph for the browser tab identity and repeated admin chrome wordmarks while preserving readable light and dark variants.
 
 #### Scenario: Admin chrome renders brand identity
-- **WHEN** an authenticated administrator views the desktop side rail, mobile admin header, or shared footer
+- **WHEN** an authenticated administrator views the desktop side rail or mobile admin header
 - **THEN** the visible wordmark uses the same brand glyph shape as the browser tab icon, with colors adapted to the current surface
 
 #### Scenario: Brand text remains available

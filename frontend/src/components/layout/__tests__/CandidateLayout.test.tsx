@@ -61,7 +61,15 @@ describe("CandidateLayout", () => {
     expect(screen.getByRole("heading", { name: "登录考试人" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "练习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "考试" })).not.toBeInTheDocument();
-    expect(screen.queryByText("CONTACT")).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+
+  it("renders the authenticated candidate app shell without a global footer", () => {
+    setCurrentCandidate(mockCandidate);
+    renderCandidateShell("/exams");
+
+    expect(screen.getByText("考试列表")).toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 
   it("returns to login when a candidate session is cleared after unauthorized API response", async () => {

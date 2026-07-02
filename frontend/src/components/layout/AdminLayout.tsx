@@ -4,7 +4,6 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { clearAdminToken, getAdminToken } from "@/lib/adminSession";
 
 import { AdminSideRail } from "@/components/layout/AdminSideRail";
-import { Footer } from "@/components/layout/Footer";
 
 export function AdminLayout() {
   const navigate = useNavigate();
@@ -30,7 +29,6 @@ export function AdminLayout() {
           </div>
         </main>
       </div>
-      <Footer />
     </div>
   );
 }
