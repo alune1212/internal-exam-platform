@@ -46,8 +46,8 @@ GET  /api/exams/{exam_id}/ranking
 
 说明：
 
-- `/api/candidates/login` 需要 `name`、`email`，可选 `employee_no`；传入员工号时也必须同时匹配姓名和邮箱。匹配成功后只创建邮件 OTP challenge，不返回 candidate token。
-- `/api/candidates/login/verify` 需要 `challenge_id` 和 `otp`；验证码未过期、未使用且未超过尝试次数时，接口消费 challenge 并返回签名 candidate token。
+- `/api/candidates/login` 需要 `name`、`email`，可选 `employee_no`；传入员工号时也必须同时匹配姓名和邮箱。**请求始终返回 200** 与相同的 `CandidateLoginChallengeResponse` 信封（`challenge_id` / `expires_at` / `resend_available_at`），但不返回 candidate token。未知、歧义、非活跃或缺少邮箱的身份会写入一条指向 sentinel candidate 的 challenge 且**不发送邮件**；成功匹配的身份指向真实 candidate 并在接口返回后由 FastAPI `BackgroundTasks` 异步触发邮件发送，**SMTP 失败不会回滚 challenge 也不会返回 5xx**。这一致化响应与排程用来防止通过响应差分枚举应考名单。审计信号通过结构化 WARN 日志 `event=candidate_login.unknown_identity` 记录。
+- `/api/candidates/login/verify` 需要 `challenge_id` 和 `otp`；验证码未过期、未使用且未超过尝试次数时，接口消费 challenge 并返回签名 candidate token。指向 sentinel candidate 或身份被并发消费的 challenge 一律在 verify 阶段以 404 拒绝。
 - `/api/candidates/login`、`/api/candidates/login/verify` 和 `/api/admin/login` 带应用层限流，超过阈值返回 429。
 - `/api/exams/active` 需要 `X-Candidate-Token`，并只返回当前考试人在 `exam_candidate_scope` 内、仍可参加的 `active` 状态考试，按 `id` 排序返回。
 - `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态；已交卷且无未使用补考授权的考试不会出现在该列表。

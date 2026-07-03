@@ -21,6 +21,7 @@
 - `name`、`exam_group`、`status` 建索引。
 - 没有员工号时的姓名唯一校验由 service 层处理。
 - 严格考试人登录使用 `name` + `email` + 可选 `employee_no` 创建邮件 OTP challenge；新导入名单必须提供可用 `email`，`phone_suffix` 仅作为保留资料字段。
+- `is_login_sentinel`（NOT NULL，默认 `false`）标识考试人登录 sentinel 行；该列建索引，数据库里**必须有且仅有一行** `is_login_sentinel = true`，由迁移 `202607030002_candidate_login_sentinel` 安装。Sentinel 行 `name` 为 `__candidate_login_sentinel__`、`status='inactive'`、`email IS NULL`、`should_attend=false`，**禁止**被加入 `exam_candidate_scope`、被 exam-candidate 导入复用、也**禁止**被操作员删除或重命名——它是未知身份登录请求的兜底 challenge 目标。verify 阶段会拒绝指向 sentinel 的 challenge，因此即使有人猜中 OTP 也无法签发 candidate token。
 
 ### candidate_login_challenge
 

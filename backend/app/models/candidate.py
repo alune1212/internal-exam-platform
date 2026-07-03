@@ -33,6 +33,9 @@ class Candidate(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=CandidateStatus.active.value, index=True
     )
+    is_login_sentinel: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, index=True
+    )
     remark: Mapped[str | None] = mapped_column(Text)
 
     attempts = relationship("ExamAttempt", back_populates="candidate")

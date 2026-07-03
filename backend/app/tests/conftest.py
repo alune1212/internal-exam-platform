@@ -52,8 +52,32 @@ def db() -> Iterator[Session]:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     with session_factory() as session:
+        _ensure_candidate_login_sentinel(session)
         yield session
     Base.metadata.drop_all(engine)
+
+
+def _ensure_candidate_login_sentinel(db: Session) -> None:
+    """Mirror the data migration in tests.
+
+    The ``202607030002_candidate_login_sentinel`` migration inserts exactly
+    one sentinel row in production. Tests build the schema via
+    ``Base.metadata.create_all`` and skip migrations, so we install the
+    sentinel row here to keep the service happy under the uniform-response
+    contract.
+    """
+    existing = db.query(Candidate).filter(Candidate.is_login_sentinel.is_(True)).first()
+    if existing is not None:
+        return
+    db.add(
+        Candidate(
+            name="__candidate_login_sentinel__",
+            status="inactive",
+            should_attend=False,
+            is_login_sentinel=True,
+        )
+    )
+    db.commit()
 
 
 def _test_auto_pool_exam_ids(db: Session) -> set[int]:

@@ -47,7 +47,11 @@ def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> 
 
     result = import_candidates_from_workbook(db, workbook, file_name="candidates.xlsx")
 
-    candidates = db.scalars(select(Candidate).order_by(Candidate.id)).all()
+    candidates = db.scalars(
+        select(Candidate)
+        .where(Candidate.is_login_sentinel.is_(False))
+        .order_by(Candidate.id)
+    ).all()
     batch = db.scalars(select(ImportBatch)).one()
 
     assert result.success_count == 2
@@ -115,7 +119,11 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(
 
     result = import_candidates_from_workbook(db, workbook, file_name="mixed.xlsx")
 
-    candidates = db.scalars(select(Candidate).order_by(Candidate.id)).all()
+    candidates = db.scalars(
+        select(Candidate)
+        .where(Candidate.is_login_sentinel.is_(False))
+        .order_by(Candidate.id)
+    ).all()
     batch = db.scalars(select(ImportBatch)).one()
 
     assert result.success_count == 1
@@ -166,7 +174,11 @@ def test_import_candidates_requires_valid_email(db: Session) -> None:
 
     result = import_candidates_from_workbook(db, workbook, file_name="emails.xlsx")
 
-    candidates = db.scalars(select(Candidate).order_by(Candidate.id)).all()
+    candidates = db.scalars(
+        select(Candidate)
+        .where(Candidate.is_login_sentinel.is_(False))
+        .order_by(Candidate.id)
+    ).all()
 
     assert result.success_count == 1
     assert result.failed_count == 2
