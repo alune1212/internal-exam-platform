@@ -1,10 +1,16 @@
 import smtplib
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
+
+# Bounded in-memory outbox used by the `memory` delivery mode (dev / test only).
+# `deque(maxlen=N)` evicts the oldest entry when full, so a long-lived process
+# cannot grow the queue without bound and accumulate plaintext OTPs in memory.
+CANDIDATE_LOGIN_EMAIL_OUTBOX_MAXLEN = 64
 
 
 class EmailDeliveryError(DomainError):
@@ -22,7 +28,14 @@ class CandidateLoginEmail:
     expires_at: datetime
 
 
-candidate_login_email_outbox: list[CandidateLoginEmail] = []
+candidate_login_email_outbox: deque[CandidateLoginEmail] = deque(
+    maxlen=CANDIDATE_LOGIN_EMAIL_OUTBOX_MAXLEN
+)
+
+
+def clear_candidate_login_email_outbox() -> None:
+    """Test fixture helper: drain the in-memory outbox between cases."""
+    candidate_login_email_outbox.clear()
 
 
 def send_candidate_login_otp(

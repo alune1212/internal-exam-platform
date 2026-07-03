@@ -101,17 +101,69 @@ def verify_candidate_login_challenge(
         raise CandidateLoginChallengeError()
 
     if not hmac.compare_digest(challenge.otp_hash, _hash_otp(payload.otp.strip())):
-        challenge.attempt_count += 1
+        # Conditional increment: only count if still unconsumed / not over limit /
+        # not expired. Closes the lost-update window where two concurrent wrong-OTP
+        # requests both read attempt_count=N and both write N+1.
+        _increment_attempt_count(db, challenge.id, now)
         db.commit()
+        raise CandidateLoginChallengeError()
+
+    # Authoritative atomic consume. If another concurrent request already
+    # consumed this challenge (or the attempt_count was just bumped to the
+    # limit by the failed-OTP branch), the WHERE clause matches zero rows
+    # and we reject — closing the read-check-then-write replay window.
+    result = _consume_challenge(db, challenge.id, now)
+    if result == 0:
+        db.rollback()
         raise CandidateLoginChallengeError()
 
     candidate = db.get(Candidate, challenge.candidate_id)
     if candidate is None or candidate.status != "active" or not candidate.email:
+        # Don't let a stale/invalid candidate consume a valid OTP silently.
+        db.rollback()
         raise CandidateLoginChallengeError()
-    challenge.consumed_at = now
     db.commit()
     db.refresh(candidate)
     return _with_token(candidate)
+
+
+def _increment_attempt_count(db: Session, challenge_id: int, now: datetime) -> None:
+    """Atomically bump attempt_count, gated on the row still being open."""
+    (
+        db.query(CandidateLoginChallenge)
+        .filter(
+            CandidateLoginChallenge.id == challenge_id,
+            CandidateLoginChallenge.consumed_at.is_(None),
+            CandidateLoginChallenge.attempt_count
+            < settings.candidate_login_otp_attempt_limit,
+            CandidateLoginChallenge.expires_at > now,
+        )
+        .update(
+            {
+                CandidateLoginChallenge.attempt_count: CandidateLoginChallenge.attempt_count
+                + 1
+            },
+            synchronize_session=False,
+        )
+    )
+
+
+def _consume_challenge(db: Session, challenge_id: int, now: datetime) -> int:
+    """Atomically mark consumed_at; returns the rowcount (0 means lost the race)."""
+    return (
+        db.query(CandidateLoginChallenge)
+        .filter(
+            CandidateLoginChallenge.id == challenge_id,
+            CandidateLoginChallenge.consumed_at.is_(None),
+            CandidateLoginChallenge.attempt_count
+            < settings.candidate_login_otp_attempt_limit,
+            CandidateLoginChallenge.expires_at > now,
+        )
+        .update(
+            {CandidateLoginChallenge.consumed_at: now},
+            synchronize_session=False,
+        )
+    )
 
 
 def _find_login_candidate(db: Session, payload: CandidateLoginRequest) -> Candidate:
