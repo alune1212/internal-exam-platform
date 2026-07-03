@@ -16,6 +16,8 @@ import type { CandidateLearningVideo } from "@/types/learning";
 
 vi.mock("@/api/auth", () => ({
   loginCandidate: vi.fn(),
+  requestCandidateLoginOtp: vi.fn(),
+  verifyCandidateLoginOtp: vi.fn(),
 }));
 
 vi.mock("@/api/learning", () => ({

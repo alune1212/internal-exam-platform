@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     public_token_rate_limit_count: int = Field(default=60, ge=1)
     public_token_rate_limit_window_seconds: int = Field(default=60, ge=1)
     public_token_rate_limit_max_keys: int = Field(default=10_000, ge=2)
+    candidate_login_otp_ttl_seconds: int = Field(default=10 * 60, ge=60)
+    candidate_login_otp_attempt_limit: int = Field(default=5, ge=1)
+    candidate_login_otp_resend_cooldown_seconds: int = Field(default=60, ge=0)
+    candidate_login_email_delivery_mode: str = "memory"
+    candidate_login_email_from: str = ""
+    candidate_login_smtp_host: str = ""
+    candidate_login_smtp_port: int = Field(default=587, ge=1)
+    candidate_login_smtp_username: str = ""
+    candidate_login_smtp_password: str = ""
+    candidate_login_smtp_use_tls: bool = True
     import_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     import_max_rows: int = Field(default=5000, ge=1)
     import_max_sheets: int = Field(default=1, ge=1)
@@ -40,11 +50,22 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def reject_production_defaults(self) -> "Settings":
+        delivery_mode = self.candidate_login_email_delivery_mode.strip().lower()
+        if delivery_mode not in {"memory", "smtp"}:
+            raise ValueError(
+                "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE 只能是 memory 或 smtp"
+            )
         if self.environment == "production":
             if self.admin_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS:
                 raise ValueError("production 环境必须配置 ADMIN_PASSWORD")
             if self.token_secret in REPOSITORY_SAMPLE_TOKEN_SECRETS:
                 raise ValueError("production 环境必须配置 TOKEN_SECRET")
+            if delivery_mode != "smtp":
+                raise ValueError("production 环境必须使用 SMTP 发送考试人登录验证码")
+            if not self.candidate_login_email_from.strip():
+                raise ValueError("production 环境必须配置 CANDIDATE_LOGIN_EMAIL_FROM")
+            if not self.candidate_login_smtp_host.strip():
+                raise ValueError("production 环境必须配置 CANDIDATE_LOGIN_SMTP_HOST")
             origins = self.cors_origin_list
             if not origins:
                 raise ValueError("production 环境必须配置安全的 CORS_ORIGINS")

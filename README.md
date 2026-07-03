@@ -193,17 +193,17 @@ docker-compose --env-file .env config
 - 到时自动提交后台检查、考试排名和管理端报表 SQL 查询
 - 管理端报表支持按 `exam_id` 过滤，并导出为单个 Excel 工作簿，包含成绩报表、题目正确率、错题统计和参考状态
 - 学习报表支持按视频和完成状态过滤，并导出 Excel
-- 候选人登录需要姓名、手机号后四位，以及可选员工号；登录和管理员 token 颁发接口带应用层限流
+- 候选人登录需要姓名、邮箱邮件验证码，以及可选员工号；登录验证码和管理员 token 颁发接口带应用层限流
 - 练习模式通过 `X-Candidate-Token` 识别考生，练习题列表和提交响应都不返回正确答案、解析或判分结果
 - 管理员登录返回签名 session token，管理端 API 使用 `X-Admin-Token`
 - Academic Editorial 前端 redesign：设计令牌、UI primitives、candidate/admin layouts、P0/P1/P2 页面、空态/错态/加载态和考试快捷键
 
 ## 当前边界
 
-第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单管理、补考授权、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表、报表导出、视频学习上传和学习完成报表已经具备入库/查询闭环。当前加固边界包含候选人手机号后四位登录校验、公开 token 颁发限流、Excel 导入大小/行数/sheet 限制、视频上传类型/大小限制、Excel 导出公式转义、生产默认密钥/CORS 拒绝、保存/提交时锁定 attempt 读取、以及仅通过 Nginx 8080 对局域网开放浏览器入口。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、消息通知或队列化导入。
+第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单管理、补考授权、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、排名、按考试过滤报表、报表导出、视频学习上传和学习完成报表已经具备入库/查询闭环。当前加固边界包含候选人邮件 OTP 登录校验、公开 token/验证码接口限流、Excel 导入大小/行数/sheet 限制、视频上传类型/大小限制、Excel 导出公式转义、生产默认密钥/CORS/邮件发送配置拒绝、保存/提交时锁定 attempt 读取、以及仅通过 Nginx 8080 对局域网开放浏览器入口。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、短信验证码、SSO 或队列化导入。
 
 ## 后续开发计划
 
 1. 正式使用前按 `docs/official-exam-uat-checklist.md` 走 Docker/Nginx 入口验收。
-2. 生产环境必须配置非默认 `POSTGRES_PASSWORD`、`DATABASE_URL`、`ADMIN_PASSWORD`、`TOKEN_SECRET`，且 `CORS_ORIGINS` 只能包含正式 HTTPS 域名，不能使用 `*`、localhost、127.0.0.1 或 0.0.0.0；上线前准备数据库和 `learning_media` 媒体目录备份。
+2. 生产环境必须配置非默认 `POSTGRES_PASSWORD`、`DATABASE_URL`、`ADMIN_PASSWORD`、`TOKEN_SECRET`，配置 `CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp`、`CANDIDATE_LOGIN_EMAIL_FROM` 和 `CANDIDATE_LOGIN_SMTP_HOST`，且 `CORS_ORIGINS` 只能包含正式 HTTPS 域名，不能使用 `*`、localhost、127.0.0.1 或 0.0.0.0；上线前准备数据库和 `learning_media` 媒体目录备份。
 3. 如需扩展权限，仅增加轻量能力，不引入复杂 RBAC。

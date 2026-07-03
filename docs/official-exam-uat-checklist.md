@@ -33,7 +33,7 @@ Compose 使用 `.env` 里的 `db` 主机名连接数据库，后端 `8000` 只�
 - `DATABASE_URL` 使用正式数据库凭据。
 - `ADMIN_PASSWORD` 不是默认值。
 - `TOKEN_SECRET` 不是默认值。
-- `ENVIRONMENT=production` 时，后端会拒绝默认 `ADMIN_PASSWORD`、默认 `TOKEN_SECRET`、空 CORS、`*`、非 HTTPS，以及 localhost/127.0.0.1/0.0.0.0；正式环境的 `CORS_ORIGINS` 只包含正式 HTTPS 前端/Nginx 域名。
+- `ENVIRONMENT=production` 时，后端会拒绝默认 `ADMIN_PASSWORD`、默认 `TOKEN_SECRET`、空 CORS、`*`、非 HTTPS、localhost/127.0.0.1/0.0.0.0，以及未配置 SMTP 的考试人邮件 OTP 发送；正式环境的 `CORS_ORIGINS` 只包含正式 HTTPS 前端/Nginx 域名。
 - 如需调整导入预算，显式配置 `IMPORT_MAX_UPLOAD_BYTES`、`IMPORT_MAX_ROWS`、`IMPORT_MAX_SHEETS`；默认是 5 MiB、5000 行、1 个工作表。
 - 已做数据库备份，再执行 `alembic upgrade head`。
 
@@ -46,7 +46,7 @@ Compose 使用 `.env` 里的 `db` 主机名连接数据库，后端 `8000` 只�
 5. 新建或编辑考试，配置 `available_from` / `available_until`、时长、固定试卷规则。
 6. 进入单场考试名单页，导入名单，确认成功/失败统计和失败报告下载。
 7. 发布考试为 active，确认列表显示发布状态、开放窗口、冻结题池数量。
-8. 用名单内考试人登录，打开考试列表。
+8. 用名单内考试人的姓名和邮箱获取邮件验证码，输入验证码后打开考试列表。
 9. 在开放窗口前确认显示未开始且不可新开考。
 10. 到开放窗口内进入考试，确认题目来自 frozen pool，题数/总分符合规则。
 11. 暂存答案，刷新页面，确认已有 attempt 可继续。

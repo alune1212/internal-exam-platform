@@ -7,7 +7,7 @@ The project has a runnable first-phase business loop and completed frontend rede
 Implemented foundations:
 
 - FastAPI app with `/api/health`.
-- SQLAlchemy models for candidates, questions, options, exams, attempts, attempt question snapshots, answers, practice answers, and import batches.
+- SQLAlchemy models for candidates, candidate login challenges, questions, options, exams, attempts, attempt question snapshots, answers, practice answers, and import batches.
 - Alembic initial migration `202606110001_initial_schema.py`.
 - Candidate-facing and admin-facing API routes.
 - Scoring service with tested multiple-choice set comparison.
@@ -22,17 +22,17 @@ Implemented foundations:
 - Answer autosave persistence and hand-in scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
 - Signed admin session tokens returned from login and checked by `X-Admin-Token`.
-- Signed candidate tokens checked by `X-Candidate-Token` for candidate-facing exam/practice APIs.
+- Candidate login uses a two-step email OTP challenge before issuing signed candidate tokens; issued tokens are still checked by `X-Candidate-Token` for candidate-facing exam/practice APIs.
 - Candidate frontend clears stale sessions on logout or 401 responses; `/exams` only queries `/api/exams/active` when a candidate session exists.
 - Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
 - Excel export cells are escaped before writing failure reports and report workbooks.
 - Production settings reject default admin password, default token secret, and unsafe CORS origins.
 - Docker Compose publishes Nginx on `0.0.0.0:8080` so the browser entry can be used from the same LAN; PostgreSQL `5432` and the direct frontend `5173` stay bound to `127.0.0.1`.
-- Public login rate limiting hashes unauthenticated identifiers before storing in memory, and login request fields have bounded lengths.
+- Public login rate limiting hashes unauthenticated identifiers before storing in memory, and login request fields have bounded lengths. Candidate OTP request and verification endpoints share this lightweight rate-limit boundary.
 - Practice question and answer APIs require `X-Candidate-Token` and re-check that the token belongs to an active candidate.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.
 - React/Vite frontend with Academic Editorial design tokens, UI primitives, candidate layout, and admin layout.
-- Candidate login uses a clean auth canvas without candidate navigation or footer; authenticated candidate pages keep the shared top navigation without a global footer.
+- Candidate login uses a clean email OTP auth canvas without candidate navigation or footer; authenticated candidate pages keep the shared top navigation without a global footer.
 - Candidate page eyebrow copy is centralized in `frontend/src/lib/pageCopy.ts`; page/state labels use the shared product terminology, while numbered labels are reserved for real question positions.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
@@ -156,6 +156,7 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 
 - Question import validates Excel rows and persists valid questions, options, and an import batch with failure details.
 - Candidate import validates Excel rows and persists valid candidates plus an import batch with failure details.
+- Candidate and exam-candidate imports require usable email data for strict email OTP login; existing candidates without email can be backfilled from an exam-candidate import row, while conflicting email values fail that row.
 - Import failure report download returns an Excel workbook with batch metadata and row-level failure details.
 - Exam configuration create/update/list services persist to the `exam` table, and candidate-facing active listing requires `X-Candidate-Token` and returns only active exams in that candidate's `exam_candidate_scope`.
 - `available_from` and `available_until` limit new exam starts. Existing in-progress attempts can be resumed after `available_until` and still hand in based on `started_at + duration_minutes`.
@@ -175,7 +176,7 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 - Score, accuracy, wrong-question, absent-candidate, and export reports support `exam_id` filtering. Global reports remain available as an optional view.
 - Report export returns one Excel workbook with sheets for `个人成绩`, `题目正确率`, `错题排行`, and `参考状态`.
 - Admin authentication uses a configured username/password login plus signed session token; frontend stores the token and redirects on 401.
-- Candidate authentication clears stale local session state on logout or 401, and no-session candidate pages return to `/login` without calling candidate-scoped APIs.
+- Candidate authentication requires `name` + `email` + optional `employee_no` to request an email OTP; `/api/candidates/login/verify` consumes a valid challenge before returning the signed candidate token. Candidate frontend clears stale local session state on logout or 401, and no-session candidate pages return to `/login` without calling candidate-scoped APIs.
 - Practice mode uses `X-Candidate-Token` for question listing and answer submission, re-checks active candidate status, and does not expose correct answers or analysis before submission.
 - Video learning uses `X-Candidate-Token` for published video listing, detail, and progress heartbeat. Watched intervals are merged server-side so repeated playback and seek jumps do not inflate completion.
 - Video learning completion is independent from exam eligibility, exam start/submit, scoring, ranking, and practice behavior. The current completion threshold is 90%.
@@ -184,12 +185,12 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 ## Known Gaps
 
 - No blocking P0 gap is currently documented in code. A scripted Docker/Nginx `8080` business UAT passed on 2026-06-29; production rollout should still run a short human browser walkthrough with real exam data and operators.
-- Production readiness still requires non-default production secrets, production HTTPS CORS, and a database backup before migration.
+- Production readiness still requires non-default production secrets, production HTTPS CORS, configured SMTP sender/host for candidate login OTP delivery, and a database backup before migration.
 - Production backup must include both PostgreSQL and the `learning_media` volume/local media directory; otherwise learning video metadata may restore without playable files.
-- Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
+- Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, enterprise SSO/passkey evaluation, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
 
 ## Recommended Next Work
 
 1. Run a short human browser walkthrough against the Docker/Nginx `8080` entrypoint with production-like exam data, using `docs/official-exam-uat-checklist.md` as the checklist.
-2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; then back up the database before running migrations.
-3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool.
+2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; configure `CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp`, `CANDIDATE_LOGIN_EMAIL_FROM`, and `CANDIDATE_LOGIN_SMTP_HOST`; then back up the database before running migrations.
+3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool; if the identity risk increases, evaluate enterprise SSO/MFA separately instead of expanding this email OTP flow into a full account system.

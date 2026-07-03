@@ -1,10 +1,4 @@
-# Candidate Access Specification
-
-## Purpose
-
-Candidate access covers candidate login, candidate-scoped exam discovery, and practice API access.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Candidate Login
 The system SHALL authenticate candidates with a two-step email OTP flow before issuing a candidate token. A challenge request MUST match an active candidate by name and roster email, with a matching employee number when provided, and MUST NOT issue a candidate token until a valid OTP is verified. Phone suffix alone MUST NOT be sufficient to authenticate a candidate in strict login mode.
@@ -32,6 +26,8 @@ The system SHALL authenticate candidates with a two-step email OTP flow before i
 - **GIVEN** a login challenge is expired, already consumed, attempt-exhausted, or receives an incorrect OTP
 - **WHEN** the candidate submits OTP verification
 - **THEN** the system rejects verification without issuing a candidate token
+
+## ADDED Requirements
 
 ### Requirement: Candidate Login Challenge Controls
 The system MUST store candidate login challenges with password-like OTP hygiene: OTP values MUST NOT be stored in plaintext, challenges MUST expire quickly, challenges MUST be single-use, verification attempts MUST be limited, and resend MUST invalidate any previous unconsumed challenge for the same candidate login.
@@ -64,29 +60,3 @@ The system MUST apply public login rate limiting to candidate OTP request and ve
 - **GIVEN** a client repeatedly submits OTP verification attempts within the configured rate-limit window
 - **WHEN** the request count exceeds the allowed threshold
 - **THEN** the system rejects further verification attempts with a rate-limit response
-
-### Requirement: Candidate-Scoped Active Exams
-The system SHALL require X-Candidate-Token for active exam listing and SHALL only return active exams in the candidate's exam scope that the candidate can still enter.
-
-#### Scenario: Candidate has an eligible active exam
-- **GIVEN** a valid candidate token and an active exam containing the candidate in exam_candidate_scope
-- **WHEN** the candidate requests active exams
-- **THEN** the response includes that exam with server-calculated availability status
-
-#### Scenario: Candidate already submitted without retake grant
-- **GIVEN** a candidate has submitted an exam and has no unused retake grant
-- **WHEN** the candidate requests active exams
-- **THEN** the submitted exam is excluded from the active exam list
-
-### Requirement: Practice API Privacy
-The system MUST require X-Candidate-Token for practice APIs and MUST NOT expose correct answers, analysis, correctness, or score in practice question or submit responses.
-
-#### Scenario: Candidate lists practice questions
-- **GIVEN** a valid candidate token
-- **WHEN** the candidate requests practice questions
-- **THEN** the response omits correct answers and analysis
-
-#### Scenario: Candidate submits practice answer
-- **GIVEN** a valid candidate token
-- **WHEN** the candidate submits a practice answer
-- **THEN** the response omits correct answer, analysis, correctness, and score while the server may persist practice result data

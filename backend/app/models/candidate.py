@@ -42,3 +42,8 @@ class Candidate(TimestampMixin, Base):
         back_populates="candidate",
         cascade="all, delete-orphan",
     )
+    login_challenges = relationship(
+        "CandidateLoginChallenge",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+    )

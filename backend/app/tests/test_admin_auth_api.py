@@ -228,6 +228,9 @@ def test_production_rejects_dangerous_cors_origins(cors_origins: str) -> None:
             admin_password="strong-password",  # noqa: S106
             token_secret="prod-token-secret",  # noqa: S106
             cors_origins=cors_origins,
+            candidate_login_email_delivery_mode="smtp",
+            candidate_login_email_from="noreply@example.com",
+            candidate_login_smtp_host="smtp.example.com",
         )
 
 
@@ -237,6 +240,9 @@ def test_production_accepts_explicit_https_cors_origins() -> None:
         admin_password="strong-password",  # noqa: S106
         token_secret="prod-token-secret",  # noqa: S106
         cors_origins="https://exam.example.com, https://admin.example.com",
+        candidate_login_email_delivery_mode="smtp",
+        candidate_login_email_from="noreply@example.com",
+        candidate_login_smtp_host="smtp.example.com",
     )
 
     assert configured.cors_origin_list == [

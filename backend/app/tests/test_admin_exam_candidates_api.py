@@ -71,6 +71,7 @@ def test_import_exam_candidates_adds_scope_rows() -> None:
                 "name": "张三",
                 "employee_no": "E001",
                 "department": "安全部",
+                "email": "zhangsan@example.com",
                 "should_attend": True,
                 "status": "active",
             }
@@ -116,7 +117,14 @@ def test_import_exam_candidates_rejects_oversized_upload(
             "status",
             "remark",
         ],
-        [{"name": "张三", "should_attend": True, "status": "active"}],
+        [
+            {
+                "name": "张三",
+                "email": "zhangsan@example.com",
+                "should_attend": True,
+                "status": "active",
+            }
+        ],
     )
     monkeypatch.setattr(import_service.settings, "import_max_upload_bytes", 1)
 
@@ -141,7 +149,7 @@ def test_import_exam_candidates_reuses_existing_name_without_employee_no() -> No
     client, db = _build_client()
     first_exam = _create_exam(db)
     second_exam = _create_exam(db)
-    candidate = Candidate(name="人员1", status="active")
+    candidate = Candidate(name="人员1", email="person1@example.com", status="active")
     db.add(candidate)
     db.flush()
     db.add(ExamCandidateScope(exam_id=first_exam.id, candidate_id=candidate.id))
@@ -162,11 +170,13 @@ def test_import_exam_candidates_reuses_existing_name_without_employee_no() -> No
         [
             {
                 "name": "人员1",
+                "email": "person1@example.com",
                 "should_attend": True,
                 "status": "active",
             },
             {
                 "name": "人员2",
+                "email": "person2@example.com",
                 "should_attend": True,
                 "status": "active",
             },
@@ -191,6 +201,124 @@ def test_import_exam_candidates_reuses_existing_name_without_employee_no() -> No
     assert data["failed_count"] == 0
     assert db.query(Candidate).count() == 2
     assert db.query(ExamCandidateScope).filter_by(exam_id=second_exam.id).count() == 2
+
+
+def test_import_exam_candidates_backfills_missing_email() -> None:
+    client, db = _build_client()
+    exam = _create_exam(db)
+    candidate = Candidate(name="待补邮箱", employee_no="E200", status="active")
+    db.add(candidate)
+    db.commit()
+    workbook = build_workbook(
+        [
+            "name",
+            "employee_no",
+            "department",
+            "position",
+            "phone_suffix",
+            "email",
+            "exam_group",
+            "should_attend",
+            "status",
+            "remark",
+        ],
+        [
+            {
+                "name": "待补邮箱",
+                "employee_no": "E200",
+                "email": "backfill@example.com",
+                "should_attend": True,
+                "status": "active",
+            }
+        ],
+    )
+
+    resp = client.post(
+        f"/api/admin/exams/{exam.id}/candidates/import",
+        headers=_admin_headers(client),
+        files={
+            "file": (
+                "candidates.xlsx",
+                workbook.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    db.refresh(candidate)
+    assert data["success_count"] == 1
+    assert data["failed_count"] == 0
+    assert candidate.email == "backfill@example.com"
+    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
+
+
+def test_import_exam_candidates_rejects_missing_invalid_and_conflicting_email() -> None:
+    client, db = _build_client()
+    exam = _create_exam(db)
+    candidate = Candidate(
+        name="已有邮箱",
+        employee_no="E300",
+        email="existing@example.com",
+        status="active",
+    )
+    db.add(candidate)
+    db.commit()
+    workbook = build_workbook(
+        [
+            "name",
+            "employee_no",
+            "department",
+            "position",
+            "phone_suffix",
+            "email",
+            "exam_group",
+            "should_attend",
+            "status",
+            "remark",
+        ],
+        [
+            {"name": "缺邮箱", "employee_no": "E301", "status": "active"},
+            {
+                "name": "坏邮箱",
+                "employee_no": "E302",
+                "email": "not-an-email",
+                "status": "active",
+            },
+            {
+                "name": "已有邮箱",
+                "employee_no": "E300",
+                "email": "different@example.com",
+                "status": "active",
+            },
+        ],
+    )
+
+    resp = client.post(
+        f"/api/admin/exams/{exam.id}/candidates/import",
+        headers=_admin_headers(client),
+        files={
+            "file": (
+                "candidates.xlsx",
+                workbook.getvalue(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    db.refresh(candidate)
+    assert data["success_count"] == 0
+    assert data["failed_count"] == 3
+    assert [failure["reason"] for failure in data["failures"]] == [
+        "邮箱不能为空",
+        "邮箱格式不正确",
+        "邮箱与已有考试人员不一致",
+    ]
+    assert candidate.email == "existing@example.com"
+    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 0
 
 
 def test_list_exam_candidates_returns_attempt_and_retake_state() -> None:

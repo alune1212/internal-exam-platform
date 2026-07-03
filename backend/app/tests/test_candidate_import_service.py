@@ -38,6 +38,7 @@ def test_import_candidates_persists_valid_rows_and_import_batch(db: Session) -> 
             {
                 "name": "李四",
                 "department": "财务部",
+                "email": "lisi@example.com",
                 "should_attend": "false",
                 "status": "inactive",
             },
@@ -71,7 +72,11 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(
     db: Session,
 ) -> None:
     existing = Candidate(
-        name="王五", employee_no="E100", should_attend=True, status="active"
+        name="王五",
+        employee_no="E100",
+        email="wangwu@example.com",
+        should_attend=True,
+        status="active",
     )
     db.add(existing)
     db.commit()
@@ -82,17 +87,29 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(
             {
                 "name": "赵六",
                 "employee_no": "E100",
+                "email": "zhaoliu@example.com",
                 "should_attend": True,
                 "status": "active",
             },
             {
                 "name": "",
                 "employee_no": "E200",
+                "email": "missing-name@example.com",
                 "should_attend": True,
                 "status": "active",
             },
-            {"name": "无号人员", "should_attend": True, "status": "active"},
-            {"name": "无号人员", "should_attend": True, "status": "active"},
+            {
+                "name": "无号人员",
+                "email": "no-number@example.com",
+                "should_attend": True,
+                "status": "active",
+            },
+            {
+                "name": "无号人员",
+                "email": "duplicate@example.com",
+                "should_attend": True,
+                "status": "active",
+            },
         ],
     )
 
@@ -117,4 +134,46 @@ def test_import_candidates_skips_missing_name_and_duplicate_identity(
         {"row_number": 2, "reason": "员工号已存在"},
         {"row_number": 3, "reason": "姓名不能为空"},
         {"row_number": 5, "reason": "姓名已存在"},
+    ]
+
+
+def test_import_candidates_requires_valid_email(db: Session) -> None:
+    workbook = build_workbook(
+        CANDIDATE_HEADERS,
+        [
+            {
+                "name": "缺邮箱",
+                "employee_no": "E300",
+                "should_attend": True,
+                "status": "active",
+            },
+            {
+                "name": "坏邮箱",
+                "employee_no": "E301",
+                "email": "not-an-email",
+                "should_attend": True,
+                "status": "active",
+            },
+            {
+                "name": "好邮箱",
+                "employee_no": "E302",
+                "email": "valid@example.com",
+                "should_attend": True,
+                "status": "active",
+            },
+        ],
+    )
+
+    result = import_candidates_from_workbook(db, workbook, file_name="emails.xlsx")
+
+    candidates = db.scalars(select(Candidate).order_by(Candidate.id)).all()
+
+    assert result.success_count == 1
+    assert result.failed_count == 2
+    assert [failure.reason for failure in result.failures] == [
+        "邮箱不能为空",
+        "邮箱格式不正确",
+    ]
+    assert [(candidate.name, candidate.email) for candidate in candidates] == [
+        ("好邮箱", "valid@example.com")
     ]

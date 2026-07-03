@@ -1067,6 +1067,32 @@ def import_exam_candidates_from_workbook(
             candidate = import_service._build_candidate(row)
             db.add(candidate)
             db.flush()
+        else:
+            row_email = import_service.normalize_candidate_email(row.get("email"))
+            email_reason = import_service.validate_candidate_email(row)
+            existing_email = import_service.normalize_candidate_email(candidate.email)
+            if email_reason == "邮箱格式不正确":
+                failures.append(
+                    ImportFailure(row_number=row_number, reason=email_reason)
+                )
+                continue
+            if existing_email is None:
+                if row_email is None:
+                    failures.append(
+                        ImportFailure(row_number=row_number, reason="邮箱不能为空")
+                    )
+                    continue
+                candidate.email = row_email
+            elif row_email is not None and row_email != existing_email:
+                failures.append(
+                    ImportFailure(
+                        row_number=row_number,
+                        reason="邮箱与已有考试人员不一致",
+                    )
+                )
+                continue
+            elif candidate.email != existing_email:
+                candidate.email = existing_email
 
         exists = (
             db.query(ExamCandidateScope.id)

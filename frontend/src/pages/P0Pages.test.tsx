@@ -6,6 +6,7 @@ import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
+import { requestCandidateLoginOtp, verifyCandidateLoginOtp } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { getActiveExams, startExam } from "@/api/exams";
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
@@ -23,7 +24,8 @@ import type { Exam } from "@/types/exam";
 import type { PracticeQuestion } from "@/types/question";
 
 vi.mock("@/api/auth", () => ({
-  loginCandidate: vi.fn(),
+  requestCandidateLoginOtp: vi.fn(),
+  verifyCandidateLoginOtp: vi.fn(),
 }));
 
 vi.mock("@/api/attempts", () => ({
@@ -150,12 +152,16 @@ function renderPage(
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  const childRoutes = [{ path, element }];
+  if (path !== "exams") {
+    childRoutes.push({ path: "exams", element: <div>考试列表</div> });
+  }
   const router = createMemoryRouter(
     [
       {
         path: "/",
         element: <Outlet context={context ?? null} />,
-        children: [{ path, element }],
+        children: childRoutes,
       },
     ],
     { initialEntries: [`/${initialEntry}`] },
@@ -188,9 +194,15 @@ describe("P0 pages", () => {
     vi.mocked(startExam).mockResolvedValue({ attempt_id: 10 } as Awaited<
       ReturnType<typeof startExam>
     >);
+    vi.mocked(requestCandidateLoginOtp).mockResolvedValue({
+      challenge_id: 7,
+      expires_at: "2026-07-03T08:10:00Z",
+      resend_available_at: "2026-07-03T08:01:00Z",
+    });
+    vi.mocked(verifyCandidateLoginOtp).mockResolvedValue(candidate);
   });
 
-  it("renders the clean candidate login copy and name field", () => {
+  it("renders the clean candidate login copy with email OTP fields", () => {
     renderPage("login", <LoginPage />, {
       candidate: null,
       loginCandidate: vi.fn(),
@@ -204,8 +216,74 @@ describe("P0 pages", () => {
       "text-display-lg",
     );
     expect(screen.getByLabelText("姓名")).toBeInTheDocument();
+    expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
+    expect(screen.queryByLabelText("手机号后四位")).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+
+  it("requests an email OTP before showing the verification step", async () => {
+    const user = userEvent.setup();
+    renderPage("login", <LoginPage />, {
+      candidate: null,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    await user.type(screen.getByLabelText("姓名"), "张敏");
+    await user.type(screen.getByLabelText("员工号（可选）"), "E1001");
+    await user.type(screen.getByLabelText("邮箱"), "zhangmin@example.com");
+    await user.click(screen.getByRole("button", { name: "发送验证码" }));
+
+    await waitFor(() => expect(requestCandidateLoginOtp).toHaveBeenCalled());
+    expect(vi.mocked(requestCandidateLoginOtp).mock.calls[0][0]).toEqual({
+      name: "张敏",
+      employee_no: "E1001",
+      email: "zhangmin@example.com",
+    });
+    expect(screen.getByLabelText("验证码")).toBeInTheDocument();
+    expect(screen.queryByText("已识别：张敏")).not.toBeInTheDocument();
+  });
+
+  it("verifies the OTP before storing the candidate session", async () => {
+    const user = userEvent.setup();
+    const loginCandidate = vi.fn();
+    renderPage("login", <LoginPage />, {
+      candidate: null,
+      loginCandidate,
+      logoutCandidate: vi.fn(),
+    });
+
+    await user.type(screen.getByLabelText("姓名"), "张敏");
+    await user.type(screen.getByLabelText("邮箱"), "zhangmin@example.com");
+    await user.click(screen.getByRole("button", { name: "发送验证码" }));
+    await user.type(await screen.findByLabelText("验证码"), "123456");
+    await user.click(screen.getByRole("button", { name: "进入平台" }));
+
+    await waitFor(() => expect(verifyCandidateLoginOtp).toHaveBeenCalled());
+    expect(vi.mocked(verifyCandidateLoginOtp).mock.calls[0][0]).toEqual({
+      challenge_id: 7,
+      otp: "123456",
+    });
+    expect(loginCandidate).toHaveBeenCalledWith(candidate);
+  });
+
+  it("shows a neutral OTP verification error", async () => {
+    const user = userEvent.setup();
+    vi.mocked(verifyCandidateLoginOtp).mockRejectedValueOnce(new Error("bad code"));
+    renderPage("login", <LoginPage />, {
+      candidate: null,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    await user.type(screen.getByLabelText("姓名"), "张敏");
+    await user.type(screen.getByLabelText("邮箱"), "zhangmin@example.com");
+    await user.click(screen.getByRole("button", { name: "发送验证码" }));
+    await user.type(await screen.findByLabelText("验证码"), "000000");
+    await user.click(screen.getByRole("button", { name: "进入平台" }));
+
+    expect(await screen.findByText("验证码无效或已过期，请重新获取后再试。")).toBeInTheDocument();
   });
 
   it("renders the exam taking page with focus-mode progress and option cards", async () => {

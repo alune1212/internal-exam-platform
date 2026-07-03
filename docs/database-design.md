@@ -20,6 +20,24 @@
 - `employee_no` 唯一，可空。
 - `name`、`exam_group`、`status` 建索引。
 - 没有员工号时的姓名唯一校验由 service 层处理。
+- 严格考试人登录使用 `name` + `email` + 可选 `employee_no` 创建邮件 OTP challenge；新导入名单必须提供可用 `email`，`phone_suffix` 仅作为保留资料字段。
+
+### candidate_login_challenge
+
+考试人邮件 OTP 登录 challenge 表。
+
+关键字段：`id`、`candidate_id`、`delivery_channel`、`otp_hash`、`expires_at`、`consumed_at`、`attempt_count`、`request_ip_hash`、`created_at`、`updated_at`。
+
+约束和索引：
+
+- `candidate_id` 外键关联 `candidate.id`，删除考试人时级联删除 challenge。
+- `candidate_id`、`expires_at`、`(candidate_id, consumed_at)` 建索引，供未消费 challenge 失效、过期清理和登录验证使用。
+
+说明：
+
+- `otp_hash` 只保存验证码 verifier，不保存明文 OTP。
+- challenge 短期有效、单次使用，并记录验证码尝试次数。
+- 重新请求验证码会让同一考试人的未消费 challenge 失效，再创建新的 challenge。
 
 ### question
 

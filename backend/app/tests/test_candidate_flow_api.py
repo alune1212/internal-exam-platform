@@ -12,12 +12,14 @@ from app.core.security import create_candidate_token
 from app.main import create_app
 from app.models import (
     Candidate,
+    CandidateLoginChallenge,
     Exam,
     ExamCandidateScope,
     PracticeAnswer,
     Question,
     QuestionOption,
 )
+from app.services.email_service import candidate_login_email_outbox
 
 
 def _build_client() -> tuple[TestClient, Session]:
@@ -46,7 +48,14 @@ def test_candidate_login_throttles_repeated_public_attempts(
         settings, "public_token_rate_limit_window_seconds", 60, raising=False
     )
     client, db = _build_client()
-    db.add(Candidate(name="限流人", employee_no="RL001", phone_suffix="1234"))
+    db.add(
+        Candidate(
+            name="限流人",
+            employee_no="RL001",
+            email="ratelimit@example.com",
+            phone_suffix="1234",
+        )
+    )
     db.commit()
 
     for _ in range(2):
@@ -55,26 +64,28 @@ def test_candidate_login_throttles_repeated_public_attempts(
             json={
                 "name": "限流人",
                 "employee_no": "RL001",
-                "phone_suffix": "9999",
+                "email": "wrong@example.com",
             },
         )
         assert resp.status_code == 404
 
     blocked = client.post(
         "/api/candidates/login",
-        json={"name": "限流人", "employee_no": "RL001", "phone_suffix": "9999"},
+        json={"name": "限流人", "employee_no": "RL001", "email": "wrong@example.com"},
     )
 
     assert blocked.status_code == 429
 
 
-def test_candidate_login_returns_persisted_candidate_by_employee_no() -> None:
+def test_candidate_login_request_creates_email_challenge_without_token() -> None:
+    candidate_login_email_outbox.clear()
     client, db = _build_client()
     db.add(
         Candidate(
             name="张三",
             employee_no="YG0001",
             department="综合管理部",
+            email="zhangsan@example.com",
             phone_suffix="1234",
             status="active",
         )
@@ -83,7 +94,47 @@ def test_candidate_login_returns_persisted_candidate_by_employee_no() -> None:
 
     response = client.post(
         "/api/candidates/login",
-        json={"name": "张三", "employee_no": "YG0001", "phone_suffix": "1234"},
+        json={"name": "张三", "employee_no": "YG0001", "email": "zhangsan@example.com"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["challenge_id"] > 0
+    assert data["expires_at"]
+    assert data["resend_available_at"]
+    assert "token" not in data
+    challenge = db.get(CandidateLoginChallenge, data["challenge_id"])
+    assert challenge is not None
+    assert challenge.candidate_id > 0
+    assert challenge.otp_hash != candidate_login_email_outbox[-1].otp
+    assert candidate_login_email_outbox[-1].to_email == "zhangsan@example.com"
+
+
+def test_candidate_login_verify_returns_token_and_consumes_challenge() -> None:
+    candidate_login_email_outbox.clear()
+    client, db = _build_client()
+    db.add(
+        Candidate(
+            name="张三",
+            employee_no="YG0001",
+            department="综合管理部",
+            email="zhangsan@example.com",
+            phone_suffix="1234",
+            status="active",
+        )
+    )
+    db.commit()
+
+    requested = client.post(
+        "/api/candidates/login",
+        json={"name": "张三", "employee_no": "YG0001", "email": "zhangsan@example.com"},
+    )
+    challenge_id = requested.json()["data"]["challenge_id"]
+    otp = candidate_login_email_outbox[-1].otp
+
+    response = client.post(
+        "/api/candidates/login/verify",
+        json={"challenge_id": challenge_id, "otp": otp},
     )
 
     assert response.status_code == 200
@@ -92,6 +143,10 @@ def test_candidate_login_returns_persisted_candidate_by_employee_no() -> None:
     assert data["name"] == "张三"
     assert data["department"] == "综合管理部"
     assert data["token"]
+    challenge = db.get(CandidateLoginChallenge, challenge_id)
+    assert challenge is not None
+    db.refresh(challenge)
+    assert challenge.consumed_at is not None
 
 
 def test_candidate_login_rejects_employee_no_with_mismatched_name() -> None:
@@ -101,6 +156,7 @@ def test_candidate_login_rejects_employee_no_with_mismatched_name() -> None:
             name="张三",
             employee_no="YG0001",
             department="综合管理部",
+            email="zhangsan@example.com",
             phone_suffix="1234",
             status="active",
         )
@@ -109,15 +165,15 @@ def test_candidate_login_rejects_employee_no_with_mismatched_name() -> None:
 
     response = client.post(
         "/api/candidates/login",
-        json={"name": "李四", "employee_no": "YG0001", "phone_suffix": "1234"},
+        json={"name": "李四", "employee_no": "YG0001", "email": "zhangsan@example.com"},
     )
 
     assert response.status_code == 404
 
 
-def test_candidate_login_rejects_missing_phone_suffix() -> None:
+def test_candidate_login_rejects_missing_email() -> None:
     client, db = _build_client()
-    db.add(Candidate(name="张三", employee_no="YG0001", phone_suffix="1234"))
+    db.add(Candidate(name="张三", employee_no="YG0001", email="zhangsan@example.com"))
     db.commit()
 
     response = client.post(
@@ -127,28 +183,28 @@ def test_candidate_login_rejects_missing_phone_suffix() -> None:
     assert response.status_code == 404
 
 
-def test_candidate_login_rejects_wrong_phone_suffix() -> None:
+def test_candidate_login_rejects_wrong_email() -> None:
     client, db = _build_client()
-    db.add(Candidate(name="张三", employee_no="YG0001", phone_suffix="1234"))
+    db.add(Candidate(name="张三", employee_no="YG0001", email="zhangsan@example.com"))
     db.commit()
 
     response = client.post(
         "/api/candidates/login",
-        json={"name": "张三", "employee_no": "YG0001", "phone_suffix": "9999"},
+        json={"name": "张三", "employee_no": "YG0001", "email": "wrong@example.com"},
     )
 
     assert response.status_code == 404
 
 
-def test_candidate_login_returns_persisted_candidate_by_name_without_employee_no() -> (
-    None
-):
+def test_candidate_login_creates_challenge_by_name_without_employee_no() -> None:
+    candidate_login_email_outbox.clear()
     client, db = _build_client()
     db.add(
         Candidate(
             name="王五",
             employee_no=None,
             department="安全管理部",
+            email="wangwu@example.com",
             phone_suffix="5678",
             status="active",
         )
@@ -156,15 +212,100 @@ def test_candidate_login_returns_persisted_candidate_by_name_without_employee_no
     db.commit()
 
     response = client.post(
-        "/api/candidates/login", json={"name": "王五", "phone_suffix": "5678"}
+        "/api/candidates/login", json={"name": "王五", "email": "wangwu@example.com"}
     )
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["id"] > 0
-    assert data["name"] == "王五"
-    assert data["department"] == "安全管理部"
-    assert data["token"]
+    assert data["challenge_id"] > 0
+    assert "token" not in data
+    assert candidate_login_email_outbox[-1].to_email == "wangwu@example.com"
+
+
+def test_candidate_login_rejects_old_phone_suffix_direct_token_flow() -> None:
+    client, db = _build_client()
+    db.add(
+        Candidate(
+            name="旧流程",
+            employee_no="OLD001",
+            email="old@example.com",
+            phone_suffix="1234",
+            status="active",
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        "/api/candidates/login",
+        json={"name": "旧流程", "employee_no": "OLD001", "phone_suffix": "1234"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_candidate_login_verify_rejects_wrong_expired_consumed_and_attempt_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate_login_email_outbox.clear()
+    monkeypatch.setattr(settings, "candidate_login_otp_attempt_limit", 2, raising=False)
+    client, db = _build_client()
+    db.add(Candidate(name="验证人", email="verify@example.com", status="active"))
+    db.commit()
+
+    requested = client.post(
+        "/api/candidates/login", json={"name": "验证人", "email": "verify@example.com"}
+    )
+    challenge_id = requested.json()["data"]["challenge_id"]
+
+    wrong = client.post(
+        "/api/candidates/login/verify",
+        json={"challenge_id": challenge_id, "otp": "000000"},
+    )
+    exhausted = client.post(
+        "/api/candidates/login/verify",
+        json={"challenge_id": challenge_id, "otp": "111111"},
+    )
+    blocked = client.post(
+        "/api/candidates/login/verify",
+        json={
+            "challenge_id": challenge_id,
+            "otp": candidate_login_email_outbox[-1].otp,
+        },
+    )
+
+    assert wrong.status_code == 404
+    assert exhausted.status_code == 404
+    assert blocked.status_code == 404
+
+
+def test_candidate_login_resend_invalidates_previous_challenge() -> None:
+    candidate_login_email_outbox.clear()
+    client, db = _build_client()
+    db.add(Candidate(name="重发人", email="resend@example.com", status="active"))
+    db.commit()
+
+    first = client.post(
+        "/api/candidates/login", json={"name": "重发人", "email": "resend@example.com"}
+    )
+    first_id = first.json()["data"]["challenge_id"]
+    first_otp = candidate_login_email_outbox[-1].otp
+    second = client.post(
+        "/api/candidates/login", json={"name": "重发人", "email": "resend@example.com"}
+    )
+    second_id = second.json()["data"]["challenge_id"]
+
+    old_verify = client.post(
+        "/api/candidates/login/verify",
+        json={"challenge_id": first_id, "otp": first_otp},
+    )
+    new_verify = client.post(
+        "/api/candidates/login/verify",
+        json={"challenge_id": second_id, "otp": candidate_login_email_outbox[-1].otp},
+    )
+
+    assert second_id != first_id
+    assert old_verify.status_code == 404
+    assert new_verify.status_code == 200
 
 
 def test_practice_answer_persists_result_without_disclosing_answer_or_score() -> None:

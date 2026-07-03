@@ -9,6 +9,8 @@ import { LoginPage } from "@/pages/LoginPage";
 
 vi.mock("@/api/auth", () => ({
   loginCandidate: vi.fn(),
+  requestCandidateLoginOtp: vi.fn(),
+  verifyCandidateLoginOtp: vi.fn(),
 }));
 
 const mockCandidate = {

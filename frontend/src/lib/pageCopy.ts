@@ -16,8 +16,10 @@ export const candidatePageCopy = {
 export const candidatePageText = {
   login: {
     title: "入场核验",
-    description: "输入姓名、手机号后四位；员工号用于匹配应考名单。",
-    error: "未找到匹配的应考名单记录，请核对姓名、员工号或手机号后四位。",
+    description: "输入姓名与邮箱获取验证码；员工号用于匹配应考名单。",
+    error: "未找到匹配的应考名单记录，请核对姓名、员工号或邮箱。",
+    otpSent: "验证码已发送，请查看应考名单中的邮箱。",
+    otpError: "验证码无效或已过期，请重新获取后再试。",
   },
   exams: {
     title: "待完成的考试",

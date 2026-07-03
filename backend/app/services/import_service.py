@@ -6,6 +6,7 @@ from io import BytesIO
 from typing import Any
 
 from openpyxl import Workbook, load_workbook
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,6 +20,7 @@ OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
 VALID_QUESTION_TYPES = {"single", "multiple", "judge"}
 VALID_STATUSES = {"active", "inactive"}
 DEFAULT_STATUS = "active"
+EMAIL_ADAPTER = TypeAdapter(EmailStr)
 JUDGE_OPTIONS = [("A", "正确"), ("B", "错误")]
 JUDGE_ANSWER_MAP = {"true": "A", "false": "B"}
 IMPORT_TYPE_LABELS = {
@@ -311,9 +313,12 @@ def _validate_candidate_import_row(
     name = _optional_text(row.get("name"))
     employee_no = _optional_text(row.get("employee_no"))
     status = _text(row.get("status") or DEFAULT_STATUS).lower()
+    email_error = validate_candidate_email(row)
 
     if not name:
         return "姓名不能为空"
+    if email_error:
+        return email_error
     if status not in VALID_STATUSES:
         return "状态只能填写启用（active）或停用（inactive）"
     if employee_no:
@@ -333,12 +338,31 @@ def _build_candidate(row: dict[str, Any]) -> Candidate:
         department=_optional_text(row.get("department")),
         position=_optional_text(row.get("position")),
         phone_suffix=_optional_text(row.get("phone_suffix")),
-        email=_optional_text(row.get("email")),
+        email=normalize_candidate_email(row.get("email")),
         exam_group=_optional_text(row.get("exam_group")),
         should_attend=_parse_bool(row.get("should_attend"), default=True),
         status=_text(row.get("status") or DEFAULT_STATUS).lower(),
         remark=_optional_text(row.get("remark")),
     )
+
+
+def validate_candidate_email(row: dict[str, Any]) -> str | None:
+    raw_email = _optional_text(row.get("email"))
+    if raw_email is None:
+        return "邮箱不能为空"
+    if normalize_candidate_email(raw_email) is None:
+        return "邮箱格式不正确"
+    return None
+
+
+def normalize_candidate_email(raw_email: object) -> str | None:
+    email = _optional_text(raw_email)
+    if email is None:
+        return None
+    try:
+        return str(EMAIL_ADAPTER.validate_python(email)).lower()
+    except ValidationError:
+        return None
 
 
 def _parse_correct_option_labels(question_type: str, raw: str) -> set[str]:

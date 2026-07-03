@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import BaseModel, EmailStr, Field
@@ -7,12 +8,25 @@ from app.schemas.common import ORMModel
 CandidateLoginName = Annotated[str, Field(max_length=100)]
 CandidateLoginEmployeeNo = Annotated[str, Field(max_length=100)]
 CandidateLoginPhoneSuffix = Annotated[str, Field(max_length=20)]
+CandidateLoginOtp = Annotated[str, Field(min_length=1, max_length=20)]
 
 
 class CandidateLoginRequest(BaseModel):
     name: CandidateLoginName
     employee_no: CandidateLoginEmployeeNo | None = None
+    email: EmailStr | None = None
     phone_suffix: CandidateLoginPhoneSuffix | None = None
+
+
+class CandidateLoginChallengeResponse(BaseModel):
+    challenge_id: int
+    expires_at: datetime
+    resend_available_at: datetime
+
+
+class CandidateLoginVerifyRequest(BaseModel):
+    challenge_id: int
+    otp: CandidateLoginOtp
 
 
 class CandidateBase(BaseModel):
