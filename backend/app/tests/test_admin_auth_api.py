@@ -17,7 +17,7 @@ from app.core.config import Settings, settings
 from app.core.database import Base, get_db
 from app.core.security import _sign, create_session_token, verify_session_token
 from app.main import create_app
-from app.models import ExamCandidateScope, ImportBatch
+from app.models import Exam, ExamCandidateScope, ImportBatch
 from app.services import exam_service
 from app.tests.conftest import (
     create_candidate,
@@ -113,6 +113,24 @@ def test_admin_exams_accepts_valid_token() -> None:
     body = resp.json()
     assert body["success"] is True
     assert isinstance(body["data"], list)
+
+
+def test_admin_create_exam_rejects_direct_active_status() -> None:
+    client, db = _build_client()
+    login = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    )
+    token = login.json()["data"]["token"]
+
+    resp = client.post(
+        "/api/admin/exams",
+        headers={"X-Admin-Token": token},
+        json={"title": "直接上线", "duration_minutes": 60, "status": "active"},
+    )
+
+    assert resp.status_code == 422
+    assert db.query(Exam).filter(Exam.title == "直接上线").first() is None
 
 
 def test_admin_exams_rejects_password_as_token() -> None:

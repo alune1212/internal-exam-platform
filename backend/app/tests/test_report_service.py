@@ -186,6 +186,31 @@ def test_absent_candidates_splits_not_started_and_in_progress(db: Session) -> No
     assert [r.name for r in submitted] == ["张三"]
 
 
+def test_absent_candidates_uses_latest_attempt_state_per_exam(
+    db: Session,
+) -> None:
+    exam, c1, _c2, r1, r2 = _setup_exam_with_candidates(db)
+    submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
+    exam_service.create_retake_grant(db, exam.id, c1.id)
+    exam_service.start_exam(db, exam.id, c1.id)
+    exam_service.submit_attempt(db, r2.attempt_id, "auto")
+    c3 = create_candidate(db, name="王五", employee_no="E003")
+    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=c3.id))
+    db.commit()
+
+    not_started = report_service.get_absent_candidates(db, exam_id=exam.id)
+    in_progress = report_service.get_absent_candidates(
+        db, exam_id=exam.id, status="in_progress"
+    )
+    submitted = report_service.get_absent_candidates(
+        db, exam_id=exam.id, status="submitted"
+    )
+
+    assert [r.name for r in not_started] == ["王五"]
+    assert [r.name for r in in_progress] == ["张三"]
+    assert [r.name for r in submitted] == ["李四"]
+
+
 def test_absent_candidates_excludes_non_should_attend(db: Session) -> None:
     create_candidate(db, name="不需要参加", employee_no="E010", should_attend=False)
 

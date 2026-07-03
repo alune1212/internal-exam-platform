@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     Candidate,
+    Exam,
     ExamAttempt,
     ExamAttemptAnswer,
     ExamAttemptQuestion,
@@ -211,17 +212,51 @@ def test_create_exam_rejects_non_empty_rule_without_question_count(
         )
 
 
+def test_create_exam_rejects_direct_active_status_without_persisting(
+    db: Session,
+) -> None:
+    create_question_with_options(db, stem="发布题目")
+
+    with pytest.raises(exam_service.ExamConfigError, match="先创建为草稿"):
+        exam_service.create_exam(
+            db,
+            ExamCreate(title="直接上线", duration_minutes=60, status="active"),
+        )
+
+    assert db.query(Exam).filter(Exam.title == "直接上线").first() is None
+    assert db.query(ExamQuestionPool).count() == 0
+
+
+def test_create_exam_active_status_cannot_bypass_publish_requirements(
+    db: Session,
+) -> None:
+    create_question_with_options(db, stem="唯一单选题", question_type="single")
+
+    with pytest.raises(exam_service.ExamConfigError, match="先创建为草稿"):
+        exam_service.create_exam(
+            db,
+            ExamCreate(
+                title="容量不足直接上线",
+                duration_minutes=60,
+                status="active",
+                question_rule={
+                    "question_count": 2,
+                    "total_score": 100,
+                    "type_counts": {"single": 2, "multiple": 0, "judge": 0},
+                },
+            ),
+        )
+
+    assert db.query(Exam).filter(Exam.title == "容量不足直接上线").first() is None
+
+
 def test_list_active_exams_filters_to_candidate_scope(db: Session) -> None:
     candidate = create_candidate(db)
     exam_service.create_exam(
         db, ExamCreate(title="草稿", duration_minutes=60, status="draft")
     )
-    scoped = exam_service.create_exam(
-        db, ExamCreate(title="上线", duration_minutes=60, status="active")
-    )
-    exam_service.create_exam(
-        db, ExamCreate(title="未分配", duration_minutes=60, status="active")
-    )
+    scoped = create_exam(db, title="上线", duration_minutes=60, status="active")
+    create_exam(db, title="未分配", duration_minutes=60, status="active")
     add_exam_candidate_scope(db, scoped.id, candidate.id)
 
     active = exam_service.list_active_exams(db, candidate.id)

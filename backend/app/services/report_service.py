@@ -1,7 +1,7 @@
 from io import BytesIO
 
 from openpyxl import Workbook
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -175,6 +175,7 @@ def get_absent_candidates(
 ) -> list[AbsentCandidateRow]:
     """参考状态：按未开始、进行中、已交卷拆分应考人员。"""
     if exam_id is not None:
+        latest_attempt = latest_attempts(db, exam_id=exam_id)
         base = (
             db.query(Candidate)
             .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
@@ -185,66 +186,60 @@ def get_absent_candidates(
             )
         )
         if status == "not_started":
-            attempted_ids = (
-                select(ExamAttempt.candidate_id)
-                .where(ExamAttempt.exam_id == exam_id)
-                .distinct()
-            )
             rows = (
-                base.filter(~Candidate.id.in_(attempted_ids))
+                base.outerjoin(
+                    latest_attempt, latest_attempt.c.candidate_id == Candidate.id
+                )
+                .filter(latest_attempt.c.attempt_id.is_(None))
                 .order_by(Candidate.name)
                 .all()
             )
         elif status == "in_progress":
             rows = (
-                base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
-                .filter(
-                    ExamAttempt.exam_id == exam_id,
-                    ExamAttempt.status == "in_progress",
-                )
+                base.join(latest_attempt, latest_attempt.c.candidate_id == Candidate.id)
+                .filter(latest_attempt.c.status == "in_progress")
                 .order_by(Candidate.name)
                 .all()
             )
         elif status == "submitted":
-            latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
             rows = (
-                base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
-                .join(
-                    latest_submitted,
-                    latest_submitted.c.attempt_id == ExamAttempt.id,
-                )
+                base.join(latest_attempt, latest_attempt.c.candidate_id == Candidate.id)
+                .filter(latest_attempt.c.status.in_(SUBMITTED_STATUSES))
                 .order_by(Candidate.name)
                 .all()
             )
         else:
             rows = []
     else:
+        latest_attempt = latest_attempts(db)
         base = db.query(Candidate).filter(
             Candidate.should_attend == True,  # noqa: E712
             Candidate.status == "active",
         )
         if status == "not_started":
-            attempted_ids = select(ExamAttempt.candidate_id).distinct()
             rows = (
-                base.filter(~Candidate.id.in_(attempted_ids))
+                base.outerjoin(
+                    latest_attempt, latest_attempt.c.candidate_id == Candidate.id
+                )
+                .filter(latest_attempt.c.attempt_id.is_(None))
                 .order_by(Candidate.name)
                 .all()
             )
         elif status == "in_progress":
             rows = (
-                base.join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
-                .filter(ExamAttempt.status == "in_progress")
+                base.join(latest_attempt, latest_attempt.c.candidate_id == Candidate.id)
+                .filter(latest_attempt.c.status == "in_progress")
                 .distinct()
                 .order_by(Candidate.name)
                 .all()
             )
         elif status == "submitted":
-            latest_submitted = latest_submitted_attempts(db)
             rows = (
                 base.join(
-                    latest_submitted,
-                    latest_submitted.c.candidate_id == Candidate.id,
+                    latest_attempt,
+                    latest_attempt.c.candidate_id == Candidate.id,
                 )
+                .filter(latest_attempt.c.status.in_(SUBMITTED_STATUSES))
                 .distinct()
                 .order_by(Candidate.name)
                 .all()
@@ -263,6 +258,37 @@ def get_absent_candidates(
         )
         for c in rows
     ]
+
+
+def latest_attempts(db: Session, exam_id: int | None = None):
+    latest_attempt_no_query = db.query(
+        ExamAttempt.exam_id.label("exam_id"),
+        ExamAttempt.candidate_id.label("candidate_id"),
+        func.max(ExamAttempt.attempt_no).label("attempt_no"),
+    )
+    if exam_id is not None:
+        latest_attempt_no_query = latest_attempt_no_query.filter(
+            ExamAttempt.exam_id == exam_id
+        )
+    latest_attempt_no = latest_attempt_no_query.group_by(
+        ExamAttempt.exam_id, ExamAttempt.candidate_id
+    ).subquery()
+    return (
+        db.query(
+            ExamAttempt.id.label("attempt_id"),
+            ExamAttempt.exam_id.label("exam_id"),
+            ExamAttempt.candidate_id.label("candidate_id"),
+            ExamAttempt.attempt_no.label("attempt_no"),
+            ExamAttempt.status.label("status"),
+        )
+        .join(
+            latest_attempt_no,
+            (latest_attempt_no.c.exam_id == ExamAttempt.exam_id)
+            & (latest_attempt_no.c.candidate_id == ExamAttempt.candidate_id)
+            & (latest_attempt_no.c.attempt_no == ExamAttempt.attempt_no),
+        )
+        .subquery()
+    )
 
 
 def latest_submitted_attempts(db: Session, exam_id: int | None = None):

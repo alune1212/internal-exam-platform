@@ -597,6 +597,13 @@ def _ensure_exam_has_scope(db: Session, exam_id: int) -> None:
         raise CandidateNotEligibleError(0)
 
 
+def _validate_exam_activation_requirements(
+    db: Session, exam_id: int, question_rule: dict
+) -> None:
+    _ensure_exam_has_scope(db, exam_id)
+    _validate_fixed_rule_capacity(db, question_rule)
+
+
 def _ensure_candidate_in_scope(db: Session, exam_id: int, candidate_id: int) -> None:
     scoped = (
         db.query(ExamCandidateScope.id)
@@ -772,6 +779,8 @@ def create_exam(db: Session, payload: ExamCreate) -> ExamRead:
         available_from=data.get("available_from"),
         available_until=data.get("available_until"),
     )
+    if data["status"] == "active":
+        raise ExamConfigError("考试必须先创建为草稿，再通过发布流程激活")
     exam = Exam(**data)
     db.add(exam)
     db.commit()
@@ -806,8 +815,7 @@ def update_exam(db: Session, exam_id: int, payload: ExamUpdate) -> ExamRead:
     )
 
     if activating:
-        _ensure_exam_has_scope(db, exam.id)
-        _validate_fixed_rule_capacity(db, next_question_rule)
+        _validate_exam_activation_requirements(db, exam.id, next_question_rule)
 
     for field, value in updates.items():
         setattr(exam, field, value)
