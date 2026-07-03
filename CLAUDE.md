@@ -62,6 +62,8 @@ docker-compose config           # 验证配置
 curl http://localhost:8080/api/health  # 通过 Nginx 健康检查
 ```
 
+**端口边界**：Nginx `8080` 对局域网开放（外部访问入口）；`db:5432`、后端 `8000`、Vite dev `5173` 仅本机回环，外部机器直连不到。验证时用 8080，不要用 8000/5173。
+
 ## 环境变量
 
 后端通过 `backend/.env` 文件加载配置（参考 `backend/app/core/config.py`）。首次启动前先复制模板：
@@ -84,6 +86,10 @@ cp backend/.env.example backend/.env
 | `IMPORT_MAX_ROWS` | `5000` | Excel 导入数据行上限 |
 | `IMPORT_MAX_SHEETS` | `1` | Excel 导入工作表数量上限 |
 | `PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS` | `10000` | 公开 token 限流字典容量上限 |
+| `LEARNING_MEDIA_STORAGE_DIR` | `/app/learning-media` | 学习视频落盘目录（容器内） |
+| `LEARNING_MEDIA_PUBLIC_PATH` | `/media/learning` | 学习视频对外 URL 前缀（由 Nginx 暴露） |
+| `LEARNING_VIDEO_MAX_UPLOAD_BYTES` | `524288000` | 学习视频上传体积上限（默认 500 MiB） |
+| `LEARNING_VIDEO_ALLOWED_CONTENT_TYPES` | `video/mp4,video/webm` | 学习视频允许的 MIME 类型（逗号分隔） |
 
 ## 关键文件
 
@@ -93,7 +99,11 @@ cp backend/.env.example backend/.env
 | 数据库引擎 | `backend/app/core/database.py` |
 | 应用配置 | `backend/app/core/config.py` |
 | 领域异常基类 | `backend/app/core/exceptions.py` |
-| 后台定时任务 | `backend/app/core/scheduler.py` |
+| 后台自动交卷 worker | `backend/app/core/auto_submit_worker.py` |
+| 认证依赖注入 | `backend/app/core/dependencies.py` |
+| 签名 token 工具 | `backend/app/core/security.py` |
+| 公开 token 限流 | `backend/app/core/rate_limit.py` |
+| 时间/时区工具 | `backend/app/core/time.py` |
 | 路由注册 | `backend/app/api/router.py` |
 
 ## 架构
@@ -108,6 +118,8 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 后端分层：`api/`（路由薄层）→ `services/`（业务逻辑）→ `models/`（ORM）→ `schemas/`（Pydantic）。路由文件不要写业务逻辑。
 
 前端分层：`api/`（请求封装）→ `pages/`（页面组件）→ `components/`（UI 组件）→ `types/`（类型定义）。页面不要手写 fetch。
+
+视频学习模块：`api/learning.py` 提供管理与候选人侧端点；`services/learning_service.py` 处理元数据与完成度，`services/learning_storage.py` 负责视频落盘与 MIME 校验（与 `LEARNING_VIDEO_*` 强耦合）；`models/learning.py` / `schemas/learning.py` 落库与序列化。前端对应 `api/learning.ts`、`pages/LearningListPage.tsx`、`pages/LearningVideoPage.tsx`。
 
 前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（`AdminLoginPage` 保存后端返回的签名 session token），其余带 `X-Candidate-Token`（从 `lib/candidateSession.ts` 读取签名 candidate token）。401 时自动清 session 并跳转登录页。后端 `require_admin` 使用 `TOKEN_SECRET` 校验签名 admin token，`get_current_candidate_id` 从 `X-Candidate-Token` header 校验并提取候选人 ID。
 
@@ -155,7 +167,13 @@ uv run alembic downgrade -1  # 回滚一步
 
 ## 当前阶段
 
-第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、签名 candidate token、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，单场名单支持导入、列表、移除和补考授权；导入失败报告可下载，报表导出返回单个多 Sheet Excel。当前安全加固包括导入大小/行数/sheet 限制、Excel 公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。详细交接文档见 `docs/handoff.md`。
+第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、签名 candidate token、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，单场名单支持导入、列表、移除和补考授权；导入失败报告可下载，报表导出返回单个多 Sheet Excel。当前安全加固包括导入大小/行数/sheet 限制、Excel 公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。视频学习模块（管理上传 + 候选人观看完成）已实现。详细交接文档见 `docs/handoff.md`。
+
+## OpenSpec 提案工作流
+
+- 跨特性/多文件改动，先在 `openspec/changes/<change-name>/` 下写提案（`proposal.md` + `tasks.md` + `specs/` 增量），实现完再归档到 `openspec/changes/archive/`。
+- 单文件/小修补直接改代码 + 跑 hook 即可，不必开 proposal。
+- 当前活跃变更可通过 `git status` 或 `ls openspec/changes/`（排除 `archive/`）确认。
 
 ## 与 AGENTS.md 的关系
 
