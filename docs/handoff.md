@@ -2,11 +2,11 @@
 
 ## Current State
 
-The project has a runnable first-phase business loop and completed frontend redesign. It has a backend, frontend, database migration, Docker Compose stack, and documentation set.
+The project has a runnable first-phase business loop, completed frontend redesign, and an implemented internal-deployment hardening layer. It has a backend, frontend, database migration, Docker Compose stack, operational backup tooling, and documentation set.
 
 Implemented foundations:
 
-- FastAPI app with `/api/health`.
+- FastAPI app with shallow `/api/health` liveness and dependency-aware `/api/ready` checks for PostgreSQL and learning media access.
 - SQLAlchemy models for candidates, candidate login challenges, questions, options, exams, attempts, attempt question snapshots, answers, practice answers, and import batches.
 - Alembic initial migration `202606110001_initial_schema.py`.
 - Candidate-facing and admin-facing API routes.
@@ -26,8 +26,9 @@ Implemented foundations:
 - Candidate frontend clears stale sessions on logout or 401 responses; `/exams` only queries `/api/exams/active` when a candidate session exists.
 - Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
 - Excel export cells are escaped before writing failure reports and report workbooks.
-- Production settings reject default admin password, default token secret, and unsafe CORS origins.
-- Docker Compose publishes Nginx on `0.0.0.0:8080` so the browser entry can be used from the same LAN; PostgreSQL `5432` and the direct frontend `5173` stay bound to `127.0.0.1`.
+- Runtime profiles support `development`, controlled-LAN HTTP `internal`, and HTTPS-only `production`; backend/worker roles validate only their required settings, and formal profiles reject sample database credentials.
+- `internal` backend settings fail closed unless Nginx binds an explicit private LAN IP, CORS exactly matches that HTTP origin, secrets are non-default, and SMTP delivery is configured. `production` continues to require HTTPS origins.
+- Docker Compose publishes Nginx on `${INTERNAL_LAN_BIND_IP}:8080`; PostgreSQL `5432` and the direct frontend `5173` stay bound to `127.0.0.1`. Worker containers do not receive admin, token-signing, or SMTP secrets.
 - Public login rate limiting hashes unauthenticated identifiers before storing in memory, and login request fields have bounded lengths. Candidate OTP request and verification endpoints share this lightweight rate-limit boundary.
 - Practice question and answer APIs require `X-Candidate-Token` and re-check that the token belongs to an active candidate.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.
@@ -36,11 +37,63 @@ Implemented foundations:
 - Candidate page eyebrow copy is centralized in `frontend/src/lib/pageCopy.ts`; page/state labels use the shared product terminology, while numbered labels are reserved for real question positions.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
 - Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
-- Time-based auto-submit background check.
+- Time-based auto-submit background check with an atomic heartbeat and container healthcheck; successful zero-result scans also refresh health, failed scans do not.
 - Ranking, exam-filterable admin report SQL queries, and multi-sheet Excel report export.
 - Learning media served through Nginx `/media/learning/` from the `learning_media` volume.
+- Candidate OTP delivery retries transient SMTP/network failures with short bounded backoff, stops on permanent failures, and logs challenge/attempt/error type without recipient or OTP data.
+- Paired backup tooling creates a PostgreSQL custom dump and `learning_media` archive with manifest, SHA-256 checksums, and a last-written `SUCCESS`; restore verification only accepts disposable Compose project names and validates migration head, representative table counts, media count, and non-empty samples.
 
 ## Verified Commands
+
+Internal deployment readiness gates verified on 2026-07-10:
+
+```bash
+cd backend
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff format . --check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ruff check .
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run ty check
+UV_CACHE_DIR=/private/tmp/uv-cache-internal-exam uv run pytest
+cd ../frontend
+npm run format:check
+npm test -- --run
+npm run lint
+npm run build
+cd ..
+openspec validate --all --strict
+docker compose --env-file .env config --quiet
+docker compose --env-file .env up -d --build
+docker compose --env-file .env exec -T backend uv run --no-sync alembic upgrade head
+docker compose --env-file .env exec -T nginx nginx -t
+curl -f http://127.0.0.1:8080/api/health
+curl -f http://127.0.0.1:8080/api/ready
+curl -f http://127.0.0.1:8080/docs
+```
+
+Observed results:
+
+- Backend format/lint/`ty`: passed; backend tests: 265 passed, 4 skipped.
+- Frontend format/lint/build: passed; frontend tests: 59 files / 303 tests passed.
+- OpenSpec strict validation: 8 passed, 0 failed. Development and synthetic internal Compose configurations rendered successfully with `config --quiet`.
+- Compose images built and the db, backend, and auto-submit-worker services became healthy. Alembic was at head, `nginx -t` passed, `/api/health` and `/api/ready` returned HTTP 200, `/docs` loaded through `8080`, and a missing `/media/learning/` object returned 404 through the media route.
+- Runtime evidence exposed and then fixed startup-time dependency synchronization: container commands now use `uv run --no-sync`; the rebuilt worker became healthy without downloading dev dependencies.
+- A live paired backup was created at `backups/backup-20260710T032923Z`; the final implementation restored it into `internal-exam-restore-verify-20260710b`, verified database/media consistency including a real media-byte read, and cleaned up. The original stack was restarted and returned to healthy.
+
+Operational commands and failure recovery are documented in `docs/internal-deployment-operations.md`. The essential maintenance-window flow is:
+
+```bash
+cd backend
+uv run python -m app.ops.internal_backup backup --output-root ../backups --env-file ../.env
+cd ..
+docker compose --env-file .env stop
+cd backend
+uv run python -m app.ops.internal_backup verify ../backups/<backup-directory> \
+  --env-file ../.env \
+  --project-name internal-exam-restore-verify-<unique-suffix>
+cd ..
+docker compose --env-file .env up -d
+```
+
+This evidence does not replace the remaining real-SMTP browser UAT from a second allowed LAN device.
 
 Video learning gates verified on 2026-07-02:
 
@@ -185,13 +238,14 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 
 ## Known Gaps
 
-- No blocking P0 gap is currently documented in code. A scripted Docker/Nginx `8080` business UAT passed on 2026-06-29; production rollout should still run a short human browser walkthrough with real exam data and operators.
-- Production readiness still requires non-default production secrets, production HTTPS CORS, configured SMTP sender/host for candidate login OTP delivery, and a database backup before migration.
-- Production backup must include both PostgreSQL and the `learning_media` volume/local media directory; otherwise learning video metadata may restore without playable files.
+- The implementation and local operational gates are complete, but the formal `internal` release gate is not complete until a human uses real SMTP from a second allowed LAN device to run login, exam start/save/resume/submit/result, worker interruption/catch-up, retake, reports, and export. Do not mark the deployment ready for a formal exam before that evidence exists.
+- Controlled-LAN `internal` mode intentionally uses HTTP. Admin and candidate bearer tokens are not transport-encrypted and can be intercepted by a device with network visibility. Restrict the host bind/firewall to the approved private subnet; never expose it to guest Wi-Fi, public networks, port forwarding, or uncontrolled segments.
+- Move to `production` with HTTPS before expanding network exposure, user population, or threat assumptions. The repository does not automate certificate issuance or ingress TLS.
+- SMTP retry is deliberately short and in-process, not a durable queue. A backend restart can interrupt delivery; operators must retain resend and final-failure monitoring procedures.
 - Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, enterprise SSO/passkey evaluation, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
 
 ## Recommended Next Work
 
-1. Run a short human browser walkthrough against the Docker/Nginx `8080` entrypoint with production-like exam data, using `docs/official-exam-uat-checklist.md` as the checklist.
-2. Before production use, set non-default `POSTGRES_PASSWORD`, `DATABASE_URL`, `ADMIN_PASSWORD`, and `TOKEN_SECRET`; configure `CORS_ORIGINS` with only production HTTPS origins, not `*`, localhost, 127.0.0.1, or 0.0.0.0; configure `CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp`, `CANDIDATE_LOGIN_EMAIL_FROM`, and `CANDIDATE_LOGIN_SMTP_HOST`; then back up the database before running migrations.
-3. Keep auth lightweight unless the product scope expands beyond the first-phase internal tool; if the identity risk increases, evaluate enterprise SSO/MFA separately instead of expanding this email OTP flow into a full account system.
+1. Complete the remaining real-SMTP/second-device gate exactly as written in `docs/official-exam-uat-checklist.md`, including worker interruption/catch-up and report export.
+2. Before each formal exam, retain evidence for `config --quiet`, healthy db/backend/worker, `/api/ready`, real OTP delivery, paired backup creation, isolated restore verification, and post-restore stack recovery.
+3. Keep HTTP `internal` exposure limited to the accepted private-LAN boundary. If that boundary changes, deploy HTTPS and switch to `production` before proceeding.

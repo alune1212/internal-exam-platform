@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
+import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Session
 
@@ -58,3 +60,64 @@ def test_process_due_attempts_submits_only_expired_in_progress(
     assert future_attempt is not None
     assert expired_attempt.status == "auto_submitted"
     assert future_attempt.status == "in_progress"
+
+    assert auto_submit_worker.process_due_attempts(db, now=now, batch_size=10) == 0
+    assert expired_attempt.status == "auto_submitted"
+
+
+class _SessionContext:
+    def __enter__(self) -> object:
+        return object()
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+def test_run_once_writes_heartbeat_after_successful_empty_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    heartbeat_path = tmp_path / "worker.heartbeat"
+    monkeypatch.setattr(auto_submit_worker, "SessionLocal", _SessionContext)
+    monkeypatch.setattr(auto_submit_worker, "process_due_attempts", lambda *_a, **_k: 0)
+
+    processed = auto_submit_worker.run_once(heartbeat_path=heartbeat_path)
+
+    assert processed == 0
+    assert auto_submit_worker.is_heartbeat_fresh(heartbeat_path, max_age_seconds=5)
+
+
+def test_run_once_failure_does_not_refresh_heartbeat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    heartbeat_path = tmp_path / "worker.heartbeat"
+    old_time = datetime.now(UTC) - timedelta(minutes=5)
+    auto_submit_worker.write_heartbeat(heartbeat_path, now=old_time)
+    original = heartbeat_path.read_text(encoding="utf-8")
+    monkeypatch.setattr(auto_submit_worker, "SessionLocal", _SessionContext)
+
+    def fail_scan(*_args: object, **_kwargs: object) -> int:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(auto_submit_worker, "process_due_attempts", fail_scan)
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        auto_submit_worker.run_once(heartbeat_path=heartbeat_path)
+
+    assert heartbeat_path.read_text(encoding="utf-8") == original
+    assert not auto_submit_worker.is_heartbeat_fresh(heartbeat_path, max_age_seconds=30)
+
+
+def test_worker_healthcheck_rejects_missing_stale_and_invalid_heartbeat(
+    tmp_path: Path,
+) -> None:
+    heartbeat_path = tmp_path / "worker.heartbeat"
+
+    assert not auto_submit_worker.is_heartbeat_fresh(heartbeat_path, max_age_seconds=90)
+
+    auto_submit_worker.write_heartbeat(
+        heartbeat_path, now=datetime.now(UTC) - timedelta(seconds=91)
+    )
+    assert not auto_submit_worker.is_heartbeat_fresh(heartbeat_path, max_age_seconds=90)
+
+    heartbeat_path.write_text("not-a-timestamp", encoding="utf-8")
+    assert not auto_submit_worker.is_heartbeat_fresh(heartbeat_path, max_age_seconds=90)

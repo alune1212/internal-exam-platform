@@ -1,11 +1,16 @@
+import logging
 import smtplib
+import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
+
+logger = logging.getLogger(__name__)
 
 # Bounded in-memory outbox used by the `memory` delivery mode (dev / test only).
 # `deque(maxlen=N)` evicts the oldest entry when full, so a long-lived process
@@ -18,6 +23,14 @@ class EmailDeliveryError(DomainError):
 
     def __init__(self) -> None:
         super().__init__("验证码发送失败，请稍后重试。")
+
+
+class TransientEmailDeliveryError(EmailDeliveryError):
+    pass
+
+
+class PermanentEmailDeliveryError(EmailDeliveryError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -54,7 +67,70 @@ def send_candidate_login_otp(
     if mode == "smtp":
         _send_smtp(delivery)
         return
-    raise EmailDeliveryError()
+    raise PermanentEmailDeliveryError()
+
+
+def deliver_candidate_login_otp(
+    *,
+    challenge_id: int,
+    to_email: str,
+    candidate_name: str,
+    otp: str,
+    expires_at: datetime,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    max_attempts = settings.candidate_login_email_max_attempts
+    base_seconds = settings.candidate_login_email_retry_base_seconds
+    delivery_kwargs = {
+        "to_email": to_email,
+        "candidate_name": candidate_name,
+        "otp": otp,
+        "expires_at": expires_at,
+    }
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            send_candidate_login_otp(**delivery_kwargs)
+        except TransientEmailDeliveryError as exc:
+            if attempt == max_attempts:
+                _log_delivery_failure(challenge_id, attempt, exc)
+                return False
+            logger.warning(
+                "candidate_login.email_delivery_retry",
+                extra={
+                    "event": "candidate_login.email_delivery_retry",
+                    "challenge_id": challenge_id,
+                    "attempt": attempt,
+                    "error_type": type(exc).__name__,
+                },
+            )
+            sleep(base_seconds * (2 ** (attempt - 1)))
+        except Exception as exc:
+            _log_delivery_failure(challenge_id, attempt, exc)
+            return False
+        else:
+            logger.info(
+                "candidate_login.email_delivery_succeeded",
+                extra={
+                    "event": "candidate_login.email_delivery_succeeded",
+                    "challenge_id": challenge_id,
+                    "attempt": attempt,
+                },
+            )
+            return True
+    return False
+
+
+def _log_delivery_failure(challenge_id: int, attempt: int, exc: Exception) -> None:
+    logger.warning(
+        "candidate_login.email_delivery_failed",
+        extra={
+            "event": "candidate_login.email_delivery_failed",
+            "challenge_id": challenge_id,
+            "attempt": attempt,
+            "error_type": type(exc).__name__,
+        },
+    )
 
 
 def _send_smtp(delivery: CandidateLoginEmail) -> None:
@@ -88,5 +164,17 @@ def _send_smtp(delivery: CandidateLoginEmail) -> None:
                     settings.candidate_login_smtp_password,
                 )
             smtp.send_message(message)
-    except OSError as exc:
-        raise EmailDeliveryError() from exc
+    except (OSError, smtplib.SMTPException) as exc:
+        if _is_transient_delivery_error(exc):
+            raise TransientEmailDeliveryError() from exc
+        raise PermanentEmailDeliveryError() from exc
+
+
+def _is_transient_delivery_error(exc: Exception) -> bool:
+    if isinstance(exc, smtplib.SMTPResponseException):
+        return 400 <= exc.smtp_code < 500
+    if isinstance(exc, smtplib.SMTPServerDisconnected):
+        return True
+    if isinstance(exc, smtplib.SMTPException):
+        return False
+    return isinstance(exc, OSError)

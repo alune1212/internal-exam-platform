@@ -13,7 +13,7 @@ from app.schemas.candidate import (
 )
 from app.schemas.common import ApiResponse
 from app.services import candidate_service
-from app.services.email_service import send_candidate_login_otp
+from app.services.email_service import deliver_candidate_login_otp
 
 router = APIRouter(prefix="/candidates", tags=["candidates"])
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _send_otp_background(
     *,
+    challenge_id: int,
     to_email: str,
     candidate_name: str,
     otp: str,
@@ -37,20 +38,22 @@ def _send_otp_background(
     from datetime import datetime
 
     try:
-        send_candidate_login_otp(
+        deliver_candidate_login_otp(
+            challenge_id=challenge_id,
             to_email=to_email,
             candidate_name=candidate_name,
             otp=otp,
             expires_at=datetime.fromisoformat(expires_at),
         )
-    except Exception:  # background task must not propagate
+    except Exception as exc:  # background task must not propagate
         logger.warning(
             "candidate_login.email_delivery_failed",
             extra={
                 "event": "candidate_login.email_delivery_failed",
-                "to_email_sha256": f"sha256:{__import__('hashlib').sha256(to_email.encode('utf-8')).hexdigest()}",
+                "challenge_id": challenge_id,
+                "attempt": 0,
+                "error_type": type(exc).__name__,
             },
-            exc_info=True,
         )
 
 
@@ -72,6 +75,7 @@ def candidate_login(
     if result.email is not None:
         background_tasks.add_task(
             _send_otp_background,
+            challenge_id=result.response.challenge_id,
             to_email=result.email.to_email,
             candidate_name=result.email.candidate_name,
             otp=result.email.otp,

@@ -7,5 +7,11 @@ class ApiResponse[T](BaseModel):
     message: str = "ok"
 
 
+class ReadinessStatus(BaseModel):
+    status: str = "ready"
+    database: str = "ok"
+    learning_media: str = "ok"
+
+
 class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)

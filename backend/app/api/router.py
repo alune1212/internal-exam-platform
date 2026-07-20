@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.api import (
     attempts,
@@ -12,8 +13,10 @@ from app.api import (
     reports,
 )
 from app.core.config import settings
+from app.core.database import get_db
 from app.core.dependencies import require_admin
-from app.schemas.common import ApiResponse
+from app.schemas.common import ApiResponse, ReadinessStatus
+from app.services import readiness_service
 
 router = APIRouter(prefix="/api")
 
@@ -21,6 +24,11 @@ router = APIRouter(prefix="/api")
 @router.get("/health", response_model=ApiResponse[dict[str, str]], tags=["system"])
 def health_check() -> ApiResponse[dict[str, str]]:
     return ApiResponse(data={"status": "ok", "service": settings.app_name})
+
+
+@router.get("/ready", response_model=ApiResponse[ReadinessStatus], tags=["system"])
+def readiness_check(db: Session = Depends(get_db)) -> ApiResponse[ReadinessStatus]:
+    return ApiResponse(data=readiness_service.check_readiness(db))
 
 
 router.include_router(auth.router)

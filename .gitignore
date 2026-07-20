@@ -23,6 +23,7 @@ frontend/vite.config.d.ts
 
 *.log
 tmp/
+backups/
 
 # Local brainstorm / visual-companion artifacts
 .superpowers/

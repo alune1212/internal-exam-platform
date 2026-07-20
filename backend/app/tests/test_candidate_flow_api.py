@@ -429,7 +429,7 @@ def test_candidate_login_commits_challenge_before_email_delivery(
     def _boom(**_kwargs: object) -> None:
         raise RuntimeError("simulated SMTP failure")
 
-    monkeypatch.setattr(candidates_api, "send_candidate_login_otp", _boom)
+    monkeypatch.setattr(candidates_api, "deliver_candidate_login_otp", _boom)
     candidate_login_email_outbox.clear()
     client, db = _build_client()
     db.add(

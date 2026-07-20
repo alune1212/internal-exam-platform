@@ -20,11 +20,32 @@ services:
       context: ./backend
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      APP_ROLE: backend
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      INTERNAL_LAN_BIND_IP: ${INTERNAL_LAN_BIND_IP:-0.0.0.0}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       TOKEN_SECRET: ${TOKEN_SECRET:?Set TOKEN_SECRET in .env}
+      TOKEN_TTL_SECONDS: ${TOKEN_TTL_SECONDS:-43200}
+      PUBLIC_TOKEN_RATE_LIMIT_COUNT: ${PUBLIC_TOKEN_RATE_LIMIT_COUNT:-60}
+      PUBLIC_TOKEN_RATE_LIMIT_WINDOW_SECONDS: ${PUBLIC_TOKEN_RATE_LIMIT_WINDOW_SECONDS:-60}
+      PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS: ${PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS:-10000}
+      CANDIDATE_LOGIN_OTP_TTL_SECONDS: ${CANDIDATE_LOGIN_OTP_TTL_SECONDS:-600}
+      CANDIDATE_LOGIN_OTP_ATTEMPT_LIMIT: ${CANDIDATE_LOGIN_OTP_ATTEMPT_LIMIT:-5}
+      CANDIDATE_LOGIN_OTP_RESEND_COOLDOWN_SECONDS: ${CANDIDATE_LOGIN_OTP_RESEND_COOLDOWN_SECONDS:-60}
+      CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE: ${CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE:-memory}
+      CANDIDATE_LOGIN_EMAIL_MAX_ATTEMPTS: ${CANDIDATE_LOGIN_EMAIL_MAX_ATTEMPTS:-3}
+      CANDIDATE_LOGIN_EMAIL_RETRY_BASE_SECONDS: ${CANDIDATE_LOGIN_EMAIL_RETRY_BASE_SECONDS:-1}
+      CANDIDATE_LOGIN_EMAIL_FROM: ${CANDIDATE_LOGIN_EMAIL_FROM:-}
+      CANDIDATE_LOGIN_SMTP_HOST: ${CANDIDATE_LOGIN_SMTP_HOST:-}
+      CANDIDATE_LOGIN_SMTP_PORT: ${CANDIDATE_LOGIN_SMTP_PORT:-587}
+      CANDIDATE_LOGIN_SMTP_USERNAME: ${CANDIDATE_LOGIN_SMTP_USERNAME:-}
+      CANDIDATE_LOGIN_SMTP_PASSWORD: ${CANDIDATE_LOGIN_SMTP_PASSWORD:-}
+      CANDIDATE_LOGIN_SMTP_USE_TLS: ${CANDIDATE_LOGIN_SMTP_USE_TLS:-true}
+      IMPORT_MAX_UPLOAD_BYTES: ${IMPORT_MAX_UPLOAD_BYTES:-5242880}
+      IMPORT_MAX_ROWS: ${IMPORT_MAX_ROWS:-5000}
+      IMPORT_MAX_SHEETS: ${IMPORT_MAX_SHEETS:-1}
       LEARNING_MEDIA_STORAGE_DIR: ${LEARNING_MEDIA_STORAGE_DIR:-/app/learning-media}
       LEARNING_MEDIA_PUBLIC_PATH: ${LEARNING_MEDIA_PUBLIC_PATH:-/media/learning}
       LEARNING_VIDEO_MAX_UPLOAD_BYTES: ${LEARNING_VIDEO_MAX_UPLOAD_BYTES:-524288000}
@@ -36,24 +57,37 @@ services:
       - "8000"
     volumes:
       - learning_media:/app/learning-media
-    command: ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+    command: ["sh", "-c", "uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   auto-submit-worker:
     build:
       context: ./backend
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      APP_ROLE: worker
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
-      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
-      TOKEN_SECRET: ${TOKEN_SECRET:?Set TOKEN_SECRET in .env}
+      AUTO_SUBMIT_CHECK_INTERVAL_SECONDS: ${AUTO_SUBMIT_CHECK_INTERVAL_SECONDS:-30}
+      AUTO_SUBMIT_BATCH_SIZE: ${AUTO_SUBMIT_BATCH_SIZE:-100}
+      AUTO_SUBMIT_HEARTBEAT_PATH: ${AUTO_SUBMIT_HEARTBEAT_PATH:-/tmp/internal-exam-auto-submit.heartbeat}
+      AUTO_SUBMIT_HEARTBEAT_MAX_AGE_SECONDS: ${AUTO_SUBMIT_HEARTBEAT_MAX_AGE_SECONDS:-90}
     depends_on:
       db:
         condition: service_healthy
       backend:
         condition: service_started
-    command: ["uv", "run", "python", "-m", "app.core.auto_submit_worker"]
+    command: ["uv", "run", "--no-sync", "python", "-m", "app.core.auto_submit_worker"]
+    healthcheck:
+      test: ["CMD", "uv", "run", "--no-sync", "python", "-m", "app.core.auto_submit_worker", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   frontend:
     build:
@@ -66,10 +100,12 @@ services:
   nginx:
     image: nginx:1.27-alpine
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
     ports:
-      - "0.0.0.0:8080:80"
+      - "${INTERNAL_LAN_BIND_IP:-0.0.0.0}:8080:80"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - learning_media:/var/lib/nginx/learning-media:ro

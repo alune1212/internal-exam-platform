@@ -5,12 +5,16 @@ Run with:
 """
 
 import logging
+import sys
 import time
+from collections.abc import Sequence
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models import ExamAttempt
 from app.services.exam_service import (
@@ -20,8 +24,8 @@ from app.services.exam_service import (
 
 logger = logging.getLogger(__name__)
 
-CHECK_INTERVAL_SECONDS = 30
-DEFAULT_BATCH_SIZE = 100
+CHECK_INTERVAL_SECONDS = settings.auto_submit_check_interval_seconds
+DEFAULT_BATCH_SIZE = settings.auto_submit_batch_size
 
 
 def _expired_attempts_query(
@@ -60,20 +64,54 @@ def process_due_attempts(
     return processed
 
 
-def run_once(*, batch_size: int = DEFAULT_BATCH_SIZE) -> int:
+def write_heartbeat(path: str | Path, *, now: datetime | None = None) -> None:
+    heartbeat_path = Path(path)
+    heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
+    heartbeat_at = now or datetime.now(UTC)
+    temporary_path = heartbeat_path.with_name(f".{heartbeat_path.name}.tmp")
+    temporary_path.write_text(str(heartbeat_at.timestamp()), encoding="utf-8")
+    temporary_path.replace(heartbeat_path)
+
+
+def is_heartbeat_fresh(
+    path: str | Path,
+    *,
+    max_age_seconds: int,
+    now: datetime | None = None,
+) -> bool:
+    try:
+        heartbeat_timestamp = float(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    current_timestamp = (now or datetime.now(UTC)).timestamp()
+    age_seconds = current_timestamp - heartbeat_timestamp
+    return 0 <= age_seconds <= max_age_seconds
+
+
+def run_once(
+    *,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    heartbeat_path: str | Path | None = None,
+) -> int:
     with SessionLocal() as db:
-        return process_due_attempts(db, batch_size=batch_size)
+        processed = process_due_attempts(db, batch_size=batch_size)
+    write_heartbeat(heartbeat_path or settings.auto_submit_heartbeat_path)
+    return processed
 
 
 def run_forever(
     *,
     interval_seconds: int = CHECK_INTERVAL_SECONDS,
     batch_size: int = DEFAULT_BATCH_SIZE,
+    heartbeat_path: str | Path | None = None,
 ) -> None:
     logging.basicConfig(level=logging.INFO)
     while True:
         try:
-            processed = run_once(batch_size=batch_size)
+            processed = run_once(
+                batch_size=batch_size,
+                heartbeat_path=heartbeat_path or settings.auto_submit_heartbeat_path,
+            )
             if processed:
                 logger.info("自动提交 %d 条超时考试记录", processed)
         except Exception:
@@ -81,7 +119,23 @@ def run_forever(
         time.sleep(interval_seconds)
 
 
-def main() -> None:
+def worker_healthcheck() -> int:
+    return (
+        0
+        if is_heartbeat_fresh(
+            settings.auto_submit_heartbeat_path,
+            max_age_seconds=settings.auto_submit_heartbeat_max_age_seconds,
+        )
+        else 1
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args == ["healthcheck"]:
+        raise SystemExit(worker_healthcheck())
+    if args:
+        raise SystemExit("usage: python -m app.core.auto_submit_worker [healthcheck]")
     run_forever()
 
 
