@@ -40,11 +40,60 @@ def test_email_retry_defaults_are_bounded() -> None:
     assert configured.candidate_login_email_retry_base_seconds == 1.0
 
 
+def test_smtp_transport_defaults_to_starttls() -> None:
+    configured = _settings()
+
+    assert configured.candidate_login_smtp_use_tls is True
+    assert configured.candidate_login_smtp_use_ssl is False
+
+
+def test_smtp_transport_rejects_ssl_and_starttls_together() -> None:
+    with pytest.raises(ValidationError, match="不能同时为 true"):
+        _settings(
+            candidate_login_smtp_use_ssl=True,
+            candidate_login_smtp_use_tls=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("username", "password"),
+    [("mailer@example.com", ""), ("", "smtp-password")],
+)
+def test_smtp_authentication_requires_username_password_pair(
+    username: str, password: str
+) -> None:
+    with pytest.raises(ValidationError, match="必须同时配置或同时留空"):
+        _settings(
+            candidate_login_email_delivery_mode="smtp",
+            candidate_login_smtp_username=username,
+            candidate_login_smtp_password=password,
+        )
+
+
 def test_internal_backend_accepts_controlled_lan_configuration() -> None:
     configured = _valid_internal_backend()
 
     assert configured.internal_lan_bind_ip == "192.168.50.10"
     assert configured.cors_origin_list == ["http://192.168.50.10:8080"]
+
+
+def test_internal_backend_accepts_implicit_smtp_ssl() -> None:
+    configured = _valid_internal_backend(
+        candidate_login_smtp_port=994,
+        candidate_login_smtp_use_tls=False,
+        candidate_login_smtp_use_ssl=True,
+    )
+
+    assert configured.candidate_login_smtp_port == 994
+    assert configured.candidate_login_smtp_use_ssl is True
+
+
+def test_internal_backend_rejects_unencrypted_smtp() -> None:
+    with pytest.raises(ValidationError, match="必须启用 SMTP SSL 或 STARTTLS"):
+        _valid_internal_backend(
+            candidate_login_smtp_use_tls=False,
+            candidate_login_smtp_use_ssl=False,
+        )
 
 
 @pytest.mark.parametrize(

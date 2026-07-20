@@ -64,6 +64,8 @@ No heartbeat table or monitoring service is added. The file resets on container 
 
 The login challenge remains committed before SMTP delivery begins, and the request continues returning the same response shape for valid and unknown identities. The background delivery function will retry only a small bounded number of transient SMTP/network failures with short backoff. Permanent failures stop immediately.
 
+SMTP transport is explicit and mutually exclusive: STARTTLS uses a plain SMTP connection followed by `starttls`, while implicit SSL uses `SMTP_SSL` from connection establishment. Formal profiles require one encrypted transport, and authenticated SMTP requires username and password to be configured together. This supports internal mail servers on provider-specific implicit SSL ports such as `994` without weakening the existing STARTTLS path.
+
 Structured delivery logs will contain an event name, challenge identifier, attempt number, and exception class, but never the OTP, recipient email, SMTP password, or full submitted identity. A final failure does not roll back the challenge or produce a differentiated HTTP response; the candidate can request a replacement challenge after the cooldown.
 
 A durable outbox was rejected because it would require a new delivery worker or queue-like subsystem outside the lightweight first-phase boundary.

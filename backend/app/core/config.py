@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     candidate_login_smtp_username: str = ""
     candidate_login_smtp_password: str = ""
     candidate_login_smtp_use_tls: bool = True
+    candidate_login_smtp_use_ssl: bool = False
     import_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     import_max_rows: int = Field(default=5000, ge=1)
     import_max_sheets: int = Field(default=1, ge=1)
@@ -87,6 +88,20 @@ class Settings(BaseSettings):
             raise ValueError(
                 "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE 只能是 memory 或 smtp"
             )
+        if self.candidate_login_smtp_use_ssl and self.candidate_login_smtp_use_tls:
+            raise ValueError(
+                "CANDIDATE_LOGIN_SMTP_USE_SSL 与 CANDIDATE_LOGIN_SMTP_USE_TLS "
+                "不能同时为 true"
+            )
+        smtp_username_configured = bool(self.candidate_login_smtp_username.strip())
+        smtp_password_configured = bool(self.candidate_login_smtp_password)
+        if delivery_mode == "smtp" and (
+            smtp_username_configured != smtp_password_configured
+        ):
+            raise ValueError(
+                "CANDIDATE_LOGIN_SMTP_USERNAME 与 CANDIDATE_LOGIN_SMTP_PASSWORD "
+                "必须同时配置或同时留空"
+            )
 
         if self.environment == "internal" or (
             self.environment == "production" and self.app_role == "worker"
@@ -112,6 +127,12 @@ class Settings(BaseSettings):
             if not self.candidate_login_smtp_host.strip():
                 raise ValueError(
                     f"{self.environment} 环境必须配置 CANDIDATE_LOGIN_SMTP_HOST"
+                )
+            if not (
+                self.candidate_login_smtp_use_ssl or self.candidate_login_smtp_use_tls
+            ):
+                raise ValueError(
+                    f"{self.environment} 环境必须启用 SMTP SSL 或 STARTTLS"
                 )
 
         if self.environment == "internal":

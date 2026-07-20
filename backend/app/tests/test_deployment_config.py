@@ -83,6 +83,7 @@ def test_backend_receives_all_supported_runtime_overrides() -> None:
         "CANDIDATE_LOGIN_SMTP_USERNAME",
         "CANDIDATE_LOGIN_SMTP_PASSWORD",
         "CANDIDATE_LOGIN_SMTP_USE_TLS",
+        "CANDIDATE_LOGIN_SMTP_USE_SSL",
         "IMPORT_MAX_UPLOAD_BYTES",
         "IMPORT_MAX_ROWS",
         "IMPORT_MAX_SHEETS",
@@ -105,6 +106,7 @@ def test_worker_environment_is_role_scoped_and_least_privileged() -> None:
     assert "ADMIN_PASSWORD" not in environment
     assert "TOKEN_SECRET" not in environment
     assert "CANDIDATE_LOGIN_SMTP_PASSWORD" not in environment
+    assert "CANDIDATE_LOGIN_SMTP_USE_SSL" not in environment
     assert "CANDIDATE_LOGIN_EMAIL_MAX_ATTEMPTS" not in environment
 
 

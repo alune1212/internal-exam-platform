@@ -2,6 +2,7 @@ import logging
 import smtplib
 from datetime import UTC, datetime, timedelta
 from typing import TypedDict
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -158,6 +159,82 @@ def test_delivery_logs_exclude_sensitive_values(
     assert "Sensitive Candidate" not in rendered
     assert "654321" not in rendered
     assert "smtp-secret" not in rendered
+
+
+def test_smtp_implicit_ssl_connects_without_starttls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tls_context = object()
+    smtp_client = MagicMock()
+    smtp_client.__enter__.return_value = smtp_client
+    smtp_ssl = MagicMock(return_value=smtp_client)
+    smtp_plain = MagicMock()
+
+    monkeypatch.setattr(settings, "candidate_login_email_delivery_mode", "smtp")
+    monkeypatch.setattr(settings, "candidate_login_email_from", "mailer@example.com")
+    monkeypatch.setattr(settings, "candidate_login_smtp_host", "smtp.example.com")
+    monkeypatch.setattr(settings, "candidate_login_smtp_port", 994)
+    monkeypatch.setattr(settings, "candidate_login_smtp_username", "mailer@example.com")
+    monkeypatch.setattr(settings, "candidate_login_smtp_password", "smtp-secret")
+    monkeypatch.setattr(settings, "candidate_login_smtp_use_tls", False)
+    monkeypatch.setattr(settings, "candidate_login_smtp_use_ssl", True)
+    monkeypatch.setattr(
+        email_service.ssl, "create_default_context", lambda: tls_context
+    )
+    monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", smtp_ssl)
+    monkeypatch.setattr(email_service.smtplib, "SMTP", smtp_plain)
+
+    email_service.send_candidate_login_otp(
+        to_email="candidate@example.com",
+        candidate_name="Candidate",
+        otp="123456",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+
+    smtp_ssl.assert_called_once_with(
+        "smtp.example.com", 994, timeout=10, context=tls_context
+    )
+    smtp_plain.assert_not_called()
+    smtp_client.starttls.assert_not_called()
+    smtp_client.login.assert_called_once_with("mailer@example.com", "smtp-secret")
+    smtp_client.send_message.assert_called_once()
+
+
+def test_smtp_starttls_path_remains_supported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tls_context = object()
+    smtp_client = MagicMock()
+    smtp_client.__enter__.return_value = smtp_client
+    smtp_plain = MagicMock(return_value=smtp_client)
+    smtp_ssl = MagicMock()
+
+    monkeypatch.setattr(settings, "candidate_login_email_delivery_mode", "smtp")
+    monkeypatch.setattr(settings, "candidate_login_email_from", "mailer@example.com")
+    monkeypatch.setattr(settings, "candidate_login_smtp_host", "smtp.example.com")
+    monkeypatch.setattr(settings, "candidate_login_smtp_port", 587)
+    monkeypatch.setattr(settings, "candidate_login_smtp_username", "mailer@example.com")
+    monkeypatch.setattr(settings, "candidate_login_smtp_password", "smtp-secret")
+    monkeypatch.setattr(settings, "candidate_login_smtp_use_tls", True)
+    monkeypatch.setattr(settings, "candidate_login_smtp_use_ssl", False)
+    monkeypatch.setattr(
+        email_service.ssl, "create_default_context", lambda: tls_context
+    )
+    monkeypatch.setattr(email_service.smtplib, "SMTP", smtp_plain)
+    monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", smtp_ssl)
+
+    email_service.send_candidate_login_otp(
+        to_email="candidate@example.com",
+        candidate_name="Candidate",
+        otp="123456",
+        expires_at=datetime.now(UTC) + timedelta(minutes=10),
+    )
+
+    smtp_plain.assert_called_once_with("smtp.example.com", 587, timeout=10)
+    smtp_ssl.assert_not_called()
+    smtp_client.starttls.assert_called_once_with(context=tls_context)
+    smtp_client.login.assert_called_once_with("mailer@example.com", "smtp-secret")
+    smtp_client.send_message.assert_called_once()
 
 
 def test_smtp_oserror_is_classified_as_transient(

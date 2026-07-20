@@ -22,7 +22,7 @@ The system SHALL provide distinct `development`, `internal`, and `production` ru
 The deployment MUST distinguish backend and worker runtime roles and MUST propagate documented backend settings without exposing unrelated backend secrets to the auto-submit worker.
 
 #### Scenario: Backend receives supported overrides
-- **GIVEN** token TTL, rate-limit, OTP, SMTP, import, and media settings are configured in the deployment environment
+- **GIVEN** token TTL, rate-limit, OTP, SMTP transport, import, and media settings are configured in the deployment environment
 - **WHEN** Docker Compose renders the backend service
 - **THEN** the backend container receives those configured values
 

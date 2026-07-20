@@ -8,7 +8,7 @@ The first-phase exam loop is complete, but the current Docker Compose deployment
 - Introduce role-aware runtime validation so the backend receives and validates auth, SMTP, import, media, and security settings while the auto-submit worker receives only the settings it needs.
 - Make Docker Compose pass through every supported runtime setting and require an explicit LAN bind address for internal deployment preflight.
 - Keep `/api/health` as liveness and add dependency-aware readiness plus Compose health checks for the backend and auto-submit worker.
-- Add bounded retry and redacted structured logging for post-commit OTP email delivery without changing the uniform candidate-login response contract.
+- Add STARTTLS and implicit SSL SMTP transports, bounded retry, and redacted structured logging for post-commit OTP email delivery without changing the uniform candidate-login response contract.
 - Preserve auto-submit idempotency and require overdue attempts to be processed after a worker interruption, with an observable worker heartbeat.
 - Add paired PostgreSQL and `learning_media` backup artifacts, checksums, and isolated restore verification that cannot target current formal data by default.
 - Extend the official UAT and handoff gates so a real SMTP login, formal exam flow, worker recovery, and backup restore must pass before internal release.

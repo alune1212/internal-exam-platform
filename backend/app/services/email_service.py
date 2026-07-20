@@ -1,5 +1,6 @@
 import logging
 import smtplib
+import ssl
 import time
 from collections import deque
 from collections.abc import Callable
@@ -151,13 +152,24 @@ def _send_smtp(delivery: CandidateLoginEmail) -> None:
         )
     )
     try:
-        with smtplib.SMTP(
-            settings.candidate_login_smtp_host,
-            settings.candidate_login_smtp_port,
-            timeout=10,
-        ) as smtp:
+        tls_context = ssl.create_default_context()
+        if settings.candidate_login_smtp_use_ssl:
+            smtp_client = smtplib.SMTP_SSL(
+                settings.candidate_login_smtp_host,
+                settings.candidate_login_smtp_port,
+                timeout=10,
+                context=tls_context,
+            )
+        else:
+            smtp_client = smtplib.SMTP(
+                settings.candidate_login_smtp_host,
+                settings.candidate_login_smtp_port,
+                timeout=10,
+            )
+
+        with smtp_client as smtp:
             if settings.candidate_login_smtp_use_tls:
-                smtp.starttls()
+                smtp.starttls(context=tls_context)
             if settings.candidate_login_smtp_username:
                 smtp.login(
                     settings.candidate_login_smtp_username,

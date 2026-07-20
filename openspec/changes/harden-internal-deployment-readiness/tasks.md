@@ -25,6 +25,7 @@
 - [x] 4.1 Add bounded short-backoff retry for transient post-commit SMTP/network failures and stop immediately for permanent delivery failures without adding a queue or new persistence model.
 - [x] 4.2 Add structured delivery logs keyed by challenge id and attempt number while excluding OTPs, recipient email, submitted identity, and SMTP credentials.
 - [x] 4.3 Add backend tests for first-attempt success, transient failure followed by success, exhausted retry, permanent failure, preserved challenge state, uniform HTTP response, and sensitive-log redaction.
+- [x] 4.4 Support mutually exclusive SMTP STARTTLS and implicit SSL transports, validate authentication pairs, propagate the new setting, and verify real delivery on the configured port.
 
 ## 5. Paired Backup And Restore Verification
 

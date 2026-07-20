@@ -40,7 +40,7 @@ Implemented foundations:
 - Time-based auto-submit background check with an atomic heartbeat and container healthcheck; successful zero-result scans also refresh health, failed scans do not.
 - Ranking, exam-filterable admin report SQL queries, and multi-sheet Excel report export.
 - Learning media served through Nginx `/media/learning/` from the `learning_media` volume.
-- Candidate OTP delivery retries transient SMTP/network failures with short bounded backoff, stops on permanent failures, and logs challenge/attempt/error type without recipient or OTP data.
+- Candidate OTP delivery supports mutually exclusive STARTTLS and implicit SSL transports, retries transient SMTP/network failures with short bounded backoff, stops on permanent failures, and logs challenge/attempt/error type without recipient or OTP data.
 - Paired backup tooling creates a PostgreSQL custom dump and `learning_media` archive with manifest, SHA-256 checksums, and a last-written `SUCCESS`; restore verification only accepts disposable Compose project names and validates migration head, representative table counts, media count, and non-empty samples.
 
 ## Verified Commands
@@ -71,11 +71,12 @@ curl -f http://127.0.0.1:8080/docs
 
 Observed results:
 
-- Backend format/lint/`ty`: passed; backend tests: 265 passed, 4 skipped.
+- Backend format/lint/`ty`: passed; backend tests: 273 passed, 4 skipped.
 - Frontend format/lint/build: passed; frontend tests: 59 files / 303 tests passed.
 - OpenSpec strict validation: 8 passed, 0 failed. Development and synthetic internal Compose configurations rendered successfully with `config --quiet`.
 - Compose images built and the db, backend, and auto-submit-worker services became healthy. Alembic was at head, `nginx -t` passed, `/api/health` and `/api/ready` returned HTTP 200, `/docs` loaded through `8080`, and a missing `/media/learning/` object returned 404 through the media route.
 - Runtime evidence exposed and then fixed startup-time dependency synchronization: container commands now use `uv run --no-sync`; the rebuilt worker became healthy without downloading dev dependencies.
+- On 2026-07-20, implicit SMTP SSL was verified through the rebuilt backend on the configured port: strict certificate validation, SMTP authentication, and a real test OTP message were accepted by the server. This local delivery evidence does not complete the second-device browser UAT.
 - A live paired backup was created at `backups/backup-20260710T032923Z`; the final implementation restored it into `internal-exam-restore-verify-20260710b`, verified database/media consistency including a real media-byte read, and cleaned up. The original stack was restarted and returned to healthy.
 
 Operational commands and failure recovery are documented in `docs/internal-deployment-operations.md`. The essential maintenance-window flow is:

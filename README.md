@@ -56,7 +56,10 @@ CANDIDATE_LOGIN_SMTP_PORT=587
 CANDIDATE_LOGIN_SMTP_USERNAME=<smtp-user-if-required>
 CANDIDATE_LOGIN_SMTP_PASSWORD=<smtp-password-if-required>
 CANDIDATE_LOGIN_SMTP_USE_TLS=true
+CANDIDATE_LOGIN_SMTP_USE_SSL=false
 ```
+
+`CANDIDATE_LOGIN_SMTP_USE_TLS` 适用于 `587` 等 STARTTLS 端口；`CANDIDATE_LOGIN_SMTP_USE_SSL` 适用于 `465` 或服务商指定的 `994` 等隐式 SSL 端口，两者不能同时为 `true`。SMTP 主机必须使用与服务器证书匹配的域名，不能直接沿用证书未覆盖的别名或 IP。需要认证时，SMTP 用户名和密码必须同时配置；密码应使用邮件服务商提供的 SMTP 授权码或应用专用密码。
 
 `internal` 会拒绝 `0.0.0.0`、loopback、公网 IP、示例数据库口令、示例管理员口令/签名密钥、`memory` OTP、空 SMTP，以及不精确匹配 `http://<INTERNAL_LAN_BIND_IP>:<port>` 的 CORS。修改后先做只读渲染检查；不要把渲染输出上传到工单或聊天：
 

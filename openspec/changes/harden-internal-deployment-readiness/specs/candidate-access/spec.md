@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Candidate Login
-The system SHALL authenticate candidates with a two-step email OTP flow before issuing a candidate token. A challenge request MUST match an active candidate by name and roster email, with a matching employee number when provided, and MUST NOT issue a candidate token until a valid OTP is verified. Phone suffix alone MUST NOT be sufficient to authenticate a candidate in strict login mode. Challenge state MUST be committed before email delivery begins, challenge requests MUST keep a uniform response for matched and unmatched identities, and transient delivery failures MUST use bounded retry without leaking candidate or delivery secrets.
+The system SHALL authenticate candidates with a two-step email OTP flow before issuing a candidate token. A challenge request MUST match an active candidate by name and roster email, with a matching employee number when provided, and MUST NOT issue a candidate token until a valid OTP is verified. Phone suffix alone MUST NOT be sufficient to authenticate a candidate in strict login mode. Challenge state MUST be committed before email delivery begins, challenge requests MUST keep a uniform response for matched and unmatched identities, and transient delivery failures MUST use bounded retry without leaking candidate or delivery secrets. SMTP delivery MUST support mutually exclusive STARTTLS and implicit SSL transports.
 
 #### Scenario: Candidate requests login OTP with matching identity
 - **GIVEN** an active candidate record exists with a valid email
@@ -39,3 +39,14 @@ The system SHALL authenticate candidates with a two-step email OTP flow before i
 - **WHEN** the system records the final delivery failure
 - **THEN** the log identifies the event and challenge without recording the OTP, recipient email, SMTP password, or full submitted identity
 - **AND** the candidate may request a replacement challenge after the configured cooldown
+
+#### Scenario: SMTP server requires implicit SSL
+- **GIVEN** candidate OTP delivery is configured for an implicit SSL SMTP port
+- **WHEN** the system opens the SMTP connection
+- **THEN** it uses SSL from connection establishment without issuing STARTTLS
+- **AND** it authenticates and sends through the encrypted connection
+
+#### Scenario: SMTP transport configuration conflicts
+- **GIVEN** both implicit SSL and STARTTLS are enabled, or authenticated SMTP has only one of username and password
+- **WHEN** startup validation runs
+- **THEN** the system rejects the configuration without printing credential values

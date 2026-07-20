@@ -10,7 +10,7 @@
 - `INTERNAL_LAN_BIND_IP` 是部署主机固定私网 IP，不能是 `0.0.0.0`、loopback、link-local 或公网 IP。
 - `CORS_ORIGINS` 精确为 `http://<INTERNAL_LAN_BIND_IP>:8080`，不使用 `*`、localhost 或额外 origin。
 - `POSTGRES_PASSWORD`、`DATABASE_URL`、`ADMIN_PASSWORD` 和 `TOKEN_SECRET` 已替换示例值；数据库 URL 中的密码与 `POSTGRES_PASSWORD` 一致并正确 URL encode。
-- `CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp`，sender、host、port、TLS 和所需 SMTP 凭据均已配置。
+- `CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp`，sender、证书匹配的 host、port、所需 SMTP 凭据和传输模式均已配置；STARTTLS 使用 `USE_TLS=true`，隐式 SSL 使用 `USE_SSL=true`，两者不得同时启用。
 - 主机防火墙只允许受控考试子网访问 `<INTERNAL_LAN_BIND_IP>:8080`；`5432` 和 `5173` 只允许本机 loopback。访客 Wi-Fi、公网端口转发和不受控网段必须禁用。
 - 已书面接受局域网 HTTP 不加密 bearer token 的残余风险；如果网络或使用范围扩大，停止 `internal` 部署并先升级 HTTPS。
 
