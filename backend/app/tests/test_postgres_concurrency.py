@@ -23,15 +23,13 @@ from app.services import exam_service
 
 POSTGRES_TEST_DATABASE_URL = os.environ.get("POSTGRES_TEST_DATABASE_URL")
 
-pytestmark = pytest.mark.skipif(
-    not POSTGRES_TEST_DATABASE_URL,
-    reason="POSTGRES_TEST_DATABASE_URL is required for PostgreSQL concurrency tests",
-)
-
 
 @pytest.fixture
 def pg_session_factory() -> Iterator[sessionmaker[Session]]:
-    assert POSTGRES_TEST_DATABASE_URL is not None
+    if POSTGRES_TEST_DATABASE_URL is None:
+        pytest.skip(
+            "POSTGRES_TEST_DATABASE_URL is required for PostgreSQL concurrency tests"
+        )
     engine = create_engine(POSTGRES_TEST_DATABASE_URL, pool_pre_ping=True)
     _clean_postgres(engine)
     try:
@@ -42,6 +40,7 @@ def pg_session_factory() -> Iterator[sessionmaker[Session]]:
 
 
 def _clean_postgres(engine: Engine) -> None:
+    _assert_isolated_test_database(engine)
     with engine.begin() as connection:
         connection.execute(
             text(
@@ -62,6 +61,25 @@ def _clean_postgres(engine: Engine) -> None:
                 """
             )
         )
+
+
+def _assert_isolated_test_database(engine: Engine) -> None:
+    database_name = engine.url.database or ""
+    if not engine.url.drivername.startswith("postgresql") or not database_name.endswith(
+        "_test"
+    ):
+        raise RuntimeError(
+            "PostgreSQL concurrency tests require an isolated database ending in _test"
+        )
+
+
+def test_pg_database_guard_rejects_non_test_database() -> None:
+    unsafe_engine = create_engine("postgresql+psycopg://exam@127.0.0.1/internal_exam")
+    try:
+        with pytest.raises(RuntimeError, match="isolated database ending in _test"):
+            _assert_isolated_test_database(unsafe_engine)
+    finally:
+        unsafe_engine.dispose()
 
 
 def _seed_exam(

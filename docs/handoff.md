@@ -77,6 +77,7 @@ Observed results:
 - Compose images built and the db, backend, and auto-submit-worker services became healthy. Alembic was at head, `nginx -t` passed, `/api/health` and `/api/ready` returned HTTP 200, `/docs` loaded through `8080`, and a missing `/media/learning/` object returned 404 through the media route.
 - Runtime evidence exposed and then fixed startup-time dependency synchronization: container commands now use `uv run --no-sync`; the rebuilt worker became healthy without downloading dev dependencies.
 - On 2026-07-20, implicit SMTP SSL was verified through the rebuilt backend on the configured port: strict certificate validation, SMTP authentication, and a real test OTP message were accepted by the server.
+- On 2026-07-20, `./scripts/test-backend-full.sh -q -rs` ran the complete backend suite against the disposable `internal_exam_test` PostgreSQL service: 280 passed, 0 skipped. The test container and temporary data were removed automatically after the run.
 - A live paired backup was created at `backups/backup-20260710T032923Z`; the final implementation restored it into `internal-exam-restore-verify-20260710b`, verified database/media consistency including a real media-byte read, and cleaned up. The original stack was restarted and returned to healthy.
 
 Operational commands and failure recovery are documented in `docs/internal-deployment-operations.md`. The essential maintenance-window flow is:

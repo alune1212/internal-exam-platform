@@ -166,12 +166,21 @@ uv run alembic downgrade base
 
 ## 测试和构建
 
-后端测试：
+后端快速测试（使用内存 SQLite；4 个 PostgreSQL 并发测试会按条件跳过）：
 
 ```bash
 cd backend
 uv run pytest
 ```
+
+后端完整测试（推荐；从仓库根目录运行，使用独立临时 PostgreSQL，测试结束后自动销毁）：
+
+```bash
+./scripts/test-backend-full.sh
+```
+
+完整测试服务只监听 `127.0.0.1:55432`，数据库固定为
+`internal_exam_test`，不会读取或清理当前部署使用的 `internal_exam`。
 
 前端构建：
 

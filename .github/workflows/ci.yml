@@ -11,20 +11,20 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: internal_exam
+          POSTGRES_DB: internal_exam_test
           POSTGRES_USER: exam
           POSTGRES_PASSWORD: local-dev-postgres-password
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U exam -d internal_exam"
+          --health-cmd "pg_isready -U exam -d internal_exam_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+psycopg://exam:local-dev-postgres-password@127.0.0.1:5432/internal_exam
-      POSTGRES_TEST_DATABASE_URL: postgresql+psycopg://exam:local-dev-postgres-password@127.0.0.1:5432/internal_exam
+      DATABASE_URL: postgresql+psycopg://exam:local-dev-postgres-password@127.0.0.1:5432/internal_exam_test
+      POSTGRES_TEST_DATABASE_URL: postgresql+psycopg://exam:local-dev-postgres-password@127.0.0.1:5432/internal_exam_test
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: local-dev-admin-password

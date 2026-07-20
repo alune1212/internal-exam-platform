@@ -574,7 +574,7 @@ def _build_exam_read(
     pool_counts: dict[int, int] | None = None,
 ) -> ExamRead:
     pool_count = (
-        pool_counts[exam.id]
+        pool_counts.get(exam.id, 0)
         if pool_counts is not None
         else _question_pool_count(db, exam.id)
     )

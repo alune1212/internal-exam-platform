@@ -17,7 +17,7 @@ from app.core.config import Settings, settings
 from app.core.database import Base, get_db
 from app.core.security import _sign, create_session_token, verify_session_token
 from app.main import create_app
-from app.models import Exam, ExamCandidateScope, ImportBatch
+from app.models import Exam, ExamCandidateScope, ExamQuestionPool, ImportBatch
 from app.services import exam_service
 from app.tests.conftest import (
     create_candidate,
@@ -113,6 +113,37 @@ def test_admin_exams_accepts_valid_token() -> None:
     body = resp.json()
     assert body["success"] is True
     assert isinstance(body["data"], list)
+
+
+def test_admin_exams_returns_zero_for_exam_without_question_pool() -> None:
+    client, db = _build_client()
+    empty_exam = create_exam(db, title="零题池考试", status="draft")
+    pooled_exam = create_exam(db, title="已有题池考试", status="draft")
+    question = create_question_with_options(db)
+    db.add(
+        ExamQuestionPool(
+            exam_id=pooled_exam.id,
+            question_id=question.id,
+            sort_order=0,
+        )
+    )
+    db.commit()
+
+    login = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    )
+    token = login.json()["data"]["token"]
+
+    response = client.get(
+        "/api/admin/exams",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert response.status_code == 200
+    exams_by_id = {item["id"]: item for item in response.json()["data"]}
+    assert exams_by_id[empty_exam.id]["question_pool_count"] == 0
+    assert exams_by_id[pooled_exam.id]["question_pool_count"] == 1
 
 
 def test_admin_create_exam_rejects_direct_active_status() -> None:

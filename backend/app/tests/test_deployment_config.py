@@ -1,6 +1,7 @@
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+TEST_COMPOSE_FILE = REPO_ROOT / "docker-compose.test.yml"
 
 
 def _compose_service_ports(service_name: str) -> list[str]:
@@ -60,6 +61,16 @@ def test_default_nginx_publish_allows_lan_access() -> None:
 def test_database_and_direct_frontend_ports_stay_loopback_only() -> None:
     assert _compose_service_ports("db") == ["127.0.0.1:5432:5432"]
     assert _compose_service_ports("frontend") == ["127.0.0.1:5173:80"]
+
+
+def test_postgres_test_service_is_disposable_and_isolated() -> None:
+    compose = TEST_COMPOSE_FILE.read_text(encoding="utf-8")
+
+    assert "POSTGRES_DB: internal_exam_test" in compose
+    assert '"127.0.0.1:55432:5432"' in compose
+    assert "tmpfs:" in compose
+    assert "/var/lib/postgresql/data" in compose
+    assert "postgres_data" not in compose
 
 
 def test_backend_receives_all_supported_runtime_overrides() -> None:
