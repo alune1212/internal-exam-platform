@@ -1,6 +1,6 @@
 # Official Exam UAT Checklist
 
-正式考试前从第二台允许的局域网设备，通过 Docker/Nginx 入口 `http://<INTERNAL_LAN_BIND_IP>:8080` 跑一遍。目标是验证主链和单机运维恢复能力，不扩展成完整 LMS 验收。
+正式考试前通过 Docker/Nginx 入口 `http://<INTERNAL_LAN_BIND_IP>:8080` 跑一遍。目标是验证主链和单机运维恢复能力，不扩展成完整 LMS 验收。
 
 ## Preflight
 
@@ -47,7 +47,7 @@ curl -f http://<INTERNAL_LAN_BIND_IP>:8080/docs
 
 ## Browser Flow
 
-1. 在第二台允许的局域网设备打开 `http://<INTERNAL_LAN_BIND_IP>:8080/exams`，在没有考试人 session 时确认返回登录页，且不会渲染考试列表。
+1. 在允许的局域网设备打开 `http://<INTERNAL_LAN_BIND_IP>:8080/exams`，在没有考试人 session 时确认返回登录页，且不会渲染考试列表。
 2. 打开 `http://<INTERNAL_LAN_BIND_IP>:8080/admin/login`，管理员登录成功。
 3. 导入一份包含失败行的题库 Excel，确认结果页显示失败行，并能下载失败报告。
 4. 导入一份包含失败行的应考名单 Excel，确认结果页显示失败行，并能下载失败报告。

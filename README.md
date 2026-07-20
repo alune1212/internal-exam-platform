@@ -222,6 +222,6 @@ docker compose --env-file .env config --quiet
 
 ## 后续开发计划
 
-1. 正式使用前按 `docs/official-exam-uat-checklist.md` 从第二台允许的局域网设备完成真实 SMTP、考试主链、worker 恢复和配对备份恢复验收。
+1. 正式使用前按 `docs/official-exam-uat-checklist.md` 完成真实 SMTP、考试主链、worker 恢复和配对备份恢复验收。
 2. 将每次正式考试前的配置检查、服务 healthcheck 和隔离恢复验证留存为发布证据。
 3. 如需扩大网络暴露范围，先部署 HTTPS 并切换 `production`；权限扩展仍遵循轻量边界，不引入复杂 RBAC。

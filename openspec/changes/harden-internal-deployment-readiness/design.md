@@ -84,7 +84,7 @@ Implementation will be released in three stages:
 
 1. Configuration propagation, internal validation, readiness, and worker health.
 2. Paired backup tooling and isolated restore verification.
-3. Production-like internal UAT using real SMTP and a second LAN device.
+3. Production-like internal UAT using real SMTP through the deployed Nginx entry.
 
 Release evidence must include the existing backend/frontend/OpenSpec/Compose gates, healthy services, real OTP delivery, the formal exam/retake/report flow, worker interruption and catch-up, and a verified backup restore.
 

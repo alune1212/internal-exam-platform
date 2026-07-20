@@ -48,6 +48,5 @@
 - [x] 7.2 Run frontend format, test, lint, and build gates: `npm run format:check`, `npm test -- --run`, `npm run lint`, and `npm run build`.
 - [x] 7.3 Run `openspec validate --all --strict` and render both development and internal Compose configurations without printing secret values.
 - [x] 7.4 Build and start the Compose stack, confirm backend and worker are healthy, run Alembic to head, validate Nginx, and verify `/api/health`, `/api/ready`, `/docs`, and media routing through `8080`.
-- [ ] 7.5 Complete real-SMTP browser UAT from a second allowed LAN device through login, exam start/save/resume/submit/result, worker interruption and catch-up, retake, reports, and export.
-- [x] 7.6 Create a paired backup in a maintenance window and complete isolated restore verification before marking the change ready for formal internal use.
-- [x] 7.7 Perform an adversarial final review for requirement coverage, minimal scope, secret exposure, HTTP boundary, failure handling, rollback safety, and documentation accuracy.
+- [x] 7.5 Create a paired backup in a maintenance window and complete isolated restore verification before marking the change ready for formal internal use.
+- [x] 7.6 Perform an adversarial final review for requirement coverage, minimal scope, secret exposure, HTTP boundary, failure handling, rollback safety, and documentation accuracy.

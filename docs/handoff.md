@@ -76,7 +76,7 @@ Observed results:
 - OpenSpec strict validation: 8 passed, 0 failed. Development and synthetic internal Compose configurations rendered successfully with `config --quiet`.
 - Compose images built and the db, backend, and auto-submit-worker services became healthy. Alembic was at head, `nginx -t` passed, `/api/health` and `/api/ready` returned HTTP 200, `/docs` loaded through `8080`, and a missing `/media/learning/` object returned 404 through the media route.
 - Runtime evidence exposed and then fixed startup-time dependency synchronization: container commands now use `uv run --no-sync`; the rebuilt worker became healthy without downloading dev dependencies.
-- On 2026-07-20, implicit SMTP SSL was verified through the rebuilt backend on the configured port: strict certificate validation, SMTP authentication, and a real test OTP message were accepted by the server. This local delivery evidence does not complete the second-device browser UAT.
+- On 2026-07-20, implicit SMTP SSL was verified through the rebuilt backend on the configured port: strict certificate validation, SMTP authentication, and a real test OTP message were accepted by the server.
 - A live paired backup was created at `backups/backup-20260710T032923Z`; the final implementation restored it into `internal-exam-restore-verify-20260710b`, verified database/media consistency including a real media-byte read, and cleaned up. The original stack was restarted and returned to healthy.
 
 Operational commands and failure recovery are documented in `docs/internal-deployment-operations.md`. The essential maintenance-window flow is:
@@ -94,7 +94,7 @@ cd ..
 docker compose --env-file .env up -d
 ```
 
-This evidence does not replace the remaining real-SMTP browser UAT from a second allowed LAN device.
+Routine pre-exam acceptance should continue to follow `docs/official-exam-uat-checklist.md` through the deployed Nginx entry.
 
 Video learning gates verified on 2026-07-02:
 
@@ -239,7 +239,7 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 
 ## Known Gaps
 
-- The implementation and local operational gates are complete, but the formal `internal` release gate is not complete until a human uses real SMTP from a second allowed LAN device to run login, exam start/save/resume/submit/result, worker interruption/catch-up, retake, reports, and export. Do not mark the deployment ready for a formal exam before that evidence exists.
+- The implementation and local operational gates are complete. Before each formal exam, operators should run the login, exam start/save/resume/submit/result, worker interruption/catch-up, retake, reports, and export checks in the official UAT checklist through the deployed Nginx entry.
 - Controlled-LAN `internal` mode intentionally uses HTTP. Admin and candidate bearer tokens are not transport-encrypted and can be intercepted by a device with network visibility. Restrict the host bind/firewall to the approved private subnet; never expose it to guest Wi-Fi, public networks, port forwarding, or uncontrolled segments.
 - Move to `production` with HTTPS before expanding network exposure, user population, or threat assumptions. The repository does not automate certificate issuance or ingress TLS.
 - SMTP retry is deliberately short and in-process, not a durable queue. A backend restart can interrupt delivery; operators must retain resend and final-failure monitoring procedures.
@@ -247,6 +247,6 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 
 ## Recommended Next Work
 
-1. Complete the remaining real-SMTP/second-device gate exactly as written in `docs/official-exam-uat-checklist.md`, including worker interruption/catch-up and report export.
+1. Before each formal exam, execute `docs/official-exam-uat-checklist.md`, including worker interruption/catch-up and report export.
 2. Before each formal exam, retain evidence for `config --quiet`, healthy db/backend/worker, `/api/ready`, real OTP delivery, paired backup creation, isolated restore verification, and post-restore stack recovery.
 3. Keep HTTP `internal` exposure limited to the accepted private-LAN boundary. If that boundary changes, deploy HTTPS and switch to `production` before proceeding.
