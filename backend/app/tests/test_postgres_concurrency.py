@@ -10,16 +10,33 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core import auto_submit_worker
+from app.core.config import settings
 from app.models import (
     Candidate,
     Exam,
     ExamAttempt,
+    ExamAttemptAnswer,
     ExamCandidateScope,
     ExamQuestionPool,
+    OperationalLock,
     Question,
     QuestionOption,
 )
+from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.services import exam_service
+from app.services.exam_errors import (
+    AttemptResultNotReadyError,
+    AttemptRevisionConflictError,
+    AttemptSessionConflictError,
+)
+from app.services.operational_lock_service import (
+    FormalAttemptWriteGateError,
+    OperationalLockConflictError,
+    WriterFenceActiveError,
+    WriterFenceConflictError,
+    acquire_backup_write_freeze,
+    acquire_writer_fence,
+)
 
 POSTGRES_TEST_DATABASE_URL = os.environ.get("POSTGRES_TEST_DATABASE_URL")
 
@@ -56,7 +73,9 @@ def _clean_postgres(engine: Engine) -> None:
                   question_option,
                   question,
                   exam,
-                  candidate
+                  candidate,
+                  operational_lock,
+                  admin_audit_event
                 RESTART IDENTITY CASCADE
                 """
             )
@@ -269,3 +288,261 @@ def test_pg_duplicate_manual_submit_is_idempotent(
             .count()
             == 1
         )
+
+
+def test_pg_same_revision_concurrent_saves_allow_exactly_one_writer(
+    pg_session_factory: sessionmaker[Session],
+) -> None:
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    with pg_session_factory() as db:
+        start = exam_service.start_exam(db, exam_id, candidate_id)
+        attempt_id = start.attempt_id
+        attempt = db.get(ExamAttempt, attempt_id)
+        assert attempt is not None
+        question_id = attempt.questions[0].id
+
+    barrier = threading.Barrier(2)
+
+    def save(selected_answer: str) -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                exam_service.save_answers(
+                    db,
+                    attempt_id,
+                    AnswerSaveRequest(
+                        answer_revision=0,
+                        answers=[
+                            AnswerSaveItem(
+                                attempt_question_id=question_id,
+                                selected_answer=selected_answer,
+                            )
+                        ],
+                    ),
+                )
+            except AttemptRevisionConflictError:
+                db.rollback()
+                return "conflict"
+            return f"saved:{selected_answer}"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = {
+            future.result(timeout=10)
+            for future in [executor.submit(save, "A"), executor.submit(save, "B")]
+        }
+
+    assert "conflict" in outcomes
+    saved = outcomes - {"conflict"}
+    assert saved in ({"saved:A"}, {"saved:B"})
+    with pg_session_factory() as db:
+        attempt = db.get(ExamAttempt, attempt_id)
+        answer = (
+            db.query(ExamAttemptAnswer).filter_by(attempt_question_id=question_id).one()
+        )
+        assert attempt is not None
+        assert attempt.answer_revision == 1
+        assert f"saved:{answer.selected_answer}" in saved
+
+
+def test_pg_save_and_takeover_serialize_device_generation_and_revision(
+    pg_session_factory: sessionmaker[Session],
+) -> None:
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    with pg_session_factory() as db:
+        start = exam_service.start_exam(db, exam_id, candidate_id)
+        attempt_id = start.attempt_id
+        credential = start.attempt_session_credential
+        attempt = db.get(ExamAttempt, attempt_id)
+        assert attempt is not None
+        question_id = attempt.questions[0].id
+    assert credential is not None
+    barrier = threading.Barrier(2)
+
+    def save_from_original_device() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                exam_service.verify_attempt_session(
+                    db, attempt_id, candidate_id, credential
+                )
+                exam_service.save_answers(
+                    db,
+                    attempt_id,
+                    AnswerSaveRequest(
+                        answer_revision=0,
+                        answers=[
+                            AnswerSaveItem(
+                                attempt_question_id=question_id,
+                                selected_answer="A",
+                            )
+                        ],
+                    ),
+                )
+            except AttemptSessionConflictError:
+                db.rollback()
+                return "stale-device"
+            return "saved"
+
+    def takeover() -> int:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            return exam_service.takeover_attempt_session(
+                db, attempt_id, candidate_id
+            ).answer_revision
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        save_future = executor.submit(save_from_original_device)
+        takeover_future = executor.submit(takeover)
+        save_outcome = save_future.result(timeout=10)
+        takeover_revision = takeover_future.result(timeout=10)
+
+    assert (save_outcome, takeover_revision) in {("saved", 1), ("stale-device", 0)}
+    with pg_session_factory() as db:
+        attempt = db.get(ExamAttempt, attempt_id)
+        assert attempt is not None
+        assert attempt.attempt_session_generation == 2
+        assert attempt.answer_revision == takeover_revision
+
+
+def test_pg_manual_submit_and_void_serialize_to_one_terminal_incident(
+    pg_session_factory: sessionmaker[Session],
+) -> None:
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    with pg_session_factory() as db:
+        attempt_id = exam_service.start_exam(db, exam_id, candidate_id).attempt_id
+    barrier = threading.Barrier(2)
+
+    def submit() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                exam_service.submit_attempt(db, attempt_id, "manual")
+            except AttemptResultNotReadyError:
+                db.rollback()
+                return "observed-void"
+            return "submitted"
+
+    def void() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            exam_service.void_attempt(
+                db,
+                attempt_id,
+                operator_subject="pg-operator",
+                reason="PG 并发事故验证",
+            )
+            db.commit()
+            return "voided"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        submit_future = executor.submit(submit)
+        void_future = executor.submit(void)
+        outcomes = (submit_future.result(timeout=10), void_future.result(timeout=10))
+
+    assert outcomes in {("submitted", "voided"), ("observed-void", "voided")}
+    with pg_session_factory() as db:
+        attempt = db.get(ExamAttempt, attempt_id)
+        assert attempt is not None
+        assert attempt.status == "voided"
+        assert attempt.voided_by == "pg-operator"
+        assert attempt.attempt_session_hash is None
+
+
+def test_pg_start_and_backup_freeze_serialize_without_unsafe_overlap(
+    pg_session_factory: sessionmaker[Session],
+) -> None:
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    barrier = threading.Barrier(2)
+
+    def start_attempt() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                exam_service.start_exam(db, exam_id, candidate_id)
+            except OperationalLockConflictError:
+                db.rollback()
+                return "blocked"
+            return "started"
+
+    def acquire_backup() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                acquire_backup_write_freeze(
+                    db,
+                    owner="pg-concurrency-backup",
+                    ttl_seconds=60,
+                )
+                db.commit()
+            except FormalAttemptWriteGateError:
+                db.rollback()
+                return "skipped"
+            return "locked"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        start_future = executor.submit(start_attempt)
+        backup_future = executor.submit(acquire_backup)
+        outcome = (start_future.result(timeout=10), backup_future.result(timeout=10))
+
+    assert outcome in {("started", "skipped"), ("blocked", "locked")}
+    with pg_session_factory() as db:
+        in_progress = db.query(ExamAttempt).filter_by(status="in_progress").count()
+        active_locks = db.query(OperationalLock).filter_by(released_at=None).count()
+    assert (in_progress, active_locks) in {(1, 0), (0, 1)}
+
+
+def test_pg_writer_fence_and_backup_freeze_serialize_without_overlap(
+    pg_session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "environment", "internal")
+    barrier = threading.Barrier(2)
+
+    def acquire_backup() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                acquire_backup_write_freeze(
+                    db,
+                    owner="pg-concurrency-backup",
+                    ttl_seconds=60,
+                )
+                db.commit()
+            except (
+                FormalAttemptWriteGateError,
+                OperationalLockConflictError,
+                WriterFenceActiveError,
+            ):
+                db.rollback()
+                return "blocked"
+            return "backup-locked"
+
+    def acquire_fence() -> str:
+        with pg_session_factory() as db:
+            barrier.wait(timeout=10)
+            try:
+                acquire_writer_fence(
+                    db,
+                    dataset_id="pg-concurrency-dataset",
+                    host_id="pg-concurrency-host",
+                    writer_generation=1,
+                    reason="concurrency-test",
+                )
+                db.commit()
+            except WriterFenceConflictError:
+                db.rollback()
+                return "blocked"
+            return "fence-locked"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        backup_future = executor.submit(acquire_backup)
+        fence_future = executor.submit(acquire_fence)
+        outcome = (backup_future.result(timeout=10), fence_future.result(timeout=10))
+
+    assert outcome in {
+        ("backup-locked", "blocked"),
+        ("blocked", "fence-locked"),
+    }
+    with pg_session_factory() as db:
+        active_locks = db.query(OperationalLock).filter_by(released_at=None).all()
+    assert len(active_locks) == 1

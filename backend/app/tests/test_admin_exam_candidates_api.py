@@ -99,6 +99,58 @@ def test_import_exam_candidates_adds_scope_rows() -> None:
     assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
 
 
+def test_import_exam_candidates_rolls_back_when_audit_write_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    exam = _create_exam(db)
+    workbook = build_workbook(
+        [
+            "name",
+            "employee_no",
+            "department",
+            "position",
+            "phone_suffix",
+            "email",
+            "exam_group",
+            "should_attend",
+            "status",
+            "remark",
+        ],
+        [
+            {
+                "name": "审计失败人员",
+                "employee_no": "E-AUDIT-FAIL",
+                "email": "audit-fail@example.com",
+                "should_attend": True,
+                "status": "active",
+            }
+        ],
+    )
+    token = _admin_headers(client)["X-Admin-Token"]
+
+    def fail_audit(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr("app.api.exams.record_admin_event", fail_audit)
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        client.post(
+            f"/api/admin/exams/{exam.id}/candidates/import",
+            headers={"X-Admin-Token": token},
+            files={
+                "file": (
+                    "candidates.xlsx",
+                    workbook.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+        )
+    db.expire_all()
+    assert db.query(Candidate).count() == 0
+    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 0
+    assert db.query(ImportBatch).filter_by(import_type="exam_candidates").count() == 0
+
+
 def test_import_exam_candidates_rejects_oversized_upload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

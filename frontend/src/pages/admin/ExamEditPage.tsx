@@ -1,13 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Save, X } from "lucide-react";
+import { RefreshCw, Save, ShieldCheck, Upload, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useParams } from "react-router-dom";
 import { z } from "zod";
 
 import { getErrorMessage } from "@/api/client";
-import { getAdminExams, updateAdminExam } from "@/api/exams";
+import {
+  getAdminExams,
+  getPublicationReadiness,
+  publishAdminExam,
+  releaseResultDetails,
+  updateAdminExam,
+} from "@/api/exams";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -103,6 +109,9 @@ export function ExamEditPage() {
   const currentExam = exams.data?.find((exam) => String(exam.id) === examId);
   const pageTitle = formatAdminExamEditTitle(examId);
   const isPublished = currentExam?.status === "active";
+  const isDraft = currentExam?.status === "draft";
+  const [publishConfirmation, setPublishConfirmation] = useState("");
+  const [releaseConfirmation, setReleaseConfirmation] = useState("");
   const [notice, setNotice] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const mutation = useMutation({
     mutationFn: (values: ExamEditForm) => {
@@ -137,6 +146,52 @@ export function ExamEditPage() {
     },
     onError: (error) => {
       setNotice({ tone: "error", message: getErrorMessage(error, "保存考试失败") });
+    },
+  });
+  const readiness = useQuery({
+    queryKey: ["admin", "exams", examId, "publication-readiness"],
+    queryFn: () => {
+      if (!examId) {
+        throw new Error("missing exam id");
+      }
+      return getPublicationReadiness(examId);
+    },
+    enabled: Boolean(examId && isDraft),
+  });
+  const publishMutation = useMutation({
+    mutationFn: () => {
+      if (!examId || !currentExam) {
+        throw new Error("missing exam");
+      }
+      return publishAdminExam(examId, publishConfirmation);
+    },
+    onSuccess: () => {
+      setPublishConfirmation("");
+      setNotice({ tone: "success", message: "考试已发布，题池与应考名单已冻结。" });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "exams"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "exams", examId, "publication-readiness"],
+      });
+    },
+    onError: (error) => {
+      setNotice({ tone: "error", message: getErrorMessage(error, "发布考试失败") });
+      void readiness.refetch();
+    },
+  });
+  const releaseMutation = useMutation({
+    mutationFn: () => {
+      if (!examId || !currentExam) {
+        throw new Error("missing exam");
+      }
+      return releaseResultDetails(examId, releaseConfirmation);
+    },
+    onSuccess: () => {
+      setReleaseConfirmation("");
+      setNotice({ tone: "success", message: "答案与解析已一次性发布。" });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "exams"] });
+    },
+    onError: (error) => {
+      setNotice({ tone: "error", message: getErrorMessage(error, "发布答案解析失败") });
     },
   });
 
@@ -260,7 +315,11 @@ export function ExamEditPage() {
               className="h-11 w-full rounded-md border border-hairline bg-canvas px-3.5 text-body text-ink outline-none transition-colors duration-150 ease-out focus-visible:border-ink focus-visible:ring-1 focus-visible:ring-ink"
               {...form.register("status")}
             >
-              {STATUS_OPTIONS.map((option) => (
+              {STATUS_OPTIONS.filter((option) => {
+                if (currentExam.status === "draft") return option.value === "draft";
+                if (currentExam.status === "active") return option.value !== "draft";
+                return option.value === "archived";
+              }).map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -323,6 +382,186 @@ export function ExamEditPage() {
           </Button>
         </div>
       </PageSection>
+
+      {isDraft ? (
+        <PageSection
+          variant="card"
+          aria-labelledby="publication-readiness-title"
+          className="grid gap-5 lg:p-8"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="text-caption uppercase tracking-[0.16em] text-muted">
+                RELEASE GATE · 发布门禁
+              </span>
+              <h2
+                id="publication-readiness-title"
+                className="font-display text-display-sm text-ink"
+              >
+                发布预检
+              </h2>
+              <p className="text-body-sm text-muted">
+                保存配置后刷新预检；只有全部阻断项通过，才可按考试名称确认发布。
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={readiness.isFetching}
+              onClick={() => void readiness.refetch()}
+            >
+              <RefreshCw data-icon="inline-start" />
+              {readiness.isFetching ? "检查中" : "刷新预检"}
+            </Button>
+          </div>
+
+          {readiness.isLoading ? (
+            <PageState
+              state="loading"
+              rows={2}
+              className="border-0 bg-transparent py-4 shadow-none"
+            />
+          ) : readiness.isError ? (
+            <Alert variant="error">
+              <AlertDescription>发布预检读取失败；当前禁止发布，请刷新后重试。</AlertDescription>
+            </Alert>
+          ) : readiness.data ? (
+            <div className="grid gap-4">
+              <Alert variant={readiness.data.ready ? "success" : "error"}>
+                <AlertDescription>
+                  {readiness.data.ready
+                    ? `预检通过：${readiness.data.roster_count} 名应考人员，预计冻结 ${readiness.data.prospective_pool_count} 道题。`
+                    : `存在 ${readiness.data.blockers.length} 个阻断项，尚不能发布。`}
+                </AlertDescription>
+              </Alert>
+              {readiness.data.blockers.length ? (
+                <div aria-label="发布阻断项" className="rounded-md border border-error p-4">
+                  <h3 className="text-caption font-semibold uppercase tracking-[0.14em] text-error">
+                    BLOCKERS · 阻断项
+                  </h3>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
+                    {readiness.data.blockers.map((issue) => (
+                      <li key={issue.code}>{issue.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {readiness.data.warnings.length ? (
+                <div aria-label="发布警告" className="rounded-md border border-warning p-4">
+                  <h3 className="text-caption font-semibold uppercase tracking-[0.14em] text-warning">
+                    WARNINGS · 警告
+                  </h3>
+                  <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
+                    {readiness.data.warnings.map((issue) => (
+                      <li key={issue.code}>{issue.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <Field
+                data-invalid={
+                  publishConfirmation && publishConfirmation !== currentExam.title ? "" : undefined
+                }
+              >
+                <FieldLabel htmlFor="publish_confirmation">
+                  输入完整考试名称确认发布 · {currentExam.title}
+                </FieldLabel>
+                <Input
+                  id="publish_confirmation"
+                  value={publishConfirmation}
+                  autoComplete="off"
+                  onChange={(event) => setPublishConfirmation(event.target.value)}
+                />
+                <FieldDescription>
+                  发布不可通过状态下拉框完成；服务端会在同一事务中重新预检后再冻结题池。
+                </FieldDescription>
+              </Field>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  disabled={
+                    !readiness.data.ready ||
+                    publishConfirmation !== currentExam.title ||
+                    publishMutation.isPending
+                  }
+                  onClick={() => publishMutation.mutate()}
+                >
+                  {readiness.data.ready ? (
+                    <Upload data-icon="inline-start" />
+                  ) : (
+                    <ShieldCheck data-icon="inline-start" />
+                  )}
+                  {publishMutation.isPending ? "发布中" : "确认发布"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </PageSection>
+      ) : null}
+
+      {!isDraft ? (
+        <PageSection
+          variant="card"
+          aria-labelledby="result-release-title"
+          className="grid gap-5 lg:p-8"
+        >
+          <div className="flex flex-col gap-1">
+            <span className="text-caption uppercase tracking-[0.16em] text-muted">
+              RESULT RELEASE · 结果发布
+            </span>
+            <h2 id="result-release-title" className="font-display text-display-sm text-ink">
+              答案与解析
+            </h2>
+            <p className="text-body-sm text-muted">
+              成绩与通过状态交卷后即可查看；答案解析仅可在全部记录结束后手动发布一次。
+            </p>
+          </div>
+          {currentExam.result_details_released_at ? (
+            <Alert variant="success">
+              <AlertDescription>
+                已于 {new Date(currentExam.result_details_released_at).toLocaleString()} 由
+                {` ${currentExam.result_details_released_by ?? "具名操作员"} `}
+                发布；该操作不可撤销或重复。
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="grid gap-4">
+              <Alert variant="warning">
+                <AlertDescription>
+                  若仍有进行中的记录，服务端会拒绝发布。发布后考生可查看题目、正确答案和解析。
+                </AlertDescription>
+              </Alert>
+              <Field
+                data-invalid={
+                  releaseConfirmation && releaseConfirmation !== currentExam.title ? "" : undefined
+                }
+              >
+                <FieldLabel htmlFor="release_confirmation">
+                  输入完整考试名称确认发布 · {currentExam.title}
+                </FieldLabel>
+                <Input
+                  id="release_confirmation"
+                  value={releaseConfirmation}
+                  autoComplete="off"
+                  onChange={(event) => setReleaseConfirmation(event.target.value)}
+                />
+                <FieldDescription>发布后不可撤销，也不能再次发布。</FieldDescription>
+              </Field>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  disabled={releaseConfirmation !== currentExam.title || releaseMutation.isPending}
+                  onClick={() => releaseMutation.mutate()}
+                >
+                  <ShieldCheck data-icon="inline-start" />
+                  {releaseMutation.isPending ? "发布中" : "发布答案与解析"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </PageSection>
+      ) : null}
     </PageShell>
   );
 }

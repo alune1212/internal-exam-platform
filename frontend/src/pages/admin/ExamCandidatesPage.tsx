@@ -8,6 +8,7 @@ import {
   createRetakeGrant,
   getAdminExams,
   getExamCandidates,
+  getExamIncidents,
   importExamCandidates,
   removeExamCandidate,
 } from "@/api/exams";
@@ -42,6 +43,7 @@ function scoreText(row: ExamCandidateRow) {
 function statusVariant(status?: string | null) {
   if (status === "submitted" || status === "auto_submitted") return "success";
   if (status === "in_progress") return "warning";
+  if (status === "voided") return "error";
   return "default";
 }
 
@@ -58,6 +60,11 @@ export function ExamCandidatesPage() {
   const candidates = useQuery({
     queryKey: candidatesKey,
     queryFn: () => getExamCandidates(examId),
+    enabled: Boolean(currentExam),
+  });
+  const incidents = useQuery({
+    queryKey: ["admin", "exam-incidents", examId],
+    queryFn: () => getExamIncidents(examId),
     enabled: Boolean(currentExam),
   });
   const hasExamLoadError = exams.isError && !exams.data;
@@ -162,7 +169,8 @@ export function ExamCandidatesPage() {
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
             {row.original.latest_attempt_status === "submitted" ||
-            row.original.latest_attempt_status === "auto_submitted" ? (
+            row.original.latest_attempt_status === "auto_submitted" ||
+            row.original.latest_attempt_status === "voided" ? (
               <Button
                 type="button"
                 size="sm"
@@ -336,6 +344,57 @@ export function ExamCandidatesPage() {
             emptyText="暂无应考名单人员"
             rowKey={(row) => row.candidate_id}
           />
+        )}
+      </PageSection>
+
+      <PageSection variant="card" aria-labelledby="incident-title" className="grid gap-4 lg:p-8">
+        <div className="flex flex-col gap-1">
+          <span className="text-caption uppercase tracking-[0.16em] text-muted">
+            INCIDENTS · 事故记录
+          </span>
+          <h2 id="incident-title" className="font-display text-display-sm text-ink">
+            作废与补考结果
+          </h2>
+          <p className="text-body-sm text-muted">
+            作废记录保留原始快照和时间证据，但不计入正常成绩、正确率、排名和参考完成统计。
+          </p>
+        </div>
+        {incidents.isLoading ? (
+          <PageState
+            state="loading"
+            rows={2}
+            className="border-0 bg-transparent py-4 shadow-none"
+          />
+        ) : incidents.isError ? (
+          <Alert variant="error">
+            <AlertDescription>事故记录加载失败，请稍后刷新。</AlertDescription>
+          </Alert>
+        ) : incidents.data?.length ? (
+          <ul className="grid gap-3">
+            {incidents.data.map((incident) => (
+              <li
+                key={incident.attempt_id}
+                className="grid gap-2 rounded-md border border-hairline bg-canvas p-4 md:grid-cols-[1fr_auto]"
+              >
+                <div>
+                  <p className="font-medium text-ink">
+                    考试记录 #{incident.attempt_id} · 考生 #{incident.candidate_id}
+                  </p>
+                  <p className="mt-1 text-body-sm text-muted">{incident.reason}</p>
+                  <p className="mt-1 font-mono text-caption text-muted">
+                    {new Date(incident.voided_at).toLocaleString()} · {incident.voided_by}
+                  </p>
+                </div>
+                <StatusPill variant={incident.retake_granted ? "success" : "error"}>
+                  {incident.retake_granted ? "已授权补考" : "待处理"}
+                </StatusPill>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-md border border-hairline bg-canvas p-4 text-body-sm text-muted">
+            当前没有作废事故记录。
+          </p>
         )}
       </PageSection>
     </PageShell>

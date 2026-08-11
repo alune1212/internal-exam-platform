@@ -104,7 +104,7 @@ def create_exam(db: Session, **kwargs) -> Exam:
 
 def create_candidate(db: Session, **kwargs) -> Candidate:
     """创建考生的测试辅助函数。"""
-    defaults = {"name": "张三"}
+    defaults = {"name": "张三", "email": "zhangsan@example.com"}
     defaults.update(kwargs)
     candidate = Candidate(**defaults)
     db.add(candidate)

@@ -21,6 +21,11 @@ from app.services.exam_service import (
     _is_attempt_expired,
     score_and_mark_attempt_submitted,
 )
+from app.services.operational_lock_service import (
+    OperationalLockConflictError,
+    WriterFenceActiveError,
+    assert_backup_write_allowed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +52,14 @@ def process_due_attempts(
     db: Session, *, now: datetime | None = None, batch_size: int = DEFAULT_BATCH_SIZE
 ) -> int:
     due_at = now or datetime.now(UTC)
+    # Keep auto-submit inside the same transaction mutex as API writers.  A
+    # cutover fence (or an explicit backup freeze) therefore causes a safe,
+    # silent no-op rather than mutating formal rows mid-cutover.
+    try:
+        assert_backup_write_allowed(db, now=due_at)
+    except (OperationalLockConflictError, WriterFenceActiveError):
+        db.rollback()
+        return 0
     attempts = db.execute(_expired_attempts_query(due_at, batch_size)).scalars().all()
     processed = 0
     for attempt in attempts:

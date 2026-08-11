@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "findings": {
+    "npm-audit:example-package:https://example.invalid/advisory": {
+      "exploitable": false,
+      "rationale": "示例：受影响代码仅存在于未进入最终镜像的开发工具链。",
+      "reviewed_by": "具名操作员",
+      "reviewed_at": "2026-07-21T00:00:00Z"
+    }
+  }
+}

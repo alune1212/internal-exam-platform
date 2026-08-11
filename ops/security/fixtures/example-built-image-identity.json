@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "gitCommit": "0123456789abcdef0123456789abcdef01234567",
+  "applicationVersion": "0.1.0-ci",
+  "platform": "linux/arm64",
+  "images": {
+    "db": {
+      "reference": "internal-exam-platform-database:0123456789abcdef0123456789abcdef01234567",
+      "id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "os": "linux",
+      "architecture": "arm64"
+    },
+    "backend": {
+      "reference": "internal-exam-platform-backend:0123456789abcdef0123456789abcdef01234567",
+      "id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+      "os": "linux",
+      "architecture": "arm64"
+    },
+    "frontend": {
+      "reference": "internal-exam-platform-frontend:0123456789abcdef0123456789abcdef01234567",
+      "id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+      "os": "linux",
+      "architecture": "arm64"
+    },
+    "gateway": {
+      "reference": "internal-exam-platform-gateway:0123456789abcdef0123456789abcdef01234567",
+      "id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+      "os": "linux",
+      "architecture": "arm64"
+    }
+  }
+}

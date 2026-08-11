@@ -24,6 +24,10 @@ const LoginPage = lazyNamed(() => import("@/pages/LoginPage"), "LoginPage");
 const LearningListPage = lazyNamed(() => import("@/pages/LearningListPage"), "LearningListPage");
 const LearningVideoPage = lazyNamed(() => import("@/pages/LearningVideoPage"), "LearningVideoPage");
 const PracticePage = lazyNamed(() => import("@/pages/PracticePage"), "PracticePage");
+const WrongQuestionReviewPage = lazyNamed(
+  () => import("@/pages/WrongQuestionReviewPage"),
+  "WrongQuestionReviewPage",
+);
 const ExamListPage = lazyNamed(() => import("@/pages/ExamListPage"), "ExamListPage");
 const ExamStartPage = lazyNamed(() => import("@/pages/ExamStartPage"), "ExamStartPage");
 const ExamTakingPage = lazyNamed(() => import("@/pages/ExamTakingPage"), "ExamTakingPage");
@@ -67,6 +71,7 @@ const WrongQuestionPage = lazyNamed(
   () => import("@/pages/admin/WrongQuestionPage"),
   "WrongQuestionPage",
 );
+const OperationsPage = lazyNamed(() => import("@/pages/admin/OperationsPage"), "OperationsPage");
 const AbsentCandidatePage = lazyNamed(
   () => import("@/pages/admin/AbsentCandidatePage"),
   "AbsentCandidatePage",
@@ -82,6 +87,7 @@ export const router = createBrowserRouter([
       { path: "learning", element: routeElement(LearningListPage) },
       { path: "learning/:videoId", element: routeElement(LearningVideoPage) },
       { path: "practice", element: routeElement(PracticePage) },
+      { path: "practice/wrong-questions", element: routeElement(WrongQuestionReviewPage) },
       { path: "exams", element: routeElement(ExamListPage) },
       { path: "exams/:examId/start", element: routeElement(ExamStartPage) },
       { path: "exams/:examId/taking", element: routeElement(ExamTakingPage) },
@@ -106,6 +112,7 @@ export const router = createBrowserRouter([
       { path: "reports/questions", element: routeElement(QuestionAccuracyPage) },
       { path: "reports/wrong", element: routeElement(WrongQuestionPage) },
       { path: "reports/absent", element: routeElement(AbsentCandidatePage) },
+      { path: "operations", element: routeElement(OperationsPage) },
     ],
   },
 ]);

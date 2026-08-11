@@ -317,7 +317,11 @@ def test_update_exam_freezes_structure_after_publish(db: Session) -> None:
     add_exam_candidate_scope(db, exam.id, candidate.id)
     create_question_with_options(db)
 
-    published = exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+    published = exam_service.update_exam(
+        db,
+        exam.id,
+        ExamUpdate(status="active", confirmation_title=exam.title),
+    )
     assert published.status == "active"
 
     with pytest.raises(ExamFrozenError):
@@ -341,6 +345,7 @@ def test_update_exam_validates_new_rule_when_publishing(db: Session) -> None:
             exam.id,
             ExamUpdate(
                 status="active",
+                confirmation_title=exam.title,
                 question_rule={
                     "question_count": 2,
                     "total_score": 100,
@@ -766,7 +771,11 @@ def test_update_exam_rejects_type_count_smaller_than_category_coverage(
     )
 
     with pytest.raises(exam_service.InsufficientQuestionsError) as exc:
-        exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+        exam_service.update_exam(
+            db,
+            exam.id,
+            ExamUpdate(status="active", confirmation_title=exam.title),
+        )
 
     assert "single" in str(exc.value)
     assert "需要覆盖 2 个分类组合，当前配置 1 题" in str(exc.value)
@@ -789,7 +798,11 @@ def test_update_exam_to_active_freezes_question_pool(db: Session) -> None:
         db, stem="发布前题目2", question_type="single"
     )
 
-    exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+    exam_service.update_exam(
+        db,
+        exam.id,
+        ExamUpdate(status="active", confirmation_title=exam.title),
+    )
 
     rows = (
         db.query(ExamQuestionPool)
@@ -804,7 +817,11 @@ def test_update_exam_status_machine_rejects_archived_to_active(db: Session) -> N
     exam = create_exam(db, status="archived")
 
     with pytest.raises(ExamFrozenError, match="归档"):
-        exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+        exam_service.update_exam(
+            db,
+            exam.id,
+            ExamUpdate(status="active", confirmation_title=exam.title),
+        )
 
 
 def test_update_exam_rejects_structural_fields_after_archive(db: Session) -> None:
@@ -851,7 +868,11 @@ def test_start_exam_uses_frozen_pool_after_question_bank_changes(db: Session) ->
     second = create_question_with_options(
         db, stem="发布前题目2", question_type="single"
     )
-    exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+    exam_service.update_exam(
+        db,
+        exam.id,
+        ExamUpdate(status="active", confirmation_title=exam.title),
+    )
     first.status = "inactive"
     second.stem = "发布后修改不应影响选题快照来源"
     create_question_with_options(db, stem="发布后新增题", question_type="single")
@@ -872,7 +893,11 @@ def test_active_exam_pool_question_cannot_be_updated_or_deleted(
     candidate = create_candidate(db)
     add_exam_candidate_scope(db, exam.id, candidate.id)
     question = create_question_with_options(db, stem="发布题", question_type="single")
-    exam_service.update_exam(db, exam.id, ExamUpdate(status="active"))
+    exam_service.update_exam(
+        db,
+        exam.id,
+        ExamUpdate(status="active", confirmation_title=exam.title),
+    )
 
     with pytest.raises(question_service.QuestionFrozenError, match="已发布考试"):
         question_service.update_question(
@@ -987,7 +1012,7 @@ def test_save_answers_persists_selected_answer(db: Session) -> None:
                 AnswerSaveItem(
                     attempt_question_id=attempt_question_id, selected_answer="A"
                 )
-            ]
+            ],
         ),
     )
 
@@ -1024,7 +1049,8 @@ def test_save_answers_updates_existing_answer(db: Session) -> None:
                 AnswerSaveItem(
                     attempt_question_id=attempt_question_id, selected_answer="A"
                 )
-            ]
+            ],
+            answer_revision=1,
         ),
     )
 
@@ -1124,12 +1150,22 @@ def test_submit_attempt_scores_from_snapshots(db: Session) -> None:
     assert result.total_score == 5
     assert result.correct_count == 1
     assert result.wrong_count == 1
-    assert result.questions[0].is_correct is True
-    assert result.questions[0].score_awarded == 2
-    assert result.questions[1].is_correct is False
-    assert result.questions[1].score_awarded == 0
+    assert result.questions == []
     assert attempt.status == "submitted"
     assert attempt.submitted_at is not None
+
+    exam_service.release_result_details(
+        db,
+        exam.id,
+        operator_subject="primary-operator",
+        confirmation_title=exam.title,
+    )
+    db.commit()
+    released_result = exam_service.get_attempt_result(db, start_result.attempt_id)
+    assert released_result.questions[0].is_correct is True
+    assert released_result.questions[0].score_awarded == 2
+    assert released_result.questions[1].is_correct is False
+    assert released_result.questions[1].score_awarded == 0
 
 
 def test_submit_attempt_loads_attempt_with_mutation_lock(
@@ -1388,7 +1424,7 @@ def test_result_uses_pass_score_and_review_snapshots_after_exam_changes(
     assert result.pass_score == 8
     assert result.is_passed is False
     assert result.show_answer_after_submit is False
-    assert result.questions[0].correct_answer_snapshot is None
+    assert result.questions == []
 
 
 def test_result_hides_answer_snapshots_when_exam_disables_review(db: Session) -> None:
@@ -1401,8 +1437,7 @@ def test_result_hides_answer_snapshots_when_exam_disables_review(db: Session) ->
     result = exam_service.submit_attempt(db, start.attempt_id, "manual")
 
     assert result.show_answer_after_submit is False
-    assert result.questions[0].correct_answer_snapshot is None
-    assert result.questions[0].analysis_snapshot is None
+    assert result.questions == []
 
 
 def test_save_answers_allows_in_progress_attempt_after_exam_archived(
@@ -1492,6 +1527,80 @@ def test_save_answers_rejects_after_deadline_and_auto_submits(db: Session) -> No
         .one()
     )
     assert saved_answer.selected_answer is None
+
+
+def test_publication_readiness_and_exact_title_confirmation(db: Session) -> None:
+    exam = create_exam(db, status="draft")
+    candidate = create_candidate(db, email="ready@example.com")
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db, stem="发布预检题")
+
+    readiness = exam_service.get_publication_readiness(db, exam.id)
+
+    assert readiness.ready is True
+    assert readiness.prospective_pool_count == 1
+    assert readiness.roster_count == 1
+    assert len(readiness.fingerprint) == 64
+
+    with pytest.raises(exam_service.ExamConfigError, match="完全一致"):
+        exam_service.publish_exam(db, exam.id, "错误标题")
+
+    published = exam_service.publish_exam(db, exam.id, exam.title)
+    assert published.status == "active"
+    assert published.question_pool_count == 1
+
+
+def test_publication_readiness_reports_roster_email_blocker(db: Session) -> None:
+    exam = create_exam(db, status="draft")
+    candidate = create_candidate(db, email=None)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db, stem="邮箱预检题")
+
+    readiness = exam_service.get_publication_readiness(db, exam.id)
+
+    assert readiness.ready is False
+    assert {issue.code for issue in readiness.blockers} >= {"roster_email_not_ready"}
+
+
+def test_formal_duration_cannot_exceed_120_minutes(db: Session) -> None:
+    with pytest.raises(exam_service.ExamConfigError, match="120"):
+        exam_service.create_exam(db, ExamCreate(title="超时考试", duration_minutes=121))
+
+
+def test_candidate_exam_visibility_opens_30_minutes_early(db: Session) -> None:
+    candidate = create_candidate(db)
+    hidden_exam = create_exam(
+        db,
+        title="尚早考试",
+        available_from=datetime.now(UTC) + timedelta(minutes=31),
+    )
+    visible_exam = create_exam(
+        db,
+        title="可提前登录考试",
+        available_from=datetime.now(UTC) + timedelta(minutes=29),
+    )
+    add_exam_candidate_scope(db, hidden_exam.id, candidate.id)
+    add_exam_candidate_scope(db, visible_exam.id, candidate.id)
+
+    visible = exam_service.list_active_exams(db, candidate.id)
+
+    assert [exam.id for exam in visible] == [visible_exam.id]
+
+
+def test_new_attempt_start_closes_after_15_minute_grace(db: Session) -> None:
+    exam = create_exam(
+        db,
+        available_from=datetime.now(UTC) - timedelta(minutes=16),
+        available_until=datetime.now(UTC) + timedelta(hours=1),
+    )
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+
+    [listed_exam] = exam_service.list_active_exams(db, candidate.id)
+    assert listed_exam.availability_status == "ended"
+    with pytest.raises(ExamNotAvailableError, match="开始时间已截止"):
+        exam_service.start_exam(db, exam.id, candidate.id)
 
 
 def test_manual_submit_after_deadline_is_recorded_as_auto_submit(db: Session) -> None:

@@ -1,0 +1,4 @@
+{
+  "backend": "internal-exam-platform-backend:ci",
+  "frontend": "internal-exam-platform-frontend:ci"
+}

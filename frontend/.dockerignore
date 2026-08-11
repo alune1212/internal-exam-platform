@@ -1,5 +1,8 @@
 node_modules
 dist
+e2e
+playwright-report
+test-results
 .env
 *.tsbuildinfo
 vite.config.js

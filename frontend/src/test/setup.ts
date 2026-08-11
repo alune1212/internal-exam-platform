@@ -21,6 +21,11 @@ const mockStorage: Storage = {
 };
 
 Object.defineProperty(window, "localStorage", { value: mockStorage, configurable: true });
+Object.defineProperty(window.navigator, "userAgent", {
+  value:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+  configurable: true,
+});
 
 afterEach(() => {
   cleanup();

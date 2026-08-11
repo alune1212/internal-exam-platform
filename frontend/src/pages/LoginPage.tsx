@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { LogIn } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Navigate, useNavigate, useOutletContext } from "react-router-dom";
+import { Navigate, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 import {
@@ -33,6 +33,12 @@ type LoginForm = z.infer<typeof schema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedReturnTo = searchParams.get("returnTo");
+  const returnTo =
+    requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
+      ? requestedReturnTo
+      : "/exams";
   const { candidate, loginCandidate } = useOutletContext<CandidateSessionContext>();
   const [challenge, setChallenge] = useState<CandidateLoginChallenge | null>(null);
   const [nowMs, setNowMs] = useState(0);
@@ -51,7 +57,7 @@ export function LoginPage() {
     mutationFn: verifyCandidateLoginOtp,
     onSuccess: (nextCandidate) => {
       loginCandidate(nextCandidate);
-      navigate("/exams", { replace: true });
+      navigate(returnTo, { replace: true });
     },
   });
 
@@ -74,7 +80,7 @@ export function LoginPage() {
   }, [challenge]);
 
   if (candidate) {
-    return <Navigate to="/exams" replace />;
+    return <Navigate to={returnTo} replace />;
   }
 
   function handleSubmit(values: LoginForm) {

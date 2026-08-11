@@ -42,6 +42,10 @@ class Exam(TimestampMixin, Base):
     show_ranking: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     available_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     available_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    result_details_released_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    result_details_released_by: Mapped[str | None] = mapped_column(String(100))
 
     attempts = relationship("ExamAttempt", back_populates="exam")
     candidate_scopes = relationship(

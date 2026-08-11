@@ -57,7 +57,7 @@ export const candidatePageText = {
   },
   practice: {
     title: "日常练习",
-    description: "不计入正式成绩，作答后保存本题记录。",
+    description: "不计入正式成绩，提交后立即查看正确答案与解析；重新作答会保留每次记录。",
     emptyTitle: "暂无可练习题目",
     emptyDescription: "管理员导入并启用题目后会显示。",
     errorTitle: "练习暂不可用。",

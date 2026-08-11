@@ -8,6 +8,7 @@ import {
   createRetakeGrant,
   getAdminExams,
   getExamCandidates,
+  getExamIncidents,
   importExamCandidates,
 } from "@/api/exams";
 import { downloadImportFailureReport } from "@/api/imports";
@@ -16,6 +17,7 @@ import { ExamCandidatesPage } from "@/pages/admin/ExamCandidatesPage";
 vi.mock("@/api/exams", () => ({
   getAdminExams: vi.fn(),
   getExamCandidates: vi.fn(),
+  getExamIncidents: vi.fn(),
   importExamCandidates: vi.fn(),
   createRetakeGrant: vi.fn(),
 }));
@@ -71,6 +73,7 @@ describe("ExamCandidatesPage", () => {
         has_unused_retake_grant: false,
       },
     ]);
+    vi.mocked(getExamIncidents).mockResolvedValue([]);
     vi.mocked(importExamCandidates).mockResolvedValue({
       batch_id: 7,
       success_count: 1,
@@ -151,6 +154,29 @@ describe("ExamCandidatesPage", () => {
     await user.click(screen.getByRole("button", { name: "授权补考" }));
 
     await waitFor(() => expect(createRetakeGrant).toHaveBeenCalledWith("1", 1));
+  });
+
+  it("shows retained incident outcomes without treating them as normal results", async () => {
+    vi.mocked(getExamIncidents).mockResolvedValueOnce([
+      {
+        attempt_id: 12,
+        exam_id: 1,
+        candidate_id: 1,
+        prior_status: "submitted",
+        status: "voided",
+        voided_at: "2026-07-21T08:00:00Z",
+        voided_by: "primary-operator",
+        reason: "办公室网络中断",
+        attempt_no: 1,
+        retake_granted: true,
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("办公室网络中断")).toBeInTheDocument();
+    expect(screen.getByText("已授权补考")).toBeInTheDocument();
+    expect(screen.getByText(/不计入正常成绩/)).toBeInTheDocument();
   });
 
   it("uploads candidates into the exam scope", async () => {

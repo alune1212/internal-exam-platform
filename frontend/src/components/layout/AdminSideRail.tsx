@@ -29,6 +29,7 @@ const navItems: NavItem[] = [
   { to: "/admin/questions/import", label: "题库导入", end: true },
   { to: "/admin/learning", label: "学习", activePattern: /^\/admin\/learning(?:\/|$)/ },
   { to: "/admin/reports/scores", label: "报表", activePattern: /^\/admin\/reports(?:\/|$)/ },
+  { to: "/admin/operations", label: "运维", end: true },
 ];
 
 function SidebarList({

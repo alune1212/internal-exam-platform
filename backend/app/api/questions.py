@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import require_admin
 from app.schemas.common import ApiResponse
 from app.schemas.question import (
     QuestionCreate,
@@ -10,17 +11,42 @@ from app.schemas.question import (
     QuestionUpdate,
 )
 from app.services import import_service, question_service
+from app.services.audit_service import record_admin_event
 
 router = APIRouter(prefix="/admin/questions", tags=["admin-questions"])
 
 
 @router.post("/import", response_model=ApiResponse[QuestionImportResult])
 def import_questions(
-    file: UploadFile, db: Session = Depends(get_db)
+    file: UploadFile,
+    request: Request,
+    db: Session = Depends(get_db),
+    operator_subject: str = Depends(require_admin),
 ) -> ApiResponse[QuestionImportResult]:
-    result = import_service.import_questions_from_workbook(
-        db, file.file, file.filename or "questions.xlsx"
-    )
+    try:
+        result = import_service.import_questions_from_workbook(
+            db,
+            file.file,
+            file.filename or "questions.xlsx",
+            commit=False,
+        )
+        record_admin_event(
+            db,
+            operator_subject=operator_subject,
+            action="question_import",
+            target_type="import_batch",
+            target_id=result.batch_id,
+            metadata={
+                "batch_id": result.batch_id,
+                "success_count": result.success_count,
+                "failed_count": result.failed_count,
+            },
+            request=request,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return ApiResponse(data=result)
 
 

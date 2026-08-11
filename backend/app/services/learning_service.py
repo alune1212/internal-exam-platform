@@ -19,7 +19,16 @@ from app.schemas.learning import (
     LearningVideoUpdate,
 )
 from app.services.excel_security import escape_excel_cell
-from app.services.learning_storage import build_public_media_url, save_video_upload
+from app.services.learning_storage import (
+    build_public_media_url,
+    inspect_upload_size,
+    save_video_upload,
+)
+from app.services.operational_lock_service import (
+    assert_admin_mutation_allowed,
+    assert_backup_write_allowed,
+)
+from app.services.storage_service import assert_storage_reserve
 
 COMPLETION_THRESHOLD_PERCENT = 90
 MAX_WATCHED_INTERVAL_SECONDS = 30
@@ -66,12 +75,14 @@ def create_video(
     duration_seconds: int,
     file: UploadFile,
 ) -> LearningVideoRead:
+    assert_admin_mutation_allowed(db)
     cleaned_title = title.strip()
     if not cleaned_title:
         raise LearningVideoValidationError("视频标题不能为空")
     if duration_seconds <= 0:
         raise LearningVideoValidationError("视频时长必须大于 0 秒")
 
+    assert_storage_reserve(db, proposed_bytes=inspect_upload_size(file))
     storage_key, file_size, content_type = save_video_upload(file)
     video = LearningVideo(
         title=cleaned_title,
@@ -94,6 +105,7 @@ def create_video(
 def update_video(
     db: Session, video_id: int, payload: LearningVideoUpdate
 ) -> LearningVideoRead:
+    assert_admin_mutation_allowed(db)
     video = _get_video(db, video_id)
     if payload.title is not None:
         cleaned_title = payload.title.strip()
@@ -108,10 +120,12 @@ def update_video(
 
 
 def publish_video(db: Session, video_id: int) -> LearningVideoRead:
+    assert_admin_mutation_allowed(db)
     return _set_video_status(db, video_id, LearningVideoStatus.published.value)
 
 
 def archive_video(db: Session, video_id: int) -> LearningVideoRead:
+    assert_admin_mutation_allowed(db)
     return _set_video_status(db, video_id, LearningVideoStatus.archived.value)
 
 
@@ -158,6 +172,7 @@ def update_progress(
     video_id: int,
     payload: LearningProgressUpdate,
 ) -> LearningVideoProgressRead:
+    assert_backup_write_allowed(db)
     _get_active_candidate(db, candidate_id)
     video = (
         db.query(LearningVideo)

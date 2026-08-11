@@ -1,0 +1,38 @@
+[
+  {
+    "Id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "RepoTags": [
+      "internal-exam-platform-database:0123456789abcdef0123456789abcdef01234567"
+    ],
+    "Os": "linux",
+    "Architecture": "arm64",
+    "Config": {
+      "Env": ["REDACT_ME=secret-value"],
+      "Labels": {"internal": "metadata"}
+    }
+  },
+  {
+    "Id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "RepoTags": [
+      "internal-exam-platform-backend:0123456789abcdef0123456789abcdef01234567"
+    ],
+    "Os": "linux",
+    "Architecture": "arm64"
+  },
+  {
+    "Id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "RepoTags": [
+      "internal-exam-platform-frontend:0123456789abcdef0123456789abcdef01234567"
+    ],
+    "Os": "linux",
+    "Architecture": "arm64"
+  },
+  {
+    "Id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "RepoTags": [
+      "internal-exam-platform-gateway:0123456789abcdef0123456789abcdef01234567"
+    ],
+    "Os": "linux",
+    "Architecture": "arm64"
+  }
+]

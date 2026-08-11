@@ -1,6 +1,8 @@
 import { clearSessionValue, readSessionValue, writeSessionValue } from "@/lib/sessionStorage";
 import { emitSessionChanged } from "@/lib/sessionEvents";
 import type { Candidate } from "@/types/candidate";
+import { clearAllAttemptSessions } from "@/lib/attemptSession";
+import { clearAllAttemptDrafts } from "@/lib/attemptDraft";
 
 const STORAGE_KEY = "internal-exam-candidate";
 
@@ -30,5 +32,7 @@ export function clearCurrentCandidate(
   reason: "candidate-logout" | "unauthorized" = "candidate-logout",
 ) {
   clearSessionValue(STORAGE_KEY);
+  clearAllAttemptSessions();
+  clearAllAttemptDrafts();
   emitSessionChanged({ reason });
 }

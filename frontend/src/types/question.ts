@@ -39,7 +39,43 @@ export type QuestionPayload = Omit<AdminQuestion, "id" | "options"> & {
 };
 
 export type PracticeAnswerResult = {
+  practice_answer_id: number;
   question_id: number;
   selected_answer: string;
   score: number;
+  is_correct: boolean;
+  correct_answer: string;
+  analysis?: string | null;
+  option_comparison: PracticeOptionComparison[];
+};
+
+export type PracticeOptionComparison = {
+  label: string;
+  content: string;
+  selected: boolean;
+  correct: boolean;
+};
+
+export type PracticeAnswerHistory = {
+  practice_answer_id: number;
+  selected_answer: string;
+  is_correct: boolean;
+  practiced_at: string;
+};
+
+export type PracticeWrongQuestion = {
+  question_id: number;
+  question_type: QuestionType | string;
+  stem: string;
+  category_1?: string | null;
+  category_2?: string | null;
+  status: string;
+  correct_answer: string;
+  analysis?: string | null;
+  incorrect_count: number;
+  total_attempts: number;
+  mastered: boolean;
+  latest_practiced_at: string;
+  history: PracticeAnswerHistory[];
+  options: PracticeOptionComparison[];
 };

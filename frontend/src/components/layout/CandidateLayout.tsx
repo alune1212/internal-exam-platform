@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { TopNav } from "@/components/layout/TopNav";
+import { PageState } from "@/components/page";
+import { detectBrowserSupport } from "@/lib/browserSupport";
 import {
   clearCurrentCandidate,
   getCurrentCandidate,
@@ -21,6 +23,7 @@ export function CandidateLayout() {
   const location = useLocation();
   const [candidate, setCandidate] = useState<Candidate | null>(() => getCurrentCandidate());
   const isLoginRoute = location.pathname === "/login";
+  const browserSupport = detectBrowserSupport(window.navigator.userAgent);
 
   useEffect(() => {
     return subscribeSessionChanges((event) => {
@@ -31,6 +34,25 @@ export function CandidateLayout() {
       }
     });
   }, []);
+
+  if (!browserSupport.supported) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-canvas-warm px-4 py-8">
+        <div className="w-full max-w-xl rounded-lg border border-error bg-canvas p-8 shadow-pop">
+          <PageState
+            state="error"
+            eyebrow="DEVICE · 浏览器不受支持"
+            title="请更换受支持的系统浏览器。"
+            description={browserSupport.reason}
+          />
+          <p className="mt-4 text-body-sm text-muted">
+            支持 Windows Edge/Chrome、macOS Chrome/Safari（Chrome 120+、Safari 17+）、Android Chrome
+            和 iOS Safari；微信等内嵌浏览器不能用于正式考试。
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   if (!candidate && !isLoginRoute) {
     return <Navigate to="/login" replace />;

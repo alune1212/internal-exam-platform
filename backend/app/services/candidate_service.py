@@ -21,6 +21,7 @@ from app.schemas.candidate import (
     CandidateLoginVerifyRequest,
     CandidateRead,
 )
+from app.services.operational_lock_service import assert_backup_write_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,9 @@ def request_candidate_login_challenge(
     identical to a valid request, so the caller cannot enumerate the
     roster from the response.
     """
+    # Login challenge rows, including sentinel rows for unknown identities,
+    # are formal data writes and must stop during cutover.
+    assert_backup_write_allowed(db)
     now = datetime.now(UTC)
     expires_at = now + timedelta(seconds=settings.candidate_login_otp_ttl_seconds)
     resend_available_at = now + timedelta(
@@ -156,6 +160,9 @@ def request_candidate_login_challenge(
 def verify_candidate_login_challenge(
     db: Session, payload: CandidateLoginVerifyRequest
 ) -> CandidateLoginResponse:
+    # Wrong-OTP attempt counters and successful challenge consumption both
+    # mutate the shared formal dataset.
+    assert_backup_write_allowed(db)
     challenge = db.get(CandidateLoginChallenge, payload.challenge_id)
     if challenge is None:
         raise CandidateLoginChallengeError()
@@ -354,6 +361,8 @@ def _consume_open_challenges(db: Session, candidate_id: int, now: datetime) -> N
 
 
 def _generate_otp() -> str:
+    if settings.candidate_login_test_otp:
+        return settings.candidate_login_test_otp
     return f"{randbelow(1_000_000):06d}"
 
 

@@ -1,12 +1,22 @@
+name: ${COMPOSE_PROJECT_NAME:-internal-exam-dev}
+
 services:
   db:
-    image: postgres:16-alpine
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-database:${APP_VERSION_TAG:-dev}
+    build:
+      context: ./database
+    restart: unless-stopped
+    logging: &bounded-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     environment:
       POSTGRES_DB: internal_exam
       POSTGRES_USER: exam
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_LOOPBACK_PORT:-25432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,18 +26,32 @@ services:
       retries: 10
 
   backend:
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-backend:${APP_VERSION_TAG:-dev}
     build:
       context: ./backend
+    restart: unless-stopped
+    logging: *bounded-logging
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_ROLE: backend
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      GIT_COMMIT: ${GIT_COMMIT:-development}
+      CAPACITY_RUN_ID: ${CAPACITY_RUN_ID:-}
+      CAPACITY_PROJECT_NAME: ${CAPACITY_PROJECT_NAME:-}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
-      INTERNAL_LAN_BIND_IP: ${INTERNAL_LAN_BIND_IP:-0.0.0.0}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:25173,http://127.0.0.1:28080,http://127.0.0.1:28081}
+      INTERNAL_LAN_BIND_IP: ${INTERNAL_LAN_BIND_IP:-127.0.0.1}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      PRIMARY_OPERATOR_USERNAME: ${PRIMARY_OPERATOR_USERNAME:-}
+      PRIMARY_OPERATOR_PASSWORD: ${PRIMARY_OPERATOR_PASSWORD:-}
+      BACKUP_OPERATOR_USERNAME: ${BACKUP_OPERATOR_USERNAME:-}
+      BACKUP_OPERATOR_PASSWORD: ${BACKUP_OPERATOR_PASSWORD:-}
+      BACKUP_OPERATOR_ENABLED: ${BACKUP_OPERATOR_ENABLED:-false}
       TOKEN_SECRET: ${TOKEN_SECRET:?Set TOKEN_SECRET in .env}
       TOKEN_TTL_SECONDS: ${TOKEN_TTL_SECONDS:-43200}
+      ADMIN_TOKEN_TTL_SECONDS: ${ADMIN_TOKEN_TTL_SECONDS:-14400}
+      CANDIDATE_TOKEN_TTL_SECONDS: ${CANDIDATE_TOKEN_TTL_SECONDS:-14400}
       PUBLIC_TOKEN_RATE_LIMIT_COUNT: ${PUBLIC_TOKEN_RATE_LIMIT_COUNT:-60}
       PUBLIC_TOKEN_RATE_LIMIT_WINDOW_SECONDS: ${PUBLIC_TOKEN_RATE_LIMIT_WINDOW_SECONDS:-60}
       PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS: ${PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS:-10000}
@@ -44,6 +68,7 @@ services:
       CANDIDATE_LOGIN_SMTP_PASSWORD: ${CANDIDATE_LOGIN_SMTP_PASSWORD:-}
       CANDIDATE_LOGIN_SMTP_USE_TLS: ${CANDIDATE_LOGIN_SMTP_USE_TLS:-true}
       CANDIDATE_LOGIN_SMTP_USE_SSL: ${CANDIDATE_LOGIN_SMTP_USE_SSL:-false}
+      PREFLIGHT_SMTP_RECIPIENT: ${PREFLIGHT_SMTP_RECIPIENT:-}
       IMPORT_MAX_UPLOAD_BYTES: ${IMPORT_MAX_UPLOAD_BYTES:-5242880}
       IMPORT_MAX_ROWS: ${IMPORT_MAX_ROWS:-5000}
       IMPORT_MAX_SHEETS: ${IMPORT_MAX_SHEETS:-1}
@@ -51,6 +76,13 @@ services:
       LEARNING_MEDIA_PUBLIC_PATH: ${LEARNING_MEDIA_PUBLIC_PATH:-/media/learning}
       LEARNING_VIDEO_MAX_UPLOAD_BYTES: ${LEARNING_VIDEO_MAX_UPLOAD_BYTES:-524288000}
       LEARNING_VIDEO_ALLOWED_CONTENT_TYPES: ${LEARNING_VIDEO_ALLOWED_CONTENT_TYPES:-video/mp4,video/webm}
+      LIFECYCLE_ARCHIVE_DIR: ${LIFECYCLE_ARCHIVE_DIR:-/app/lifecycle/archives}
+      BACKUP_STORAGE_DIR: ${BACKUP_STORAGE_DIR:-/app/backups}
+      OPERATIONS_EVIDENCE_DIR: ${OPERATIONS_EVIDENCE_DIR:-/app/evidence}
+      STORAGE_MIN_FREE_BYTES: ${STORAGE_MIN_FREE_BYTES:-21474836480}
+      STORAGE_FOOTPRINT_MULTIPLIER: ${STORAGE_FOOTPRINT_MULTIPLIER:-3}
+      AUTO_SUBMIT_HEARTBEAT_PATH: ${AUTO_SUBMIT_HEARTBEAT_PATH:-/var/run/internal-exam/auto-submit.heartbeat}
+      AUTO_SUBMIT_HEARTBEAT_MAX_AGE_SECONDS: ${AUTO_SUBMIT_HEARTBEAT_MAX_AGE_SECONDS:-90}
     depends_on:
       db:
         condition: service_healthy
@@ -58,6 +90,10 @@ services:
       - "8000"
     volumes:
       - learning_media:/app/learning-media
+      - ${INTERNAL_EXAM_LIFECYCLE_HOST_DIR:-./.runtime/lifecycle}:/app/lifecycle
+      - ${INTERNAL_EXAM_BACKUP_HOST_DIR:-./.runtime/backups}:/app/backups:ro
+      - ${INTERNAL_EXAM_EVIDENCE_HOST_DIR:-./.runtime/evidence}:/app/evidence:ro
+      - worker_state:/var/run/internal-exam
     command: ["sh", "-c", "uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=3).close()"]
@@ -67,15 +103,16 @@ services:
       start_period: 5s
 
   auto-submit-worker:
-    build:
-      context: ./backend
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-backend:${APP_VERSION_TAG:-dev}
+    restart: unless-stopped
+    logging: *bounded-logging
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       APP_ROLE: worker
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       AUTO_SUBMIT_CHECK_INTERVAL_SECONDS: ${AUTO_SUBMIT_CHECK_INTERVAL_SECONDS:-30}
       AUTO_SUBMIT_BATCH_SIZE: ${AUTO_SUBMIT_BATCH_SIZE:-100}
-      AUTO_SUBMIT_HEARTBEAT_PATH: ${AUTO_SUBMIT_HEARTBEAT_PATH:-/tmp/internal-exam-auto-submit.heartbeat}
+      AUTO_SUBMIT_HEARTBEAT_PATH: ${AUTO_SUBMIT_HEARTBEAT_PATH:-/var/run/internal-exam/auto-submit.heartbeat}
       AUTO_SUBMIT_HEARTBEAT_MAX_AGE_SECONDS: ${AUTO_SUBMIT_HEARTBEAT_MAX_AGE_SECONDS:-90}
     depends_on:
       db:
@@ -83,6 +120,8 @@ services:
       backend:
         condition: service_started
     command: ["uv", "run", "--no-sync", "python", "-m", "app.core.auto_submit_worker"]
+    volumes:
+      - worker_state:/var/run/internal-exam
     healthcheck:
       test: ["CMD", "uv", "run", "--no-sync", "python", "-m", "app.core.auto_submit_worker", "healthcheck"]
       interval: 10s
@@ -91,26 +130,51 @@ services:
       start_period: 10s
 
   frontend:
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-frontend:${APP_VERSION_TAG:-dev}
     build:
       context: ./frontend
+    restart: unless-stopped
+    logging: *bounded-logging
     depends_on:
       - backend
     ports:
-      - "127.0.0.1:5173:80"
+      - "127.0.0.1:${FRONTEND_LOOPBACK_PORT:-25173}:80"
 
   nginx:
-    image: nginx:1.27-alpine
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-gateway:${APP_VERSION_TAG:-dev}
+    build:
+      context: ./nginx
+    restart: unless-stopped
+    logging: *bounded-logging
     depends_on:
       frontend:
         condition: service_started
       backend:
         condition: service_healthy
     ports:
-      - "${INTERNAL_LAN_BIND_IP:-0.0.0.0}:8080:80"
+      - "${INTERNAL_LAN_BIND_IP:-127.0.0.1}:${CANDIDATE_GATEWAY_PORT:-28080}:80"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/candidate.conf:/etc/nginx/conf.d/default.conf:ro
+      - learning_media:/var/lib/nginx/learning-media:ro
+
+  operator-nginx:
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-gateway:${APP_VERSION_TAG:-dev}
+    build:
+      context: ./nginx
+    restart: unless-stopped
+    logging: *bounded-logging
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${OPERATOR_GATEWAY_PORT:-28081}:80"
+    volumes:
+      - ./nginx/operator.conf:/etc/nginx/conf.d/default.conf:ro
       - learning_media:/var/lib/nginx/learning-media:ro
 
 volumes:
   postgres_data:
   learning_media:
+  worker_state:

@@ -26,6 +26,8 @@ export type Attempt = {
   total_score: number;
   correct_count: number;
   wrong_count: number;
+  attempt_session_generation: number;
+  answer_revision: number;
   questions: AttemptQuestion[];
 };
 
@@ -61,9 +63,26 @@ export type ExamStartResponse = {
   questions: AttemptQuestion[];
   started_at: string;
   ends_at: string;
+  attempt_session_credential?: string | null;
+  attempt_session_generation: number;
+  answer_revision: number;
 };
 
 export type AnswerSaveItem = {
   attempt_question_id: number;
   selected_answer?: string | null;
+};
+
+export type AnswerSaveResponse = {
+  saved_count: number;
+  saved_at: string;
+  answer_revision: number;
+};
+
+export type AttemptSessionTakeover = {
+  attempt_id: number;
+  attempt_session_credential: string;
+  attempt_session_generation: number;
+  answer_revision: number;
+  ends_at: string;
 };

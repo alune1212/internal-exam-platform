@@ -30,6 +30,7 @@ POST /api/candidates/login
 POST /api/candidates/login/verify
 GET  /api/practice/questions
 POST /api/practice/answers
+GET  /api/practice/wrong-questions?category_1=&category_2=&mastered=
 
 GET  /api/learning/videos
 GET  /api/learning/videos/{video_id}
@@ -40,8 +41,8 @@ POST /api/exams/{exam_id}/start
 GET  /api/attempts/{attempt_id}
 POST /api/attempts/{attempt_id}/answers/save
 POST /api/attempts/{attempt_id}/submit
+POST /api/attempts/{attempt_id}/takeover
 GET  /api/attempts/{attempt_id}/result
-GET  /api/exams/{exam_id}/ranking
 ```
 
 说明：
@@ -52,11 +53,16 @@ GET  /api/exams/{exam_id}/ranking
 - `/api/exams/active` 需要 `X-Candidate-Token`，并只返回当前考试人在 `exam_candidate_scope` 内、仍可参加的 `active` 状态考试，按 `id` 排序返回。
 - `/api/exams/active` 返回服务端计算的 `availability_status`，用于前端展示未开始、可进入、已结束状态；已交卷且无未使用补考授权的考试不会出现在该列表。
 - `/api/exams/{exam_id}/start` 已根据冻结题池和 `exam.question_rule` 创建正式考试记录和题目快照，后续题库修改不影响该 attempt。空 `question_rule` 保留旧逻辑：抽取冻结题池中的全部题目。
-- `available_from` / `available_until` 只限制新开考；已有 `in_progress` attempt 可继续恢复，并按 `started_at + duration_minutes` 到时交卷。
-- `/api/attempts/{attempt_id}/answers/save` 已将答案暂存到 `exam_attempt_answer`，暂存不暂停倒计时。
+- 新开考从 `available_from` 开始，并在 `available_from + 15 分钟` 或更早的 `available_until` 关闭；已有 `in_progress` attempt 可继续恢复，并按 `started_at + duration_minutes` 到时交卷。
+- start 返回不透明 attempt-session credential；attempt 读取、保存和提交除 `X-Candidate-Token` 外还必须提交 `X-Attempt-Session`。服务端只保存 credential hash 与 generation。
+- `/api/attempts/{attempt_id}/answers/save` 携带当前 `answer_revision`，成功后修订号单调递增；旧设备或过期修订返回 409 且不得覆盖服务器新答案。暂存不暂停倒计时。
+- `/api/attempts/{attempt_id}/takeover` 只接受新鲜 OTP candidate token，轮换 session generation，但不改变题目快照、已保存答案或截止时间。
 - 公开 `/api/attempts/{attempt_id}/submit` 只接受 `submit_type = "manual"`；`auto` 仅由后端 scheduler 内部调用 service。
-- `/api/attempts/{attempt_id}/result` 仅允许已交卷或自动交卷的 attempt 读取成绩结果；结果包含 `pass_score` 和 `is_passed`。
-- `/api/practice/questions` 需要 `X-Candidate-Token`，使用练习专用响应，不返回正确答案和解析；`/api/practice/answers` 通过 `X-Candidate-Token` 解析考试人，作答响应不返回正确答案、解析、对错或判分结果。
+- `/api/attempts/{attempt_id}/result` 仅允许已交卷或自动交卷的 attempt 读取；立即返回分数、`pass_score` 和 `is_passed`，但在操作员一次性发布前省略正确答案和解析。考试人端没有排名接口。
+- 所有练习接口都需要 `X-Candidate-Token` 并验证当前考试人仍为 active；请求体不接受或信任 `candidate_id`。
+- `/api/practice/questions` 使用提交前专用响应，不返回正确答案或解析。
+- `/api/practice/answers` 每次调用都新增一条不可变记录，并返回该次提交的 `is_correct`、标准化 `correct_answer`、`analysis` 和逐选项 `option_comparison`。
+- `/api/practice/wrong-questions` 只聚合当前考试人的错误历史，支持 `category_1`、`category_2`、`mastered` 筛选；当前掌握状态由该题最后一次练习是否正确得出，历史错误不会删除。
 - `/api/learning/videos` 和 `/api/learning/videos/{video_id}` 需要 `X-Candidate-Token`，只返回 `published` 学习视频及当前考试人的学习进度。
 - `/api/learning/videos/{video_id}/progress` 接收当前播放位置和本次观看区间；服务端会合并区间、去重并限制单次可计入长度，完成度达到 90% 时写入 `completed_at`。
 - 视频学习进度不参与考试资格判断，不影响 `/api/exams/active`、考试开始、交卷、评分、排名或练习接口。
@@ -78,11 +84,25 @@ DELETE /api/admin/questions/{question_id}
 POST /api/admin/exams
 GET  /api/admin/exams
 PUT  /api/admin/exams/{exam_id}
+GET  /api/admin/exams/{exam_id}/publication-readiness
+POST /api/admin/exams/{exam_id}/publish
 
 POST /api/admin/exams/{exam_id}/candidates/import
 GET  /api/admin/exams/{exam_id}/candidates
 DELETE /api/admin/exams/{exam_id}/candidates/{candidate_id}
 POST /api/admin/exams/{exam_id}/candidates/{candidate_id}/retake-grants
+POST /api/admin/exams/{exam_id}/result-details/release
+POST /api/admin/exams/{exam_id}/attempts/{attempt_id}/void
+GET  /api/admin/exams/{exam_id}/incidents
+POST /api/admin/exams/{exam_id}/retakes/preview
+POST /api/admin/exams/{exam_id}/retakes/apply
+POST /api/admin/exams/{exam_id}/evidence-bundle
+
+GET  /api/admin/operations/snapshot
+GET  /api/admin/operations/session-closure-readiness
+GET  /api/admin/operations/retention/preview
+POST /api/admin/operations/retention/archive
+POST /api/admin/operations/retention/delete
 
 GET /api/admin/reports/scores?exam_id={id}
 GET /api/admin/reports/question-accuracy?exam_id={id}
@@ -101,7 +121,12 @@ GET  /api/admin/learning/reports/export?video_id={id}&status=completed
 
 说明：
 
-- 管理员登录返回签名 session token；后续管理端接口通过 `X-Admin-Token` 校验，不是完整 RBAC。
+- 主/备具名操作员登录返回四小时签名 session token；后续管理端接口通过 `X-Admin-Token` 校验。两者权限相同、备份账号默认禁用，不是完整 RBAC。
+- 发布前先读取 authoritative publication readiness；发布请求必须精确确认考试标题，服务在同一事务内重跑阻断项后才冻结题池。
+- 解析发布要求全部 attempt 已 terminal 和精确确认，只能执行一次且不可撤销。作废保留快照、答案、时间与审计证据，并从普通成绩、排名和参考统计中排除。
+- 批量补考必须先 preview，再携带候选 ID、preview fingerprint、影响选项、理由和精确标题 apply；每位考试人至多保留一个未使用授权。
+- operations snapshot 只供 loopback 管理入口读取，汇总版本、迁移、服务/worker、锁、磁盘、备份、第二副本、恢复、保留和安全扫描状态。
+- 保留删除采用 preview -> archive -> verified paired backup -> explicit IDs/confirmation 的两阶段门禁，不允许直接数据库删除。
 - `/api/admin/exams` 的创建、列表和更新已持久化到 `exam` 表；管理端考试编辑页保存 `question_rule` JSON 和开放时间窗口。列表返回 `question_pool_count` 和 `availability_status`。
 - 考试从 draft 切换 active 时冻结 `exam_question_pool`；active 后时长和抽题规则不可修改。
 - 题库导入接口执行标准 Excel 行级校验，合法行写入 `question` / `question_option`，并写入 `import_batch` 记录失败行号和原因。

@@ -14,6 +14,7 @@ from app.core.exceptions import DomainError
 from app.models import Candidate, ImportBatch, Question, QuestionOption
 from app.schemas.question import ImportFailure, QuestionImportResult
 from app.services.excel_security import escape_excel_cell
+from app.services.operational_lock_service import assert_admin_mutation_allowed
 from app.services.scoring_service import normalize_answer_set
 
 OPTION_LABELS = ("A", "B", "C", "D", "E", "F")
@@ -97,7 +98,10 @@ def import_questions_from_workbook(
     db: Session,
     file_obj: Any,
     file_name: str,
+    *,
+    commit: bool = True,
 ) -> QuestionImportResult:
+    assert_admin_mutation_allowed(db)
     validate_upload_file_size(file_obj)
     parsed = parse_workbook(file_obj)
     failures: list[ImportFailure] = []
@@ -122,7 +126,8 @@ def import_questions_from_workbook(
     )
     db.add(batch)
     db.flush()
-    db.commit()
+    if commit:
+        db.commit()
 
     return QuestionImportResult(
         batch_id=batch.id,
@@ -136,7 +141,10 @@ def import_candidates_from_workbook(
     db: Session,
     file_obj: Any,
     file_name: str,
+    *,
+    commit: bool = True,
 ) -> QuestionImportResult:
+    assert_admin_mutation_allowed(db)
     validate_upload_file_size(file_obj)
     parsed = parse_workbook(file_obj)
     failures: list[ImportFailure] = []
@@ -185,7 +193,8 @@ def import_candidates_from_workbook(
     )
     db.add(batch)
     db.flush()
-    db.commit()
+    if commit:
+        db.commit()
 
     return QuestionImportResult(
         batch_id=batch.id,

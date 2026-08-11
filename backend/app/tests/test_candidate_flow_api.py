@@ -496,7 +496,7 @@ def test_candidate_login_unknown_identity_emits_audit_log(
     assert "nobody@example.com" not in record.getMessage()
 
 
-def test_practice_answer_persists_result_without_disclosing_answer_or_score() -> None:
+def test_practice_answer_returns_feedback_and_preserves_each_retry() -> None:
     client, db = _build_client()
     candidate = Candidate(name="张三", employee_no="YG0001", status="active")
     question = Question(
@@ -544,14 +544,29 @@ def test_practice_answer_persists_result_without_disclosing_answer_or_score() ->
     data = response.json()["data"]
     assert data["question_id"] == question.id
     assert data["selected_answer"] == "B,A"
-    assert "correct_answer" not in data
-    assert "is_correct" not in data
+    assert data["correct_answer"] == "A,B"
+    assert data["is_correct"] is True
+    assert data["analysis"] is None
+    assert data["option_comparison"] == [
+        {"label": "A", "content": "定期改密", "selected": True, "correct": True},
+        {"label": "B", "content": "开启 MFA", "selected": True, "correct": True},
+        {"label": "C", "content": "共享密码", "selected": False, "correct": False},
+    ]
     assert "score_awarded" not in data
-    assert "analysis" not in data
-    saved = db.query(PracticeAnswer).one()
-    assert saved.candidate_id == candidate.id
-    assert saved.question_id == question.id
-    assert saved.is_correct is True
+
+    retry = client.post(
+        "/api/practice/answers",
+        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
+        json={"question_id": question.id, "selected_answer": "C"},
+    )
+
+    assert retry.status_code == 200
+    assert retry.json()["data"]["is_correct"] is False
+    saved = db.query(PracticeAnswer).order_by(PracticeAnswer.id).all()
+    assert len(saved) == 2
+    assert saved[0].id != saved[1].id
+    assert [row.selected_answer for row in saved] == ["B,A", "C"]
+    assert [row.is_correct for row in saved] == [True, False]
 
 
 def test_practice_questions_require_candidate_token() -> None:
@@ -702,8 +717,8 @@ def test_practice_answer_uses_candidate_token_not_request_body() -> None:
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert "correct_answer" not in data
-    assert "analysis" not in data
+    assert data["correct_answer"] == "A"
+    assert data["analysis"] == "提交后返回"
     db.refresh(token_candidate)
     assert token_candidate.practice_answers[0].question_id == question.id
     db.refresh(body_candidate)
@@ -720,5 +735,114 @@ def test_practice_answer_requires_candidate_token() -> None:
         "/api/practice/answers",
         json={"question_id": question.id, "selected_answer": "A"},
     )
+
+    assert response.status_code == 401
+
+
+def test_wrong_question_review_filters_mastery_and_isolates_candidates() -> None:
+    client, db = _build_client()
+    candidate = Candidate(name="张三", employee_no="YG0001", status="active")
+    other = Candidate(name="李四", employee_no="YG0002", status="active")
+    mastered_question = Question(
+        question_type="single",
+        stem="已掌握题",
+        analysis="解析一",
+        category_1="安全",
+        category_2="账号",
+        score=2,
+        status="active",
+    )
+    learning_question = Question(
+        question_type="single",
+        stem="待巩固题",
+        analysis="解析二",
+        category_1="合规",
+        category_2="流程",
+        score=2,
+        status="active",
+    )
+    db.add_all([candidate, other, mastered_question, learning_question])
+    db.flush()
+    for question in (mastered_question, learning_question):
+        db.add_all(
+            [
+                QuestionOption(
+                    question_id=question.id,
+                    label="A",
+                    content="正确",
+                    is_correct=True,
+                    sort_order=1,
+                ),
+                QuestionOption(
+                    question_id=question.id,
+                    label="B",
+                    content="错误",
+                    is_correct=False,
+                    sort_order=2,
+                ),
+            ]
+        )
+    db.commit()
+
+    candidate_headers = {"X-Candidate-Token": create_candidate_token(candidate.id)}
+    other_headers = {"X-Candidate-Token": create_candidate_token(other.id)}
+    for selected_answer in ("B", "A"):
+        response = client.post(
+            "/api/practice/answers",
+            headers=candidate_headers,
+            json={
+                "question_id": mastered_question.id,
+                "selected_answer": selected_answer,
+            },
+        )
+        assert response.status_code == 200
+    assert (
+        client.post(
+            "/api/practice/answers",
+            headers=candidate_headers,
+            json={"question_id": learning_question.id, "selected_answer": "B"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/practice/answers",
+            headers=other_headers,
+            json={"question_id": mastered_question.id, "selected_answer": "B"},
+        ).status_code
+        == 200
+    )
+
+    mastered = client.get(
+        "/api/practice/wrong-questions?category_1=安全&mastered=true",
+        headers=candidate_headers,
+    )
+    assert mastered.status_code == 200
+    rows = mastered.json()["data"]
+    assert len(rows) == 1
+    assert rows[0]["stem"] == "已掌握题"
+    assert rows[0]["mastered"] is True
+    assert rows[0]["incorrect_count"] == 1
+    assert rows[0]["total_attempts"] == 2
+    assert len(rows[0]["history"]) == 2
+
+    learning = client.get(
+        "/api/practice/wrong-questions?mastered=false", headers=candidate_headers
+    )
+    assert learning.status_code == 200
+    assert [row["stem"] for row in learning.json()["data"]] == ["待巩固题"]
+
+    other_rows = client.get(
+        "/api/practice/wrong-questions", headers=other_headers
+    ).json()["data"]
+    assert len(other_rows) == 1
+    assert other_rows[0]["total_attempts"] == 1
+    assert other_rows[0]["mastered"] is False
+
+
+def test_wrong_question_review_requires_candidate_token() -> None:
+    client, _ = _build_client()
+
+    response = client.get("/api/practice/wrong-questions")
 
     assert response.status_code == 401

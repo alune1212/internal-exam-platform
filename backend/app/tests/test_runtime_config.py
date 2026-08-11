@@ -1,11 +1,22 @@
 import pytest
 from pydantic import ValidationError
+from pydantic_settings import SettingsConfigDict
 
 from app.core.config import Settings
 
 
+class IsolatedSettings(Settings):
+    model_config = SettingsConfigDict(
+        env_file=None,
+        extra="ignore",
+        hide_input_in_errors=True,
+    )
+
+
 def _settings(**overrides: object) -> Settings:
-    return Settings.model_validate(overrides)
+    # Runtime-profile unit tests must not inherit a developer's local .env
+    # merely because pytest was launched from the repository root.
+    return IsolatedSettings.model_validate(overrides)
 
 
 def _valid_internal_backend(**overrides: object) -> Settings:
@@ -16,6 +27,10 @@ def _valid_internal_backend(**overrides: object) -> Settings:
         "cors_origins": "http://192.168.50.10:8080",
         "internal_lan_bind_ip": "192.168.50.10",
         "admin_password": "strong-admin-password",
+        "primary_operator_username": "primary-operator",
+        "primary_operator_password": "strong-primary-password",
+        "backup_operator_username": "backup-operator",
+        "backup_operator_password": "strong-backup-password",
         "token_secret": "strong-token-secret",
         "candidate_login_email_delivery_mode": "smtp",
         "candidate_login_email_from": "exam@example.com",
@@ -75,6 +90,42 @@ def test_internal_backend_accepts_controlled_lan_configuration() -> None:
 
     assert configured.internal_lan_bind_ip == "192.168.50.10"
     assert configured.cors_origin_list == ["http://192.168.50.10:8080"]
+    assert configured.admin_token_ttl_seconds == 14400
+    assert configured.candidate_token_ttl_seconds == 14400
+
+
+@pytest.mark.parametrize(
+    "cors_origins",
+    [
+        "http://192.168.50.10:8081",
+        "http://192.168.50.10:8080,http://192.168.50.10:8081",
+        "http://192.168.50.10:18080",
+    ],
+)
+def test_internal_backend_accepts_only_the_candidate_8080_origin(
+    cors_origins: str,
+) -> None:
+    with pytest.raises(ValueError, match="8080"):
+        _valid_internal_backend(cors_origins=cors_origins)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"primary_operator_username": ""},
+        {"primary_operator_password": ""},
+        {"backup_operator_username": ""},
+        {"backup_operator_password": ""},
+        {"backup_operator_username": "primary-operator"},
+        {"admin_token_ttl_seconds": 14401},
+        {"candidate_token_ttl_seconds": 14399},
+    ],
+)
+def test_internal_requires_named_operators_and_four_hour_tokens(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        _valid_internal_backend(**overrides)
 
 
 def test_internal_backend_accepts_implicit_smtp_ssl() -> None:
@@ -99,7 +150,10 @@ def test_internal_backend_rejects_unencrypted_smtp() -> None:
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"admin_password": "local-dev-admin-password"}, "ADMIN_PASSWORD"),
+        (
+            {"primary_operator_password": "local-dev-admin-password"},
+            "PRIMARY_OPERATOR_PASSWORD",
+        ),
         (
             {"token_secret": "local-dev-token-secret-change-before-production"},
             "TOKEN_SECRET",
@@ -117,6 +171,7 @@ def test_internal_backend_rejects_unencrypted_smtp() -> None:
         ({"internal_lan_bind_ip": "0.0.0.0"}, "INTERNAL_LAN_BIND_IP"),  # noqa: S104
         ({"internal_lan_bind_ip": "127.0.0.1"}, "INTERNAL_LAN_BIND_IP"),
         ({"internal_lan_bind_ip": "8.8.8.8"}, "INTERNAL_LAN_BIND_IP"),
+        ({"internal_lan_bind_ip": "fd00::10"}, "INTERNAL_LAN_BIND_IP"),
         ({"cors_origins": "*"}, "CORS_ORIGINS"),
         ({"cors_origins": "http://192.168.50.11:8080"}, "CORS_ORIGINS"),
         ({"cors_origins": "https://192.168.50.10"}, "CORS_ORIGINS"),

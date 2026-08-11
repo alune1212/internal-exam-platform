@@ -35,6 +35,7 @@ function resolveAvailability(exam: Exam, now = new Date()) {
       canEnter: false,
       detail: exam.available_from ? new Date(exam.available_from).toLocaleString() : null,
       detailLabel: "开放时间",
+      fallbackDetail: "等待开放",
     };
   }
   if (exam.availability_status === "ended") {
@@ -42,8 +43,9 @@ function resolveAvailability(exam: Exam, now = new Date()) {
       status: "ended",
       label: formatExamAvailability("ended"),
       canEnter: false,
-      detail: exam.available_until ? new Date(exam.available_until).toLocaleString() : null,
+      detail: null,
       detailLabel: "结束时间",
+      fallbackDetail: "新开考窗口已关闭",
     };
   }
   const from = exam.available_from ? new Date(exam.available_from) : null;
@@ -55,6 +57,7 @@ function resolveAvailability(exam: Exam, now = new Date()) {
       canEnter: false,
       detail: from.toLocaleString(),
       detailLabel: "开放时间",
+      fallbackDetail: "等待开放",
     };
   }
   if (until && now > until) {
@@ -64,6 +67,7 @@ function resolveAvailability(exam: Exam, now = new Date()) {
       canEnter: false,
       detail: until.toLocaleString(),
       detailLabel: "结束时间",
+      fallbackDetail: "新开考窗口已关闭",
     };
   }
   return {
@@ -72,6 +76,7 @@ function resolveAvailability(exam: Exam, now = new Date()) {
     canEnter: true,
     detail: from?.toLocaleString() ?? null,
     detailLabel: "开放时间",
+    fallbackDetail: "随时可进入",
   };
 }
 
@@ -117,7 +122,7 @@ function ExamCard({ exam }: { exam: Exam }) {
         <p className="text-caption italic text-muted">
           {availability.detail
             ? `${availability.detailLabel} · ${availability.detail}`
-            : "随时可进入"}
+            : availability.fallbackDetail}
         </p>
         {canEnter ? (
           <Button asChild size="sm">

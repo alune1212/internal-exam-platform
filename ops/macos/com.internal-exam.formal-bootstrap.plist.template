@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.internal-exam.formal-bootstrap</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>__MACOS_OPS_DIR__/LaunchAgent-Dispatcher.zsh</string>
+    <string>bootstrap</string>
+    <string>--root</string>
+    <string>__INTERNAL_EXAM_ROOT__</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>ThrottleInterval</key>
+  <integer>600</integer>
+  <key>StandardOutPath</key>
+  <string>__INTERNAL_EXAM_ROOT__/diagnostics/internalexam-launchagent-formal-bootstrap.log</string>
+  <key>StandardErrorPath</key>
+  <string>__INTERNAL_EXAM_ROOT__/diagnostics/internalexam-launchagent-formal-bootstrap.error.log</string>
+</dict>
+</plist>

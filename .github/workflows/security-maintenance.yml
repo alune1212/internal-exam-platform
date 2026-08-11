@@ -1,0 +1,98 @@
+name: Weekly security maintenance
+
+on:
+  schedule:
+    - cron: "23 18 * * 5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          working-directory: backend
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Prepare evidence directory
+        run: mkdir -p security-evidence
+      - name: Export and scan Python runtime dependencies
+        working-directory: backend
+        run: |
+          uv export --frozen --no-dev --format requirements-txt --output-file ../security-evidence/python-requirements.txt
+          uvx --from pip-audit==2.9.0 pip-audit --disable-pip --require-hashes --requirement ../security-evidence/python-requirements.txt --format json --output ../security-evidence/pip-audit.json || true
+      - name: Scan npm runtime dependencies
+        working-directory: frontend
+        run: |
+          npm ci
+          npm audit --omit=dev --json > ../security-evidence/npm-audit.json || true
+      - name: Build final images without deployment
+        run: |
+          docker build -t internal-exam-platform-database:security-scan database
+          docker build -t internal-exam-platform-backend:security-scan backend
+          docker build -t internal-exam-platform-frontend:security-scan frontend
+          docker build -t internal-exam-platform-gateway:security-scan nginx
+      - name: Verify digest-pinned Trivy and scan final images
+        env:
+          TRIVY_IMAGE: aquasec/trivy@sha256:be1190afcb28352bfddc4ddeb71470835d16462af68d310f9f4bca710961a41e
+        run: |
+          set -euo pipefail
+          docker run --rm "$TRIVY_IMAGE" --version
+          for image_name in database backend frontend gateway; do
+            docker run --rm \
+              --volume /var/run/docker.sock:/var/run/docker.sock \
+              --volume "$PWD/security-evidence:/evidence" \
+              "$TRIVY_IMAGE" image --exit-code 0 --format json \
+              --output "/evidence/trivy-${image_name}.json" \
+              "internal-exam-platform-${image_name}:security-scan"
+          done
+      - name: Record temporary final image inspection for evaluator
+        run: |
+          # The full inspect payload stays outside the artifact directory. The
+          # evaluator below copies only its canonical identity fields into the
+          # checksummed report and manifest.
+          docker image inspect \
+            internal-exam-platform-database:security-scan \
+            internal-exam-platform-backend:security-scan \
+            internal-exam-platform-frontend:security-scan \
+            internal-exam-platform-gateway:security-scan \
+            > "$RUNNER_TEMP/final-images.inspect.json"
+      - name: Enforce release security policy
+        run: |
+          set +e
+          python ops/security/evaluate_scans.py \
+              --repository . \
+              --pip-audit security-evidence/pip-audit.json \
+              --npm-audit security-evidence/npm-audit.json \
+              --trivy security-evidence/trivy-database.json \
+              --trivy security-evidence/trivy-backend.json \
+              --trivy security-evidence/trivy-frontend.json \
+              --trivy security-evidence/trivy-gateway.json \
+              --dispositions ops/security/dispositions.json \
+              --image-record "$RUNNER_TEMP/final-images.inspect.json" \
+              --output-dir security-evidence
+          status=$?
+          rm -f -- "$RUNNER_TEMP/final-images.inspect.json"
+          exit "$status"
+      - name: Remove temporary raw image inspection
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/final-images.inspect.json"
+      - name: Upload checksummed scan evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-evidence-${{ github.run_id }}
+          path: security-evidence/
+          if-no-files-found: error
+          retention-days: 90

@@ -30,14 +30,23 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "internal-exam-platform"
+    app_version: str = "0.1.0"
+    git_commit: str = "development"
     environment: str = "development"
     app_role: str = "backend"
     database_url: str = "postgresql+psycopg://exam:exam@db:5432/internal_exam"
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
     admin_username: str = "admin"
     admin_password: str = "change-me"
+    primary_operator_username: str = ""
+    primary_operator_password: str = ""
+    backup_operator_username: str = ""
+    backup_operator_password: str = ""
+    backup_operator_enabled: bool = False
     token_secret: str = Field(default="change-me-in-production", min_length=8)
     token_ttl_seconds: int = 12 * 60 * 60
+    admin_token_ttl_seconds: int = Field(default=4 * 60 * 60, ge=60)
+    candidate_token_ttl_seconds: int = Field(default=4 * 60 * 60, ge=60)
     internal_lan_bind_ip: str = ""
     public_token_rate_limit_count: int = Field(default=60, ge=1)
     public_token_rate_limit_window_seconds: int = Field(default=60, ge=1)
@@ -45,6 +54,7 @@ class Settings(BaseSettings):
     candidate_login_otp_ttl_seconds: int = Field(default=10 * 60, ge=60)
     candidate_login_otp_attempt_limit: int = Field(default=5, ge=1)
     candidate_login_otp_resend_cooldown_seconds: int = Field(default=60, ge=0)
+    candidate_login_test_otp: str = ""
     candidate_login_email_delivery_mode: str = "memory"
     candidate_login_email_max_attempts: int = Field(default=3, ge=1, le=10)
     candidate_login_email_retry_base_seconds: float = Field(default=1.0, ge=0, le=30)
@@ -62,6 +72,11 @@ class Settings(BaseSettings):
     learning_media_public_path: str = "/media/learning"
     learning_video_max_upload_bytes: int = Field(default=500 * 1024 * 1024, ge=1)
     learning_video_allowed_content_types: str = "video/mp4,video/webm"
+    lifecycle_archive_dir: str = "/app/lifecycle/archives"
+    backup_storage_dir: str = "/app/backups"
+    operations_evidence_dir: str = "/app/evidence"
+    storage_min_free_bytes: int = Field(default=20 * 1024**3, ge=1)
+    storage_footprint_multiplier: int = Field(default=3, ge=1)
     auto_submit_check_interval_seconds: int = Field(default=30, ge=1)
     auto_submit_batch_size: int = Field(default=100, ge=1)
     auto_submit_heartbeat_path: str = "/tmp/internal-exam-auto-submit.heartbeat"  # noqa: S108
@@ -84,6 +99,12 @@ class Settings(BaseSettings):
             )
 
         delivery_mode = self.candidate_login_email_delivery_mode.strip().lower()
+        if self.candidate_login_test_otp and (
+            self.environment != "development"
+            or len(self.candidate_login_test_otp) != 6
+            or not self.candidate_login_test_otp.isdigit()
+        ):
+            raise ValueError("CANDIDATE_LOGIN_TEST_OTP 仅允许 development 使用六位数字")
         if delivery_mode not in {"memory", "smtp"}:
             raise ValueError(
                 "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE 只能是 memory 或 smtp"
@@ -112,8 +133,10 @@ class Settings(BaseSettings):
             return self
 
         if self.environment in {"internal", "production"}:
-            if self.admin_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS:
-                raise ValueError(f"{self.environment} 环境必须配置 ADMIN_PASSWORD")
+            if self.environment == "internal":
+                self._validate_operator_configuration()
+            elif self.admin_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS:
+                raise ValueError("production 环境必须配置 ADMIN_PASSWORD")
             if self.token_secret in REPOSITORY_SAMPLE_TOKEN_SECRETS:
                 raise ValueError(f"{self.environment} 环境必须配置 TOKEN_SECRET")
             if delivery_mode != "smtp":
@@ -141,6 +164,37 @@ class Settings(BaseSettings):
             self._validate_production_cors()
         return self
 
+    def _validate_operator_configuration(self) -> None:
+        if not self.primary_operator_username.strip():
+            raise ValueError(
+                f"{self.environment} 环境必须配置 PRIMARY_OPERATOR_USERNAME"
+            )
+        if (
+            not self.primary_operator_password
+            or self.primary_operator_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
+        ):
+            raise ValueError(
+                f"{self.environment} 环境必须配置 PRIMARY_OPERATOR_PASSWORD"
+            )
+        if not self.backup_operator_username.strip():
+            raise ValueError(
+                f"{self.environment} 环境必须配置 BACKUP_OPERATOR_USERNAME"
+            )
+        if (
+            not self.backup_operator_password
+            or self.backup_operator_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
+        ):
+            raise ValueError(
+                f"{self.environment} 环境必须配置 BACKUP_OPERATOR_PASSWORD"
+            )
+        if self.primary_operator_username == self.backup_operator_username:
+            raise ValueError("主操作员与备份操作员登录名必须不同")
+        if (
+            self.admin_token_ttl_seconds != 4 * 60 * 60
+            or self.candidate_token_ttl_seconds != 4 * 60 * 60
+        ):
+            raise ValueError("internal/production 正式 Token 有效期必须为 4 小时")
+
     def _validate_formal_database_credentials(self) -> None:
         password = urlparse(self.database_url).password
         if not password or password in REPOSITORY_SAMPLE_DATABASE_PASSWORDS:
@@ -152,7 +206,8 @@ class Settings(BaseSettings):
         except ValueError:
             raise ValueError("internal 环境必须配置私有 INTERNAL_LAN_BIND_IP") from None
         if (
-            not bind_ip.is_private
+            bind_ip.version != 4
+            or not bind_ip.is_private
             or bind_ip.is_loopback
             or bind_ip.is_unspecified
             or bind_ip.is_link_local
@@ -160,8 +215,11 @@ class Settings(BaseSettings):
             raise ValueError("internal 环境必须配置私有 INTERNAL_LAN_BIND_IP")
 
         origins = self.cors_origin_list
-        if not origins:
-            raise ValueError("internal 环境必须配置精确的 CORS_ORIGINS")
+        expected_origin = f"http://{bind_ip}:8080"
+        if origins != [expected_origin]:
+            raise ValueError(
+                "internal 环境的 CORS_ORIGINS 必须仅包含固定考试人入口的 8080 端口"
+            )
         for origin in origins:
             parsed = urlparse(origin)
             try:
@@ -200,6 +258,27 @@ class Settings(BaseSettings):
         return [
             origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
         ]
+
+    @property
+    def configured_primary_operator(self) -> tuple[str, str]:
+        return (
+            self.primary_operator_username.strip() or self.admin_username,
+            self.primary_operator_password or self.admin_password,
+        )
+
+    @property
+    def configured_backup_operator(self) -> tuple[str, str]:
+        return (
+            self.backup_operator_username.strip(),
+            self.backup_operator_password,
+        )
+
+    @property
+    def configured_active_operator(self) -> tuple[str, str]:
+        """Return the only operator credential pair valid at this moment."""
+        if self.backup_operator_enabled:
+            return self.configured_backup_operator
+        return self.configured_primary_operator
 
     @property
     def learning_video_allowed_content_type_set(self) -> set[str]:

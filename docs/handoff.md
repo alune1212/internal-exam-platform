@@ -2,13 +2,13 @@
 
 ## Current State
 
-The project has a runnable first-phase business loop, completed frontend redesign, and an implemented internal-deployment hardening layer. It has a backend, frontend, database migration, Docker Compose stack, operational backup tooling, and documentation set.
+The project has a runnable first-phase business loop, completed frontend redesign, and an implemented internal-deployment hardening layer. It has a backend, frontend, database migration, Docker Compose stack, operational backup tooling, and a Mac-first formal-host documentation set. The current formal target is Apple Silicon macOS + Docker Desktop; Windows Docker Desktop + WSL2 remains a future migration target.
 
 Implemented foundations:
 
 - FastAPI app with shallow `/api/health` liveness and dependency-aware `/api/ready` checks for PostgreSQL and learning media access.
 - SQLAlchemy models for candidates, candidate login challenges, questions, options, exams, attempts, attempt question snapshots, answers, practice answers, and import batches.
-- Alembic initial migration `202606110001_initial_schema.py`.
+- Alembic migrations through `202608070001_formal_writer_fence.py`, including compatibility backfill for existing result visibility/formal-attempt state and persistent cross-host writer-fence lineage.
 - Candidate-facing and admin-facing API routes.
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
@@ -21,14 +21,14 @@ Implemented foundations:
 - Exam start persistence with fixed 50-question equivalent paper generation, attempt creation, and question snapshots.
 - Answer autosave persistence and hand-in scoring from persisted attempt snapshots.
 - Attempt result pass status based on `question_rule.pass_score`.
-- Signed admin session tokens returned from login and checked by `X-Admin-Token`.
+- Signed four-hour admin sessions for named primary/backup operators, checked by `X-Admin-Token`; the equal-permission backup operator is disabled by default.
 - Candidate login uses a two-step email OTP challenge before issuing signed candidate tokens; issued tokens are still checked by `X-Candidate-Token` for candidate-facing exam/practice APIs.
 - Candidate frontend clears stale sessions on logout or 401 responses; `/exams` only queries `/api/exams/active` when a candidate session exists.
 - Bounded Excel imports: default 5 MiB upload limit, 5000 data rows, and 1 worksheet.
 - Excel export cells are escaped before writing failure reports and report workbooks.
 - Runtime profiles support `development`, controlled-LAN HTTP `internal`, and HTTPS-only `production`; backend/worker roles validate only their required settings, and formal profiles reject sample database credentials.
 - `internal` backend settings fail closed unless Nginx binds an explicit private LAN IP, CORS exactly matches that HTTP origin, secrets are non-default, and SMTP delivery is configured. `production` continues to require HTTPS origins.
-- Docker Compose publishes Nginx on `${INTERNAL_LAN_BIND_IP}:8080`; PostgreSQL `5432` and the direct frontend `5173` stay bound to `127.0.0.1`. Worker containers do not receive admin, token-signing, or SMTP secrets.
+- Docker Compose publishes only the candidate gateway on `${INTERNAL_LAN_BIND_IP}:8080`. The loopback operator gateway uses `127.0.0.1:8081`; PostgreSQL `5432` and direct frontend `5173` also stay on loopback. Candidate ingress denies admin, operations, readiness detail, docs, and OpenAPI routes. Worker containers do not receive admin, token-signing, or SMTP secrets.
 - Public login rate limiting hashes unauthenticated identifiers before storing in memory, and login request fields have bounded lengths. Candidate OTP request and verification endpoints share this lightweight rate-limit boundary.
 - Practice question and answer APIs require `X-Candidate-Token` and re-check that the token belongs to an active candidate.
 - Save/submit paths reload in-progress attempts with database row locks before mutation.
@@ -36,14 +36,30 @@ Implemented foundations:
 - Candidate login uses a clean email OTP auth canvas without candidate navigation or footer; authenticated candidate pages keep the shared top navigation without a global footer.
 - Candidate page eyebrow copy is centralized in `frontend/src/lib/pageCopy.ts`; page/state labels use the shared product terminology, while numbered labels are reserved for real question positions.
 - Admin pages for login, dashboard, question list/import, exam list/edit, candidate import, and reports.
-- Docker Compose stack for PostgreSQL, backend, frontend, and Nginx.
+- Digest-pinned, locally patched Docker Compose images for PostgreSQL, backend, frontend, and the shared candidate/operator Nginx gateway.
 - Time-based auto-submit background check with an atomic heartbeat and container healthcheck; successful zero-result scans also refresh health, failed scans do not.
 - Ranking, exam-filterable admin report SQL queries, and multi-sheet Excel report export.
 - Learning media served through Nginx `/media/learning/` from the `learning_media` volume.
 - Candidate OTP delivery supports mutually exclusive STARTTLS and implicit SSL transports, retries transient SMTP/network failures with short bounded backoff, stops on permanent failures, and logs challenge/attempt/error type without recipient or OTP data.
 - Paired backup tooling creates a PostgreSQL custom dump and `learning_media` archive with manifest, SHA-256 checksums, and a last-written `SUCCESS`; restore verification only accepts disposable Compose project names and validates migration head, representative table counts, media count, and non-empty samples.
+- Formal attempts use one active device credential, monotonic answer revisions, session-scoped offline drafts, fresh-OTP takeover, terminal voiding, one-time result-detail release, and audited preview-first bulk retakes without changing saved question/answer/score snapshots.
+- Practice submissions are immutable and return immediate answer/analysis feedback; wrong-question review is candidate-scoped and derives mastery from the latest attempt.
+- macOS operations include a protected host layout, ARM64 release bundle validation/build/install, isolated staging, promotion/status/start/stop, opportunistic and pre/post-exam paired backups, encrypted second-copy synchronization, restore drills, guarded rollback, and backup-operator control. The Mac adapter is intentionally thin; application operations remain in versioned containers.
+- Windows PowerShell operations remain preserved as the future Docker Desktop + WSL2 migration adapter. They are not current Mac acceptance evidence.
 
-## Verified Commands
+## Final Stabilization Verification
+
+Local engineering release gates (not designated-host acceptance) were rerun on 2026-08-07 against the Mac-first portability implementation and native `linux/arm64` final images:
+
+- Backend format, Ruff, and `ty` passed. The local SQLite suite passed `493` tests with `10` PostgreSQL-only skips. A fresh disposable PostgreSQL 16 project upgraded every migration through `202608070001` and passed the complete `503`-test suite with no skips, including migration and advisory-lock concurrency coverage.
+- Frontend format, `349` tests across `64` files, lint, production build, accessibility contracts, and offline-asset gate passed; the built runtime contained `0` public-Internet references.
+- All three active OpenSpec changes passed strict validation. All `28` macOS zsh operations parsed and retained mode `0700`; both LaunchAgent templates passed `plutil`. Development and synthetic formal Compose renders passed. Formal exposure was candidate `192.168.2.34:8080`, operator `127.0.0.1:8081`, PostgreSQL and direct frontend loopback-only, with backend and worker unexposed.
+- Playwright passed the minimum formal workflow through real Nginx/backend/PostgreSQL/fake-SMTP containers. The accepted 100-client capacity gate completed `100/100` submissions with `0` errors: start/save/submit p95 `617/572/524 ms`, database connection peak `17`, and worker heartbeat age `6.062 s` on `linux/arm64`.
+- A fresh four-image `linux/arm64` security build passed the final policy evaluator with `0` blocking findings, `0` binding errors, and `0` security-evaluator errors. `pip-audit` found no known vulnerability. Trivy reported only four Medium and one Low backend finding below the release threshold. npm reported two High rows for one React Router advisory; the lock resolves the upstream patched `7.18.2`, the application has no unstable RSC API surface, and both rows are explicitly recorded as non-exploitable dispositions in `ops/security/dispositions.json`.
+- The writer-fence and cutover implementation was adversarially reviewed for atomic state recovery, generation replay, source retirement, exact backup/release binding, backup/fence mutual exclusion, same-host rollback, and pre/post-write cross-host rollback. Backup write-freezes and formal writer fences now require explicit release; diagnostic TTL expiry never reopens writers.
+- The current formal target remains the designated Apple Silicon Mac. Repository implementation and local engineering gates are complete, but real host configuration, LaunchAgent loading/retry evidence, independent encrypted second-device restore, real network negatives, formal staging/promotion, SMTP and desktop/phone UAT remain host-acceptance work. PowerShell parsing and Windows workflow checks remain future Windows static evidence; real Windows native AMD64 staging, cutover, and UAT are intentionally unclaimed.
+
+## Historical Verified Commands
 
 Internal deployment readiness gates verified on 2026-07-10:
 
@@ -240,14 +256,16 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 
 ## Known Gaps
 
-- The implementation and local operational gates are complete. Before each formal exam, operators should run the login, exam start/save/resume/submit/result, worker interruption/catch-up, retake, reports, and export checks in the official UAT checklist through the deployed Nginx entry.
-- Controlled-LAN `internal` mode intentionally uses HTTP. Admin and candidate bearer tokens are not transport-encrypted and can be intercepted by a device with network visibility. Restrict the host bind/firewall to the approved private subnet; never expose it to guest Wi-Fi, public networks, port forwarding, or uncontrolled segments.
-- Move to `production` with HTTPS before expanding network exposure, user population, or threat assumptions. The repository does not automate certificate issuance or ingress TLS.
+- Real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, real SMTP, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.
+- Future Windows Docker Desktop + WSL2 native AMD64 staging, paired-backup restore, Windows service recovery, desktop/phone UAT, and formal promotion have not been executed. Mac evidence cannot satisfy those Windows gates.
+- Controlled-LAN `internal` mode intentionally uses HTTP on the shared office LAN. Candidate bearer tokens, questions, answers, and released results are not transport-encrypted and can be intercepted or modified by a device with network visibility. This is the explicitly accepted first-phase exception in `security-http-exception.md`; it has no calendar expiry but must be reassessed on the documented scope, network, incident, or policy triggers.
+- The platform is one best-effort 24x7 Mac host with Docker/LaunchAgent container recovery, not high availability. A serious host, disk, Docker Desktop, power, or office-network failure may require pausing or rescheduling an exam.
+- The local 100-client gate passed on the final rerun but showed host-load variance in the immediately preceding run. Formal Mac staging must produce its own passing host-bound evidence; future Windows staging must rerun the gate and cannot reuse the Mac artifact.
 - SMTP retry is deliberately short and in-process, not a durable queue. A backend restart can interrupt delivery; operators must retain resend and final-failure monitoring procedures.
-- Optional follow-ups: PostgreSQL lock-wait integration coverage for concurrent save/submit, worker or gateway CPU timeout around large openpyxl parsing, enterprise SSO/passkey evaluation, and frontend token storage review if the threat model expands beyond the first-phase internal tool.
 
 ## Recommended Next Work
 
-1. Before each formal exam, execute `docs/official-exam-uat-checklist.md`, including worker interruption/catch-up and report export.
-2. Before each formal exam, retain evidence for `config --quiet`, healthy db/backend/worker, `/api/ready`, real OTP delivery, paired backup creation, isolated restore verification, and post-restore stack recovery.
-3. Keep HTTP `internal` exposure limited to the accepted private-LAN boundary. If that boundary changes, deploy HTTPS and switch to `production` before proceeding.
+1. On the designated Mac host, execute native ARM64 staging, Mac status/preflight checks, split-route checks, real SMTP fail-closed tests, service/Docker recovery, paired backup, independent encrypted second-copy restore, browser UAT, and the 100-client gate from `official-exam-uat-checklist.md`.
+2. Create the formal pre-upgrade paired backup, promote only the tested commit-tagged ARM64 images, run desktop and phone UAT, then close sessions and retain the checksummed Mac evidence bundle. Do not call this Windows acceptance.
+3. Keep HTTP `internal` exposure within the accepted office-LAN boundary. If a reassessment trigger occurs, stop expanding use and establish trusted HTTPS/network isolation before proceeding.
+4. For a later Windows move, stop the Mac writer, create a final paired backup and writer-generation evidence, restore on native Windows AMD64 staging, and complete every Windows-specific gate before cutover.

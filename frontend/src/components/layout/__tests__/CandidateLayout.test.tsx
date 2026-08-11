@@ -22,6 +22,8 @@ const mockCandidate = {
   status: "active",
   should_attend: true,
 };
+const supportedUserAgent =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36";
 
 function renderCandidateShell(initialEntry: string) {
   const router = createMemoryRouter(
@@ -53,8 +55,42 @@ function renderCandidateShell(initialEntry: string) {
 
 describe("CandidateLayout", () => {
   beforeEach(() => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: supportedUserAgent,
+      configurable: true,
+    });
     window.localStorage.clear();
     window.sessionStorage.clear();
+  });
+
+  it("blocks legacy or embedded browsers before login and formal attempts", () => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: "Mozilla/5.0 (Linux; Android 15) MicroMessenger/8.0 Chrome/140.0.0.0 Mobile",
+      configurable: true,
+    });
+
+    const loginRender = renderCandidateShell("/login");
+
+    expect(screen.getByRole("heading", { name: "请更换受支持的系统浏览器。" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "发送验证码" })).not.toBeInTheDocument();
+
+    loginRender.unmount();
+    renderCandidateShell("/exams");
+
+    expect(screen.getByRole("heading", { name: "请更换受支持的系统浏览器。" })).toBeInTheDocument();
+  });
+
+  it("lists macOS support and its minimum browser versions", () => {
+    Object.defineProperty(window.navigator, "userAgent", {
+      value: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Firefox/140.0",
+      configurable: true,
+    });
+
+    renderCandidateShell("/login");
+
+    expect(
+      screen.getByText(/macOS Chrome\/Safari（Chrome 120\+、Safari 17\+）/),
+    ).toBeInTheDocument();
   });
 
   it("renders the login route as a clean auth screen without candidate navigation or footer", () => {

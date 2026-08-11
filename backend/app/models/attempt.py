@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -19,6 +20,7 @@ from app.core.database import Base
 from app.models.base import TimestampMixin
 
 SUBMITTED_STATUSES = ("submitted", "auto_submitted")
+TERMINAL_ATTEMPT_STATUSES = (*SUBMITTED_STATUSES, "voided")
 
 
 class ExamAttempt(TimestampMixin, Base):
@@ -70,6 +72,14 @@ class ExamAttempt(TimestampMixin, Base):
         String(20), nullable=False, default="initial"
     )
     paper_seed: Mapped[str | None] = mapped_column(String(64))
+    attempt_session_hash: Mapped[str | None] = mapped_column(String(128))
+    attempt_session_generation: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    answer_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    voided_by: Mapped[str | None] = mapped_column(String(100))
+    void_reason: Mapped[str | None] = mapped_column(Text)
 
     exam = relationship("Exam", back_populates="attempts")
     candidate = relationship("Candidate", back_populates="attempts")

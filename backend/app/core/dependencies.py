@@ -2,22 +2,19 @@
 
 from fastapi import Header, Request
 
-from app.core.config import settings
 from app.core.exceptions import DomainError
-from app.core.security import parse_candidate_token, verify_session_token
+from app.core.security import parse_admin_token, parse_candidate_token
 from app.services.exam_service import AdminAuthError
 
 
-def require_admin(request: Request) -> None:
-    """校验 X-Admin-Token 头与配置的管理员 token 一致。"""
+def require_admin(request: Request) -> str:
+    """校验 X-Admin-Token 并返回具名操作员。"""
     token = request.headers.get("X-Admin-Token", "")
-    if not verify_session_token(
-        token,
-        subject=settings.admin_username,
-        secret=settings.token_secret,
-        max_age_seconds=settings.token_ttl_seconds,
-    ):
+    operator_subject = parse_admin_token(token)
+    if operator_subject is None:
         raise AdminAuthError()
+    request.state.operator_subject = operator_subject
+    return operator_subject
 
 
 class CandidateAuthError(DomainError):
@@ -38,4 +35,21 @@ def get_current_candidate_id(
     candidate_id = parse_candidate_token(x_candidate_token)
     if candidate_id is None:
         raise CandidateAuthError("无效的考试人身份")
+    return candidate_id
+
+
+def get_fresh_candidate_id(
+    x_candidate_token: str | None = Header(None, alias="X-Candidate-Token"),
+) -> int:
+    """Require a candidate token freshly issued by OTP verification for takeover."""
+    from app.core.config import settings
+
+    if x_candidate_token is None:
+        raise CandidateAuthError("请重新通过邮件验证码登录后接管考试。")
+    candidate_id = parse_candidate_token(
+        x_candidate_token,
+        max_age_seconds=settings.candidate_login_otp_ttl_seconds,
+    )
+    if candidate_id is None:
+        raise CandidateAuthError("请重新通过邮件验证码登录后接管考试。")
     return candidate_id

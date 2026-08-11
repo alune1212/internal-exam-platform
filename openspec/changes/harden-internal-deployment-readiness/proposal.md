@@ -20,6 +20,10 @@ The first-phase exam loop is complete, but the current Docker Compose deployment
 - Multi-instance high availability, complex RBAC, multi-tenancy, SSO, proctoring, or broader LMS features.
 - Changes to exam snapshot, fixed-paper, scoring, retake, practice privacy, or video-learning business semantics.
 
+## OpenSpec ownership and archive order
+
+This completed baseline remains an active change for this round and MUST NOT be auto-archived here. It owns the generic controlled-LAN runtime, readiness, worker health, and paired-restore baseline only. `support-macos-formal-host-portability` owns the selected macOS formal-host acceptance and portability details, while `stabilize-windows-internal-exam-platform` owns the future Windows Docker Desktop + WSL2 acceptance track. Archive these changes separately and in evidence order: leave harden active this round, archive support only after real Mac acceptance, and archive stabilize only after real Windows staging, cutover, UAT, and evidence complete. A later archive MUST preserve the other active change's capability ownership rather than overwriting or absorbing its host-specific specs.
+
 ## Capabilities
 
 ### New Capabilities

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "findings": {
+    "npm-audit:react-router:https://github.com/advisories/GHSA-qwww-vcr4-c8h2": {
+      "exploitable": false,
+      "rationale": "Upstream marks react-router 7.18.2 as patched; the lockfile resolves 7.18.2 and this client-only Vite application does not use the unstable RSC APIs named by the advisory. npm audit currently merges the patched 7.x and affected 8.x ranges.",
+      "reviewed_by": "Codex repository security review",
+      "reviewed_at": "2026-08-07T12:09:00Z",
+      "installed_version": "7.18.2",
+      "upstream_advisory": "https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2"
+    },
+    "npm-audit:react-router-dom:react-router-dom": {
+      "exploitable": false,
+      "rationale": "This npm audit row is only the direct react-router-dom effect of GHSA-qwww-vcr4-c8h2. Both react-router-dom and its react-router dependency resolve to patched 7.18.2, and the application has no unstable RSC API surface.",
+      "reviewed_by": "Codex repository security review",
+      "reviewed_at": "2026-08-07T12:09:00Z",
+      "installed_version": "7.18.2",
+      "upstream_advisory": "https://github.com/remix-run/react-router/security/advisories/GHSA-qwww-vcr4-c8h2"
+    }
+  }
+}

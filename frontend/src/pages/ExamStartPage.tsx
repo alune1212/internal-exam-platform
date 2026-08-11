@@ -9,6 +9,7 @@ import type { CandidateSessionContext } from "@/components/layout/CandidateLayou
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { candidatePageCopy, candidatePageText, productTerms } from "@/lib/pageCopy";
+import { setAttemptSession } from "@/lib/attemptSession";
 
 const RULES: { text: string }[] = [
   { text: "考试中答案会自动保存，但倒计时不会暂停。" },
@@ -27,6 +28,15 @@ export function ExamStartPage() {
   const mutation = useMutation({
     mutationFn: () => startExam(examId),
     onSuccess: (result) => {
+      if (candidate && result.attempt_session_credential) {
+        setAttemptSession({
+          candidateId: candidate.id,
+          attemptId: result.attempt_id,
+          credential: result.attempt_session_credential,
+          generation: result.attempt_session_generation,
+          answerRevision: result.answer_revision,
+        });
+      }
       navigate(`/exams/${examId}/taking?attemptId=${result.attempt_id}`);
     },
   });

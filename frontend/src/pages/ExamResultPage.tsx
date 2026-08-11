@@ -175,104 +175,118 @@ export function ExamResultPage() {
         </Card>
 
         <PageSection variant="plain">
-          <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
-            <div className="flex flex-col gap-1">
-              <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
-                {candidatePageCopy.review}
-              </span>
-              <h2 className="font-display text-display-md font-semibold text-ink">
-                {result?.show_answer_after_submit === false ? "答题结果" : "答案与解析"}
-              </h2>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas p-1 text-body-sm">
-              <button
-                type="button"
-                aria-pressed={filter === "all"}
-                onClick={() => setFilter("all")}
-                className={cn(
-                  "rounded-pill px-4 py-1",
-                  filter === "all" ? "bg-ink text-canvas" : "text-muted",
-                )}
-              >
-                全部 ({result?.questions.length ?? 0})
-              </button>
-              <button
-                type="button"
-                aria-pressed={filter === "wrong"}
-                onClick={() => setFilter("wrong")}
-                className={cn(
-                  "rounded-pill px-4 py-1",
-                  filter === "wrong" ? "bg-ink text-canvas" : "text-muted",
-                )}
-              >
-                只看错题 ({result?.wrong_count ?? 0})
-              </button>
-            </div>
-          </header>
+          {!result.show_answer_after_submit ? (
+            <PageState
+              state="empty"
+              eyebrow="DETAILS · 解析发布"
+              title="答案与解析尚未发布。"
+              description="当前仅显示分数和通过状态。管理员会在全部考试记录结束后一次性发布答案与解析。"
+              className="border border-hairline bg-canvas py-10 shadow-card"
+            />
+          ) : (
+            <>
+              <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
+                <div className="flex flex-col gap-1">
+                  <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
+                    {candidatePageCopy.review}
+                  </span>
+                  <h2 className="font-display text-display-md font-semibold text-ink">
+                    答案与解析
+                  </h2>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas p-1 text-body-sm">
+                  <button
+                    type="button"
+                    aria-pressed={filter === "all"}
+                    onClick={() => setFilter("all")}
+                    className={cn(
+                      "rounded-pill px-4 py-1",
+                      filter === "all" ? "bg-ink text-canvas" : "text-muted",
+                    )}
+                  >
+                    全部 ({result?.questions.length ?? 0})
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={filter === "wrong"}
+                    onClick={() => setFilter("wrong")}
+                    className={cn(
+                      "rounded-pill px-4 py-1",
+                      filter === "wrong" ? "bg-ink text-canvas" : "text-muted",
+                    )}
+                  >
+                    只看错题 ({result?.wrong_count ?? 0})
+                  </button>
+                </div>
+              </header>
 
-          <div className="flex flex-col gap-4">
-            {visibleQuestions.length ? (
-              visibleQuestions.map((question, index) => (
-                <article
-                  key={question.attempt_question_id}
-                  className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5 shadow-card"
-                >
-                  <header className="flex items-baseline justify-between gap-3">
-                    <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
-                      Q {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-caption uppercase tracking-[0.16em]",
-                        question.is_correct ? "text-success" : "text-error",
-                      )}
+              <div className="flex flex-col gap-4">
+                {visibleQuestions.length ? (
+                  visibleQuestions.map((question, index) => (
+                    <article
+                      key={question.attempt_question_id}
+                      className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5 shadow-card"
                     >
-                      {question.is_correct ? "CORRECT · 正确" : "WRONG · 错误"}
-                    </span>
-                  </header>
-                  <p className="text-body text-ink">{question.stem_snapshot}</p>
-                  <dl className="grid gap-1 border-t border-hairline pt-3 text-body-sm">
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <dt className="text-caption uppercase tracking-[0.16em] text-muted">
-                        你的答案
-                      </dt>
-                      <dd className="text-ink">{question.selected_answer || "未作答"}</dd>
-                    </div>
-                    {result?.show_answer_after_submit ? (
-                      <div className="flex flex-wrap items-baseline gap-2">
-                        <dt className="text-caption uppercase tracking-[0.16em] text-muted">
-                          正确答案
-                        </dt>
-                        <dd className="text-ink">{question.correct_answer_snapshot}</dd>
-                      </div>
-                    ) : null}
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <dt className="text-caption uppercase tracking-[0.16em] text-muted">得分</dt>
-                      <dd className="font-mono tabular-nums text-ink">
-                        {question.score_awarded} / {question.score}
-                      </dd>
-                    </div>
-                  </dl>
-                  {result?.show_answer_after_submit && question.analysis_snapshot ? (
-                    <p className="text-body-sm text-muted">
-                      <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
-                      {question.analysis_snapshot}
-                    </p>
-                  ) : null}
-                </article>
-              ))
-            ) : (
-              <div className="rounded-lg border border-hairline bg-canvas">
-                <PageState
-                  state="empty"
-                  eyebrow={candidatePageCopy.empty}
-                  title="暂无匹配题目。"
-                  description="切换筛选条件后可查看全部答题结果。"
-                  className="py-10"
-                />
+                      <header className="flex items-baseline justify-between gap-3">
+                        <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
+                          Q {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-caption uppercase tracking-[0.16em]",
+                            question.is_correct ? "text-success" : "text-error",
+                          )}
+                        >
+                          {question.is_correct ? "CORRECT · 正确" : "WRONG · 错误"}
+                        </span>
+                      </header>
+                      <p className="text-body text-ink">{question.stem_snapshot}</p>
+                      <dl className="grid gap-1 border-t border-hairline pt-3 text-body-sm">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <dt className="text-caption uppercase tracking-[0.16em] text-muted">
+                            你的答案
+                          </dt>
+                          <dd className="text-ink">{question.selected_answer || "未作答"}</dd>
+                        </div>
+                        {result?.show_answer_after_submit ? (
+                          <div className="flex flex-wrap items-baseline gap-2">
+                            <dt className="text-caption uppercase tracking-[0.16em] text-muted">
+                              正确答案
+                            </dt>
+                            <dd className="text-ink">{question.correct_answer_snapshot}</dd>
+                          </div>
+                        ) : null}
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <dt className="text-caption uppercase tracking-[0.16em] text-muted">
+                            得分
+                          </dt>
+                          <dd className="font-mono tabular-nums text-ink">
+                            {question.score_awarded} / {question.score}
+                          </dd>
+                        </div>
+                      </dl>
+                      {result?.show_answer_after_submit && question.analysis_snapshot ? (
+                        <p className="text-body-sm text-muted">
+                          <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
+                          {question.analysis_snapshot}
+                        </p>
+                      ) : null}
+                    </article>
+                  ))
+                ) : (
+                  <div className="rounded-lg border border-hairline bg-canvas">
+                    <PageState
+                      state="empty"
+                      eyebrow={candidatePageCopy.empty}
+                      title="暂无匹配题目。"
+                      description="切换筛选条件后可查看全部答题结果。"
+                      className="py-10"
+                    />
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </PageSection>
       </div>
     </PageShell>

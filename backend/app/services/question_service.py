@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.exceptions import DomainError
 from app.models import Exam, ExamQuestionPool, Question, QuestionOption
 from app.schemas.question import QuestionCreate, QuestionRead, QuestionUpdate
+from app.services.operational_lock_service import assert_admin_mutation_allowed
 
 VALID_QUESTION_TYPES = {"single", "multiple", "judge"}
 VALID_STATUSES = {"active", "inactive"}
@@ -41,6 +42,7 @@ def list_active_questions(db: Session) -> list[QuestionRead]:
 
 
 def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:
+    assert_admin_mutation_allowed(db)
     normalized = _normalize_payload(payload)
     _validate_question_payload(normalized)
 
@@ -58,6 +60,7 @@ def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:
 def update_question(
     db: Session, question_id: int, payload: QuestionUpdate
 ) -> QuestionRead:
+    assert_admin_mutation_allowed(db)
     question = (
         db.query(Question)
         .options(selectinload(Question.options))
@@ -112,6 +115,7 @@ def update_question(
 
 
 def delete_question(db: Session, question_id: int) -> None:
+    assert_admin_mutation_allowed(db)
     question = db.get(Question, question_id)
     if question is None:
         raise QuestionNotFoundError(question_id)

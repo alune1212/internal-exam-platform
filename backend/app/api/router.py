@@ -8,6 +8,7 @@ from app.api import (
     exams,
     imports,
     learning,
+    operations,
     practice,
     questions,
     reports,
@@ -42,3 +43,4 @@ router.include_router(exams.admin_router, dependencies=[Depends(require_admin)])
 router.include_router(questions.router, dependencies=[Depends(require_admin)])
 router.include_router(reports.router, dependencies=[Depends(require_admin)])
 router.include_router(imports.router, dependencies=[Depends(require_admin)])
+router.include_router(operations.router, dependencies=[Depends(require_admin)])

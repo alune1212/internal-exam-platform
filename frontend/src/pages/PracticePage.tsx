@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { List, Send } from "lucide-react";
+import { CheckCircle2, List, RotateCcw, Send, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
@@ -38,6 +38,7 @@ export function PracticePage() {
   const [results, setResults] = useState<ResultMap>({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [searchParams] = useSearchParams();
 
   const {
     data = [],
@@ -71,10 +72,21 @@ export function PracticePage() {
       buildQuestionNavItems({
         questions: sortedData,
         answers,
+        getSubmittedResult: (question) => {
+          const result = results[question.id];
+          return result ? (result.is_correct ? "correct" : "wrong") : undefined;
+        },
         getTargetId: () => "practice-question-focus",
       }),
-    [answers, sortedData],
+    [answers, results, sortedData],
   );
+
+  useEffect(() => {
+    const requestedId = Number(searchParams.get("questionId"));
+    if (!requestedId) return;
+    const requestedIndex = sortedData.findIndex((question) => question.id === requestedId);
+    if (requestedIndex >= 0) setActiveIndex(requestedIndex);
+  }, [searchParams, sortedData]);
 
   function handleSingleChange(question: PracticeQuestion, label: string) {
     setAnswers((current) => ({ ...current, [question.id]: label }));
@@ -88,13 +100,22 @@ export function PracticePage() {
   }
 
   function handleSubmit(question: PracticeQuestion) {
-    if (!candidate) {
+    if (!candidate || results[question.id]) {
       return;
     }
     mutation.mutate({
       question_id: question.id,
       selected_answer: answers[question.id] ?? "",
     });
+  }
+
+  function handleRetry(question: PracticeQuestion) {
+    setResults((current) => {
+      const next = { ...current };
+      delete next[question.id];
+      return next;
+    });
+    setAnswers((current) => ({ ...current, [question.id]: "" }));
   }
 
   const goPrev = useCallback(() => setActiveIndex((index) => Math.max(0, index - 1)), []);
@@ -193,11 +214,11 @@ export function PracticePage() {
     label: option.label,
     content: option.content,
     selected: isMultiple ? selectedLabels.includes(option.label) : singleValue === option.label,
-    disabled: mutation.isPending,
+    disabled: mutation.isPending || Boolean(activeResult),
   }));
 
   const handleSelectOption = (label: string) => {
-    if (mutation.isPending) {
+    if (mutation.isPending || activeResult) {
       return;
     }
     if (isMultiple) {
@@ -215,9 +236,48 @@ export function PracticePage() {
   };
 
   const answerFeedback = activeResult ? (
-    <span className="inline-flex items-center gap-2 text-body text-success">已保存本题作答。</span>
+    <div
+      role="status"
+      className="flex w-full flex-col gap-4 rounded-md border border-hairline bg-canvas p-4"
+    >
+      <div
+        className={
+          activeResult.is_correct
+            ? "flex items-center gap-2 font-medium text-success"
+            : "flex items-center gap-2 font-medium text-error"
+        }
+      >
+        {activeResult.is_correct ? (
+          <CheckCircle2 aria-hidden="true" />
+        ) : (
+          <XCircle aria-hidden="true" />
+        )}
+        {activeResult.is_correct ? "回答正确" : "回答错误"}
+      </div>
+      <p className="text-body text-ink">正确答案：{activeResult.correct_answer}</p>
+      <ul className="flex flex-col gap-2 text-body-sm">
+        {activeResult.option_comparison.map((option) => (
+          <li key={option.label} className="flex flex-wrap gap-2">
+            <span className="font-mono text-ink">{option.label}</span>
+            <span className="text-muted">{option.content}</span>
+            {option.selected ? <span className="text-ink">你的选择</span> : null}
+            {option.correct ? <span className="text-success">正确选项</span> : null}
+          </li>
+        ))}
+      </ul>
+      <div>
+        <p className="text-caption uppercase tracking-[0.16em] text-muted">答案解析</p>
+        <p className="mt-1 whitespace-pre-wrap text-body text-ink">
+          {activeResult.analysis || "本题暂无解析。"}
+        </p>
+      </div>
+      <Button type="button" variant="outline" onClick={() => handleRetry(activeQuestion)}>
+        <RotateCcw data-icon="inline-start" />
+        重新练习本题
+      </Button>
+    </div>
   ) : (
-    <span className="text-body-sm text-muted">作答后保存本题记录。</span>
+    <span className="text-body-sm text-muted">提交后立即显示正确答案与解析。</span>
   );
 
   return (
@@ -230,6 +290,11 @@ export function PracticePage() {
         <p className="max-w-2xl text-body-lg text-muted">
           {candidatePageText.practice.description}
         </p>
+        <div>
+          <Button asChild variant="outline">
+            <Link to="/practice/wrong-questions">查看错题复习</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
@@ -249,15 +314,17 @@ export function PracticePage() {
             }}
           >
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                onClick={() => handleSubmit(activeQuestion)}
-                disabled={!answers[activeQuestion.id] || mutation.isPending}
-                aria-label="提交本题"
-              >
-                <Send data-icon="inline-start" />
-                {mutation.isPending ? "正在提交" : "提交本题"}
-              </Button>
+              {!activeResult ? (
+                <Button
+                  type="button"
+                  onClick={() => handleSubmit(activeQuestion)}
+                  disabled={!answers[activeQuestion.id] || mutation.isPending}
+                  aria-label="提交本题"
+                >
+                  <Send data-icon="inline-start" />
+                  {mutation.isPending ? "正在提交" : "提交本题"}
+                </Button>
+              ) : null}
               {answerFeedback}
             </div>
           </ExamFocusMode>
@@ -289,16 +356,18 @@ export function PracticePage() {
           }}
         >
           <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              onClick={() => handleSubmit(activeQuestion)}
-              disabled={!answers[activeQuestion.id] || mutation.isPending}
-              aria-label="提交本题"
-            >
-              <Send data-icon="inline-start" />
-              {mutation.isPending ? "正在提交" : "提交本题"}
-            </Button>
-            {activeResult ? answerFeedback : null}
+            {!activeResult ? (
+              <Button
+                type="button"
+                onClick={() => handleSubmit(activeQuestion)}
+                disabled={!answers[activeQuestion.id] || mutation.isPending}
+                aria-label="提交本题"
+              >
+                <Send data-icon="inline-start" />
+                {mutation.isPending ? "正在提交" : "提交本题"}
+              </Button>
+            ) : null}
+            {answerFeedback}
           </div>
         </ExamFocusMode>
 

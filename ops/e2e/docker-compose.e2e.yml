@@ -1,0 +1,68 @@
+services:
+  db:
+    environment:
+      POSTGRES_DB: internal_exam_e2e
+      POSTGRES_USER: exam_e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U exam_e2e -d internal_exam_e2e"]
+
+  fake-smtp:
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-backend:${APP_VERSION_TAG:-e2e}
+    restart: "no"
+    command: ["uv", "run", "--no-sync", "python", "-m", "app.ops.fake_smtp"]
+    expose:
+      - "1025"
+    ports:
+      - "127.0.0.1:18025:8025"
+
+  backend:
+    environment:
+      ENVIRONMENT: development
+      E2E_DISPOSABLE_DATABASE: "true"
+      CANDIDATE_LOGIN_TEST_OTP: "246810"
+      CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE: smtp
+      CANDIDATE_LOGIN_EMAIL_FROM: e2e-sender@example.test
+      CANDIDATE_LOGIN_SMTP_HOST: fake-smtp
+      CANDIDATE_LOGIN_SMTP_PORT: "1025"
+      CANDIDATE_LOGIN_SMTP_USE_TLS: "false"
+      CANDIDATE_LOGIN_SMTP_USE_SSL: "false"
+      CANDIDATE_LOGIN_SMTP_USERNAME: ""
+      CANDIDATE_LOGIN_SMTP_PASSWORD: ""
+      CANDIDATE_LOGIN_EMAIL_RETRY_BASE_SECONDS: "0"
+    depends_on:
+      fake-smtp:
+        condition: service_started
+
+  nginx:
+    ports:
+      - "127.0.0.1:18080:80"
+
+  operator-nginx:
+    ports:
+      - "127.0.0.1:18081:80"
+
+  browser-e2e:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.browser-e2e
+    image: ${APP_IMAGE_REPOSITORY:-internal-exam-platform}-browser-e2e:${APP_VERSION_TAG:-e2e}
+    profiles: ["browser-gate"]
+    restart: "no"
+    working_dir: /workspace/frontend
+    environment:
+      E2E_CANDIDATE_URL: http://nginx
+      E2E_OPERATOR_URL: http://operator-nginx
+      E2E_SMTP_CAPTURE_URL: http://fake-smtp:8025
+      E2E_COMPOSE_FILE: ${E2E_COMPOSE_FILE:?run-browser-gate must set E2E_COMPOSE_FILE}
+      E2E_COMPOSE_OVERRIDE: ${E2E_COMPOSE_OVERRIDE:?run-browser-gate must set E2E_COMPOSE_OVERRIDE}
+      E2E_ENV_FILE: ${E2E_ENV_FILE:?run-browser-gate must set E2E_ENV_FILE}
+      E2E_PROJECT_NAME: ${E2E_PROJECT_NAME:?run-browser-gate must set E2E_PROJECT_NAME}
+      PLAYWRIGHT_OUTPUT_DIR: /workspace/e2e-output/test-results/playwright
+      PLAYWRIGHT_REPORT_DIR: /workspace/e2e-output/playwright-report
+    shm_size: 1gb
+    volumes:
+      - ${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}:${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}:ro
+      - ${E2E_RUNTIME_DIR:?run-browser-gate must set E2E_RUNTIME_DIR}:${E2E_RUNTIME_DIR:?run-browser-gate must set E2E_RUNTIME_DIR}:rw
+      - ${E2E_BROWSER_OUTPUT_HOST_DIR:?run-browser-gate must set E2E_BROWSER_OUTPUT_HOST_DIR}:/workspace/e2e-output:rw
+      - ${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}/frontend/e2e:/workspace/frontend/e2e:ro
+      - /var/run/docker.sock:/var/run/docker.sock

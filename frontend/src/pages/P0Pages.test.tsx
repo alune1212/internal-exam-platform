@@ -5,12 +5,24 @@ import type React from "react";
 import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getAttempt, getAttemptResult, saveAttemptAnswers, submitAttempt } from "@/api/attempts";
+import {
+  getAttempt,
+  getAttemptResult,
+  saveAttemptAnswers,
+  submitAttempt,
+  takeoverAttempt,
+} from "@/api/attempts";
 import { requestCandidateLoginOtp, verifyCandidateLoginOtp } from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { getActiveExams, startExam } from "@/api/exams";
-import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
+import {
+  getPracticeQuestions,
+  getWrongPracticeQuestions,
+  submitPracticeAnswer,
+} from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { writeAttemptDraft } from "@/lib/attemptDraft";
+import { clearAttemptSession, getAttemptSession, setAttemptSession } from "@/lib/attemptSession";
 import { clearCurrentCandidate, setCurrentCandidate } from "@/lib/candidateSession";
 import { ExamResultPage } from "@/pages/ExamResultPage";
 import { ExamTakingPage } from "@/pages/ExamTakingPage";
@@ -18,6 +30,7 @@ import { ExamListPage } from "@/pages/ExamListPage";
 import { ExamStartPage } from "@/pages/ExamStartPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PracticePage } from "@/pages/PracticePage";
+import { WrongQuestionReviewPage } from "@/pages/WrongQuestionReviewPage";
 import type { Attempt, AttemptResult } from "@/types/attempt";
 import type { Candidate } from "@/types/candidate";
 import type { Exam } from "@/types/exam";
@@ -33,6 +46,7 @@ vi.mock("@/api/attempts", () => ({
   getAttemptResult: vi.fn(),
   saveAttemptAnswers: vi.fn(),
   submitAttempt: vi.fn(),
+  takeoverAttempt: vi.fn(),
 }));
 
 vi.mock("@/api/exams", () => ({
@@ -42,6 +56,7 @@ vi.mock("@/api/exams", () => ({
 
 vi.mock("@/api/questions", () => ({
   getPracticeQuestions: vi.fn(),
+  getWrongPracticeQuestions: vi.fn(),
   submitPracticeAnswer: vi.fn(),
 }));
 
@@ -68,6 +83,8 @@ const attempt: Attempt = {
   total_score: 4,
   correct_count: 0,
   wrong_count: 0,
+  attempt_session_generation: 1,
+  answer_revision: 0,
   questions: [
     {
       id: 101,
@@ -180,17 +197,78 @@ describe("P0 pages", () => {
     window.localStorage.clear();
     window.sessionStorage.clear();
     clearCurrentCandidate();
+    setCurrentCandidate(candidate);
+    setAttemptSession({
+      candidateId: candidate.id,
+      attemptId: attempt.id,
+      credential: "attempt-credential",
+      generation: 1,
+      answerRevision: 0,
+    });
     vi.mocked(getAttempt).mockResolvedValue(attempt);
     vi.mocked(getAttemptResult).mockResolvedValue(result);
     vi.mocked(getActiveExams).mockResolvedValue([exam]);
     vi.mocked(getPracticeQuestions).mockResolvedValue(practiceQuestions);
     vi.mocked(submitPracticeAnswer).mockResolvedValue({
+      practice_answer_id: 1,
       question_id: 201,
       selected_answer: "A",
       score: 2,
+      is_correct: true,
+      correct_answer: "A",
+      analysis: "选项 A 是正确答案。",
+      option_comparison: [
+        { label: "A", content: "选项 A", selected: true, correct: true },
+        { label: "B", content: "选项 B", selected: false, correct: false },
+      ],
     });
-    vi.mocked(saveAttemptAnswers).mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
+    vi.mocked(getWrongPracticeQuestions).mockResolvedValue([
+      {
+        question_id: 201,
+        question_type: "single",
+        stem: "练习题题干",
+        category_1: "安全",
+        category_2: "账号",
+        status: "active",
+        correct_answer: "A",
+        analysis: "选项 A 是正确答案。",
+        incorrect_count: 1,
+        total_attempts: 2,
+        mastered: true,
+        latest_practiced_at: "2026-07-21T08:00:00Z",
+        history: [
+          {
+            practice_answer_id: 1,
+            selected_answer: "B",
+            is_correct: false,
+            practiced_at: "2026-07-21T07:00:00Z",
+          },
+          {
+            practice_answer_id: 2,
+            selected_answer: "A",
+            is_correct: true,
+            practiced_at: "2026-07-21T08:00:00Z",
+          },
+        ],
+        options: [
+          { label: "A", content: "选项 A", selected: true, correct: true },
+          { label: "B", content: "选项 B", selected: false, correct: false },
+        ],
+      },
+    ]);
+    vi.mocked(saveAttemptAnswers).mockResolvedValue({
+      saved_count: 1,
+      saved_at: "2026-06-14",
+      answer_revision: 1,
+    });
     vi.mocked(submitAttempt).mockResolvedValue(result);
+    vi.mocked(takeoverAttempt).mockResolvedValue({
+      attempt_id: 10,
+      attempt_session_credential: "replacement-credential",
+      attempt_session_generation: 2,
+      answer_revision: 1,
+      ends_at: attempt.ends_at,
+    });
     vi.mocked(startExam).mockResolvedValue({ attempt_id: 10 } as Awaited<
       ReturnType<typeof startExam>
     >);
@@ -357,18 +435,28 @@ describe("P0 pages", () => {
 
     await user.click(submitButtons[0]);
 
-    await waitFor(() => expect(submitAttempt).toHaveBeenCalledWith("10", "manual"));
+    await waitFor(() =>
+      expect(submitAttempt).toHaveBeenCalledWith("10", "attempt-credential", "manual"),
+    );
   });
 
   it("waits for queued autosave before final exam submit and ignores duplicate submits", async () => {
     const user = userEvent.setup();
-    let resolveFirstSave: (value: { saved_count: number; saved_at: string }) => void = () => {};
-    const firstSave = new Promise<{ saved_count: number; saved_at: string }>((resolve) => {
+    let resolveFirstSave: (value: {
+      saved_count: number;
+      saved_at: string;
+      answer_revision: number;
+    }) => void = () => {};
+    const firstSave = new Promise<{
+      saved_count: number;
+      saved_at: string;
+      answer_revision: number;
+    }>((resolve) => {
       resolveFirstSave = resolve;
     });
     vi.mocked(saveAttemptAnswers)
       .mockImplementationOnce(() => firstSave)
-      .mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
+      .mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14", answer_revision: 2 });
     vi.mocked(submitAttempt).mockReturnValue(new Promise(() => {}));
 
     renderPage(
@@ -389,20 +477,23 @@ describe("P0 pages", () => {
     expect(submitAttempt).not.toHaveBeenCalled();
     expect(saveAttemptAnswers).toHaveBeenCalledTimes(1);
 
-    resolveFirstSave({ saved_count: 1, saved_at: "2026-06-14" });
+    resolveFirstSave({ saved_count: 1, saved_at: "2026-06-14", answer_revision: 1 });
 
     await waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
-    expect(submitAttempt).toHaveBeenCalledWith("10", "manual");
-    expect(saveAttemptAnswers).toHaveBeenLastCalledWith("10", [
-      { attempt_question_id: 101, selected_answer: "B" },
-    ]);
+    expect(submitAttempt).toHaveBeenCalledWith("10", "attempt-credential", "manual");
+    expect(saveAttemptAnswers).toHaveBeenLastCalledWith(
+      "10",
+      "attempt-credential",
+      [{ attempt_question_id: 101, selected_answer: "B" }],
+      1,
+    );
   });
 
   it("shows visible autosave failure and retries the latest answer snapshot", async () => {
     const user = userEvent.setup();
     vi.mocked(saveAttemptAnswers)
-      .mockRejectedValueOnce(new ApiError("保存失败", 409, "保存失败"))
-      .mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14" });
+      .mockRejectedValueOnce(new ApiError("保存失败", 500, "保存失败"))
+      .mockResolvedValue({ saved_count: 1, saved_at: "2026-06-14", answer_revision: 1 });
 
     renderPage(
       "exams/:examId/taking",
@@ -418,9 +509,145 @@ describe("P0 pages", () => {
     await user.click(screen.getByRole("button", { name: "重试保存" }));
 
     await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(2));
-    expect(saveAttemptAnswers).toHaveBeenLastCalledWith("10", [
-      { attempt_question_id: 101, selected_answer: "B" },
-    ]);
+    expect(saveAttemptAnswers).toHaveBeenLastCalledWith(
+      "10",
+      "attempt-credential",
+      [{ attempt_question_id: 101, selected_answer: "B" }],
+      0,
+    );
+  });
+
+  it("restores a matching pending draft after reload and retries it", async () => {
+    const activeSession = getAttemptSession(candidate.id, attempt.id);
+    expect(activeSession).not.toBeNull();
+    writeAttemptDraft(activeSession!, { 101: "B" });
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    const optionB = await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    await waitFor(() =>
+      expect(optionB.some((option) => option.getAttribute("aria-checked") === "true")).toBe(true),
+    );
+    await waitFor(() =>
+      expect(saveAttemptAnswers).toHaveBeenCalledWith(
+        "10",
+        "attempt-credential",
+        [{ attempt_question_id: 101, selected_answer: "B" }],
+        0,
+      ),
+    );
+  });
+
+  it("keeps the pending draft and blocks submit while offline", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveAttemptAnswers).mockRejectedValue(new Error("network unavailable"));
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    const optionB = await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    await user.click(optionB[0]);
+    expect(await screen.findByText("网络中断，答案待同步")).toBeVisible();
+    await user.click(screen.getAllByRole("button", { name: "交卷" })[0]);
+
+    await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(2));
+    expect(submitAttempt).not.toHaveBeenCalled();
+    expect(window.sessionStorage.getItem("internal-exam-attempt-draft:1:10")).toContain(
+      '"101":"B"',
+    );
+  });
+
+  it("surfaces a stale answer revision without overwriting the local draft", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveAttemptAnswers).mockRejectedValueOnce(
+      new ApiError("答案版本已更新", 409, "答案版本已更新，当前服务端版本为 1，请先重新载入。"),
+    );
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    const optionB = await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    await user.click(optionB[0]);
+
+    expect(await screen.findByText("答案版本冲突，请重新接管")).toBeVisible();
+    expect(screen.getByRole("button", { name: "重新登录并接管" })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem("internal-exam-attempt-draft:1:10")).toContain(
+      '"101":"B"',
+    );
+  });
+
+  it("invalidates a rotated device session and clears its unusable draft", async () => {
+    const activeSession = getAttemptSession(candidate.id, attempt.id);
+    expect(activeSession).not.toBeNull();
+    writeAttemptDraft(activeSession!, { 101: "B" });
+    vi.mocked(getAttempt).mockRejectedValueOnce(
+      new ApiError("设备会话失效", 409, "本设备的考试会话已失效，请重新验证码登录后接管考试。"),
+    );
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "需要重新核验并接管考试。" }),
+    ).toBeInTheDocument();
+    expect(getAttemptSession(candidate.id, attempt.id)).toBeNull();
+    expect(window.sessionStorage.getItem("internal-exam-attempt-draft:1:10")).toBeNull();
+  });
+
+  it("uses a fresh-login return marker to take over and load the same attempt", async () => {
+    clearAttemptSession(candidate.id, attempt.id);
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10&takeover=1",
+    );
+
+    await waitFor(() => expect(takeoverAttempt).toHaveBeenCalledWith("10"));
+    expect(await screen.findAllByRole("radio", { name: /选项 A：北京/ })).not.toHaveLength(0);
+    expect(getAttempt).toHaveBeenCalledWith("10", "replacement-credential");
+    expect(getAttemptSession(candidate.id, attempt.id)?.generation).toBe(2);
+  });
+
+  it("clears the attempt session and pending draft after successful submit", async () => {
+    const user = userEvent.setup();
+    const activeSession = getAttemptSession(candidate.id, attempt.id);
+    expect(activeSession).not.toBeNull();
+    writeAttemptDraft(activeSession!, { 101: "A" });
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    await screen.findAllByRole("radio", { name: /选项 A：北京/ });
+    await user.click(screen.getAllByRole("button", { name: "交卷" })[0]);
+
+    await waitFor(() => expect(submitAttempt).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(getAttemptSession(candidate.id, attempt.id)).toBeNull();
+      expect(window.sessionStorage.getItem("internal-exam-attempt-draft:1:10")).toBeNull();
+    });
   });
 
   it("uses the public manual submit contract when the exam timer expires", async () => {
@@ -439,7 +666,9 @@ describe("P0 pages", () => {
       "exams/1/taking?attemptId=10",
     );
 
-    await waitFor(() => expect(submitAttempt).toHaveBeenCalledWith("10", "manual"));
+    await waitFor(() =>
+      expect(submitAttempt).toHaveBeenCalledWith("10", "attempt-credential", "manual"),
+    );
   });
 
   it("selects the current exam option with an A-D keyboard shortcut", async () => {
@@ -456,9 +685,12 @@ describe("P0 pages", () => {
     await user.keyboard("b");
 
     await waitFor(() =>
-      expect(saveAttemptAnswers).toHaveBeenCalledWith("10", [
-        { attempt_question_id: 101, selected_answer: "B" },
-      ]),
+      expect(saveAttemptAnswers).toHaveBeenCalledWith(
+        "10",
+        "attempt-credential",
+        [{ attempt_question_id: 101, selected_answer: "B" }],
+        0,
+      ),
     );
   });
 
@@ -473,6 +705,25 @@ describe("P0 pages", () => {
     expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
     expect(screen.getByText("SCORE · 得分")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
+  });
+
+  it("shows score only while answer details are not released", async () => {
+    vi.mocked(getAttemptResult).mockResolvedValueOnce({
+      ...result,
+      show_answer_after_submit: false,
+      questions: [],
+    });
+
+    renderPage(
+      "exams/:examId/result",
+      <ExamResultPage />,
+      undefined,
+      "exams/1/result?attemptId=10",
+    );
+
+    expect(await screen.findByText("答案与解析尚未发布。")).toBeInTheDocument();
+    expect(screen.getByText(/当前仅显示分数和通过状态/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /只看错题/ })).not.toBeInTheDocument();
   });
 
   it("keeps one result page h1 and exposes selected filter state", async () => {
@@ -551,7 +802,7 @@ describe("P0 pages", () => {
       "exams/1/result?attemptId=10",
     );
 
-    expect(await screen.findByText("答题结果")).toBeInTheDocument();
+    expect(await screen.findByText("答案与解析尚未发布。")).toBeInTheDocument();
     expect(screen.queryByText("正确答案")).not.toBeInTheDocument();
     expect(screen.queryByText("北京是首都。")).not.toBeInTheDocument();
   });
@@ -629,6 +880,54 @@ describe("P0 pages", () => {
     });
   });
 
+  it("locks immediate practice feedback and starts retries as new submissions", async () => {
+    const user = userEvent.setup();
+    renderPage("practice", <PracticePage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    await user.click((await screen.findAllByRole("radio", { name: /选项 A：选项 A/ }))[0]);
+    await user.click(screen.getAllByRole("button", { name: "提交本题" })[0]);
+
+    expect(await screen.findAllByText("回答正确")).not.toHaveLength(0);
+    expect(screen.getAllByText("正确答案：A")).not.toHaveLength(0);
+    expect(screen.getAllByText("选项 A 是正确答案。")).not.toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "提交本题" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ })[0]).toBeDisabled();
+
+    await user.click(screen.getAllByRole("button", { name: "重新练习本题" })[0]);
+    expect(screen.getAllByRole("button", { name: "提交本题" })[0]).toBeDisabled();
+    expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ })[0]).not.toBeDisabled();
+  });
+
+  it("shows candidate-scoped wrong-question mastery and category filters", async () => {
+    const user = userEvent.setup();
+    renderPage("practice/wrong-questions", <WrongQuestionReviewPage />, {
+      candidate,
+      loginCandidate: vi.fn(),
+      logoutCandidate: vi.fn(),
+    });
+
+    expect(await screen.findByRole("heading", { name: "错题复习" })).toBeInTheDocument();
+    expect(await screen.findByText("错 1 次 · 共练习 2 次")).toBeInTheDocument();
+    expect(screen.getAllByText("已掌握").length).toBeGreaterThan(1);
+    expect(screen.getByRole("link", { name: /再次练习/ })).toHaveAttribute(
+      "href",
+      "/practice?questionId=201",
+    );
+
+    await user.type(screen.getByLabelText("一级分类"), "安全");
+    await waitFor(() =>
+      expect(getWrongPracticeQuestions).toHaveBeenLastCalledWith({
+        category_1: "安全",
+        category_2: undefined,
+        mastered: undefined,
+      }),
+    );
+  });
+
   it("shows practice loading state before empty copy while questions are loading", async () => {
     vi.mocked(getPracticeQuestions).mockReturnValue(new Promise(() => {}));
 
@@ -669,6 +968,7 @@ describe("P0 pages", () => {
   });
 
   it("does not request active exams without a candidate session", async () => {
+    clearCurrentCandidate();
     renderPage("exams", <ExamListPage />);
 
     await act(async () => {});
@@ -719,6 +1019,7 @@ describe("P0 pages", () => {
       "href",
       "/exams/1/taking?attemptId=10",
     );
+    expect(screen.getByText("新开考窗口已关闭")).toBeInTheDocument();
   });
 
   it("keeps the exam list heading stable with multiple active exams", async () => {

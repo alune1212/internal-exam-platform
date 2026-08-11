@@ -39,7 +39,42 @@ def create_candidate_token(candidate_id: int) -> str:
     return create_session_token(f"candidate:{candidate_id}")
 
 
-def parse_candidate_token(token: str) -> int | None:
+def create_admin_token(operator_username: str) -> str:
+    return create_session_token(f"admin:{operator_username}")
+
+
+def parse_admin_token(token: str) -> str | None:
+    from app.core.config import settings
+
+    active_username, _active_password = settings.configured_active_operator
+    if not active_username:
+        return None
+    if verify_session_token(
+        token,
+        subject=f"admin:{active_username}",
+        secret=settings.token_secret,
+        max_age_seconds=settings.admin_token_ttl_seconds,
+    ):
+        return active_username
+    # Keep the pre-named-operator token shape for development fixtures only,
+    # while retaining the same single-active-operator switch semantics.
+    if (
+        settings.environment == "development"
+        and not settings.backup_operator_enabled
+        and verify_session_token(
+            token,
+            subject=active_username,
+            secret=settings.token_secret,
+            max_age_seconds=settings.admin_token_ttl_seconds,
+        )
+    ):
+        return active_username
+    return None
+
+
+def parse_candidate_token(
+    token: str, *, max_age_seconds: int | None = None
+) -> int | None:
     from app.core.config import settings
 
     parts = token.split(".")
@@ -48,7 +83,12 @@ def parse_candidate_token(token: str) -> int | None:
     raw_id = parts[0].removeprefix("candidate:")
     if not raw_id.isdigit():
         return None
-    if not verify_session_token(token, subject=parts[0], secret=settings.token_secret):
+    if not verify_session_token(
+        token,
+        subject=parts[0],
+        secret=settings.token_secret,
+        max_age_seconds=max_age_seconds or settings.candidate_token_ttl_seconds,
+    ):
         return None
     return int(raw_id)
 

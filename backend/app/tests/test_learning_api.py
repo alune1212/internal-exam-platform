@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 from fastapi.testclient import TestClient
@@ -11,7 +12,8 @@ from app.core.config import settings
 from app.core.database import Base, get_db
 from app.core.security import create_candidate_token, create_session_token
 from app.main import create_app
-from app.models import Candidate, ExamCandidateScope, LearningVideo
+from app.models import Candidate, ExamAttempt, ExamCandidateScope, LearningVideo
+from app.services.operational_lock_service import acquire_backup_write_freeze
 from app.tests.conftest import (
     create_candidate,
     create_exam,
@@ -91,6 +93,63 @@ def test_admin_upload_rejects_invalid_video_file() -> None:
 
     assert response.status_code == 400
     assert db.query(LearningVideo).count() == 0
+
+
+def test_formal_attempt_blocks_video_upload_before_media_or_row_persistence() -> None:
+    client, db = _build_client()
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    now = datetime.now(UTC)
+    db.add(
+        ExamAttempt(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            status="in_progress",
+            started_at=now,
+            ends_at=now + timedelta(hours=1),
+            duration_minutes_snapshot=60,
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        "/api/admin/learning/videos",
+        headers=_admin_headers(),
+        data={"title": "考试中禁止上传", "duration_seconds": "100"},
+        files={"file": ("blocked.mp4", b"video-bytes", "video/mp4")},
+    )
+
+    assert response.status_code == 409
+    assert "正式考试" in response.json()["detail"]
+    assert db.query(LearningVideo).count() == 0
+
+
+def test_backup_freeze_blocks_progress_but_keeps_video_reads_available() -> None:
+    client, db = _build_client()
+    video = _upload_video(client)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish", headers=_admin_headers()
+    )
+    candidate = create_candidate(db)
+    acquire_backup_write_freeze(db, owner="api-backup", ttl_seconds=600)
+    db.commit()
+
+    listed = client.get(
+        "/api/learning/videos", headers=_candidate_headers(candidate.id)
+    )
+    progress = client.post(
+        f"/api/learning/videos/{video['id']}/progress",
+        headers=_candidate_headers(candidate.id),
+        json={
+            "current_position_seconds": 10,
+            "watched_start_seconds": 0,
+            "watched_end_seconds": 10,
+        },
+    )
+
+    assert listed.status_code == 200
+    assert progress.status_code == 409
+    assert "配对备份" in progress.json()["detail"]
 
 
 def test_candidate_learning_videos_require_active_candidate_token() -> None:
@@ -255,10 +314,14 @@ def test_video_learning_does_not_gate_exam_start_or_submit() -> None:
 
     active = client.get("/api/exams/active", headers=headers)
     started = client.post(f"/api/exams/{exam.id}/start", headers=headers)
-    attempt_id = started.json()["data"]["attempt_id"]
+    started_data = started.json()["data"]
+    attempt_id = started_data["attempt_id"]
     submitted = client.post(
         f"/api/attempts/{attempt_id}/submit",
-        headers=headers,
+        headers={
+            **headers,
+            "X-Attempt-Session": started_data["attempt_session_credential"],
+        },
         json={"submit_type": "manual"},
     )
 

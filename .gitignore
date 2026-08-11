@@ -28,3 +28,6 @@ backups/
 # Local brainstorm / visual-companion artifacts
 .superpowers/
 .worktrees/
+.runtime/
+frontend/playwright-report/
+frontend/test-results/

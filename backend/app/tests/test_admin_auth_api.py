@@ -17,9 +17,18 @@ from app.core.config import Settings, settings
 from app.core.database import Base, get_db
 from app.core.security import _sign, create_session_token, verify_session_token
 from app.main import create_app
-from app.models import Exam, ExamCandidateScope, ExamQuestionPool, ImportBatch
+from app.models import (
+    AdminAuditEvent,
+    Exam,
+    ExamAttempt,
+    ExamCandidateScope,
+    ExamQuestionPool,
+    ImportBatch,
+    Question,
+)
 from app.services import exam_service
 from app.tests.conftest import (
+    build_workbook,
     create_candidate,
     create_exam,
     create_question_with_options,
@@ -115,6 +124,47 @@ def test_admin_exams_accepts_valid_token() -> None:
     assert isinstance(body["data"], list)
 
 
+def test_session_closure_readiness_is_admin_only_and_blocks_in_progress() -> None:
+    client, db = _build_client()
+    unauthorized = client.get("/api/admin/operations/session-closure-readiness")
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+    headers = {"X-Admin-Token": token}
+
+    ready = client.get(
+        "/api/admin/operations/session-closure-readiness", headers=headers
+    )
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    now = datetime.now(UTC)
+    db.add(
+        ExamAttempt(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            status="in_progress",
+            started_at=now,
+            ends_at=now + timedelta(hours=1),
+            duration_minutes_snapshot=60,
+        )
+    )
+    db.commit()
+    blocked = client.get(
+        "/api/admin/operations/session-closure-readiness", headers=headers
+    )
+
+    assert unauthorized.status_code == 401
+    assert ready.json()["data"] == {
+        "ready": True,
+        "in_progress_attempt_count": 0,
+    }
+    assert blocked.json()["data"] == {
+        "ready": False,
+        "in_progress_attempt_count": 1,
+    }
+
+
 def test_admin_exams_returns_zero_for_exam_without_question_pool() -> None:
     client, db = _build_client()
     empty_exam = create_exam(db, title="零题池考试", status="draft")
@@ -185,7 +235,7 @@ def test_admin_exams_rejects_wrong_token() -> None:
 def test_admin_exams_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> None:
     client, _ = _build_client()
     token = create_session_token(settings.admin_username)
-    monkeypatch.setattr(settings, "token_ttl_seconds", -1)
+    monkeypatch.setattr(settings, "admin_token_ttl_seconds", -1)
 
     resp = client.get(
         "/api/admin/exams",
@@ -193,6 +243,116 @@ def test_admin_exams_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     assert resp.status_code == 401
+
+
+def test_named_primary_and_default_disabled_backup_operator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "primary_operator_username", "primary")
+    monkeypatch.setattr(settings, "primary_operator_password", "primary-password")
+    monkeypatch.setattr(settings, "backup_operator_username", "backup")
+    monkeypatch.setattr(settings, "backup_operator_password", "backup-password")
+    monkeypatch.setattr(settings, "backup_operator_enabled", False)
+    client, db = _build_client()
+
+    primary = client.post(
+        "/api/admin/login",
+        json={"username": "primary", "password": "primary-password"},
+    )
+    backup = client.post(
+        "/api/admin/login",
+        json={"username": "backup", "password": "backup-password"},
+    )
+
+    assert primary.status_code == 200
+    assert backup.status_code == 401
+    events = db.query(AdminAuditEvent).order_by(AdminAuditEvent.id).all()
+    assert [(event.operator_subject, event.result) for event in events] == [
+        ("primary", "success"),
+        ("backup", "rejected"),
+    ]
+
+
+def test_enabled_backup_operator_has_same_admin_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "primary_operator_username", "primary")
+    monkeypatch.setattr(settings, "primary_operator_password", "primary-password")
+    monkeypatch.setattr(settings, "backup_operator_username", "backup")
+    monkeypatch.setattr(settings, "backup_operator_password", "backup-password")
+    monkeypatch.setattr(settings, "backup_operator_enabled", True)
+    client, _ = _build_client()
+
+    primary_login = client.post(
+        "/api/admin/login",
+        json={"username": "primary", "password": "primary-password"},
+    )
+    login = client.post(
+        "/api/admin/login",
+        json={"username": "backup", "password": "backup-password"},
+    )
+    token = login.json()["data"]["token"]
+    response = client.get("/api/admin/exams", headers={"X-Admin-Token": token})
+
+    assert primary_login.status_code == 401
+    assert login.status_code == 200
+    assert response.status_code == 200
+
+
+def test_switching_active_operator_invalidates_old_tokens(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "primary_operator_username", "primary")
+    monkeypatch.setattr(settings, "primary_operator_password", "primary-password")
+    monkeypatch.setattr(settings, "backup_operator_username", "backup")
+    monkeypatch.setattr(settings, "backup_operator_password", "backup-password")
+    monkeypatch.setattr(settings, "backup_operator_enabled", False)
+    client, _ = _build_client()
+
+    primary_login = client.post(
+        "/api/admin/login",
+        json={"username": "primary", "password": "primary-password"},
+    )
+    primary_token = primary_login.json()["data"]["token"]
+    assert (
+        client.get(
+            "/api/admin/exams", headers={"X-Admin-Token": primary_token}
+        ).status_code
+        == 200
+    )
+
+    monkeypatch.setattr(settings, "backup_operator_enabled", True)
+    assert (
+        client.get(
+            "/api/admin/exams", headers={"X-Admin-Token": primary_token}
+        ).status_code
+        == 401
+    )
+    backup_login = client.post(
+        "/api/admin/login",
+        json={"username": "backup", "password": "backup-password"},
+    )
+    backup_token = backup_login.json()["data"]["token"]
+    assert backup_login.status_code == 200
+    assert (
+        client.get(
+            "/api/admin/exams", headers={"X-Admin-Token": backup_token}
+        ).status_code
+        == 200
+    )
+
+    monkeypatch.setattr(settings, "backup_operator_enabled", False)
+    assert (
+        client.get(
+            "/api/admin/exams", headers={"X-Admin-Token": backup_token}
+        ).status_code
+        == 401
+    )
+    primary_login_after_switch = client.post(
+        "/api/admin/login",
+        json={"username": "primary", "password": "primary-password"},
+    )
+    assert primary_login_after_switch.status_code == 200
 
 
 def test_admin_token_rejects_future_issued_at() -> None:
@@ -499,3 +659,77 @@ def test_admin_score_report_accepts_exam_filter() -> None:
     rows = resp.json()["data"]
     assert len(rows) == 1
     assert rows[0]["exam_title"] == "第一场"
+
+
+def test_publish_rolls_back_exam_when_audit_write_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    exam = create_exam(db, title="待发布", status="draft")
+    candidate = create_candidate(db, employee_no="E-PUBLISH")
+    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.commit()
+    create_question_with_options(db)
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    def fail_audit(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr("app.api.exams.record_admin_event", fail_audit)
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        client.post(
+            f"/api/admin/exams/{exam.id}/publish",
+            headers={"X-Admin-Token": token},
+            json={"confirmation_title": exam.title},
+        )
+    db.expire_all()
+    persisted_exam = db.get(Exam, exam.id)
+    assert persisted_exam is not None
+    assert persisted_exam.status == "draft"
+    assert db.query(ExamQuestionPool).filter_by(exam_id=exam.id).count() == 0
+
+
+def test_question_import_rolls_back_questions_when_audit_write_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+    workbook = build_workbook(
+        ["question_type", "stem", "option_a", "option_b", "correct_answer", "score"],
+        [
+            {
+                "question_type": "single",
+                "stem": "导入后应回滚",
+                "option_a": "正确",
+                "option_b": "错误",
+                "correct_answer": "A",
+                "score": 1,
+            }
+        ],
+    )
+
+    def fail_audit(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr("app.api.questions.record_admin_event", fail_audit)
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        client.post(
+            "/api/admin/questions/import",
+            headers={"X-Admin-Token": token},
+            files={
+                "file": (
+                    "questions.xlsx",
+                    workbook.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+        )
+    db.expire_all()
+    assert db.query(Question).count() == 0
+    assert db.query(ImportBatch).filter_by(import_type="questions").count() == 0

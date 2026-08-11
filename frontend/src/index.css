@@ -53,10 +53,11 @@
 
     /* Fonts */
     --font-display:
-      "Source Serif 4", "Source Serif Pro", "Songti SC", "Noto Serif SC", Georgia,
-      "Times New Roman", serif;
-    --font-body: "Inter", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
-    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      "Iowan Old Style", "Palatino Linotype", "Songti SC", STSong, Georgia, "Times New Roman", serif;
+    --font-body:
+      system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
+      sans-serif;
+    --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
   }
 
   * {

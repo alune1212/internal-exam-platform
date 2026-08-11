@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_candidate_id
+from app.core.dependencies import get_current_candidate_id, get_fresh_candidate_id
 from app.schemas.attempt import (
     AnswerSaveRequest,
     AnswerSaveResponse,
     AttemptRead,
     AttemptResultRead,
+    AttemptSessionTakeoverResponse,
     SubmitRequest,
 )
 from app.schemas.common import ApiResponse
@@ -32,8 +33,9 @@ def get_attempt(
     attempt_id: int,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
+    attempt_session: str | None = Header(None, alias="X-Attempt-Session"),
 ) -> ApiResponse[AttemptRead]:
-    _verify_attempt_ownership(db, attempt_id, candidate_id)
+    exam_service.verify_attempt_session(db, attempt_id, candidate_id, attempt_session)
     return ApiResponse(data=exam_service.get_attempt(db, attempt_id))
 
 
@@ -45,8 +47,9 @@ def save_answers(
     payload: AnswerSaveRequest,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
+    attempt_session: str | None = Header(None, alias="X-Attempt-Session"),
 ) -> ApiResponse[AnswerSaveResponse]:
-    _verify_attempt_ownership(db, attempt_id, candidate_id)
+    exam_service.verify_attempt_session(db, attempt_id, candidate_id, attempt_session)
     return ApiResponse(data=exam_service.save_answers(db, attempt_id, payload))
 
 
@@ -56,10 +59,25 @@ def submit_attempt(
     payload: SubmitRequest,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
+    attempt_session: str | None = Header(None, alias="X-Attempt-Session"),
 ) -> ApiResponse[AttemptResultRead]:
-    _verify_attempt_ownership(db, attempt_id, candidate_id)
+    exam_service.verify_attempt_session(db, attempt_id, candidate_id, attempt_session)
     return ApiResponse(
         data=exam_service.submit_attempt(db, attempt_id, payload.submit_type)
+    )
+
+
+@router.post(
+    "/{attempt_id}/takeover",
+    response_model=ApiResponse[AttemptSessionTakeoverResponse],
+)
+def takeover_attempt_session(
+    attempt_id: int,
+    db: Session = Depends(get_db),
+    candidate_id: int = Depends(get_fresh_candidate_id),
+) -> ApiResponse[AttemptSessionTakeoverResponse]:
+    return ApiResponse(
+        data=exam_service.takeover_attempt_session(db, attempt_id, candidate_id)
     )
 
 

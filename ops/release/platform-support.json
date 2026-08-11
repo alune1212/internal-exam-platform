@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-08-07T00:00:00Z",
+  "required_platforms": [
+    "linux/amd64",
+    "linux/arm64"
+  ],
+  "images": {
+    "backend_base": {
+      "index_digest": "sha256:69eaf43b0555bbaf37a4daddbecf3c621b3d5d7529a3eea6023f80329455dba9",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "backend_postgres_tools": {
+      "index_digest": "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "frontend_builder": {
+      "index_digest": "sha256:e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "frontend_runtime": {
+      "index_digest": "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "gateway": {
+      "index_digest": "sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    },
+    "postgres": {
+      "index_digest": "sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777",
+      "platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ]
+    }
+  }
+}

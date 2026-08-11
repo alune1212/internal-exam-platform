@@ -30,6 +30,11 @@ class AttemptRead(ORMModel):
     total_score: float
     correct_count: int
     wrong_count: int
+    attempt_session_generation: int = 0
+    answer_revision: int = 0
+    voided_at: datetime | None = None
+    voided_by: str | None = None
+    void_reason: str | None = None
     questions: list[AttemptQuestionRead] = Field(default_factory=list)
 
 
@@ -40,15 +45,25 @@ class AnswerSaveItem(BaseModel):
 
 class AnswerSaveRequest(BaseModel):
     answers: list[AnswerSaveItem]
+    answer_revision: int = 0
 
 
 class AnswerSaveResponse(BaseModel):
     saved_count: int
     saved_at: datetime
+    answer_revision: int = 0
 
 
 class SubmitRequest(BaseModel):
     submit_type: Literal["manual"] = "manual"
+
+
+class AttemptSessionTakeoverResponse(BaseModel):
+    attempt_id: int
+    attempt_session_credential: str
+    attempt_session_generation: int
+    answer_revision: int
+    ends_at: datetime
 
 
 class AttemptResultQuestion(BaseModel):
@@ -72,3 +87,20 @@ class AttemptResultRead(BaseModel):
     correct_count: int
     wrong_count: int
     questions: list[AttemptResultQuestion] = Field(default_factory=list)
+
+
+class AttemptVoidRequest(BaseModel):
+    reason: str = Field(min_length=5, max_length=1000)
+
+
+class AttemptIncidentRead(BaseModel):
+    attempt_id: int
+    exam_id: int
+    candidate_id: int
+    prior_status: str
+    status: Literal["voided"] = "voided"
+    voided_at: datetime
+    voided_by: str
+    reason: str
+    attempt_no: int
+    retake_granted: bool = False

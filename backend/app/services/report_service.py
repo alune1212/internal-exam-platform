@@ -1,7 +1,7 @@
 from io import BytesIO
 
 from openpyxl import Workbook
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -190,7 +190,12 @@ def get_absent_candidates(
                 base.outerjoin(
                     latest_attempt, latest_attempt.c.candidate_id == Candidate.id
                 )
-                .filter(latest_attempt.c.attempt_id.is_(None))
+                .filter(
+                    or_(
+                        latest_attempt.c.attempt_id.is_(None),
+                        latest_attempt.c.status == "voided",
+                    )
+                )
                 .order_by(Candidate.name)
                 .all()
             )
@@ -221,7 +226,12 @@ def get_absent_candidates(
                 base.outerjoin(
                     latest_attempt, latest_attempt.c.candidate_id == Candidate.id
                 )
-                .filter(latest_attempt.c.attempt_id.is_(None))
+                .filter(
+                    or_(
+                        latest_attempt.c.attempt_id.is_(None),
+                        latest_attempt.c.status == "voided",
+                    )
+                )
                 .order_by(Candidate.name)
                 .all()
             )
