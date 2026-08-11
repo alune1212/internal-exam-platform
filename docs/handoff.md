@@ -254,6 +254,18 @@ Scripted business UAT verified on 2026-06-29 using only `http://localhost:8080`:
 - Video learning completion is independent from exam eligibility, exam start/submit, scoring, ranking, and practice behavior. The current completion threshold is 90%.
 - Admin learning pages support local `mp4` / `webm` upload, client-side duration extraction, publish/archive actions, title/description edits, video/status-filtered learning report, and Excel export.
 
+## macOS Acceptance Implementation Verification (2026-08-11)
+
+The macOS acceptance implementation was reverified after adding generation-1 writer commissioning, schema-2 staging evidence, privileged host evidence, release sealing, and crash-resumable writer lineage handling. These are engineering-gate results, not substitutes for the remaining real-host evidence:
+
+- Backend: 564 passed, 10 skipped; Ruff and `ty` passed.
+- Frontend: 64 files / 349 tests passed; Prettier, ESLint, and the production build passed.
+- OpenSpec strict validation: 11/11 specs and changes passed. The macOS change remains 39/44 tasks complete; real tasks 4.5, 6.7, and 8.1–8.3 remain open.
+- All macOS zsh entrypoints parsed successfully; LaunchAgent plist templates and Compose configuration checks passed.
+- A disposable PostgreSQL migration/concurrency run passed and removed its scoped test project afterward.
+- Docker Desktop is configured for login auto-start with Resource Saver disabled. The live host still lacks an approved reserved LAN address, a mounted independent encrypted second-copy disk, complete formal/staging configuration, an installed current release, and loaded formal LaunchAgents.
+- No formal service was started and no real SMTP, second-device/CIDR, desktop/mobile UAT, restart/reboot, or second-copy restore result was represented as passed.
+
 ## Known Gaps
 
 - Real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, real SMTP, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.

@@ -6,6 +6,8 @@ source "$SCRIPT_DIR/Common.zsh"
 
 final_backup_path=""
 browser_evidence=""
+pf_evidence=""
+network_time_evidence=""
 prepared_state_arg=""
 confirmation=""
 source_stopped=0
@@ -15,18 +17,20 @@ while (( $# > 0 )); do
   case "$1" in
     --final-backup-path|--backup) (( $# >= 2 )) || macos_die "$1 requires a path"; final_backup_path="$2"; shift 2 ;;
     --browser-smoke-evidence|--browser-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; browser_evidence="$2"; shift 2 ;;
+    --pf-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; pf_evidence="$2"; shift 2 ;;
+    --network-time-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; network_time_evidence="$2"; shift 2 ;;
     --prepared-state|--prepared-evidence|--state-path) (( $# >= 2 )) || macos_die "$1 requires a path"; prepared_state_arg="$2"; shift 2 ;;
     --source-stopped) source_stopped=1; shift ;;
     --release-path|--release) (( $# >= 2 )) || macos_die "$1 requires a sealed target release path"; target_release_arg="$2"; shift 2 ;;
     --confirmation) (( $# >= 2 )) || macos_die "--confirmation requires exact text"; confirmation="$2"; shift 2 ;;
     --root) (( $# >= 2 )) || macos_die "--root requires a path"; root="$2"; shift 2 ;;
-   -h|--help) print -r -- "usage: $0 [--final-backup-path PATH] --browser-smoke-evidence PATH --source-stopped --confirmation 'ACCEPT HOST CUTOVER' [--prepared-state PATH] [--release-path SEALED_RELEASE] [--root ROOT]"; exit 0 ;;
+   -h|--help) print -r -- "usage: $0 [--final-backup-path PATH] --browser-smoke-evidence PATH --pf-evidence PATH --network-time-evidence PATH --source-stopped --confirmation 'ACCEPT HOST CUTOVER' [--prepared-state PATH] [--release-path SEALED_RELEASE] [--root ROOT]"; exit 0 ;;
     *) macos_die "unknown argument: $1"; exit 1 ;;
   esac
 done
 
 macos_assert_macos
-[[ -n "$browser_evidence" ]] || macos_die "browser evidence is required"
+[[ -n "$browser_evidence" && -n "$pf_evidence" && -n "$network_time_evidence" ]] || macos_die "browser, PF, and network-time evidence are required"
 (( source_stopped == 1 )) || macos_die "source gateway shutdown must be explicitly confirmed"
 [[ "$confirmation" == 'ACCEPT HOST CUTOVER' ]] || macos_die "exact cutover acceptance confirmation did not match"
 macos_assert_outside_worktree "$root" >/dev/null
@@ -501,6 +505,7 @@ accept_cutover() {
   MACOS_PARENT_LOCK_PID="$$" "$SCRIPT_DIR/Test-FormalPreflight.zsh" --root "$root" --lock-held \
     --target-maintenance \
     --backup-path "$backup_path" --browser-smoke-evidence "$browser_evidence" \
+    --pf-evidence "$pf_evidence" --network-time-evidence "$network_time_evidence" \
     --evidence-path "$target_preflight_path" >/dev/null
   macos_check_checksum "$target_preflight_path"
   [[ "$(macos_json_get "$target_preflight_path" status 2>/dev/null || true)" == passed ]] || macos_die "target preflight evidence did not pass"

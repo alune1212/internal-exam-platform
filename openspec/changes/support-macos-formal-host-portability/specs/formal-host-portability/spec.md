@@ -35,6 +35,11 @@ Formal data SHALL move between hosts only as a verified paired PostgreSQL custom
 ### Requirement: Cutover Identity And Writer Fence
 Each formal dataset SHALL have an immutable `datasetId`. Each formal host/project SHALL have a unique `hostId`, and each accepted formal writer SHALL use a monotonically increasing `writerGeneration` (the initial writer is generation `1`; every accepted cutover uses exactly `previous + 1`, never a reused or skipped generation). A checksummed cutover manifest MUST bind the dataset, source and target host IDs, previous and next writer generations, release/image identity, paired-backup ID and checksums, quiescence evidence, source-stop evidence, and acceptance timestamps. `prepare-cutover` and `accept-cutover` MUST reject a missing, stale, mismatched, or already-consumed manifest.
 
+#### Scenario: Initial writer generation is commissioned
+- **WHEN** a fresh macOS formal root completes its explicit generation-1 `Prepare`/`Activate` commissioning flow
+- **THEN** the resulting identity binds one immutable `datasetId`, current `hostId`, and `writerGeneration=1`
+- **AND** no cutover manifest is required for this initial writer, while every later host transition MUST use the cutover manifest and generation increment rules above
+
 #### Scenario: Source prepares a cutover
 - **WHEN** an operator runs `prepare-cutover` for a selected target host
 - **THEN** the operation writes a final verified paired backup and a checksummed manifest with `datasetId`, source/target `hostId`, and the next `writerGeneration`

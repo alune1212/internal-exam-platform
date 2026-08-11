@@ -1,6 +1,6 @@
 # macOS 正式考试 UAT 与证据清单
 
-每次正式发布和考试前在当前 Mac 宿主执行。候选入口固定为 `http://192.168.2.34:8080`；操作员入口严格为 Mac 本机 `http://127.0.0.1:8081`。任何阻断项失败都不得开考。未来 Windows Docker Desktop + WSL2 迁移必须使用同一清单的 Windows 版本重新取证；Mac 证据不能替代 Windows acceptance。
+每次正式发布和考试前在当前 Mac 宿主执行。候选入口使用网络管理员完成 DHCP reservation 后确定的 `http://<FORMAL_LAN_IP>:8080`；操作员入口严格为 Mac 本机 `http://127.0.0.1:8081`。当前现场实测 `192.168.2.34` 已被其他设备占用，未完成地址分配前不得把 `.34`、`.46` 或任何临时地址写入正式配置；同一个 `<FORMAL_LAN_IP>` 必须统一出现在 `formal.env`、CORS、pf 和 host/network evidence。任何阻断项失败都不得开考。未来 Windows Docker Desktop + WSL2 迁移必须使用同一清单的 Windows 版本重新取证；Mac 证据不能替代 Windows acceptance。
 
 ## 1. 宿主、账号、电源和网络
 
@@ -10,9 +10,9 @@
 - [ ] MacBook 全程接入稳定 AC；电池不作为正式电源方案。Mac mini/台式 Mac 的 UPS 和受控关机证据已记录。
 - [ ] 正式根目录在工作树外，目录 0700、`formal.env`/state/evidence 0600；configuration、releases、backups、evidence、diagnostics、state 均由 designated host account owner-only 管理。
 - [ ] FileVault（或公司认可的等效全盘加密）、Application Firewall 和 pf 状态可核验；恢复密钥不在证据包中。
-- [ ] `192.168.2.34/24` 已由 DHCP reservation 固定；实际接口、租约和路由均匹配，`INTERNAL_LAN_BIND_IP=192.168.2.34`。
-- [ ] pf/受管防火墙仅允许 `192.168.2.0/24` 到 `192.168.2.34:8080`；`8081` 只监听 `127.0.0.1`。没有公网转发、访客网或未授权 VPN。
-- [ ] CORS 精确为 `http://192.168.2.34:8080`；已确认当前使用范围仍符合 [`security-http-exception.md`](security-http-exception.md)。
+- [ ] 网络管理员已为未占用的 `<FORMAL_LAN_IP>/24` 建立 DHCP reservation；实际接口、租约和路由均匹配，`INTERNAL_LAN_BIND_IP=<FORMAL_LAN_IP>`。`192.168.2.34` 已知被占用，不得使用；`.46` 也必须先获批准，不能凭当前租约自动采用。
+- [ ] pf/受管防火墙仅允许已批准 CIDR 到 `<FORMAL_LAN_IP>:8080`；`8081` 只监听 `127.0.0.1`。没有公网转发、访客网或未授权 VPN。
+- [ ] CORS 精确为 `http://<FORMAL_LAN_IP>:8080`；已确认当前使用范围仍符合 [`security-http-exception.md`](security-http-exception.md)。
 
 ## 2. 自动化、发布包和 staging
 
@@ -21,9 +21,11 @@
 - [ ] 最终镜像 Python/npm/Trivy 扫描完成：无 Critical；High 均有具名“不可利用”理由，否则阻断。
 - [ ] `sh ops/e2e/run-capacity-gate.sh` 通过 100-client 阈值，保留 JSON 和 SHA-256；证据绑定 Mac ARM64、8 CPU/8 GiB 和 release commit。
 - [ ] `zsh -n ops/macos/*.zsh` 通过，LaunchAgent plist 通过 `plutil -lint`；正式 Compose render 只暴露候选 8080，其他端口 loopback。
+- [ ] 发布严格按 `New-ReleaseBundle → Build-ReleaseImages → Invoke-ReleaseSecurityScan → Seal-Release → Test-ReleaseBundle → Install-Release` 执行；不得跳过扫描/封存，或把 pending/static/synthetic evidence 当作安装或 promotion 依据。
 - [ ] release bundle 的 manifest、SHA-256、Git commit、migration head、image digest、ARM64 支持和安全扫描证据一致；发布包不含 `.env`、数据库、媒体、备份或诊断。
-- [ ] Mac staging 使用独立 project、18080/18081/15432/15173 和独立 volume 完成构建、迁移、候选/管理路由隔离、浏览器 E2E、离线资源检查和服务重启恢复；清理后无残留，未触碰 formal volume。
+- [ ] Mac staging 按实际接口顺序完成：`Invoke-Staging --action Up` → `Status` → `Invoke-StagingRuntimeChecks.zsh`（health/migration、exact six-service restart、route raw evidence）→ `Invoke-StagingExternalChecks.zsh --check browser|smtp|capacity`（browser 完整 E2E report、真实 SMTP、exact-image 100-client report）→ `Invoke-StagingBackupRestoreCheck.zsh`（真实独立加密第二副本 restore）→ `Invoke-Staging --action Accept`（schemaVersion=2，七份 raw evidence 全部带 checksum）→ `Down`（删除独立 project/volume，同时保留 durable evidence bundle）→ `Promote-Release`。不得手写顶层 `gates.status=passed`，不得用本机静态或 synthetic evidence 替代 browser、SMTP、capacity、backup-restore 外部门禁；staging 不得触碰 formal volume。
 - [ ] 考试窗口开始前已停止 development/staging project，只留下一个 formal writer；记录 writer generation/commit。
+- [ ] 初始 formal writer generation 1 按实际两阶段顺序完成：`Prepare --empty-dataset` → schemaVersion=2 staging durable bundle → private `Start-Platform --maintenance` + `Capture-FormalBrowserSmokeEvidence` → designated account `/usr/bin/sudo -v` 后普通用户 `Capture-PrivilegedHostEvidence` → `Activate`。`Activate` 内部完成 exact fence、final paired backup/second-copy、restore drill、target-maintenance preflight、pending barrier、terminal evidence 和 public Start；任何真实外部证据缺失时保持 BLOCKED，不得把跨宿主 `prepare-cutover/accept-cutover` 或 `Promote-Release` 冒充首次 commissioning。
 - [ ] `zsh ops/macos/Install-LaunchAgents.zsh --root "$HOME/Library/Application Support/InternalExam"` 成功；两个 plist 均 loaded，日志路径有界且没有 secret。
 
 ## 3. 正式预检和恢复边界
@@ -33,7 +35,7 @@
 - [ ] 动态磁盘水位满足“操作后至少 20 GiB 且不少于三倍占用”。
 - [ ] 已创建并验证 pre-exam 配对备份；正式升级另有 pre-upgrade 配对备份。
 - [ ] 使用真实 SMTP 向 `PREFLIGHT_SMTP_RECIPIENT` 发送探针成功。停止/阻断 SMTP 后，验证码无法投递且没有共享码、人工 token 或登录后门；恢复 SMTP 后重新申请成功。
-- [ ] `zsh ops/macos/Test-FormalPreflight.zsh --backup-path <backup> --browser-smoke-evidence <evidence> --root "$HOME/Library/Application Support/InternalExam"` 全部 checks 为 passed，并保留 JSON 与 SHA-256；预检只给出 `approval=manual-required`。
+- [ ] designated account 先执行 `/usr/bin/sudo -v`，再以普通用户运行 `zsh ops/macos/Capture-PrivilegedHostEvidence.zsh --root "$HOME/Library/Application Support/InternalExam"`；随后把 `--pf-evidence "$HOME/Library/Application Support/InternalExam/evidence/pf-privileged-host-evidence.json"` 与 `--network-time-evidence "$HOME/Library/Application Support/InternalExam/evidence/network-time-privileged-host-evidence.json"` 显式传给 `Test-FormalPreflight.zsh`（或由 `Activate` 的 target-maintenance 阶段内部调用）。禁止 `sudo` 整段 preflight；全部 checks 为 passed 后仍保留 JSON 与 SHA-256，预检只给出 `approval=manual-required`。
 - [ ] LaunchAgent 只在 Docker ready 后恢复已选 release、使用 `--no-build`，不 build/promote/restore/删除/轮换 session。
 - [ ] 预检全部通过后由主操作员人工确认“允许开考”；Docker/worker 自动恢复或 status 变绿不构成批准。
 

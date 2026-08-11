@@ -116,7 +116,7 @@ if (-not $baseImageReferences) {
 }
 if (-not $baseImageReferences) { throw "Pinned base image references are missing." }
 foreach ($image in $baseImageReferences.PSObject.Properties) {
-    if ([string]$image.Value -notmatch '^([a-z0-9][a-z0-9._/-]{0,254})@sha256:[0-9a-f]{64}$') {
+    if ([string]$image.Value -notmatch '^([a-z0-9][a-z0-9._/-]{0,254})(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?@sha256:[0-9a-f]{64}$') {
         throw "Pinned base image reference is not immutable."
     }
 }

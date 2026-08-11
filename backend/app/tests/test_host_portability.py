@@ -236,6 +236,32 @@ def test_release_metadata_has_shared_identity_and_rejects_secret_fields() -> Non
         host_portability.validate_release_metadata(base_only)
 
 
+def test_release_metadata_accepts_tagged_base_image_digest_and_rejects_floating() -> (
+    None
+):
+    tagged_reference = (
+        "node:22-alpine@sha256:"
+        "69eaf43b0555bbaf37a4daddbecf3c621b3d5d7529a3eea6023f80329455dba9"
+    )
+    metadata = host_portability.validate_release_metadata(
+        _release_metadata(base_image_references={"frontend_builder": tagged_reference})
+    )
+    assert metadata["base_image_references"] == {"frontend_builder": tagged_reference}
+
+    for invalid_reference in (
+        "node:22-alpine",
+        "node:22-alpine@sha256:" + "a" * 63,
+        "node:22-alpine@sha256:" + "g" * 64,
+        "node:22-alpine@sha512:" + "a" * 64,
+    ):
+        with pytest.raises(host_portability.MetadataValidationError, match="immutable"):
+            host_portability.validate_release_metadata(
+                _release_metadata(
+                    base_image_references={"frontend_builder": invalid_reference}
+                )
+            )
+
+
 def test_release_input_identity_is_derived_and_excludes_platform_outputs() -> None:
     raw = _release_metadata(
         release_file_checksums={

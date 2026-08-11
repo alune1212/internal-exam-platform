@@ -7,6 +7,8 @@ source "$SCRIPT_DIR/Common.zsh"
 backup_path=""
 browser_evidence=""
 docker_settings_evidence=""
+pf_evidence=""
+network_time_evidence=""
 evidence_path=""
 lock_held=0
 target_maintenance=0
@@ -16,11 +18,13 @@ while (( $# > 0 )); do
     --backup-path|--backup) (( $# >= 2 )) || macos_die "$1 requires a path"; backup_path="$2"; shift 2 ;;
     --browser-smoke-evidence|--browser-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; browser_evidence="$2"; shift 2 ;;
     --docker-settings-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; docker_settings_evidence="$2"; shift 2 ;;
+    --pf-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; pf_evidence="$2"; shift 2 ;;
+    --network-time-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; network_time_evidence="$2"; shift 2 ;;
     --evidence-path) (( $# >= 2 )) || macos_die "$1 requires a path"; evidence_path="$2"; shift 2 ;;
     --lock-held) lock_held=1; shift ;;
     --target-maintenance) target_maintenance=1; shift ;;
     --root) (( $# >= 2 )) || macos_die "--root requires a path"; root="$2"; shift 2 ;;
-    -h|--help) print -r -- "usage: $0 --backup-path PATH --browser-smoke-evidence PATH [--docker-settings-evidence PATH] [--evidence-path PATH] [--target-maintenance] [--root ROOT]"; exit 0 ;;
+    -h|--help) print -r -- "usage: $0 --backup-path PATH --browser-smoke-evidence PATH --pf-evidence PATH --network-time-evidence PATH [--docker-settings-evidence PATH] [--evidence-path PATH] [--target-maintenance] [--root ROOT]"; exit 0 ;;
     *) macos_die "unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -33,10 +37,12 @@ evidence_written=0
 environment_saved=0
 candidate_port=8080
 operator_port=8081
+pf_evidence_digest="unknown"
+network_time_evidence_digest="unknown"
 
 write_preflight_evidence() {
   local status_value="$1" destination json
-  json="{\"schemaVersion\":1,\"kind\":\"formal-preflight\",\"status\":\"$status_value\",\"checkedAt\":\"$(macos_now_iso)\",\"check\":\"$current_check\",\"version\":\"$(macos_json_escape "$release_version")\",\"commit\":\"$(macos_json_escape "$release_commit")\",\"hostId\":\"$(macos_json_escape "${MACOS_HOST_ID:-unknown}")\",\"architecture\":\"arm64\",\"candidatePort\":$candidate_port,\"operatorPort\":$operator_port,\"targetMaintenance\":$target_maintenance,\"secrets\":\"redacted\",\"approval\":\"manual-required\"}"
+  json="{\"schemaVersion\":1,\"kind\":\"formal-preflight\",\"status\":\"$status_value\",\"checkedAt\":\"$(macos_now_iso)\",\"check\":\"$current_check\",\"version\":\"$(macos_json_escape "$release_version")\",\"commit\":\"$(macos_json_escape "$release_commit")\",\"hostId\":\"$(macos_json_escape "${MACOS_HOST_ID:-unknown}")\",\"architecture\":\"arm64\",\"candidatePort\":$candidate_port,\"operatorPort\":$operator_port,\"targetMaintenance\":$target_maintenance,\"pfEvidenceSha256\":\"$(macos_json_escape "$pf_evidence_digest")\",\"networkTimeEvidenceSha256\":\"$(macos_json_escape "$network_time_evidence_digest")\",\"secrets\":\"redacted\",\"approval\":\"manual-required\"}"
   if [[ -n "$evidence_path" ]]; then
     destination="$(macos_resolve_path "$evidence_path")"
     [[ "$destination" == "$MACOS_LAYOUT_EVIDENCE"/* ]] || macos_die "preflight evidence must remain in the protected evidence directory"
@@ -62,12 +68,15 @@ finish_preflight() {
 trap finish_preflight EXIT
 
 macos_assert_macos
-[[ -n "$backup_path" && -n "$browser_evidence" ]] || macos_die "backup and browser evidence are required"
+[[ -n "$backup_path" && -n "$browser_evidence" && -n "$pf_evidence" && -n "$network_time_evidence" ]] || macos_die "backup, browser, PF, and network-time evidence are required"
 macos_assert_outside_worktree "$root" >/dev/null
 macos_layout "$root"
 macos_assert_protected_configuration "$root"
 [[ -n "$docker_settings_evidence" ]] || docker_settings_evidence="$MACOS_LAYOUT_CONFIGURATION/docker-settings-evidence.json"
 docker_settings_evidence="$(macos_resolve_path "$docker_settings_evidence")"
+[[ ! -L "$pf_evidence" && ! -L "$network_time_evidence" ]] || macos_die "privileged host evidence paths must not be symlinks"
+pf_evidence="$(macos_resolve_path "$pf_evidence")"
+network_time_evidence="$(macos_resolve_path "$network_time_evidence")"
 if [[ -n "$evidence_path" ]]; then evidence_path="$(macos_resolve_path "$evidence_path")"; fi
 if (( lock_held == 1 )); then
   macos_assert_inherited_lock
@@ -89,6 +98,25 @@ if (( target_maintenance == 1 )); then
 fi
 macos_require_formal_paths
 macos_read_cutover_identity
+formal_lan_ip="$(macos_formal_value INTERNAL_LAN_BIND_IP)"
+formal_approved_cidr="$(macos_formal_value PF_APPROVED_CIDR)"
+formal_candidate_port="$(macos_formal_value CANDIDATE_GATEWAY_PORT)"
+formal_operator_port="$(macos_formal_value OPERATOR_GATEWAY_PORT)"
+formal_postgres_port="$(macos_formal_value POSTGRES_LOOPBACK_PORT)"
+formal_frontend_port="$(macos_formal_value FRONTEND_LOOPBACK_PORT)"
+formal_backend_port=8000
+[[ "$formal_candidate_port" =~ '^[0-9]+$' && "$formal_operator_port" =~ '^[0-9]+$' && "$formal_postgres_port" =~ '^[0-9]+$' && "$formal_frontend_port" =~ '^[0-9]+$' ]] || macos_die "formal service ports are missing or invalid"
+[[ "$formal_backend_port" =~ '^[0-9]+$' ]] || macos_die "formal backend port is invalid"
+
+current_check=privileged_host_evidence
+host_identity_digest="$(macos_sha256 "$MACOS_LAYOUT_STATE/host-identity.json")"
+boot_marker_digest="$(macos_current_boot_marker_digest)"
+macos_assert_pf_evidence "$pf_evidence" "$MACOS_HOST_ID" "$host_identity_digest" "$boot_marker_digest" \
+  "$formal_approved_cidr" "$formal_lan_ip" "$formal_candidate_port" "$formal_operator_port" \
+  "$formal_postgres_port" "$formal_frontend_port" "$formal_backend_port" "$MACOS_LAYOUT_EVIDENCE"
+macos_assert_network_time_evidence "$network_time_evidence" "$MACOS_HOST_ID" "$host_identity_digest" "$boot_marker_digest" "$MACOS_LAYOUT_EVIDENCE"
+pf_evidence_digest="$(macos_sha256 "$pf_evidence")"
+network_time_evidence_digest="$(macos_sha256 "$network_time_evidence")"
 
 current_check=docker
 macos_docker_ready
@@ -107,7 +135,6 @@ macos_require_command curl
 macos_require_command df
 macos_require_command pmset
 macos_require_command fdesetup
-macos_require_command systemsetup
 macos_require_command awk
 macos_require_command grep
 
@@ -125,12 +152,16 @@ manifest="$release_path/release-manifest.json"
 
 current_check=configuration_acl
 macos_assert_project_name formal "$MACOS_FORMAL_PROJECT"
-lan_ip="$(macos_formal_value INTERNAL_LAN_BIND_IP)"
+lan_ip="$formal_lan_ip"
 cors_origins="$(macos_formal_value CORS_ORIGINS)"
 if (( target_maintenance == 1 )); then
   lan_ip=127.0.0.1
+  # Maintenance Compose uses an isolated loopback port pair, while the
+  # privileged PF evidence remains bound to the production values read above.
   cors_origins="http://127.0.0.1:${candidate_port}"
 else
+  candidate_port="$formal_candidate_port"
+  operator_port="$formal_operator_port"
   case "$lan_ip" in
     10.*|192.168.*|172.16.*|172.17.*|172.18.*|172.19.*|172.2[0-9].*|172.3[0-1].*) ;;
     *) macos_die "INTERNAL_LAN_BIND_IP must be one fixed private IPv4 address" ;;
@@ -149,17 +180,15 @@ done
 [[ -n "$docker_settings_file" ]] || macos_die "Docker Desktop settings file is unavailable"
 plutil -convert json -o - -- "$docker_settings_file" >/dev/null 2>&1 || macos_die "Docker Desktop settings file is invalid"
 docker_autostart="$(macos_json_get "$docker_settings_file" AutoStart 2>/dev/null || macos_json_get "$docker_settings_file" autoStart 2>/dev/null || macos_json_get "$docker_settings_file" startOnLogin 2>/dev/null || true)"
-docker_resource_saver="$(macos_json_get "$docker_settings_file" useResourceSaver 2>/dev/null || macos_json_get "$docker_settings_file" resourceSaver 2>/dev/null || true)"
-docker_settings_memory="$(macos_json_get "$docker_settings_file" memoryMiB 2>/dev/null || macos_json_get "$docker_settings_file" vmMemory 2>/dev/null || true)"
+docker_resource_saver="$(macos_json_get "$docker_settings_file" UseResourceSaver 2>/dev/null || macos_json_get "$docker_settings_file" useResourceSaver 2>/dev/null || macos_json_get "$docker_settings_file" resourceSaver 2>/dev/null || true)"
 [[ "$docker_autostart" == true ]] || macos_die "Docker Desktop auto-start setting is not enabled"
-if [[ -n "$docker_resource_saver" && -n "$docker_settings_memory" ]]; then
+if [[ -n "$docker_resource_saver" ]]; then
   [[ "$docker_resource_saver" == false ]] || macos_die "Docker Desktop Resource Saver is enabled"
-  [[ "$docker_settings_memory" =~ '^[0-9]+$' && "$docker_settings_memory" -ge 7600 ]] || macos_die "Docker Desktop memory setting is below the approved 8 GB policy"
 else
-  # Recent Docker Desktop settings-store files expose only AutoStart.  The
-  # unavailable administrator fields must come from a protected, checksummed
-  # operator capture; an env boolean is never accepted as a substitute.
-  [[ -f "$docker_settings_evidence" && -f "$docker_settings_evidence.sha256" ]] || macos_die "Docker Desktop Resource Saver/memory settings require checksummed operator evidence"
+  # Older settings-store files may omit UseResourceSaver.  In that narrow
+  # compatibility case require a protected operator capture for the boolean;
+  # memory is independently verified above from live `docker info` output.
+  [[ -f "$docker_settings_evidence" && -f "$docker_settings_evidence.sha256" ]] || macos_die "Docker Desktop Resource Saver setting requires checksummed operator evidence"
   macos_secure_path "$docker_settings_evidence"
   macos_check_checksum "$docker_settings_evidence"
   [[ "$(macos_json_get "$docker_settings_evidence" status 2>/dev/null || true)" == passed ]] || macos_die "Docker Desktop settings evidence did not pass"
@@ -170,8 +199,6 @@ else
   capture_digest="$(macos_json_get "$docker_settings_evidence" captureSha256 2>/dev/null || macos_json_get "$docker_settings_evidence" exportSha256 2>/dev/null || macos_json_get "$docker_settings_evidence" summarySha256 2>/dev/null || true)"
   [[ "$capture_digest" =~ '^[0-9a-fA-F]{64}$' ]] || macos_die "Docker Desktop settings evidence lacks a capture digest"
   [[ "$(macos_json_get "$docker_settings_evidence" resourceSaverDisabled 2>/dev/null || true)" == true ]] || macos_die "Docker Desktop Resource Saver is enabled or unverified"
-  evidence_memory="$(macos_json_get "$docker_settings_evidence" memoryMiB 2>/dev/null || true)"
-  [[ "$evidence_memory" =~ '^[0-9]+$' && "$evidence_memory" -ge 7600 ]] || macos_die "Docker Desktop memory evidence is below the approved 8 GB policy"
 fi
 
 current_check=power_and_sleep
@@ -186,8 +213,6 @@ disksleep_value="$(print -r -- "$ac_settings" | awk '$1 == "disksleep" {print $2
 [[ "$sleep_value" == 0 && "$disksleep_value" == 0 ]] || macos_die "AC sleep/disksleep must both be disabled"
 
 current_check=time_sync
-network_time_output="$(systemsetup -getusingnetworktime 2>/dev/null || true)"
-[[ "$network_time_output" == *On* ]] || macos_die "network time is not enabled"
 date -u '+%Y-%m-%dT%H:%M:%SZ' >/dev/null
 
 current_check=filevault_firewall
@@ -195,17 +220,6 @@ filevault_output="$(fdesetup status 2>/dev/null || true)"
 [[ "$filevault_output" == *"FileVault is On"* ]] || macos_die "FileVault is not enabled"
 firewall_output="$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null || true)"
 [[ "$firewall_output" == *enabled* || "$firewall_output" == *Enabled* ]] || macos_die "firewall is not enabled"
-macos_require_command pfctl
-pf_output="$(pfctl -s info 2>/dev/null || true)"
-[[ "$pf_output" == *Status:*Enabled* || "$pf_output" == *Status:\ Enabled* ]] || macos_die "packet filter is not enabled"
-pf_rules="$(pfctl -sr 2>/dev/null || true)"
-[[ -n "$pf_rules" ]] || macos_die "packet-filter rules are unavailable"
-approved_cidr="$(macos_dotenv_get "$MACOS_FORMAL_ENV" PF_APPROVED_CIDR 2>/dev/null || true)"
-[[ "$approved_cidr" =~ '^[0-9]{1,3}(\.[0-9]{1,3}){3}/([0-9]|[12][0-9]|3[0-2])$' ]] || macos_die "PF_APPROVED_CIDR is missing or invalid"
-[[ "$pf_rules" == *"$approved_cidr"* && "$pf_rules" == *"8080"* ]] || macos_die "packet-filter rules do not prove the approved candidate CIDR/8080 path"
-for forbidden_port in 8081 5432 5173 8000; do
-  [[ "$pf_rules" != *"$forbidden_port"* ]] || macos_die "packet-filter rules expose a forbidden service port: $forbidden_port"
-done
 
 current_check=services_and_split_exposure
 macos_compose_base "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT"

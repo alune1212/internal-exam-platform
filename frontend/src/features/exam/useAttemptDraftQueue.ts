@@ -136,14 +136,19 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
     setSaveStatus(draft ? "pending" : "saved");
     if (draft) {
       changeVersionRef.current += 1;
-      const timer = window.setTimeout(() => void performFullSave(), SAVE_DEBOUNCE_MS);
-      return () => window.clearTimeout(timer);
+      cancelPendingSave();
+      saveDebounceRef.current = window.setTimeout(() => {
+        saveDebounceRef.current = null;
+        void performFullSave();
+      }, SAVE_DEBOUNCE_MS);
+      return cancelPendingSave;
     }
   }, [
     attempt,
     attempt?.answer_revision,
     attempt?.attempt_session_generation,
     attempt?.id,
+    cancelPendingSave,
     performFullSave,
     session,
     setSaveStatus,

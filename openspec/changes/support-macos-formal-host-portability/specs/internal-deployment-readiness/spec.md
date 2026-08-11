@@ -28,3 +28,18 @@ Formal readiness and host migration evidence MUST identify `datasetId`, `hostId`
 - **GIVEN** a valid unconsumed manifest, verified paired backup, isolated target restore, target host evidence, and whole-source-project stop proof
 - **WHEN** `accept-cutover` completes
 - **THEN** the target becomes the only approved writer for the dataset and generation recorded in the manifest
+
+### Requirement: Initial macOS Writer Readiness
+
+Selected-macOS readiness MUST distinguish initial generation-1 commissioning from later cross-host cutover. A fresh formal root MUST remain blocked until `Prepare --empty-dataset`, schemaVersion-2 staging with all seven real raw gates, private generation-1 browser smoke, designated-account privileged evidence, and `Activate`'s fenced final paired backup/second copy, isolated restore, target-maintenance preflight, pending barrier, terminal evidence, and public no-build start all succeed. Missing real network, SMTP, second-device, independent encrypted-storage, browser, capacity, or desktop/phone UAT evidence MUST prevent a ready decision; static or synthetic records cannot satisfy the gate.
+
+#### Scenario: Fresh macOS writer is not yet commissioned
+- **GIVEN** a fresh root has only a sealed release or a `Prepare` pending identity
+- **WHEN** formal readiness is assessed
+- **THEN** the deployment remains blocked and no public candidate writer is approved
+
+#### Scenario: Generation-1 commissioning is complete
+- **GIVEN** all real staging and private maintenance evidence is current and bound to the selected ARM64 release/host
+- **WHEN** `Activate` completes its exact generation-1 fence and terminal barrier
+- **THEN** the selected formal writer may proceed to host-specific preflight and manual exam approval
+- **AND** a crash-resume retry must revalidate the phase journal/fence and cannot bypass terminal evidence

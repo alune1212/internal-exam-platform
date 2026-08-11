@@ -119,7 +119,7 @@ MIGRATION_HEAD_PATTERN: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 SHA256_PATTERN: Final = re.compile(r"^[0-9a-f]{64}$")
 IMAGE_NAME_PATTERN: Final = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,254}$")
 IMAGE_DIGEST_PATTERN: Final = re.compile(
-    r"^[a-z0-9][a-z0-9._/-]{0,254}@sha256:[0-9a-f]{64}$"
+    r"^[a-z0-9][a-z0-9._/-]{0,254}(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?@sha256:[0-9a-f]{64}$"
 )
 IMAGE_ID_PATTERN: Final = re.compile(r"^sha256:[0-9a-f]{64}$")
 

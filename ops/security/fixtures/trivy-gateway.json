@@ -1,6 +1,13 @@
 {
   "SchemaVersion": 2,
+  "Trivy": {"Version": "0.70.0"},
+  "ArtifactType": "container_image",
   "ArtifactName": "internal-exam-platform-gateway:0123456789abcdef0123456789abcdef01234567",
-  "ArtifactID": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "ArtifactID": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "Metadata": {
+    "ImageID": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "Reference": "internal-exam-platform-gateway:0123456789abcdef0123456789abcdef01234567",
+    "RepoTags": ["internal-exam-platform-gateway:0123456789abcdef0123456789abcdef01234567"]
+  },
   "Results": []
 }

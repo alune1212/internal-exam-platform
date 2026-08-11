@@ -21,6 +21,7 @@ macos_assert_outside_worktree "$root" >/dev/null
 [[ "$launch_agents_dir" == /* ]] || macos_die "LaunchAgents directory must be absolute"
 macos_initialize_layout "$root"
 macos_assert_protected_configuration "$root"
+macos_assert_formal_writer_ready 0
 macos_release_state "$MACOS_CURRENT_STATE"
 selected_release="$MACOS_STATE_PATH"
 macos_assert_outside_worktree "$selected_release" >/dev/null

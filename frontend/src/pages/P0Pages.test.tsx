@@ -173,6 +173,9 @@ function renderPage(
   if (path !== "exams") {
     childRoutes.push({ path: "exams", element: <div>考试列表</div> });
   }
+  if (path !== "exams/:examId/result") {
+    childRoutes.push({ path: "exams/:examId/result", element: <div>结果页</div> });
+  }
   const router = createMemoryRouter(
     [
       {

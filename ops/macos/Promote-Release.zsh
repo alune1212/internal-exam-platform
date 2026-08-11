@@ -26,35 +26,101 @@ macos_assert_macos
 macos_assert_outside_worktree "$root" >/dev/null
 macos_layout "$root"
 macos_assert_protected_configuration "$root"
+macos_read_cutover_identity
 macos_require_formal_paths
 macos_docker_ready
 macos_acquire_lock "$MACOS_LAYOUT_STATE/.operation.lock"
-trap 'macos_release_lock' EXIT
+macos_save_environment APP_IMAGE_REPOSITORY APP_VERSION_TAG APP_VERSION GIT_COMMIT
+cleanup_promotion() {
+  local exit_status=$?
+  macos_restore_environment
+  macos_release_lock
+  return "$exit_status"
+}
+trap cleanup_promotion EXIT
 
 release_path="$(macos_resolve_path "$release_path")"
 paired_backup_path="$(macos_assert_backup "$paired_backup_path")"
 staging_evidence="$(macos_resolve_path "$staging_evidence")"
+second_copy_root="$(macos_formal_value SECOND_COPY_PATH)"
+second_copy_root="$(macos_resolve_path "$second_copy_root")"
+macos_assert_second_copy_storage "$second_copy_root"
+[[ "$paired_backup_path:h" == "$MACOS_LAYOUT_BACKUPS" ]] || macos_die "paired backup must be a direct child of the protected local backup directory"
+[[ "$paired_backup_path:t" == backup-* ]] || macos_die "paired backup basename is invalid"
+second_copy_backup_path="$second_copy_root/${paired_backup_path:t}"
+[[ "$second_copy_backup_path:h" == "$second_copy_root" ]] || macos_die "second-copy backup path must be a direct child of verified second-copy storage"
+[[ -d "$second_copy_backup_path" && ! -L "$second_copy_backup_path" ]] || macos_die "paired backup is missing from verified second-copy storage"
 [[ -f "$release_path/release-manifest.json" ]] || macos_die "release manifest is missing"
 [[ -f "$staging_evidence" ]] || macos_die "staging evidence is missing"
+[[ "$release_path:h" == "$MACOS_LAYOUT_RELEASES" ]] || macos_die "promotion requires an installed release under ROOT/releases/<version>"
+[[ "$staging_evidence" == "$MACOS_LAYOUT_ROOT"/* ]] || macos_die "staging evidence must remain under the protected root"
 "$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
 macos_verify_built_image_identity "$release_path"
-macos_check_checksum "$staging_evidence"
-plutil -convert json -o - -- "$staging_evidence" >/dev/null 2>&1 || macos_die "staging evidence is invalid"
 
 manifest="$release_path/release-manifest.json"
 version="$(macos_json_get "$manifest" applicationVersion)"
 commit="$(macos_json_get "$manifest" gitCommit)"
 [[ "$confirmation" == "PROMOTE $version" ]] || macos_die "exact promotion confirmation did not match"
-staging_status="$(macos_json_get "$staging_evidence" status 2>/dev/null || true)"
-staging_commit="$(macos_json_get "$staging_evidence" commit 2>/dev/null || macos_json_get "$staging_evidence" gitCommit 2>/dev/null || true)"
-[[ "$(macos_json_get "$staging_evidence" kind 2>/dev/null || true)" == staging-acceptance && "$staging_status" == passed && "${staging_commit:l}" == "${commit:l}" ]] || macos_die "staging evidence is not a verified acceptance for the release"
-[[ "$(macos_json_get "$staging_evidence" hostOS 2>/dev/null || true)" == darwin && "$(macos_json_get "$staging_evidence" architecture 2>/dev/null || true)" == arm64 && "$(macos_json_get "$staging_evidence" platform 2>/dev/null || true)" == linux/arm64 ]] || macos_die "staging evidence platform identity is invalid"
-staging_checked_at="$(macos_json_get "$staging_evidence" checkedAt 2>/dev/null || macos_json_get "$staging_evidence" checked_at 2>/dev/null || true)"
-macos_assert_fresh_timestamp "$staging_checked_at"
-[[ "$(macos_json_get "$staging_evidence" builtImageIdentitySha256 2>/dev/null || true)" == "$(macos_sha256 "$release_path/ops/release/built-image-identity.json")" ]] || macos_die "staging evidence image identity is stale"
-for gate in browser smtp capacity restart route security; do
-  [[ "$(macos_json_get "$staging_evidence" "gates.$gate" 2>/dev/null || true)" == passed ]] || macos_die "staging acceptance gate is missing or failed"
-done
+lower_commit="${commit:l}"
+short_commit="${lower_commit[1,12]}"
+export APP_VERSION_TAG="$lower_commit"
+export APP_VERSION="$version"
+export GIT_COMMIT="$lower_commit"
+backend_reference="$(macos_json_get "$release_path/ops/release/built-image-identity.json" images.backend.reference)"
+local_backup_sums_sha256="$(macos_sha256 "$paired_backup_path/SHA256SUMS")"
+second_copy_sums_sha256="$(macos_sha256 "$second_copy_backup_path/SHA256SUMS")"
+[[ "$local_backup_sums_sha256" == "$second_copy_sums_sha256" ]] || macos_die "second-copy backup checksum manifest does not match local paired backup"
+macos_run_checked docker run --rm \
+  --volume "$second_copy_backup_path:/portable-backup:ro" "$backend_reference" \
+  uv run --no-sync python -m app.ops.internal_backup inspect /portable-backup
+staging_project="internal-exam-staging-${short_commit}"
+staging_host_root="$MACOS_LAYOUT_ROOT/staging/$short_commit"
+staging_evidence_dir="$staging_host_root/evidence"
+staging_live_image_ids=""
+if [[ -d "$staging_evidence_dir" ]]; then
+  running_services="$(macos_compose_capture "$release_path" "$MACOS_STAGING_ENV" "$staging_project" ps --status running --services 2>/dev/null || true)"
+  staging_running=1
+  for service in db backend auto-submit-worker frontend nginx operator-nginx; do
+    print -r -- "$running_services" | grep -Fx -- "$service" >/dev/null || staging_running=0
+  done
+  if (( staging_running == 1 )); then
+    staging_live_image_ids="$staging_evidence_dir/live-images-promote-${$}-${RANDOM}.json"
+    macos_compose_base "$release_path" "$MACOS_STAGING_ENV" "$staging_project"
+    macos_run_to_file "$staging_live_image_ids" docker "${MACOS_COMPOSE_ARGS[@]}" images --format json
+    macos_write_checksum "$staging_live_image_ids"
+    macos_check_checksum "$staging_live_image_ids"
+  fi
+fi
+
+# The canonical kind is staging-acceptance (schemaVersion 2); promotion never
+# trusts its top-level flags. Re-run the selected
+# backend image's validator against the canonical record, all relative raw
+# artifact references/digests, the sealed release security record, and a fresh
+# live Compose image capture when the staging project is still running.  After
+# an explicit Down, the validator instead rechecks the durable checksummed
+# live-image artifact preserved beside the canonical bundle; promotion does
+# not restart staging implicitly.
+container_root_path() {
+  local value="$1"
+  [[ "$value" == "$MACOS_LAYOUT_ROOT"/* ]] || macos_die "promotion evidence path is outside the protected root"
+  print -r -- "/protected/${value#$MACOS_LAYOUT_ROOT/}"
+}
+typeset -a validator_args
+validator_args=(
+  run --rm
+  --volume "$MACOS_LAYOUT_ROOT:/protected:ro"
+  "$backend_reference"
+  uv run --no-sync python -m app.ops.staging_acceptance validate
+  --root /protected
+  --release "$(container_root_path "$release_path")"
+  --canonical "$(container_root_path "$staging_evidence")"
+  --expected-host-id "$MACOS_HOST_ID"
+)
+if [[ -n "$staging_live_image_ids" ]]; then
+  validator_args+=(--live-image-ids "$(container_root_path "$staging_live_image_ids")")
+fi
+macos_run_checked docker "${validator_args[@]}"
+macos_check_checksum "$staging_evidence"
 [[ -f "$MACOS_CURRENT_STATE" ]] || macos_die "promotion requires an existing current formal release"
 macos_release_state "$MACOS_CURRENT_STATE"
 current_release_version="$MACOS_STATE_VERSION"
@@ -81,15 +147,21 @@ second_copy_evidence="$paired_backup_path:h/${paired_backup_path:t}.second-copy.
 [[ -f "$second_copy_evidence" ]] || macos_die "promotion requires verified second-copy evidence"
 macos_check_checksum "$second_copy_evidence"
 [[ "$(macos_json_get "$second_copy_evidence" status 2>/dev/null || true)" == passed ]] || macos_die "second-copy evidence is not passed"
+[[ "$(macos_json_get "$second_copy_evidence" artifact_id 2>/dev/null || macos_json_get "$second_copy_evidence" artifactId 2>/dev/null || true)" == "${paired_backup_path:t}" ]] || macos_die "second-copy evidence artifact identity does not match the paired backup basename"
+[[ "$(macos_json_get "$second_copy_evidence" backup_id 2>/dev/null || macos_json_get "$second_copy_evidence" backupId 2>/dev/null || true)" == "${paired_backup_path:t}" ]] || macos_die "second-copy evidence backup identity does not match the paired backup basename"
+paired_migration_head="$(macos_json_get "$backup_manifest" migration_head 2>/dev/null || macos_json_get "$backup_manifest" migrationHead 2>/dev/null || true)"
+release_migration_head="$(macos_json_get "$manifest" migrationHead 2>/dev/null || macos_json_get "$manifest" migration_head 2>/dev/null || true)"
+[[ -n "$paired_migration_head" && "$paired_migration_head" == "$release_migration_head" ]] || macos_die "paired backup migration head is not bound to the release manifest"
 release_path_json="$(macos_json_escape "$release_path")"
 paired_backup_json="$(macos_json_escape "$paired_backup_path")"
 staging_evidence_json="$(macos_json_escape "$staging_evidence")"
 
-# Validate the portable input inside the selected backend image before any
-# formal Compose command can mutate a volume.
-macos_compose_base "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT"
-macos_run_checked docker "${MACOS_COMPOSE_ARGS[@]}" run --rm --no-deps \
-  --volume "$paired_backup_path:/portable-backup:ro" backend \
+# Validate the portable input inside the exact selected backend image before
+# any formal Compose command can mutate a volume.  A direct ``docker run``
+# intentionally mounts only the backup, so this check cannot create or open a
+# formal named volume.
+macos_run_checked docker run --rm \
+  --volume "$paired_backup_path:/portable-backup:ro" "$backend_reference" \
   uv run --no-sync python -m app.ops.host_portability validate-migration-input /portable-backup
 
 if [[ -f "$MACOS_CURRENT_STATE" ]]; then
@@ -98,12 +170,7 @@ if [[ -f "$MACOS_CURRENT_STATE" ]]; then
   macos_write_atomic "$MACOS_PREVIOUS_STATE" "$current_state_json"
 fi
 
-macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT
-trap 'macos_restore_environment; macos_release_lock' EXIT
-export APP_VERSION_TAG="${commit:l}"
-export APP_VERSION="$version"
-export GIT_COMMIT="${commit:l}"
-state_json="{\"schemaVersion\":1,\"applicationVersion\":\"$version\",\"gitCommit\":\"${commit:l}\",\"path\":\"$release_path_json\",\"promotedAt\":\"$(macos_now_iso)\",\"pairedBackupPath\":\"$paired_backup_json\",\"stagingEvidence\":\"$staging_evidence_json\",\"datasetId\":\"$MACOS_DATASET_ID\",\"hostId\":\"$MACOS_HOST_ID\",\"writerGeneration\":$MACOS_WRITER_GENERATION}"
+state_json="{\"schemaVersion\":1,\"kind\":\"formal-writer-current\",\"applicationVersion\":\"$version\",\"gitCommit\":\"${commit:l}\",\"path\":\"$release_path_json\",\"promotedAt\":\"$(macos_now_iso)\",\"pairedBackupPath\":\"$paired_backup_json\",\"stagingEvidence\":\"$staging_evidence_json\",\"datasetId\":\"$MACOS_DATASET_ID\",\"hostId\":\"$MACOS_HOST_ID\",\"writerGeneration\":$MACOS_WRITER_GENERATION,\"bootstrapPending\":false,\"activationReady\":true}"
 macos_write_atomic "$MACOS_CURRENT_STATE" "$state_json"
 macos_write_checksum "$MACOS_CURRENT_STATE"
 MACOS_PARENT_LOCK_PID="$$" "$SCRIPT_DIR/Start-Platform.zsh" --root "$root" --lock-held >/dev/null

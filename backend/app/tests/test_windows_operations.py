@@ -1,3 +1,5 @@
+import json
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -53,6 +55,32 @@ def test_release_bundle_is_commit_version_and_checksum_bound() -> None:
     assert "Release bundle contains a forbidden runtime file" in verifier
     assert "Test-ForbiddenReleaseFile" in generator
     assert "Test-ForbiddenReleaseFile" in verifier
+
+
+def test_windows_release_inputs_accept_tagged_immutable_base_images() -> None:
+    generator = _script("New-ReleaseBundle.ps1")
+    verifier = _script("Test-ReleaseBundle.ps1")
+    pattern = (
+        r"^([a-z0-9][a-z0-9._/-]{0,254})"
+        r"(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?@sha256:[0-9a-f]{64}$"
+    )
+    assert f"'{pattern}'" in generator
+    assert f"'{pattern}'" in verifier
+
+    references = json.loads(
+        (REPO_ROOT / "ops" / "release" / "image-digests.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    frontend_builder = references["frontend_builder"]
+    assert re.fullmatch(pattern, frontend_builder)
+    for invalid_reference in (
+        "node:22-alpine",
+        "node:22-alpine@sha256:" + "a" * 63,
+        "node:22-alpine@sha256:" + "g" * 64,
+        "node:22-alpine@sha512:" + "a" * 64,
+    ):
+        assert re.fullmatch(pattern, invalid_reference) is None
 
 
 def test_windows_release_bundle_uses_shared_architecture_metadata_contract() -> None:

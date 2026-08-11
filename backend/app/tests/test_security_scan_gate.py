@@ -378,7 +378,7 @@ def test_identity_mode_rejects_missing_or_mismatched_scan_metadata() -> None:
     assert "scan_target_reference_mismatch" in mismatch_errors
 
     id_mismatch = json.loads(_scan_fixture_path("backend").read_text())
-    id_mismatch["ArtifactID"] = (
+    id_mismatch["Metadata"]["ImageID"] = (
         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     )
     id_mismatch_scans = _scan_inputs()
@@ -386,6 +386,24 @@ def test_identity_mode_rejects_missing_or_mismatched_scan_metadata() -> None:
 
     id_mismatch_errors = validate_scan_inputs(id_mismatch_scans, identity)
     assert "scan_target_id_mismatch" in id_mismatch_errors
+
+
+def test_identity_mode_distinguishes_trivy_artifact_id_from_docker_image_id() -> None:
+    identity, _records = _identity_and_records()
+    scan = json.loads(_scan_fixture_path("backend").read_text())
+
+    # Trivy's ArtifactID is a scanner artifact digest and can legitimately
+    # differ from Docker's config ImageID.  The nested Metadata.ImageID is the
+    # value that must bind to the built image identity.
+    assert scan["ArtifactID"] != identity["images"]["backend"]["id"]
+    assert scan["Metadata"]["ImageID"] == identity["images"]["backend"]["id"]
+    scans = _scan_inputs()
+    scans[1] = ("trivy:backend", scan)
+    assert validate_scan_inputs(scans, identity) == []
+
+    scan["Metadata"].pop("ImageID")
+    errors = validate_scan_inputs(scans, identity)
+    assert "scan_target_id_metadata_missing" in errors
 
 
 @pytest.mark.parametrize(

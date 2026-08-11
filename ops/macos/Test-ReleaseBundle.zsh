@@ -74,7 +74,7 @@ grep -F 'linux/arm64' "$platform_manifest" >/dev/null || macos_die "release does
 
 for base_name in backend_base backend_postgres_tools frontend_builder frontend_runtime gateway postgres; do
   base_reference="$(macos_json_get "$image_manifest" "$base_name" 2>/dev/null || true)"
-  [[ "$base_reference" =~ '^[a-z0-9][a-z0-9._/-]{0,254}@sha256:[0-9a-f]{64}$' ]] || macos_die "base image reference is not immutable"
+  [[ "$base_reference" =~ '^[a-z0-9][a-z0-9._/-]{0,254}(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?@sha256:[0-9a-f]{64}$' ]] || macos_die "base image reference is not immutable"
   [[ "$(macos_json_get "$manifest_path" "baseImageReferences.$base_name" 2>/dev/null || true)" == "$base_reference" ]] || macos_die "base image identity does not match the release manifest"
 done
 
@@ -123,7 +123,7 @@ while IFS= read -r checksum_line || [[ -n "$checksum_line" ]]; do
   relative="${match[2]}"
   [[ "$relative" != /* && "$relative" != *'..'* ]] || macos_die "unsafe release path in checksum manifest"
   [[ -z "${checksum_rows[$relative]-}" ]] || macos_die "duplicate release checksum row"
-  checksum_rows["$relative"]="$digest"
+  checksum_rows[$relative]="$digest"
   (( checksum_count += 1 ))
 done < "$checksums_path"
 
@@ -133,7 +133,7 @@ while :; do
   [[ -n "$relative" ]] || break
   [[ "$relative" != /* && "$relative" != *'..'* ]] || macos_die "unsafe release path in manifest"
   [[ -z "${manifest_rows[$relative]-}" ]] || macos_die "duplicate release manifest row"
-  manifest_rows["$relative"]=1
+  manifest_rows[$relative]=1
   case "$relative" in
     .env.example|*/.env.example) ;;
     .env|*/.env|.env.*|*/.env.*|*.env|*/*.env|*.pem|*/*.pem|*.key|*/*.key|*.p12|*/*.p12|*.pfx|*/*.pfx|*.jks|*/*.jks|id_rsa*|*/id_rsa*|id_ed25519*|*/id_ed25519*|credentials*|*/credentials*|credential*|*/credential*|private-key*|*/private-key*|private_key*|*/private_key*|*secret*|*/*secret*|*/backups/*|*/diagnostics/*|*/evidence/*|*/data/*|*/token*|*/otp*)

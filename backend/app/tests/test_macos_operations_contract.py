@@ -1,3 +1,4 @@
+import json
 import plistlib
 import re
 import shutil
@@ -425,6 +426,174 @@ macos_assert_no_pending_cutover_start 0
         assert result.returncode == 0, result.stderr
 
 
+def test_macos_release_verifier_accepts_tagged_immutable_base_refs_only() -> None:
+    zsh = shutil.which("zsh")
+    if not zsh:
+        pytest.skip("zsh is unavailable on this runner")
+
+    verifier = (MACOS_OPS / "Test-ReleaseBundle.zsh").read_text(encoding="utf-8")
+    pattern_match = re.search(
+        r"\[\[ \"\$base_reference\" =~ '([^']+)' \]\]",
+        verifier,
+    )
+    assert pattern_match, "base image immutability regex is missing"
+    pattern = pattern_match.group(1)
+
+    valid = (
+        "nginx:1.27-alpine@sha256:" + "a" * 64,
+        "ghcr.io/astral-sh/uv:python3.12-alpine@sha256:" + "b" * 64,
+        "postgres@sha256:" + "c" * 64,
+        "example/repo:Release_1.0@sha256:" + "d" * 64,
+    )
+    invalid = (
+        "nginx:latest",
+        "nginx:1.27-alpine@sha256:" + "a" * 63,
+        "nginx:1.27-alpine@sha256:" + "g" * 64,
+        "nginx:1.27-alpine@sha512:" + "a" * 64,
+        "Nginx:1.27-alpine@sha256:" + "a" * 64,
+    )
+
+    for reference in valid:
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", f"[[ \"$1\" =~ '{pattern}' ]]", "contract", reference],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, reference
+
+    for reference in invalid:
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", f"[[ \"$1\" =~ '{pattern}' ]]", "contract", reference],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0, reference
+
+
+def test_macos_security_scan_accepts_tagged_frontend_builder_digest_only() -> None:
+    zsh = shutil.which("zsh")
+    if not zsh:
+        pytest.skip("zsh is unavailable on this runner")
+
+    scanner = (MACOS_OPS / "Invoke-ReleaseSecurityScan.zsh").read_text(encoding="utf-8")
+    pattern_match = re.search(
+        r"\[\[ \"\$node_image\" =~ '([^']+)' \]\]",
+        scanner,
+    )
+    assert pattern_match, "security scan node image immutability regex is missing"
+    pattern = pattern_match.group(1)
+    frontend_builder = json.loads(
+        (REPO_ROOT / "ops" / "release" / "image-digests.json").read_text(
+            encoding="utf-8"
+        )
+    )["frontend_builder"]
+    valid = (frontend_builder,)
+    invalid = (
+        "node:22-alpine",
+        "node:22-alpine@sha256:" + "a" * 63,
+        "node:22-alpine@sha256:" + "g" * 64,
+        "node:22-alpine@sha512:" + "a" * 64,
+    )
+
+    for reference in valid:
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", f"[[ \"$1\" =~ '{pattern}' ]]", "contract", reference],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, reference
+
+    for reference in invalid:
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", f"[[ \"$1\" =~ '{pattern}' ]]", "contract", reference],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0, reference
+
+
+def test_macos_security_scan_inspect_output_uses_real_delimiter() -> None:
+    scanner = (MACOS_OPS / "Invoke-ReleaseSecurityScan.zsh").read_text(encoding="utf-8")
+    assert "{{.Id}}\\t{{.Os}}\\t{{.Architecture}}" not in scanner
+    assert "{{.Id}}|{{.Os}}|{{.Architecture}}" in scanner
+    assert "IFS='|' read -r actual_id actual_os actual_architecture extra" in scanner
+    assert 'separator_count="${inspect_line//[^|]/}"' in scanner
+    assert '[[ "${#separator_count}" -eq 2 ]]' in scanner
+    assert "built image inspect output contains multiple lines" in scanner
+    assert "built image inspect output is malformed" in scanner
+    assert '-n "$actual_id"' in scanner
+    assert '-n "$actual_os"' in scanner
+    assert '-n "$actual_architecture"' in scanner
+    assert '-z "${extra:-}"' in scanner
+
+
+def test_macos_security_scan_reuses_private_trivy_cache_across_images() -> None:
+    scanner = (MACOS_OPS / "Invoke-ReleaseSecurityScan.zsh").read_text(encoding="utf-8")
+    assert 'trivy_cache="$work/trivy-cache"' in scanner
+    assert 'mkdir -p -- "$trivy_cache"' in scanner
+    assert 'chmod 700 "$trivy_cache"' in scanner
+    assert "for image_name in db backend frontend gateway; do" in scanner
+    assert scanner.count("--cache-dir /evidence/trivy-cache") == 1
+    assert '--volume "$work:/evidence" "$trivy_image" image' in scanner
+    assert 'typeset -r MACOS_TRIVY_IMAGE="aquasec/trivy@sha256:' in scanner
+    assert '[[ "$trivy_image" == "$MACOS_TRIVY_IMAGE" ]]' in scanner
+    assert 'cp -p -- "$work/trivy-cache"' not in scanner
+    assert 'rm -R -- "$work"' in scanner
+
+
+def test_macos_release_verifier_checksum_lookup_uses_plain_associative_key() -> None:
+    zsh = shutil.which("zsh")
+    if not zsh:
+        pytest.skip("zsh is unavailable on this runner")
+
+    verifier = (MACOS_OPS / "Test-ReleaseBundle.zsh").read_text(encoding="utf-8")
+    assignment_match = re.search(
+        r"^\s*(checksum_rows\[[^\n]+\]=\"\$digest\")$",
+        verifier,
+        re.MULTILINE,
+    )
+    assert assignment_match, "checksum row assignment is missing"
+    assignment = assignment_match.group(1)
+    assert 'checksum_rows["$relative"]' not in assignment
+
+    manifest_assignment_match = re.search(
+        r"^\s*(manifest_rows\[[^\n]+\]=1)$",
+        verifier,
+        re.MULTILINE,
+    )
+    assert manifest_assignment_match, "manifest row assignment is missing"
+    manifest_assignment = manifest_assignment_match.group(1)
+    assert 'manifest_rows["$relative"]' not in manifest_assignment
+
+    shell = f"""
+typeset -A checksum_rows
+typeset -A manifest_rows
+relative="$1"
+digest="$2"
+{assignment}
+[[ "${{checksum_rows[$relative]-}}" == "$digest" ]]
+record_manifest_row() {{
+  [[ -z "${{manifest_rows[$relative]-}}" ]] || return 1
+  {manifest_assignment}
+}}
+record_manifest_row
+if record_manifest_row; then
+  exit 1
+fi
+"""
+    result = subprocess.run(  # noqa: S603
+        [zsh, "-c", shell, "contract", "release-evidence/security-scan.json", "a" * 64],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_release_and_cutover_gates_are_fail_closed() -> None:
     new_bundle = (MACOS_OPS / "New-ReleaseBundle.zsh").read_text(encoding="utf-8")
     test_bundle = (MACOS_OPS / "Test-ReleaseBundle.zsh").read_text(encoding="utf-8")
@@ -767,3 +936,312 @@ def test_lifecycle_cleanup_preserves_lock_release() -> None:
     assert "macos_release_lock" in start
     assert "macos_restore_environment" in staging
     assert "macos_release_lock" in staging
+
+
+def test_fresh_formal_writer_commissioning_is_two_phase_and_fail_closed() -> None:
+    initialize = (MACOS_OPS / "Initialize-FormalWriter.zsh").read_text(encoding="utf-8")
+    common = (MACOS_OPS / "Common.zsh").read_text(encoding="utf-8")
+    start = (MACOS_OPS / "Start-Platform.zsh").read_text(encoding="utf-8")
+    install_agents = (MACOS_OPS / "Install-LaunchAgents.zsh").read_text(
+        encoding="utf-8"
+    )
+
+    for action in ("Prepare", "Activate", "Status"):
+        assert action in initialize
+    for marker in (
+        "--empty-dataset",
+        "seed inputs are not supported",
+        "formal-writer-bootstrap-intent",
+        "releaseManifestSha256",
+        "releaseChecksumsSha256",
+        "builtImageIdentitySha256",
+        "bootstrapPending",
+        "formal-volume-override.yml",
+        "maintenanceBindIp",
+        "127.0.0.1",
+        "staging-acceptance",
+        "schemaVersion",
+        "staging_acceptance",
+        "--canonical",
+        "hostId",
+        "bootstrap_validate_browser_evidence",
+        "browser-smoke",
+        "candidateUrl",
+        "operatorUrl",
+        "checks.health",
+        "checks.page",
+        "checks.console",
+        "checks.pageerror",
+        "checks.offlineStaticResources",
+        "stagingE2e",
+        "mobileUat",
+        "applicationVersion",
+        "gitCommit",
+        "formal-preflight",
+        "pairedBackupManifestSha256",
+        "secondCopyEvidenceSha256",
+        "restoreDrillSha256",
+        "formal-writer-activation-intent",
+        "formal-writer-activation-terminal",
+        "formal-writer-lineage",
+        "initialCurrentStateSha256",
+        "initialReleasePath",
+        "acquire-fence",
+        "under-writer-fence",
+        "Start-Platform",
+    ):
+        assert marker in initialize, f"bootstrap commissioning marker missing: {marker}"
+    assert "docker volume rm" not in initialize
+    assert "down -v" not in initialize
+    assert "macos_assert_formal_writer_ready" in common
+    assert 'macos_assert_formal_writer_ready "$maintenance"' in start
+    assert "macos_assert_formal_writer_ready 0" in install_agents
+    assert 'phase" == state-bound || "$phase" == fence-released' in initialize
+    assert "db_started_for_resume" in initialize
+    assert "up -d --no-build --wait db" in initialize
+    assert "lifecyclePath" in initialize
+    assert "secondCopyPath" in initialize
+    assert "phaseSha256" in initialize
+    assert "bootstrap_repair_terminal_sidecar" in initialize
+    run_activate = initialize[
+        initialize.index("run_activate() {") : initialize.index("\nrun_status()")
+    ]
+    terminal_retry = run_activate[
+        run_activate.index('if [[ -f "$activation_terminal_path" ]]; then') :
+    ]
+    assert terminal_retry.index(
+        "bootstrap_load_terminal_artifacts"
+    ) < terminal_retry.index("bootstrap_validate_terminal_semantics")
+    assert terminal_retry.index(
+        "bootstrap_validate_terminal_semantics"
+    ) < terminal_retry.index("bootstrap_write_lineage")
+    assert terminal_retry.index("bootstrap_write_lineage") < terminal_retry.index(
+        "macos_assert_formal_writer_ready 0"
+    )
+    assert "formal writer lineage canonical record is missing" in initialize
+    assert (
+        '[[ -f "$lineage_path.sha256" ]] || macos_write_checksum "$lineage_path"'
+        in initialize
+    )
+    assert "validate-migration-input" in initialize
+    assert "SUCCESS marker is invalid" in initialize
+    assert "backup contains extra or missing artifacts" in initialize
+    restore = (MACOS_OPS / "Invoke-RestoreDrill.zsh").read_text(encoding="utf-8")
+    assert "--bootstrap" in restore
+    assert "sourceBackupManifestSha256" in restore
+    assert "checkedAt" in restore
+    assert "releaseCommit" in restore
+    assert "datasetId" in restore
+
+
+def test_initial_writer_browser_evidence_binds_exact_private_smoke_schema() -> None:
+    initialize = (MACOS_OPS / "Initialize-FormalWriter.zsh").read_text(encoding="utf-8")
+    browser_start = initialize.index("bootstrap_validate_browser_evidence() {")
+    browser_end = initialize.index(
+        "\n}\n\nbootstrap_load_phase_artifacts", browser_start
+    )
+    browser_validator = initialize[browser_start:browser_end]
+
+    for marker in (
+        '[[ "$browser_input" == /* && ! -L "$browser_input" ]]',
+        '[[ "$browser_kind" == browser-smoke',
+        '"$browser_scope" == browser-smoke',
+        '"$browser_status" == passed',
+        '[[ "$browser_host" == "$BOOTSTRAP_HOST_ID"',
+        '"$browser_generation" == 1',
+        '"$browser_candidate_url" == http://127.0.0.1:28080',
+        '"$browser_operator_url" == http://127.0.0.1:28081',
+        '"$browser_url" == http://127.0.0.1:28080',
+        "checks.health",
+        "checks.page",
+        "checks.console",
+        "checks.pageerror",
+        "checks.offlineStaticResources",
+        '"$browser_staging_e2e" == not-run',
+        '"$browser_mobile_uat" == not-run',
+        'macos_assert_fresh_timestamp "$checked_at"',
+    ):
+        assert marker in browser_validator, marker
+
+    # A path suffix or legacy field fallback would allow smoke evidence from a
+    # different endpoint/schema to satisfy generation-1 activation.
+    assert "(|/*)" not in browser_validator
+    assert 'macos_json_get "$browser_path" candidate_url' not in browser_validator
+    assert (
+        'macos_json_get "$browser_path" applicationVersion 2>/dev/null || macos_json_get'
+        not in browser_validator
+    )
+
+
+def test_lineage_writer_repairs_missing_and_json_only_checksum_on_exact_retry() -> None:
+    zsh = shutil.which("zsh")
+    if not zsh:
+        pytest.skip("zsh is unavailable on this runner")
+
+    initialize = (MACOS_OPS / "Initialize-FormalWriter.zsh").read_text(encoding="utf-8")
+    function_start = initialize.index("bootstrap_validate_terminal_semantics() {")
+    function_end = initialize.index("\nbootstrap_write_activation_intent() {")
+    function_block = initialize[function_start:function_end]
+    with tempfile.TemporaryDirectory(
+        prefix="internal-exam-macos-lineage-repair-",
+        dir="/private/tmp" if Path("/private/tmp").is_dir() else None,
+    ) as temporary:
+        root = Path(temporary) / "formal-root"
+        shell = f'''\
+source "$1/Common.zsh"
+macos_initialize_layout "$2"
+macos_layout "$2"
+{function_block}
+typeset -g BOOTSTRAP_DATASET_ID=dataset-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+typeset -g BOOTSTRAP_HOST_ID=host-test-aaaaaaaa
+typeset -g BOOTSTRAP_RELEASE_PATH="$2/releases/1.0.0"
+typeset -g BOOTSTRAP_RELEASE_VERSION=1.0.0
+typeset -g BOOTSTRAP_RELEASE_COMMIT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+mkdir -p "$BOOTSTRAP_RELEASE_PATH"
+intent_path="$2/state/formal-writer-bootstrap-intent.json"
+activation_intent_path="$2/state/formal-writer-activation-intent.json"
+phase_path="$2/state/formal-writer-activation-phase.json"
+activation_terminal_path="$2/state/formal-writer-activation-terminal.json"
+lineage_path="$2/state/formal-writer-lineage.json"
+macos_write_atomic "$intent_path" '{{"kind":"formal-writer-bootstrap-intent"}}'; macos_write_checksum "$intent_path"
+macos_write_atomic "$activation_intent_path" '{{"kind":"formal-writer-activation-intent"}}'; macos_write_checksum "$activation_intent_path"
+macos_write_atomic "$phase_path" '{{"kind":"formal-writer-activation-phase","phase":"terminal"}}'; macos_write_checksum "$phase_path"
+macos_write_atomic "$2/state/current-release.json" '{{"bootstrapPending":false,"activationReady":true}}'; macos_write_checksum "$2/state/current-release.json"
+macos_write_atomic "$activation_terminal_path" '{{"currentStateSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","releasePath":"{root}/releases/1.0.0"}}'; macos_write_checksum "$activation_terminal_path"
+macos_write_lineage_once() {{ bootstrap_write_lineage; }}
+macos_write_lineage_once
+[[ -f "$lineage_path" && -f "$lineage_path.sha256" ]]
+rm -f -- "$lineage_path.sha256"
+macos_write_lineage_once
+[[ -f "$lineage_path.sha256" ]]
+rm -f -- "$lineage_path" "$lineage_path.sha256"
+macos_write_lineage_once
+[[ -f "$lineage_path" && -f "$lineage_path.sha256" ]]
+'''
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", shell, "contract", str(MACOS_OPS), str(root)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+
+def test_public_writer_guard_rejects_pending_bootstrap_and_allows_private_maintenance() -> (
+    None
+):
+    zsh = shutil.which("zsh")
+    if not zsh:
+        pytest.skip("zsh is unavailable on this runner")
+
+    with tempfile.TemporaryDirectory(
+        prefix="internal-exam-macos-bootstrap-guard-",
+        dir="/private/tmp" if Path("/private/tmp").is_dir() else None,
+    ) as temporary:
+        root = Path(temporary) / "formal-root"
+        shell = r"""
+source "$1/Common.zsh"
+macos_initialize_layout "$2"
+macos_layout "$2"
+state="$2/state/current-release.json"
+macos_write_atomic "$state" '{"schemaVersion":1,"datasetId":"dataset-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","hostId":"host-test-aaaaaaaa","writerGeneration":1,"bootstrapPending":true}'
+macos_write_checksum "$state"
+if macos_assert_formal_writer_ready 0; then
+  exit 1
+fi
+macos_assert_formal_writer_ready 1
+"""
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", shell, "contract", str(MACOS_OPS), str(root)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr
+
+
+def test_activated_generation_one_lineage_survives_current_release_upgrade_and_tamper() -> (
+    None
+):
+    zsh = shutil.which("zsh")
+    if not zsh:
+        pytest.skip("zsh is unavailable on this runner")
+
+    with tempfile.TemporaryDirectory(
+        prefix="internal-exam-macos-lineage-",
+        dir="/private/tmp" if Path("/private/tmp").is_dir() else None,
+    ) as temporary:
+        root = Path(temporary) / "formal-root"
+        shell = r"""
+source "$1/Common.zsh"
+macos_initialize_layout "$2"
+macos_layout "$2"
+release_one="$2/releases/1.0.0"
+release_two="$2/releases/1.1.0"
+mkdir -p "$release_one" "$release_two"
+dataset="dataset-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+host="host-test-aaaaaaaa"
+macos_write_atomic "$2/state/host-identity.json" "{\"schemaVersion\":1,\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"lineageState\":\"bound\"}"
+macos_write_checksum "$2/state/host-identity.json"
+bootstrap="$2/state/formal-writer-bootstrap-intent.json"
+activation="$2/state/formal-writer-activation-intent.json"
+phase="$2/state/formal-writer-activation-phase.json"
+terminal="$2/state/formal-writer-activation-terminal.json"
+lineage="$2/state/formal-writer-lineage.json"
+current="$2/state/current-release.json"
+macos_write_atomic "$bootstrap" "{\"schemaVersion\":1,\"kind\":\"formal-writer-bootstrap-intent\",\"status\":\"prepared\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"releasePath\":\"$release_one\"}"
+macos_write_checksum "$bootstrap"
+bootstrap_sha="$(macos_sha256 "$bootstrap")"
+macos_write_atomic "$activation" "{\"schemaVersion\":1,\"kind\":\"formal-writer-activation-intent\",\"status\":\"intent\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"bootstrapIntentSha256\":\"$bootstrap_sha\",\"releasePath\":\"$release_one\"}"
+macos_write_checksum "$activation"
+activation_sha="$(macos_sha256 "$activation")"
+macos_write_atomic "$2/state/current-release.json" "{\"schemaVersion\":1,\"kind\":\"formal-writer-current\",\"applicationVersion\":\"1.0.0\",\"gitCommit\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"path\":\"$release_one\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"bootstrapPending\":false,\"activationReady\":true}"
+macos_write_checksum "$current"
+initial_sha="$(macos_sha256 "$current")"
+macos_write_atomic "$phase" "{\"schemaVersion\":1,\"kind\":\"formal-writer-activation-phase\",\"phase\":\"terminal\",\"activationIntentSha256\":\"$activation_sha\",\"bootstrapIntentSha256\":\"$bootstrap_sha\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"releasePath\":\"$release_one\"}"
+macos_write_checksum "$phase"
+phase_sha="$(macos_sha256 "$phase")"
+macos_write_atomic "$terminal" "{\"schemaVersion\":1,\"kind\":\"formal-writer-activation-terminal\",\"status\":\"passed\",\"activationIntentSha256\":\"$activation_sha\",\"phaseSha256\":\"$phase_sha\",\"currentStateSha256\":\"$initial_sha\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"releasePath\":\"$release_one\"}"
+macos_write_checksum "$terminal"
+terminal_sha="$(macos_sha256 "$terminal")"
+macos_write_atomic "$lineage" "{\"schemaVersion\":1,\"kind\":\"formal-writer-lineage\",\"status\":\"commissioned\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":1,\"bootstrapIntentSha256\":\"$bootstrap_sha\",\"activationIntentSha256\":\"$activation_sha\",\"activationPhaseSha256\":\"$phase_sha\",\"activationTerminalSha256\":\"$terminal_sha\",\"initialCurrentStateSha256\":\"$initial_sha\",\"initialReleasePath\":\"$release_one\"}"
+macos_write_checksum "$lineage"
+# Legal commissioning completion: current-release points to a newer sealed
+# release while the generation-1 proof remains unchanged and checksummed.
+macos_json_replace_atomic "$2/state/host-identity.json" writerGeneration 2
+macos_write_checksum "$2/state/host-identity.json"
+macos_write_atomic "$current" "{\"schemaVersion\":1,\"kind\":\"formal-writer-current\",\"applicationVersion\":\"1.1.0\",\"gitCommit\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"path\":\"$release_two\",\"datasetId\":\"$dataset\",\"hostId\":\"$host\",\"writerGeneration\":2,\"bootstrapPending\":false,\"activationReady\":true}"
+macos_write_checksum "$current"
+macos_assert_formal_writer_ready 0
+expect_fail() { if macos_assert_formal_writer_ready 0 >/dev/null 2>&1; then exit 1; fi; }
+cp -p "$lineage" "$lineage.orig"
+cp -p "$lineage.sha256" "$lineage.sha256.orig"
+cp -p "$terminal" "$terminal.orig"
+cp -p "$terminal.sha256" "$terminal.sha256.orig"
+cp -p "$phase" "$phase.orig"
+cp -p "$phase.sha256" "$phase.sha256.orig"
+cp -p "$activation" "$activation.orig"
+cp -p "$activation.sha256" "$activation.sha256.orig"
+cp -p "$current" "$current.orig"
+cp -p "$current.sha256" "$current.sha256.orig"
+macos_json_replace_atomic "$lineage" datasetId '"dataset-tampered"'; macos_write_checksum "$lineage"; expect_fail
+cp -p "$lineage.orig" "$lineage"; cp -p "$lineage.sha256.orig" "$lineage.sha256"
+macos_json_replace_atomic "$lineage" hostId '"host-tampered"'; macos_write_checksum "$lineage"; expect_fail
+cp -p "$lineage.orig" "$lineage"; cp -p "$lineage.sha256.orig" "$lineage.sha256"
+macos_json_replace_atomic "$lineage" writerGeneration 9; macos_write_checksum "$lineage"; expect_fail
+cp -p "$lineage.orig" "$lineage"; cp -p "$lineage.sha256.orig" "$lineage.sha256"
+macos_json_replace_atomic "$terminal" datasetId '"dataset-tampered"'; macos_write_checksum "$terminal"; expect_fail
+cp -p "$terminal.orig" "$terminal"; cp -p "$terminal.sha256.orig" "$terminal.sha256"
+macos_json_replace_atomic "$phase" phase '"state-bound"'; macos_write_checksum "$phase"; expect_fail
+cp -p "$phase.orig" "$phase"; cp -p "$phase.sha256.orig" "$phase.sha256"
+macos_json_replace_atomic "$activation" releasePath '"/tampered"'; macos_write_checksum "$activation"; expect_fail
+cp -p "$activation.orig" "$activation"; cp -p "$activation.sha256.orig" "$activation.sha256"
+macos_json_replace_atomic "$current" datasetId '"dataset-tampered"'; macos_write_checksum "$current"; expect_fail
+"""
+        result = subprocess.run(  # noqa: S603
+            [zsh, "-c", shell, "contract", str(MACOS_OPS), str(root)],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stderr

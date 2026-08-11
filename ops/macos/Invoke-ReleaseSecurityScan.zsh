@@ -41,7 +41,7 @@ output_dir="$(macos_resolve_path "$output_dir")"
 [[ -d "$release_path" ]] || macos_die "release directory is missing"
 [[ -n "$node_image" ]] || node_image="$(macos_json_get "$release_path/ops/release/image-digests.json" frontend_builder 2>/dev/null || true)"
 [[ -n "$node_image" && "$node_image" == "$(macos_json_get "$release_path/ops/release/image-digests.json" frontend_builder 2>/dev/null || true)" ]] || macos_die "Node scanner image must be the release-pinned frontend builder"
-[[ "$node_image" =~ '^[a-z0-9][a-z0-9._/-]{0,254}@sha256:[0-9a-fA-F]{64}$' ]] || macos_die "Node scanner image must be immutable"
+[[ "$node_image" =~ '^[a-z0-9][a-z0-9._/-]{0,254}(:[A-Za-z0-9_][A-Za-z0-9._-]{0,127})?@sha256:[0-9a-fA-F]{64}$' ]] || macos_die "Node scanner image must be immutable"
 [[ "$output_dir" != "$release_path"/* ]] || macos_die "security output cannot be inside the release bundle"
 mkdir -p -- "$output_dir"
 chmod 700 "$output_dir"
@@ -55,6 +55,9 @@ backend_ref="$(macos_json_get "$identity" images.backend.reference)"
 [[ "$backend_ref" == *":${commit:l}" ]] || macos_die "security scan backend image does not match release commit"
 work="$(mktemp -d /private/tmp/internal-exam-security-scan.XXXXXX)"
 chmod 700 "$work"
+trivy_cache="$work/trivy-cache"
+mkdir -p -- "$trivy_cache"
+chmod 700 "$trivy_cache"
 cleanup_scan() { [[ -z "${work:-}" ]] || rm -R -- "$work"; }
 trap cleanup_scan EXIT
 
@@ -70,8 +73,12 @@ canonical_images=""
 for image_name in db backend frontend gateway; do
   image_ref="${image_refs[$image_name]}"
   expected_id="$(macos_json_get "$identity" "images.$image_name.id")"
-  inspect_line="$(macos_run_capture docker image inspect --format '{{.Id}}\t{{.Os}}\t{{.Architecture}}' "$image_ref")"
-  IFS=$'\t' read -r actual_id actual_os actual_architecture <<< "$inspect_line"
+  inspect_line="$(macos_run_capture docker image inspect --format '{{.Id}}|{{.Os}}|{{.Architecture}}' "$image_ref")"
+  [[ "$inspect_line" != *$'\n'* && "$inspect_line" != *$'\r'* ]] || macos_die "built image inspect output contains multiple lines"
+  separator_count="${inspect_line//[^|]/}"
+  [[ "${#separator_count}" -eq 2 ]] || macos_die "built image inspect output is malformed"
+  IFS='|' read -r actual_id actual_os actual_architecture extra <<< "$inspect_line"
+  [[ -n "$actual_id" && -n "$actual_os" && -n "$actual_architecture" && -z "${extra:-}" ]] || macos_die "built image inspect output is malformed"
   [[ "$actual_id" == "$expected_id" && "$actual_os" == linux && "$actual_architecture" == arm64 ]] || macos_die "built image inspect identity is not native ARM64"
   escaped_ref="$(macos_json_escape "$image_ref")"
   escaped_id="$(macos_json_escape "$actual_id")"
@@ -92,6 +99,7 @@ for image_name in db backend frontend gateway; do
   macos_run_checked docker run --rm --platform linux/arm64 \
     --volume /var/run/docker.sock:/var/run/docker.sock \
     --volume "$work:/evidence" "$trivy_image" image --exit-code 0 --format json \
+    --cache-dir /evidence/trivy-cache \
     --output "/evidence/trivy-${image_name}.json" "${image_refs[$image_name]}"
 done
 

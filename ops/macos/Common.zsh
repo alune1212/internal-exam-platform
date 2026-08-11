@@ -463,6 +463,7 @@ macos_assert_no_pending_cutover_start() {
   local current_dataset="$MACOS_DATASET_ID" current_host="$MACOS_HOST_ID" current_generation="$MACOS_WRITER_GENERATION"
   local -a candidates staging rollback_candidates resume_candidates
   local -A seen rollback_seen resume_seen
+  macos_assert_formal_writer_ready "$maintenance"
   staging=( "$MACOS_LAYOUT_STATE"/.cutover-prepared*.cutover-*.tmp(N) )
   (( ${#staging[@]} == 0 )) || macos_die "partial canonical cutover state exists; lifecycle start is retired" || return 1
   candidates=( "$MACOS_LAYOUT_STATE"/cutover-prepared*.json(N) "$MACOS_LAYOUT_STATE"/cutover-prepared*.json.sha256(N) )
@@ -753,8 +754,8 @@ macos_replace_checksum_row() {
 }
 
 macos_sha256() {
-  macos_require_command shasum
-  shasum -a 256 -- "$1" | awk '{print $1}'
+  [[ -x /usr/bin/shasum ]] || macos_die "required command is unavailable: shasum" || return 1
+  /usr/bin/shasum -a 256 -- "$1" | /usr/bin/awk '{print $1}'
 }
 
 macos_write_checksum() {
@@ -837,6 +838,117 @@ macos_release_state() {
   if MACOS_STATE_BACKUP="$(macos_json_get "$state_path" pairedBackupPath 2>/dev/null)"; then :; else MACOS_STATE_BACKUP=""; fi
   [[ "$MACOS_STATE_PATH" == /* && -d "$MACOS_STATE_PATH" ]] || macos_die "release state path is invalid" || return 1
   [[ "$MACOS_STATE_COMMIT" =~ '^[0-9a-fA-F]{40}$' ]] || macos_die "release state commit is invalid" || return 1
+}
+
+macos_formal_writer_bootstrap_intent_path() {
+  print -r -- "$MACOS_LAYOUT_STATE/formal-writer-bootstrap-intent.json"
+}
+
+macos_formal_writer_activation_intent_path() {
+  print -r -- "$MACOS_LAYOUT_STATE/formal-writer-activation-intent.json"
+}
+
+macos_formal_writer_activation_terminal_path() {
+  print -r -- "$MACOS_LAYOUT_STATE/formal-writer-activation-terminal.json"
+}
+
+macos_formal_writer_lineage_path() {
+  # The generation-1 activation terminal is a permanent commissioning proof.
+  # Keep its immutable binding separate from current-release.json so ordinary
+  # Promote/Rollback may move the running release without re-signing the
+  # original activation evidence.
+  print -r -- "$MACOS_LAYOUT_STATE/formal-writer-lineage.json"
+}
+
+macos_assert_formal_writer_ready() {
+  # A prepared generation-1 writer is a private maintenance target until a
+  # checksummed activation terminal binds the exact intent/current state.  No
+  # public lifecycle, LaunchAgent, promotion, or backup path may infer
+  # readiness from bootstrapPending=false alone.
+  local maintenance="${1:-0}" current_path="$MACOS_CURRENT_STATE"
+  local intent_path activation_intent terminal_path phase_path lineage_path pending activation_status
+  local intent_digest current_digest dataset_id host_id generation lineage_generation lineage_terminal_sha
+  [[ "$maintenance" == 0 || "$maintenance" == 1 ]] || macos_die "writer readiness mode is invalid" || return 1
+  intent_path="$(macos_formal_writer_bootstrap_intent_path)"
+  activation_intent="$(macos_formal_writer_activation_intent_path)"
+  terminal_path="$(macos_formal_writer_activation_terminal_path)"
+  lineage_path="$(macos_formal_writer_lineage_path)"
+  phase_path="$MACOS_LAYOUT_STATE/formal-writer-activation-phase.json"
+
+  # A half current sidecar is never repaired by a public start.  The
+  # commissioning command owns derived-sidecar repair after exact intent
+  # validation; ordinary lifecycle paths stop before Docker is touched.
+  if [[ -e "$current_path" || -e "$current_path.sha256" ]]; then
+    [[ -f "$current_path" && -f "$current_path.sha256" ]] || macos_die "formal writer current state is incomplete; public start is blocked" || return 1
+    macos_secure_path "$current_path"
+    macos_check_checksum "$current_path"
+    pending="$(macos_json_get "$current_path" bootstrapPending 2>/dev/null || true)"
+    if [[ "$pending" == true && "$maintenance" != 1 ]]; then
+      macos_die "formal writer bootstrap is pending; public start is blocked until activation terminal evidence"
+      return 1
+    fi
+    if [[ -n "$pending" && "$pending" != true && "$pending" != false ]]; then
+      macos_die "formal writer bootstrapPending value is invalid"
+      return 1
+    fi
+  fi
+
+  # An activation intent is durable before ownership changes.  If a process
+  # dies after changing the release/current state but before writing its
+  # terminal record, ordinary startup remains retired.  Maintenance may
+  # inspect/resume the intent, but it cannot silently expose the target.
+  if [[ -e "$activation_intent" || -e "$activation_intent.sha256" ]]; then
+    [[ -f "$activation_intent" && -f "$activation_intent.sha256" ]] || macos_die "formal writer activation intent is incomplete; public start is blocked" || return 1
+    macos_secure_path "$activation_intent"
+    macos_check_checksum "$activation_intent"
+    [[ "$(macos_json_get "$activation_intent" kind 2>/dev/null || true)" == formal-writer-activation-intent && "$(macos_json_get "$activation_intent" status 2>/dev/null || true)" == intent ]] || macos_die "formal writer activation intent phase is invalid; public start is blocked" || return 1
+    if [[ "$maintenance" != 1 ]]; then
+      [[ -f "$terminal_path" && -f "$terminal_path.sha256" ]] || macos_die "formal writer activation terminal evidence is missing; public start is blocked" || return 1
+    fi
+  fi
+
+  if [[ -e "$terminal_path" || -e "$terminal_path.sha256" ]]; then
+    [[ -f "$activation_intent" && -f "$activation_intent.sha256" && -f "$terminal_path" && -f "$terminal_path.sha256" && -f "$phase_path" && -f "$phase_path.sha256" && -f "$lineage_path" && -f "$lineage_path.sha256" ]] || macos_die "formal writer activation terminal binding is incomplete; public start is blocked" || return 1
+    macos_secure_path "$terminal_path"
+    macos_check_checksum "$terminal_path"
+    macos_secure_path "$phase_path"
+    macos_check_checksum "$phase_path"
+    macos_secure_path "$lineage_path"
+    macos_check_checksum "$lineage_path"
+    [[ "$(macos_json_get "$phase_path" kind 2>/dev/null || true)" == formal-writer-activation-phase && "$(macos_json_get "$phase_path" phase 2>/dev/null || true)" == terminal && "$(macos_json_get "$terminal_path" phaseSha256 2>/dev/null || true)" == "$(macos_sha256 "$phase_path")" ]] || macos_die "formal writer activation terminal phase binding is stale; public start is blocked" || return 1
+    [[ "$(macos_json_get "$terminal_path" kind 2>/dev/null || true)" == formal-writer-activation-terminal && "$(macos_json_get "$terminal_path" status 2>/dev/null || true)" == passed ]] || macos_die "formal writer activation terminal is not passed; public start is blocked" || return 1
+    intent_digest="$(macos_sha256 "$activation_intent")"
+    [[ "$(macos_json_get "$terminal_path" activationIntentSha256 2>/dev/null || true)" == "$intent_digest" ]] || macos_die "formal writer activation terminal is not bound to the exact intent; public start is blocked" || return 1
+    bootstrap_intent_path="$(macos_formal_writer_bootstrap_intent_path)"
+    [[ -f "$bootstrap_intent_path" && -f "$bootstrap_intent_path.sha256" ]] || macos_die "formal writer bootstrap intent is missing; public start is blocked" || return 1
+    macos_check_checksum "$bootstrap_intent_path"
+    [[ "$(macos_json_get "$activation_intent" bootstrapIntentSha256 2>/dev/null || true)" == "$(macos_sha256 "$bootstrap_intent_path")" ]] || macos_die "formal writer activation intent is not bound to the bootstrap reservation; public start is blocked" || return 1
+    [[ "$(macos_json_get "$activation_intent" releasePath 2>/dev/null || true)" == "$(macos_json_get "$terminal_path" releasePath 2>/dev/null || true)" ]] || macos_die "formal writer activation release is not bound to the immutable terminal proof; public start is blocked" || return 1
+    [[ "$(macos_json_get "$lineage_path" kind 2>/dev/null || true)" == formal-writer-lineage && "$(macos_json_get "$lineage_path" status 2>/dev/null || true)" == commissioned ]] || macos_die "formal writer lineage record is invalid; public start is blocked" || return 1
+    lineage_terminal_sha="$(macos_json_get "$lineage_path" activationTerminalSha256 2>/dev/null || true)"
+    [[ "$lineage_terminal_sha" == "$(macos_sha256 "$terminal_path")" ]] || macos_die "formal writer lineage terminal binding is stale; public start is blocked" || return 1
+    [[ "$(macos_json_get "$lineage_path" activationIntentSha256 2>/dev/null || true)" == "$intent_digest" && "$(macos_json_get "$lineage_path" activationPhaseSha256 2>/dev/null || true)" == "$(macos_sha256 "$phase_path")" && "$(macos_json_get "$lineage_path" bootstrapIntentSha256 2>/dev/null || true)" == "$(macos_sha256 "$bootstrap_intent_path")" ]] || macos_die "formal writer lineage evidence binding is stale; public start is blocked" || return 1
+    [[ "$(macos_json_get "$lineage_path" datasetId 2>/dev/null || true)" == "$(macos_json_get "$terminal_path" datasetId 2>/dev/null || true)" && "$(macos_json_get "$lineage_path" hostId 2>/dev/null || true)" == "$(macos_json_get "$terminal_path" hostId 2>/dev/null || true)" && "$(macos_json_get "$lineage_path" writerGeneration 2>/dev/null || true)" == "$(macos_json_get "$terminal_path" writerGeneration 2>/dev/null || true)" ]] || macos_die "formal writer lineage commissioning identity is invalid; public start is blocked" || return 1
+    [[ "$(macos_json_get "$lineage_path" initialCurrentStateSha256 2>/dev/null || true)" == "$(macos_json_get "$terminal_path" currentStateSha256 2>/dev/null || true)" && "$(macos_json_get "$lineage_path" initialReleasePath 2>/dev/null || true)" == "$(macos_json_get "$terminal_path" releasePath 2>/dev/null || true)" ]] || macos_die "formal writer lineage initial release binding is invalid; public start is blocked" || return 1
+    if [[ -f "$current_path" ]]; then
+      dataset_id="$(macos_json_get "$current_path" datasetId 2>/dev/null || true)"
+      host_id="$(macos_json_get "$current_path" hostId 2>/dev/null || true)"
+      generation="$(macos_json_get "$current_path" writerGeneration 2>/dev/null || true)"
+      [[ "$dataset_id" =~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' && "$host_id" =~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' && "$generation" =~ '^[1-9][0-9]*$' ]] || macos_die "formal writer current state identity is invalid; public start is blocked" || return 1
+      lineage_generation="$(macos_json_get "$lineage_path" writerGeneration 2>/dev/null || true)"
+      [[ "$lineage_generation" =~ '^[1-9][0-9]*$' ]] && (( generation >= lineage_generation )) || macos_die "formal writer current generation regressed behind the immutable commissioning lineage; public start is blocked" || return 1
+      # If the protected host identity is available, bind the current
+      # release to it.  The immutable generation-1 lineage remains the
+      # commissioning proof; a later legal cutover may advance generation (or
+      # host) without rewriting that proof.
+      if [[ -f "$MACOS_LAYOUT_STATE/host-identity.json" && -f "$MACOS_LAYOUT_STATE/host-identity.json.sha256" ]]; then
+        macos_read_cutover_identity
+        [[ "$dataset_id" == "$MACOS_DATASET_ID" && "$host_id" == "$MACOS_HOST_ID" && "$generation" == "$MACOS_WRITER_GENERATION" ]] || macos_die "formal writer current state identity does not match the protected host identity; public start is blocked" || return 1
+      fi
+      [[ "$(macos_json_get "$current_path" bootstrapPending 2>/dev/null || true)" == false && "$(macos_json_get "$current_path" activationReady 2>/dev/null || true)" == true ]] || macos_die "formal writer current state is not public-ready; public start is blocked" || return 1
+      [[ "$generation" == 1 || "$generation" =~ '^[2-9][0-9]*$' ]] || macos_die "formal writer activation terminal generation is invalid" || return 1
+    fi
+  fi
 }
 
 macos_assert_project_name() {
@@ -1075,6 +1187,7 @@ macos_cutover_identity() {
 macos_read_cutover_identity() {
   local identity_path="$MACOS_LAYOUT_STATE/host-identity.json"
   [[ -f "$identity_path" && -f "$identity_path.sha256" ]] || macos_die "host identity is missing" || return 1
+  [[ ! -L "$identity_path" && ! -L "$identity_path.sha256" ]] || macos_die "host identity must not be a symlink" || return 1
   macos_secure_path "$identity_path"
   macos_check_checksum "$identity_path"
   typeset -g MACOS_DATASET_ID="$(macos_json_get "$identity_path" datasetId)"
@@ -1313,4 +1426,222 @@ macos_assert_inherited_lock() {
   read -r actual_pid _ < "$lock_path/pid" || macos_die "inherited operation lock is invalid" || return 1
   [[ "$actual_pid" == "$parent_pid" ]] || macos_die "inherited operation lock owner changed" || return 1
   kill -0 "$parent_pid" 2>/dev/null || macos_die "inherited operation lock owner is not active" || return 1
+}
+
+# Privileged host evidence is deliberately handled as a small, immutable
+# envelope.  The capture script runs as the designated (non-root) host account and
+# writes ordinary owner-only files; only the three fixed read-only commands in
+# Capture-PrivilegedHostEvidence.zsh are elevated.  Preflight uses the helpers
+# below to re-check every byte and every host/configuration binding instead of
+# trusting a caller-supplied status field.
+macos_privileged_evidence_directory() {
+  local directory="${1:-}"
+  [[ -n "$directory" && "$directory" == /* ]] || macos_die "privileged evidence directory must be absolute" || return 1
+  [[ -d "$directory" && ! -L "$directory" ]] || macos_die "privileged evidence directory is missing or a symlink" || return 1
+  local resolved="${directory:A}" mode
+  [[ "$resolved" == "$directory" ]] || macos_die "privileged evidence directory must be canonical" || return 1
+  mode="$(/usr/bin/stat -f '%Lp' -- "$directory")"
+  (( (8#$mode & 8#0777) == 8#0700 )) || macos_die "privileged evidence directory must be mode 0700" || return 1
+  [[ "$(/usr/bin/stat -f '%Su' -- "$directory")" == "$(/usr/bin/id -un)" ]] || macos_die "privileged evidence directory is not owned by the current operator" || return 1
+  print -r -- "$directory"
+}
+
+macos_privileged_evidence_artifact_path() {
+  local directory="${1:-}" artifact="${2:-}" resolved_directory
+  resolved_directory="$(macos_privileged_evidence_directory "$directory")"
+  [[ "$artifact" =~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$' ]] || macos_die "privileged evidence artifact name is invalid" || return 1
+  print -r -- "$resolved_directory/$artifact"
+}
+
+macos_assert_privileged_evidence_artifact() {
+  local directory="${1:-}" artifact="${2:-}" path sidecar mode
+  path="$(macos_privileged_evidence_artifact_path "$directory" "$artifact")"
+  [[ -f "$path" && ! -L "$path" ]] || macos_die "privileged evidence artifact is missing or not a regular file: $artifact" || return 1
+  [[ "${path:h}" == "${directory:A}" ]] || macos_die "privileged evidence artifact escaped its protected directory" || return 1
+  mode="$(/usr/bin/stat -f '%Lp' -- "$path")"
+  (( (8#$mode & 8#0777) == 8#0600 )) || macos_die "privileged evidence artifact must be mode 0600: $artifact" || return 1
+  [[ "$(/usr/bin/stat -f '%Su' -- "$path")" == "$(/usr/bin/id -un)" ]] || macos_die "privileged evidence artifact is not owned by the current operator" || return 1
+  sidecar="$path.sha256"
+  [[ -f "$sidecar" && ! -L "$sidecar" ]] || macos_die "privileged evidence artifact checksum is missing: $artifact" || return 1
+  mode="$(/usr/bin/stat -f '%Lp' -- "$sidecar")"
+  (( (8#$mode & 8#0777) == 8#0600 )) || macos_die "privileged evidence checksum must be mode 0600: $artifact" || return 1
+  [[ "$(/usr/bin/stat -f '%Su' -- "$sidecar")" == "$(/usr/bin/id -un)" ]] || macos_die "privileged evidence checksum is not owned by the current operator" || return 1
+  macos_check_checksum "$path"
+  print -r -- "$path"
+}
+
+macos_privileged_evidence_fresh() {
+  local timestamp="${1:-}" timestamp_epoch now_epoch
+  timestamp_epoch="$(macos_epoch_from_iso "$timestamp")" || return 1
+  now_epoch="$(date -u '+%s')"
+  (( timestamp_epoch <= now_epoch + 300 )) || macos_die "privileged host evidence is too far in the future" || return 1
+  (( now_epoch - timestamp_epoch <= 3600 )) || macos_die "privileged host evidence is stale" || return 1
+}
+
+macos_current_boot_marker_digest() {
+  local marker digest
+  marker="$(sysctl -n kern.boottime 2>/dev/null || sysctl kern.boottime 2>/dev/null || true)"
+  [[ -n "$marker" ]] || macos_die "current boot marker is unavailable" || return 1
+  digest="$(print -rn -- "$marker" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')"
+  [[ "$digest" =~ '^[0-9a-fA-F]{64}$' ]] || macos_die "current boot marker digest is invalid" || return 1
+  print -r -- "${digest:l}"
+}
+
+macos_ipv4_in_cidr() {
+  local address="${1:-}" cidr="${2:-}" base prefix
+  local -a address_octets base_octets
+  integer address_value base_value mask
+  [[ "$address" =~ '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' && "$cidr" =~ '^[0-9]{1,3}(\.[0-9]{1,3}){3}/([0-9]|[12][0-9]|3[0-2])$' ]] || return 1
+  address_octets=( ${(s:.:)address} )
+  base="${cidr%%/*}"
+  prefix="${cidr##*/}"
+  (( prefix >= 8 )) || return 1
+  base_octets=( ${(s:.:)base} )
+  (( ${#address_octets} == 4 && ${#base_octets} == 4 )) || return 1
+  local octet
+  for octet in "${address_octets[@]}" "${base_octets[@]}"; do
+    [[ "$octet" =~ '^[0-9]{1,3}$' && "$octet" -le 255 ]] || return 1
+  done
+  address_value=$(( address_octets[1] * 16777216 + address_octets[2] * 65536 + address_octets[3] * 256 + address_octets[4] ))
+  base_value=$(( base_octets[1] * 16777216 + base_octets[2] * 65536 + base_octets[3] * 256 + base_octets[4] ))
+  if (( prefix == 0 )); then
+    mask=0
+  else
+    mask=$(( (0xffffffff << (32 - prefix)) & 0xffffffff ))
+  fi
+  (( (address_value & mask) == (base_value & mask) ))
+}
+
+macos_privileged_manifest_common() {
+  local manifest="${1:-}" expected_kind="${2:-}" expected_host="${3:-}" expected_identity_digest="${4:-}" expected_boot_digest="${5:-}" evidence_directory="${6:-$MACOS_LAYOUT_EVIDENCE}"
+  local directory schema kind manifest_status checked_at host_os architecture host_id identity_digest boot_digest designated_host_account current_host_account
+  [[ -f "$manifest" && ! -L "$manifest" && "$manifest" == /* ]] || macos_die "privileged host evidence manifest is missing or unsafe" || return 1
+  directory="$(macos_privileged_evidence_directory "$evidence_directory")"
+  [[ "${manifest:h}" == "$directory" ]] || macos_die "privileged host evidence manifest is outside the protected evidence directory" || return 1
+  macos_assert_privileged_evidence_artifact "$directory" "${manifest:t}" >/dev/null
+  schema="$(macos_json_get "$manifest" schemaVersion 2>/dev/null || true)"
+  kind="$(macos_json_get "$manifest" kind 2>/dev/null || true)"
+  manifest_status="$(macos_json_get "$manifest" status 2>/dev/null || true)"
+  [[ "$schema" == 1 && "$kind" == "$expected_kind" && "$manifest_status" == passed ]] || macos_die "privileged host evidence manifest envelope is invalid" || return 1
+  checked_at="$(macos_json_get "$manifest" checkedAt 2>/dev/null || macos_json_get "$manifest" checked_at 2>/dev/null || true)"
+  macos_privileged_evidence_fresh "$checked_at"
+  host_os="$(macos_json_get "$manifest" hostOS 2>/dev/null || macos_json_get "$manifest" host_os 2>/dev/null || true)"
+  architecture="$(macos_json_get "$manifest" architecture 2>/dev/null || true)"
+  host_id="$(macos_json_get "$manifest" hostId 2>/dev/null || macos_json_get "$manifest" host_id 2>/dev/null || true)"
+  identity_digest="$(macos_json_get "$manifest" hostIdentitySha256 2>/dev/null || macos_json_get "$manifest" host_identity_sha256 2>/dev/null || true)"
+  boot_digest="$(macos_json_get "$manifest" bootMarkerSha256 2>/dev/null || macos_json_get "$manifest" boot_marker_sha256 2>/dev/null || true)"
+  [[ "$host_os" == darwin && "$architecture" == arm64 && "$host_id" == "$expected_host" && "${identity_digest:l}" == "${expected_identity_digest:l}" && "${boot_digest:l}" == "${expected_boot_digest:l}" ]] || macos_die "privileged host evidence host binding is invalid" || return 1
+  designated_host_account="$(macos_json_get "$manifest" designatedHostAccount 2>/dev/null || true)"
+  current_host_account="$(/usr/bin/id -un 2>/dev/null || true)"
+  [[ -n "$current_host_account" && "$designated_host_account" == "$current_host_account" ]] || macos_die "privileged host evidence designated account binding is invalid" || return 1
+}
+
+macos_privileged_manifest_artifact() {
+  local manifest="${1:-}" field="${2:-}" artifact directory
+  artifact="$(macos_json_get "$manifest" "$field" 2>/dev/null || true)"
+  [[ -n "$artifact" ]] || macos_die "privileged host evidence output artifact is missing: $field" || return 1
+  directory="${manifest:h}"
+  macos_assert_privileged_evidence_artifact "$directory" "$artifact"
+}
+
+macos_privileged_manifest_port() {
+  local manifest="${1:-}" field="${2:-}" expected="${3:-}" value
+  value="$(macos_json_get "$manifest" "$field" 2>/dev/null || true)"
+  if [[ -z "$value" && "$field" == postgresPort ]]; then
+    value="$(macos_json_get "$manifest" databasePort 2>/dev/null || macos_json_get "$manifest" dbPort 2>/dev/null || true)"
+  fi
+  [[ "$value" =~ '^[0-9]+$' && "$value" == "$expected" ]] || macos_die "privileged host evidence port binding is invalid: $field" || return 1
+  (( value >= 1 && value <= 65535 )) || macos_die "privileged host evidence port is out of range: $field" || return 1
+}
+
+macos_privileged_manifest_command() {
+  local manifest="${1:-}" command_field="${2:-}" exit_field="${3:-}" expected_command="${4:-}" artifact_field="${5:-}" digest_field="${6:-}" raw_path raw_digest exit_code actual_digest
+  [[ "$(macos_json_get "$manifest" "$command_field" 2>/dev/null || true)" == "$expected_command" ]] || macos_die "privileged host evidence command binding is invalid: $command_field" || return 1
+  exit_code="$(macos_json_get "$manifest" "$exit_field" 2>/dev/null || true)"
+  [[ "$exit_code" == 0 ]] || macos_die "privileged host evidence command did not succeed: $command_field" || return 1
+  raw_path="$(macos_privileged_manifest_artifact "$manifest" "$artifact_field")"
+  raw_digest="$(macos_json_get "$manifest" "$digest_field" 2>/dev/null || true)"
+  [[ "$raw_digest" =~ '^[0-9a-fA-F]{64}$' ]] || macos_die "privileged host evidence output digest is invalid: $digest_field" || return 1
+  actual_digest="$(macos_sha256 "$raw_path")"
+  [[ "${actual_digest:l}" == "${raw_digest:l}" ]] || macos_die "privileged host evidence output digest does not match: $artifact_field" || return 1
+  print -r -- "$raw_path"
+}
+
+macos_pf_rule_is_pass() {
+  local line="${1:-}"
+  # pfctl -sr emits the action first (or after an optional @N rule index).
+  # Restricting this check to the action token keeps block rules from being
+  # mistaken for an allow path or a forbidden exposed service.
+  print -r -- "$line" | grep -Eqi -- '^[[:space:]]*(@[0-9]+[[:space:]]+)?pass([[:space:]]|$)'
+}
+
+macos_pf_rules_prove_candidate_path() {
+  local rules_path="${1:-}" approved_cidr="${2:-}" candidate_ip="${3:-}" candidate_port="${4:-}" rules line candidate_lines=0 exact_lines=0
+  rules="$(< "$rules_path")"
+  [[ -n "$rules" ]] || macos_die "packet-filter rules output is empty" || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    macos_pf_rule_is_pass "$line" || continue
+    # Every pass rule for the candidate port is part of the exposure set.  Do
+    # not first narrow by destination: a pass-to-any rule must fail even when
+    # an exact candidate rule is also present.
+    if print -r -- "$line" | grep -Eq -- "(^|[^[:alnum:]_])port[^0-9]*${candidate_port}([^0-9]|$)"; then
+      (( candidate_lines += 1 ))
+      if print -r -- "$line" | grep -Eqi -- "(^|[^[:alnum:]_])from[[:space:]]+${approved_cidr}[[:space:]]+to[[:space:]]+${candidate_ip}([^0-9]|$)" && print -r -- "$line" | grep -Eqi -- '(^|[^[:alnum:]_])proto[[:space:]]+tcp([^[:alnum:]_]|$)'; then
+        (( exact_lines += 1 ))
+      fi
+    fi
+  done <<< "$rules"
+  (( candidate_lines > 0 && candidate_lines == exact_lines )) || macos_die "packet-filter rules do not prove an exact approved candidate path" || return 1
+}
+
+macos_pf_rules_forbid_ports() {
+  local rules_path="${1:-}"; shift
+  local rules="$(< "$rules_path")" line port
+  for port in "$@"; do
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      macos_pf_rule_is_pass "$line" || continue
+      if print -r -- "$line" | grep -Eqi -- "(^|[^[:alnum:]_])port[^0-9]*${port}([^0-9]|$)"; then
+        macos_die "packet-filter rules expose a forbidden service port: $port"
+        return 1
+      fi
+    done <<< "$rules"
+  done
+}
+
+macos_network_time_output_proves_on() {
+  local output="${1:-}" line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if print -r -- "$line" | grep -Eqi -- '^[[:space:]]*Network[[:space:]]+Time[[:space:]]*:[[:space:]]*On[[:space:]]*$'; then
+      return 0
+    fi
+  done <<< "$output"
+  return 1
+}
+
+macos_assert_pf_evidence() {
+  local manifest="${1:-}" expected_host="${2:-}" expected_identity_digest="${3:-}" expected_boot_digest="${4:-}" approved_cidr="${5:-}" candidate_ip="${6:-}" candidate_port="${7:-}" operator_port="${8:-}" postgres_port="${9:-}" frontend_port="${10:-}" backend_port="${11:-}" evidence_directory="${12:-${MACOS_LAYOUT_EVIDENCE:-${1:h}}}"
+  local info_path rules_path
+  macos_privileged_manifest_common "$manifest" macos-pf-export "$expected_host" "$expected_identity_digest" "$expected_boot_digest" "$evidence_directory"
+  [[ "$(macos_json_get "$manifest" provider 2>/dev/null || true)" == pf ]] || macos_die "PF evidence provider binding is invalid" || return 1
+  [[ "$(macos_json_get "$manifest" approvedCidr 2>/dev/null || true)" == "$approved_cidr" ]] || macos_die "PF approved CIDR binding is invalid" || return 1
+  [[ "$(macos_json_get "$manifest" candidateAddress 2>/dev/null || macos_json_get "$manifest" candidateIp 2>/dev/null || true)" == "$candidate_ip" ]] || macos_die "PF candidate address binding is invalid" || return 1
+  macos_ipv4_in_cidr "$candidate_ip" "$approved_cidr" || macos_die "PF candidate address is outside the approved CIDR" || return 1
+  macos_privileged_manifest_port "$manifest" candidatePort "$candidate_port"
+  macos_privileged_manifest_port "$manifest" operatorPort "$operator_port"
+  macos_privileged_manifest_port "$manifest" postgresPort "$postgres_port"
+  macos_privileged_manifest_port "$manifest" frontendPort "$frontend_port"
+  macos_privileged_manifest_port "$manifest" backendPort "$backend_port"
+  info_path="$(macos_privileged_manifest_command "$manifest" infoCommand infoExitCode '/usr/bin/sudo -n /sbin/pfctl -s info' infoArtifact infoOutputSha256)"
+  rules_path="$(macos_privileged_manifest_command "$manifest" rulesCommand rulesExitCode '/usr/bin/sudo -n /sbin/pfctl -sr' rulesArtifact rulesOutputSha256)"
+  [[ "$(< "$info_path")" != *Disabled* && ( "$(< "$info_path")" == *"Status: Enabled"* || "$(< "$info_path")" == *"Status:\ Enabled"* ) ]] || macos_die "packet filter is not enabled" || return 1
+  macos_pf_rules_prove_candidate_path "$rules_path" "$approved_cidr" "$candidate_ip" "$candidate_port"
+  macos_pf_rules_forbid_ports "$rules_path" "$operator_port" "$postgres_port" "$frontend_port" "$backend_port"
+}
+
+macos_assert_network_time_evidence() {
+  local manifest="${1:-}" expected_host="${2:-}" expected_identity_digest="${3:-}" expected_boot_digest="${4:-}" evidence_directory="${5:-${MACOS_LAYOUT_EVIDENCE:-${1:h}}}" output_path output
+  macos_privileged_manifest_common "$manifest" macos-network-time-export "$expected_host" "$expected_identity_digest" "$expected_boot_digest" "$evidence_directory"
+  output_path="$(macos_privileged_manifest_command "$manifest" command exitCode '/usr/bin/sudo -n /usr/sbin/systemsetup -getusingnetworktime' outputArtifact outputSha256)"
+  output="$(< "$output_path")"
+  macos_network_time_output_proves_on "$output" || macos_die "network time evidence does not prove On" || return 1
 }

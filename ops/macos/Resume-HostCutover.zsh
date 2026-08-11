@@ -8,6 +8,8 @@ source "$SCRIPT_DIR/Common.zsh"
 cutback_state_arg=""
 accepted_state_arg=""
 browser_evidence=""
+pf_evidence=""
+network_time_evidence=""
 backup_path_arg=""
 confirmation=""
 root="${INTERNAL_EXAM_ROOT:-${HOME:?}/Library/Application Support/InternalExam}"
@@ -16,17 +18,19 @@ while (( $# > 0 )); do
     --cutback-state) (( $# >= 2 )) || macos_die "--cutback-state requires a checksummed path"; cutback_state_arg="$2"; shift 2 ;;
     --accepted-state) (( $# >= 2 )) || macos_die "--accepted-state requires a checksummed path"; accepted_state_arg="$2"; shift 2 ;;
     --browser-smoke-evidence|--browser-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; browser_evidence="$2"; shift 2 ;;
+    --pf-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; pf_evidence="$2"; shift 2 ;;
+    --network-time-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; network_time_evidence="$2"; shift 2 ;;
     --backup-path|--backup) (( $# >= 2 )) || macos_die "$1 requires a paired backup path"; backup_path_arg="$2"; shift 2 ;;
     --confirmation) (( $# >= 2 )) || macos_die "--confirmation requires exact text"; confirmation="$2"; shift 2 ;;
     --root) (( $# >= 2 )) || macos_die "--root requires a path"; root="$2"; shift 2 ;;
-    -h|--help) print -r -- "usage: $0 --cutback-state PATH --accepted-state PATH --browser-smoke-evidence PATH --confirmation RESUME-SOURCE [--backup-path PATH] [--root ROOT]"; exit 0 ;;
+    -h|--help) print -r -- "usage: $0 --cutback-state PATH --accepted-state PATH --browser-smoke-evidence PATH --pf-evidence PATH --network-time-evidence PATH --confirmation RESUME-SOURCE [--backup-path PATH] [--root ROOT]"; exit 0 ;;
     *) macos_die "unknown argument: $1"; exit 1 ;;
   esac
 done
 
 macos_assert_macos
 [[ "$confirmation" == "RESUME SOURCE AFTER PRE-WRITE CUTBACK" ]] || macos_die "exact source resume confirmation did not match"
-[[ -n "$cutback_state_arg" && -n "$accepted_state_arg" && -n "$browser_evidence" ]] || macos_die "cutback, accepted, and browser evidence are required"
+[[ -n "$cutback_state_arg" && -n "$accepted_state_arg" && -n "$browser_evidence" && -n "$pf_evidence" && -n "$network_time_evidence" ]] || macos_die "cutback, accepted, browser, PF, and network-time evidence are required"
 macos_assert_outside_worktree "$root" >/dev/null
 macos_layout "$root"
 macos_assert_protected_configuration "$root"
@@ -224,7 +228,7 @@ fi
 if (( resume_terminal_committed == 0 )); then
   MACOS_PARENT_LOCK_PID="$$" "$SCRIPT_DIR/Start-Platform.zsh" --root "$root" --maintenance --lock-held >/dev/null
   preflight_path="$MACOS_LAYOUT_EVIDENCE/source-resume-preflight-$(macos_timestamp)-$$.json"
-  MACOS_PARENT_LOCK_PID="$$" "$SCRIPT_DIR/Test-FormalPreflight.zsh" --root "$root" --lock-held --target-maintenance --backup-path "$backup_path" --browser-smoke-evidence "$browser_evidence" --evidence-path "$preflight_path" >/dev/null
+  MACOS_PARENT_LOCK_PID="$$" "$SCRIPT_DIR/Test-FormalPreflight.zsh" --root "$root" --lock-held --target-maintenance --backup-path "$backup_path" --browser-smoke-evidence "$browser_evidence" --pf-evidence "$pf_evidence" --network-time-evidence "$network_time_evidence" --evidence-path "$preflight_path" >/dev/null
   macos_check_checksum "$preflight_path"
   [[ "$(macos_json_get "$preflight_path" status 2>/dev/null || true)" == passed ]] || macos_die "source resume preflight did not pass"
   MACOS_PARENT_LOCK_PID="$$" "$SCRIPT_DIR/Stop-Platform.zsh" --root "$root" --lock-held >/dev/null

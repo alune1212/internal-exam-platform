@@ -26,6 +26,7 @@ macos_require_formal_paths
 macos_docker_ready
 macos_release_state "$MACOS_CURRENT_STATE"
 macos_read_cutover_identity
+macos_assert_formal_writer_ready "$maintenance"
 state_dataset_id="$(macos_json_get "$MACOS_CURRENT_STATE" datasetId 2>/dev/null || true)"
 state_host_id="$(macos_json_get "$MACOS_CURRENT_STATE" hostId 2>/dev/null || true)"
 state_writer_generation="$(macos_json_get "$MACOS_CURRENT_STATE" writerGeneration 2>/dev/null || true)"

@@ -585,13 +585,13 @@ def _scan_target_values(payload: Any) -> tuple[str | None, list[str]]:
                 (value for value in top_level_tags if isinstance(value, str)),
                 None,
             )
+    # Trivy's top-level ArtifactID is the scanner's artifact digest.  It is
+    # not the Docker image config ID returned by `docker image inspect` and
+    # therefore must not be compared with the built-image identity.  The
+    # Docker config identity is exposed as ImageID (normally under
+    # Metadata.ImageID in Trivy v2 JSON).
     image_ids: list[str] = []
-    for key in (
-        "ArtifactID",
-        "artifactID",
-        "ImageID",
-        "imageID",
-    ):
+    for key in ("ImageID", "imageID"):
         value = payload.get(key)
         if isinstance(value, str):
             image_ids.append(value)
@@ -607,7 +607,7 @@ def _scan_target_values(payload: Any) -> tuple[str | None, list[str]]:
                     (value for value in metadata_tags if isinstance(value, str)),
                     None,
                 )
-        for key in ("ImageID", "imageID", "ArtifactID", "artifactID"):
+        for key in ("ImageID", "imageID"):
             value = metadata.get(key)
             if isinstance(value, str):
                 image_ids.append(value)

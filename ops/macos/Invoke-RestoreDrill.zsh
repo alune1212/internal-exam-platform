@@ -8,6 +8,7 @@ second_copy_backup_path=""
 release_path_arg=""
 lock_held=0
 db_audit=1
+bootstrap_mode=0
 root="${INTERNAL_EXAM_ROOT:-${HOME:?}/Library/Application Support/InternalExam}"
 while (( $# > 0 )); do
   case "$1" in
@@ -15,8 +16,9 @@ while (( $# > 0 )); do
     --release-path|--release) (( $# >= 2 )) || macos_die "$1 requires a sealed release path"; release_path_arg="$2"; shift 2 ;;
     --lock-held) lock_held=1; shift ;;
     --no-db-audit) db_audit=0; shift ;;
+    --bootstrap) bootstrap_mode=1; shift ;;
     --root) (( $# >= 2 )) || macos_die "--root requires a path"; root="$2"; shift 2 ;;
-    -h|--help) print -r -- "usage: $0 --second-copy-backup-path PATH [--release-path SEALED_RELEASE] [--no-db-audit] [--lock-held] [--root ROOT]"; exit 0 ;;
+    -h|--help) print -r -- "usage: $0 --second-copy-backup-path PATH [--release-path SEALED_RELEASE] [--no-db-audit] [--bootstrap] [--lock-held] [--root ROOT]"; exit 0 ;;
     *) macos_die "unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -53,6 +55,21 @@ fi
 operator="$(macos_active_operator_subject)"
 backup_path="$(macos_assert_backup "$second_copy_backup_path")"
 macos_assert_outside_worktree "$backup_path" >/dev/null
+backup_manifest="$backup_path/manifest.json"
+bootstrap_dataset_id=""
+bootstrap_host_id=""
+bootstrap_writer_generation=""
+source_manifest_sha256=""
+if (( bootstrap_mode == 1 )); then
+  macos_read_cutover_identity
+  bootstrap_dataset_id="$MACOS_DATASET_ID"
+  bootstrap_host_id="$MACOS_HOST_ID"
+  bootstrap_writer_generation="$MACOS_WRITER_GENERATION"
+  [[ -f "$backup_manifest" && ! -L "$backup_manifest" ]] || macos_die "bootstrap restore drill backup manifest is missing"
+  plutil -convert json -o - -- "$backup_manifest" >/dev/null 2>&1 || macos_die "bootstrap restore drill backup manifest is invalid"
+  [[ "$(macos_json_get "$backup_manifest" backup_kind 2>/dev/null || true)" == cutover && "$(macos_json_get "$backup_manifest" dataset_id 2>/dev/null || true)" == "$bootstrap_dataset_id" && "$(macos_json_get "$backup_manifest" source_host_id 2>/dev/null || true)" == "$bootstrap_host_id" && "$(macos_json_get "$backup_manifest" writer_generation 2>/dev/null || true)" == "$bootstrap_writer_generation" && "$(macos_json_get "$backup_manifest" writer_fence_boundary.dataset_id 2>/dev/null || true)" == "$bootstrap_dataset_id" && "$(macos_json_get "$backup_manifest" writer_fence_boundary.source_host_id 2>/dev/null || true)" == "$bootstrap_host_id" && "$(macos_json_get "$backup_manifest" writer_fence_boundary.writer_generation 2>/dev/null || true)" == "$bootstrap_writer_generation" ]] || macos_die "bootstrap restore drill backup identity is not bound to the pending writer"
+  source_manifest_sha256="$(macos_sha256 "$backup_manifest")"
+fi
 second_copy_root="$(macos_formal_value SECOND_COPY_PATH)"
 second_copy_root="$(macos_resolve_path "$second_copy_root")"
 [[ "$backup_path" == "$second_copy_root"/backup-* ]] || macos_die "restore drill input must be a direct backup under configured second-copy storage"
@@ -127,8 +144,11 @@ fi
 macos_compose "$release_path" "$MACOS_FORMAL_ENV" "$restore_project" down -v --remove-orphans || true
 rm -R -- "$restore_host_root"
 
-evidence_path="$(macos_write_evidence "$MACOS_LAYOUT_EVIDENCE" restore-drill \
-  "{\"schemaVersion\":1,\"kind\":\"second-copy-restore-drill\",\"status\":\"$restore_status\",\"backupId\":\"${backup_path:t}\",\"disposableProject\":\"$restore_project\",\"formalProjectChanged\":false,\"secrets\":\"excluded\"}")"
+restore_evidence_json="{\"schemaVersion\":1,\"kind\":\"second-copy-restore-drill\",\"status\":\"$restore_status\",\"backupId\":\"${backup_path:t}\",\"disposableProject\":\"$restore_project\",\"formalProjectChanged\":false,\"secrets\":\"excluded\"}"
+if (( bootstrap_mode == 1 )); then
+  restore_evidence_json="${restore_evidence_json%\}},\"checkedAt\":\"$(macos_now_iso)\",\"hostId\":\"$bootstrap_host_id\",\"hostOS\":\"darwin\",\"architecture\":\"arm64\",\"releaseCommit\":\"${release_commit:l}\",\"releaseVersion\":\"$(macos_json_escape "$release_version")\",\"datasetId\":\"$bootstrap_dataset_id\",\"writerGeneration\":$bootstrap_writer_generation,\"sourceBackupManifestSha256\":\"$source_manifest_sha256\"}"
+fi
+evidence_path="$(macos_write_evidence "$MACOS_LAYOUT_EVIDENCE" restore-drill "$restore_evidence_json")"
 if [[ "$restore_status" == passed ]]; then
   # A nested cutover restore runs before the fresh formal database exists and
   # may carry an active source writer fence.  Its filesystem evidence is the
