@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { LogIn } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowRight, LogIn } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { z } from "zod";
@@ -17,15 +17,19 @@ import { PageHeader, PageSection } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
+import {
+  clearRegistrationFlow,
+  getSafeReturnTo,
+  maskEmail,
+  setRegistrationFlow,
+} from "@/lib/candidateSession";
 
 const schema = z.object({
-  name: z.string().min(1, "请输入姓名"),
-  employee_no: z.string().optional(),
-  email: z.string().min(1, "请输入邮箱").email("请输入有效邮箱"),
+  email: z.string().trim().min(1, "请输入邮箱").email("请输入有效邮箱"),
   otp: z.string().optional(),
 });
 
@@ -34,74 +38,105 @@ type LoginForm = z.infer<typeof schema>;
 export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const requestedReturnTo = searchParams.get("returnTo");
-  const returnTo =
-    requestedReturnTo?.startsWith("/") && !requestedReturnTo.startsWith("//")
-      ? requestedReturnTo
-      : "/exams";
-  const { candidate, loginCandidate } = useOutletContext<CandidateSessionContext>();
+  const returnTo = getSafeReturnTo(searchParams.get("returnTo"));
+  const context = useOutletContext<CandidateSessionContext | null>();
+  const candidate = context?.candidate ?? null;
+  const loginCandidate = context?.loginCandidate ?? (() => undefined);
   const [challenge, setChallenge] = useState<CandidateLoginChallenge | null>(null);
-  const [nowMs, setNowMs] = useState(0);
+  const [challengeEmail, setChallengeEmail] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [accountUnavailableMessage, setAccountUnavailableMessage] = useState<string | null>(null);
   const form = useForm<LoginForm>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", employee_no: "", email: "", otp: "" },
+    defaultValues: { email: "", otp: "" },
   });
+
   const requestMutation = useMutation({
     mutationFn: requestCandidateLoginOtp,
-    onSuccess: (nextChallenge) => {
+    onSuccess: (nextChallenge, variables) => {
       setChallenge(nextChallenge);
+      setChallengeEmail(variables.email);
+      setAccountUnavailableMessage(null);
       form.clearErrors("otp");
     },
   });
+
   const verifyMutation = useMutation({
     mutationFn: verifyCandidateLoginOtp,
-    onSuccess: (nextCandidate) => {
-      loginCandidate(nextCandidate);
-      navigate(returnTo, { replace: true });
+    onSuccess: (verification) => {
+      if (verification.outcome === "authenticated") {
+        if (verification.account.status !== "active") {
+          clearRegistrationFlow();
+          setAccountUnavailableMessage("账号暂不可用，请联系管理员重新激活后再登录。");
+          return;
+        }
+        clearRegistrationFlow();
+        loginCandidate({
+          ...verification.account,
+          status: "active",
+          token: verification.token,
+          token_expires_at: verification.token_expires_at,
+        });
+        navigate(returnTo, { replace: true });
+        return;
+      }
+      if (verification.outcome === "registration_required") {
+        setRegistrationFlow({
+          registration_credential: verification.registration_credential,
+          email: verification.email,
+          suggested_display_name: verification.suggested_display_name,
+          returnTo,
+          expires_at: verification.registration_expires_at,
+        });
+        navigate(`/register?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+        return;
+      }
+      // A verified inactive mailbox is intentionally not treated as a generic
+      // OTP error: the user can take the actionable reactivation path.
+      clearRegistrationFlow();
+      setAccountUnavailableMessage(verification.message);
+    },
+    onError: () => {
+      setAccountUnavailableMessage(null);
+      form.setError("otp", { message: candidatePageText.login.otpError });
     },
   });
 
   useEffect(() => {
-    if (!challenge) {
-      setNowMs(0);
-      return;
-    }
-
-    const refreshNow = () => setNowMs(Date.now());
-    refreshNow();
-
-    const cooldownMs = Date.parse(challenge.resend_available_at) - Date.now();
-    if (cooldownMs <= 0) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(refreshNow, cooldownMs + 100);
-    return () => window.clearTimeout(timeoutId);
+    if (!challenge) return undefined;
+    const tick = () => setNowMs(Date.now());
+    tick();
+    const intervalId = window.setInterval(tick, 1_000);
+    return () => window.clearInterval(intervalId);
   }, [challenge]);
+
+  const resendSeconds = useMemo(() => {
+    if (!challenge) return 0;
+    const availableAt = Date.parse(challenge.resend_available_at);
+    if (!Number.isFinite(availableAt)) return 0;
+    return Math.max(0, Math.ceil((availableAt - nowMs) / 1_000));
+  }, [challenge, nowMs]);
 
   if (candidate) {
     return <Navigate to={returnTo} replace />;
   }
 
   function handleSubmit(values: LoginForm) {
+    const email = values.email.trim().toLowerCase();
     if (!challenge) {
-      requestMutation.mutate({
-        name: values.name,
-        employee_no: values.employee_no || undefined,
-        email: values.email,
-      });
+      clearRegistrationFlow();
+      requestMutation.mutate({ email });
       return;
     }
-    if (!values.otp?.trim()) {
+    const otp = values.otp?.trim() ?? "";
+    if (!otp) {
       form.setError("otp", { message: "请输入验证码" });
       return;
     }
-    verifyMutation.mutate({ challenge_id: challenge.challenge_id, otp: values.otp });
+    verifyMutation.mutate({ challenge_id: challenge.challenge_id, otp });
   }
 
   const isPending = requestMutation.isPending || verifyMutation.isPending;
-  const resendDisabled = challenge !== null && Date.parse(challenge.resend_available_at) > nowMs;
-
   return (
     <PageSection variant="plain" data-stagger className="w-full max-w-md gap-6">
       <div className="flex flex-col gap-4">
@@ -123,37 +158,13 @@ export function LoginPage() {
             noValidate
           >
             <FieldGroup>
-              <Field data-invalid={form.formState.errors.name ? "" : undefined}>
-                <FieldLabel htmlFor="name">姓名</FieldLabel>
-                <Input
-                  id="name"
-                  autoComplete="name"
-                  aria-invalid={Boolean(form.formState.errors.name)}
-                  {...form.register("name")}
-                  disabled={Boolean(challenge)}
-                />
-                {form.formState.errors.name ? (
-                  <FieldError>{form.formState.errors.name.message}</FieldError>
-                ) : null}
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="employee_no">员工号（可选）</FieldLabel>
-                <Input
-                  id="employee_no"
-                  autoComplete="off"
-                  placeholder="例如 10042"
-                  {...form.register("employee_no")}
-                  disabled={Boolean(challenge)}
-                />
-              </Field>
-
               <Field data-invalid={form.formState.errors.email ? "" : undefined}>
                 <FieldLabel htmlFor="email">邮箱</FieldLabel>
                 <Input
                   id="email"
                   autoComplete="email"
                   type="email"
+                  inputMode="email"
                   aria-invalid={Boolean(form.formState.errors.email)}
                   {...form.register("email")}
                   disabled={Boolean(challenge)}
@@ -170,9 +181,13 @@ export function LoginPage() {
                     id="otp"
                     autoComplete="one-time-code"
                     inputMode="numeric"
+                    maxLength={6}
                     aria-invalid={Boolean(form.formState.errors.otp)}
                     {...form.register("otp")}
                   />
+                  <FieldDescription>
+                    {candidatePageText.login.otpSent(maskEmail(challengeEmail), 10)}
+                  </FieldDescription>
                   {form.formState.errors.otp ? (
                     <FieldError>{form.formState.errors.otp.message}</FieldError>
                   ) : null}
@@ -180,22 +195,22 @@ export function LoginPage() {
               ) : null}
             </FieldGroup>
 
+            <p className="text-body-sm leading-relaxed text-muted">
+              {candidatePageText.login.permissionNote}
+            </p>
+
             <Button type="submit" size="lg" className="h-12 w-full" disabled={isPending}>
               {isPending ? (
                 <Spinner
                   data-icon="inline-start"
-                  aria-label={challenge ? "正在进入" : "正在发送"}
+                  aria-label={challenge ? "正在验证" : "正在发送"}
                 />
+              ) : challenge ? (
+                <ArrowRight data-icon="inline-start" aria-hidden="true" />
               ) : (
-                <LogIn data-icon="inline-start" />
+                <LogIn data-icon="inline-start" aria-hidden="true" />
               )}
-              {isPending
-                ? challenge
-                  ? "正在进入"
-                  : "正在发送"
-                : challenge
-                  ? "进入平台"
-                  : "发送验证码"}
+              {challenge ? "验证并继续" : "发送验证码"}
             </Button>
 
             {challenge ? (
@@ -203,17 +218,10 @@ export function LoginPage() {
                 type="button"
                 variant="ghost"
                 className="w-full"
-                disabled={requestMutation.isPending || resendDisabled}
-                onClick={() => {
-                  const values = form.getValues();
-                  requestMutation.mutate({
-                    name: values.name,
-                    employee_no: values.employee_no || undefined,
-                    email: values.email,
-                  });
-                }}
+                disabled={requestMutation.isPending || resendSeconds > 0}
+                onClick={() => requestMutation.mutate({ email: challengeEmail })}
               >
-                重新发送验证码
+                {resendSeconds > 0 ? `重新发送验证码（${resendSeconds}秒）` : "重新发送验证码"}
               </Button>
             ) : null}
 
@@ -222,14 +230,9 @@ export function LoginPage() {
                 <AlertDescription>{candidatePageText.login.error}</AlertDescription>
               </Alert>
             ) : null}
-            {verifyMutation.isError ? (
-              <Alert variant="error">
-                <AlertDescription>{candidatePageText.login.otpError}</AlertDescription>
-              </Alert>
-            ) : null}
-            {challenge ? (
-              <Alert>
-                <AlertDescription>{candidatePageText.login.otpSent}</AlertDescription>
+            {accountUnavailableMessage ? (
+              <Alert variant="warning">
+                <AlertDescription>{accountUnavailableMessage}</AlertDescription>
               </Alert>
             ) : null}
           </form>

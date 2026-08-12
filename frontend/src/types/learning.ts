@@ -50,10 +50,9 @@ export type LearningVideoUploadPayload = {
 
 export type LearningReportRow = {
   candidate_id: number;
-  candidate_name: string;
-  employee_no?: string | null;
-  department?: string | null;
-  exam_group?: string | null;
+  account_email: string;
+  display_name: string;
+  account_status: "pending" | "active" | "inactive" | string;
   video_id: number;
   video_title: string;
   video_status: LearningVideoStatus;

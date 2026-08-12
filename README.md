@@ -2,7 +2,7 @@
 
 公司内部轻量级临时考试与刷题平台，用于快速组织内部视频学习、考试、练习刷题、自动判分和基础报表统计。
 
-第一阶段已经形成可运行的考试闭环，并增加了独立的视频学习模块：后端 API、数据库模型、迁移、前端页面、Docker Compose 和项目文档。考试默认按固定 50 题等价试卷出题并保留题目快照；管理员使用签名 session token，考试名单按单场考试维护，支持名单移除和补考授权，发布时冻结题池，报表支持按考试过滤并导出单个 Excel 多 Sheet 工作簿。视频学习由管理员本地上传视频，考试人完成 90% 观看后标记完成，不绑定考试资格、交卷、成绩或排名。
+第一阶段已经形成可运行的考试闭环，并增加了独立的视频学习模块：后端 API、数据库模型、迁移、前端页面、Docker Compose 和项目文档。平台以规范化邮箱 OTP 创建/登录账号：active 用户可学习、练习和复习错题；首次登录的新邮箱先完成显示名称步骤。正式考试仍按单场冻结的应考名单和题池授权，邀请发送是发布后的显式动作，报表从冻结 roster identity 读取并按考试过滤，导出单个 Excel 多 Sheet 工作簿。固定试卷和所有 attempt 均保留题目/答案/成绩快照；视频学习完成度不绑定考试资格、交卷、成绩或排名。
 
 ## 技术栈
 
@@ -17,7 +17,7 @@ internal-exam-platform/
   backend/       FastAPI 后端、SQLAlchemy 模型、Alembic 迁移
   frontend/      React/Vite 前端、页面、API client、Academic Editorial 设计系统
   docs/          需求、数据库、API、导入模板、交接文档
-  nginx/         考试人/操作员双入口反向代理配置
+  nginx/         应考人员/操作员双入口反向代理配置
   ops/           macOS/未来 Windows、E2E、容量与安全发布门禁
   docker-compose.yml
 ```
@@ -26,7 +26,7 @@ internal-exam-platform/
 
 当前正式宿主是 Apple Silicon macOS + Docker Desktop + Docker Compose，按单宿主 24×7 best-effort 运行；严重宿主、磁盘或办公网络故障允许暂停或改期。Docker Desktop 由登记的 designated host account 运行，可以复用现有受管账号，不强制新建账号。Docker Desktop 必须启用登录后启动、关闭 Resource Saver 并固定为 8 CPU/8 GiB；MacBook 正式考试全程接入 AC，电池不作为正式电源方案。
 
-正式根目录默认是 ${HOME}/Library/Application Support/InternalExam，必须在工作树外；目录 0700、正式环境/state/evidence 0600。正式候选地址固定为 `192.168.2.34/24`，需要 DHCP reservation；pf/受管防火墙只允许 `192.168.2.0/24` 到 `192.168.2.34:8080`，操作员入口严格只绑定 `127.0.0.1:8081`。考试窗口内停止 development/staging，任何时刻只允许一个 formal writer。LaunchAgent 只恢复已选 release，不等于批准开考。
+正式根目录默认是 ${HOME}/Library/Application Support/InternalExam，必须在工作树外；目录 0700、正式环境/state/evidence 0600。正式应考人员入口地址固定为 `192.168.2.34/24`，需要 DHCP reservation；pf/受管防火墙只允许 `192.168.2.0/24` 到 `192.168.2.34:8080`，操作员入口严格只绑定 `127.0.0.1:8081`。考试窗口内停止 development/staging，任何时刻只允许一个 formal writer。LaunchAgent 只恢复已选 release，不等于批准开考。
 
 未来 Windows Docker Desktop + WSL2 仅是迁移目标，必须从 verified paired backup 在真实 Windows/native AMD64 上重新完成 staging、恢复、网络、防火墙、SMTP、桌面/手机 UAT 和 100-client gate；Mac 证据不能替代 Windows acceptance。迁移和回切语义见 [`docs/host-migration.md`](docs/host-migration.md)。
 
@@ -70,6 +70,11 @@ CANDIDATE_LOGIN_SMTP_USERNAME=<smtp-user-if-required>
 CANDIDATE_LOGIN_SMTP_PASSWORD=<smtp-password-if-required>
 CANDIDATE_LOGIN_SMTP_USE_TLS=true
 CANDIDATE_LOGIN_SMTP_USE_SSL=false
+# 可选：账号 OTP 持久化限流与邀请发送边界按环境配置
+# CANDIDATE_LOGIN_OTP_PER_EMAIL_LIMIT=...
+# CANDIDATE_LOGIN_OTP_PER_SOURCE_LIMIT=...
+# CANDIDATE_LOGIN_OTP_GLOBAL_LIMIT=...
+# INVITATION_SEND_BATCH_LIMIT=...
 ```
 
 `CANDIDATE_LOGIN_SMTP_USE_TLS` 适用于 `587` 等 STARTTLS 端口；`CANDIDATE_LOGIN_SMTP_USE_SSL` 适用于 `465` 或服务商指定的 `994` 等隐式 SSL 端口，两者不能同时为 `true`。SMTP 主机必须使用与服务器证书匹配的域名，不能直接沿用证书未覆盖的别名或 IP。需要认证时，SMTP 用户名和密码必须同时配置；密码应使用邮件服务商提供的 SMTP 授权码或应用专用密码。
@@ -146,9 +151,9 @@ http://127.0.0.1:8081/api/ready
 http://127.0.0.1:8081/docs
 ```
 
-Compose 会启动 PostgreSQL、后端、auto-submit worker、前端、候选 Nginx 和操作员 Nginx。后端容器启动时执行 `alembic upgrade head`。`internal` 必须把候选 8080 绑定到 `192.168.2.34`；操作员 8081、PostgreSQL 5432 和前端直连 5173 始终只绑定 loopback。普通办公设备与考生设备共用现有局域网，pf/主机防火墙仍须把 8080 限制在 `192.168.2.0/24`，禁止公网端口转发、访客网和未授权网段。
+Compose 会启动 PostgreSQL、后端、auto-submit worker、前端、应考人员 Nginx 和操作员 Nginx。后端容器启动时执行 `alembic upgrade head`。`internal` 必须把应考人员 8080 绑定到 `192.168.2.34`；操作员 8081、PostgreSQL 5432 和前端直连 5173 始终只绑定 loopback。普通办公设备与应考人员设备共用现有局域网，pf/主机防火墙仍须把 8080 限制在 `192.168.2.0/24`，禁止公网端口转发、访客网和未授权网段。
 
-`internal` 的 HTTP 不会加密考试人的 bearer token 和考试数据；管理员只在主机本地 8081 操作。该残余风险已作为第一阶段例外接受，但不能描述为传输安全。完整数据范围、补偿控制和事件触发条件见 [`docs/security-http-exception.md`](docs/security-http-exception.md)。
+`internal` 的 HTTP 不会加密应考人员 bearer token 和考试数据；管理员只在主机本地 8081 操作。该残余风险已作为第一阶段例外接受，但不能描述为传输安全。完整数据范围、补偿控制和事件触发条件见 [`docs/security-http-exception.md`](docs/security-http-exception.md)。
 
 学习视频文件保存在 Compose named volume `learning_media`，Nginx 通过 `/media/learning/` 只读提供播放，并启用匹配的 500 MiB 上传大小限制。正式备份必须同时覆盖 PostgreSQL 和 `learning_media`，并同步到独立加密第二存储。创建配对备份与隔离恢复校验的命令见 [`docs/macos-deployment-operations.md`](docs/macos-deployment-operations.md)。
 
@@ -180,7 +185,7 @@ uv run alembic upgrade head
 uv run alembic downgrade base
 ```
 
-正式环境禁止使用 Alembic downgrade 回滚；唯一标准路径是上一版本发布包加升级前配对备份，详见 [`docs/macos-deployment-operations.md`](docs/macos-deployment-operations.md) 和 [`docs/host-migration.md`](docs/host-migration.md)。
+正式环境的账号/名单迁移必须先完成只读 conflict preflight、writer fence、写冻结、verified paired PostgreSQL/media backup、独立加密第二副本和隔离 restore。destructive migration 删除旧全局人员/出席字段后，禁止使用 `alembic downgrade` 伪造数据；唯一标准路径是停止所有 writer，用上一版本发布包 + 已验证配对备份执行 restore-only 回滚，再重做 migration/count/health/SMTP/UAT。详见 [`docs/official-exam-uat-checklist.md`](docs/official-exam-uat-checklist.md)、[`docs/macos-deployment-operations.md`](docs/macos-deployment-operations.md) 和 [`docs/host-migration.md`](docs/host-migration.md)。
 
 ## 测试和构建
 
@@ -226,34 +231,34 @@ docker compose --env-file .env config --quiet
 ## 第一阶段已包含
 
 - `/api/health` 存活检查和 `/api/ready` 数据库/媒体就绪检查
-- 候选人、题库、考试、考试记录、题目快照、答案、练习记录、导入批次 ORM 模型
-- Alembic 迁移与既有数据兼容回填（当前 head `202608070001`）
-- 考试人端和管理员端 API 路由
+- 平台账号、题库、考试、考试记录、题目快照、答案、练习记录、导入批次 ORM 模型
+- Alembic 迁移与既有数据兼容回填（当前 head `202608110001_email_accounts_and_invited_exam_scopes.py`）
+- 用户/应考人员端和管理员端 API 路由
 - 多选题集合判分服务和测试
 - 用户端与管理员端 React 页面
-- 独立视频学习模块：管理员本地上传/发布/归档学习视频，考试人观看并记录 90% 完成进度
+- 独立视频学习模块：管理员本地上传/发布/归档学习视频，用户观看并记录 90% 完成进度
 - 题库/考试/报表代表性 TanStack Table 页面
 - 登录/导入/考试编辑代表性 React Hook Form + Zod 表单
 - 题库 Excel 导入行级校验、合法题目入库、选项入库、导入批次记录
-- 应参人员 Excel 导入行级校验、合法人员入库、导入批次记录
-- 单场考试应考名单导入会复用已有人员，并写入 `exam_candidate_scope`
-- 题库导入、人员导入、单场考试名单导入均记录 `import_batch`，失败报告可下载 Excel 明细
-- 考试配置创建、更新、管理端列表和考试人端 candidate-scoped active 列表入库，支持 `available_from` / `available_until` 开放窗口
-- 考试从 draft 发布为 active 时冻结 `exam_question_pool`；正式开始考试时只从该场 frozen pool 抽题
-- 单场考试名单支持导入、列表、移除和补考授权；未使用补考授权会让已提交考生重新出现在可参加考试列表中
+- 单场应考名单 Excel 导入按规范化邮箱复用/创建 pending 账号，写入 per-exam `exam_candidate_scope`，并冻结 roster identity
+- 题库导入和单场名单导入均记录 `import_batch`，失败报告可下载 Excel 明细；独立全局账号/人员导入与模板已移除
+- 考试配置创建、更新、管理端列表和 active scoped 用户列表入库，支持 `available_from` / `available_until` 开放窗口；已发布受邀考试立即可见但按时间门禁开始
+- 考试从 draft 发布为 active 时同时冻结 `exam_question_pool` 与 roster；正式开始考试时只从该场 frozen pool 抽题
+- 单场考试名单支持导入、冻结、邀请 initial-send、failed-only resend 和补考授权；已发布名单不可编辑或删除
 - 开始考试时按 `question_rule` 生成固定 50 题等价试卷，题干去重、整数均分，创建 attempt 和题目快照，答案暂存入库，提交后按快照自动判分
 - 考试结果返回及格线和通过状态，当前固定试卷规则为总分 100、及格线 60
 - 到时自动提交后台检查、原子 heartbeat/容器健康检查、考试排名和管理端报表 SQL 查询
 - 管理端报表支持按 `exam_id` 过滤，并导出为单个 Excel 工作簿，包含成绩报表、题目正确率、错题统计和参考状态
 - 学习报表支持按视频和完成状态过滤，并导出 Excel
-- 候选人登录需要姓名、邮箱邮件验证码，以及可选员工号；登录验证码和管理员 token 颁发接口带应用层限流
-- 练习模式通过 `X-Candidate-Token` 识别考生：题目列表提交前隐藏答案；提交后立即显示对错、正确答案、选项对比和解析；每次重做保留独立历史，并提供考生隔离、分类可筛选的错题复习与掌握状态
+- 邮箱登录/注册使用六位、十分钟、单次 OTP（最多五次校验、60 秒重发冷却），按邮箱/来源/全局限流；active 账号获得四小时 token，pending/新邮箱先完成显示名称，inactive 账号需管理员 reactivation
+- 账号 Profile 只允许编辑显示名称，规范化邮箱只读，不提供记住我、改邮箱、密码或物理删除；管理端可搜索并切换已完成账号 active/inactive
+- 练习模式通过 `X-Candidate-Token` 识别 active 用户：题目列表提交前隐藏答案；提交后立即显示对错、正确答案、选项对比和解析；每次重做保留独立历史，并提供按账号隔离、分类可筛选的错题复习与掌握状态
 - 管理员登录返回签名 session token，管理端 API 使用 `X-Admin-Token`
 - Academic Editorial 前端 redesign：设计令牌、UI primitives、candidate/admin layouts、P0/P1/P2 页面、空态/错态/加载态和考试快捷键
 
 ## 当前边界
 
-第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、应参人员 Excel 导入、导入失败报告、考试配置、单场考试名单管理、补考授权、发布冻结题池、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、管理员排名、按考试过滤报表、报表导出、视频学习上传和学习完成报表已经具备入库/查询闭环。当前加固边界包含邮件 OTP、具名主/备操作员、四小时 token、单设备 attempt session 与修订号、离线草稿、结果解析一次性发布、审计、保留/备份/恢复、发布与安全门禁，以及仅向 `192.168.2.34` 开放候选 8080、仅向本机开放操作员 8081 的双入口。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、短信验证码、SSO、持久邮件队列、高可用或自动 HTTPS。
+第一阶段的路由、页面和 service 边界已经建立，题库 Excel 导入、单场应考名单导入、失败报告、账号注册/Profile、考试配置、冻结 roster/题池、显式邀请发送、补考授权、固定 50 题试卷、开始考试快照、答案暂存、提交判分、自动提交、管理员排名、按考试过滤报表、报表导出、视频学习上传和学习完成报表已经具备入库/查询闭环。当前加固边界包含邮箱 OTP、具名主/备操作员、四小时 token、单设备 attempt session 与修订号、离线草稿、结果解析一次性发布、审计、保留/备份/恢复、发布与安全门禁，以及仅向 `192.168.2.34` 开放应考人员 8080、仅向本机开放操作员 8081 的双入口。系统仍保持轻量内部考试平台定位，不包含复杂 RBAC、多租户、完整 LMS、监考/防作弊、Word 导入、短信验证码、SSO、持久邮件队列、高可用或自动 HTTPS。
 
 ## 正式运行文档
 
@@ -262,5 +267,5 @@ docker compose --env-file .env config --quiet
 - [`docs/internal-deployment-operations.md`](docs/internal-deployment-operations.md)：internal profile 的共通运行合同、Mac 命令入口和 Windows 迁移门禁。
 - [`docs/host-migration.md`](docs/host-migration.md)：Mac↔Windows paired-backup、source stop、single-writer、回滚和切换语义。
 - [`docs/windows-host-guide.md`](docs/windows-host-guide.md)：未来 Windows Docker Desktop + WSL2 target，不是当前正式宿主。
-- [`docs/exam-day-guide.md`](docs/exam-day-guide.md)：考生、主/备操作员、设备接管、离线草稿、解析发布和练习规则。
+- [`docs/exam-day-guide.md`](docs/exam-day-guide.md)：应考人员、主/备操作员、设备接管、离线草稿、解析发布和练习规则。
 - [`docs/official-exam-uat-checklist.md`](docs/official-exam-uat-checklist.md)：当前 Mac + 桌面/手机 UAT 和证据清单（Mac 证据不满足 Windows acceptance）。

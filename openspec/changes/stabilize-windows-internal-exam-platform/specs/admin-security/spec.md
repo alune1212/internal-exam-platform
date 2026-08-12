@@ -3,6 +3,11 @@
 ### Requirement: Admin Session Token
 The system SHALL authenticate two named, equal-permission operators with separately configured credentials and protect admin APIs with `X-Admin-Token`. At any moment exactly one operator mode is active: when backup is disabled, only the primary credentials and tokens are valid; when backup is enabled, only the backup credentials and tokens are valid. Enabling backup MUST immediately invalidate the primary credentials and all existing primary tokens; disabling backup MUST immediately invalidate the backup credentials and all existing backup tokens. Formal admin sessions MUST expire after four hours. The backup operator MUST be disabled by default, and the two operators MUST NOT be valid concurrently.
 
+#### Scenario: Administrator logs in with valid credentials
+- **GIVEN** the credentials of the currently active named operator
+- **WHEN** that administrator submits valid credentials
+- **THEN** the system returns a signed four-hour session token carrying that operator subject
+
 #### Scenario: Primary operator logs in with valid credentials
 - **GIVEN** configured primary operator credentials and backup is disabled
 - **WHEN** the primary operator submits valid credentials

@@ -173,6 +173,7 @@ def _capture_fixture(tmp_path: Path, *, app_operator: str) -> Path:
         "\n".join(
             [
                 "INTERNAL_LAN_BIND_IP=192.168.2.34",
+                "CANDIDATE_PUBLIC_BASE_URL=http://192.168.2.34:8080",
                 "PF_APPROVED_CIDR=192.168.2.0/24",
                 "CANDIDATE_GATEWAY_PORT=8080",
                 "OPERATOR_GATEWAY_PORT=8081",

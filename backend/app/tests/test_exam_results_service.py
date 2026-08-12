@@ -28,7 +28,14 @@ from app.tests.conftest import (
 def _start_exam(db: Session, *, title: str = "结果发布考试"):
     exam = create_exam(db, title=title)
     candidate = create_candidate(db, name="结果考生")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
     create_question_with_options(db, analysis="快照解析")
     start = exam_service.start_exam(db, exam.id, candidate.id)
@@ -149,8 +156,18 @@ def test_bulk_retake_preview_apply_is_row_level_and_idempotent(db: Session) -> N
     outsider = create_candidate(db, name="非名单考生")
     db.add_all(
         [
-            ExamCandidateScope(exam_id=exam.id, candidate_id=second.id),
-            ExamCandidateScope(exam_id=exam.id, candidate_id=third.id),
+            ExamCandidateScope(
+                exam_id=exam.id,
+                candidate_id=second.id,
+                roster_email=second.email,
+                roster_name=second.name or "待注册",
+            ),
+            ExamCandidateScope(
+                exam_id=exam.id,
+                candidate_id=third.id,
+                roster_email=third.email,
+                roster_name=third.name or "待注册",
+            ),
         ]
     )
     db.commit()

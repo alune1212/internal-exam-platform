@@ -83,11 +83,17 @@ def parse_candidate_token(
     raw_id = parts[0].removeprefix("candidate:")
     if not raw_id.isdigit():
         return None
+    configured_max_age = (
+        settings.candidate_token_ttl_seconds
+        if max_age_seconds is None
+        else max_age_seconds
+    )
+    effective_max_age = min(configured_max_age, 4 * 60 * 60)
     if not verify_session_token(
         token,
         subject=parts[0],
         secret=settings.token_secret,
-        max_age_seconds=max_age_seconds or settings.candidate_token_ttl_seconds,
+        max_age_seconds=effective_max_age,
     ):
         return None
     return int(raw_id)

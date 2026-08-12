@@ -108,6 +108,16 @@ def create_retake_grant(
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
         raise CandidateNotFoundError(candidate_id)
+    scoped = (
+        db.query(ExamCandidateScope.id)
+        .filter(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .first()
+    )
+    if scoped is None:
+        raise CandidateNotEligibleError(candidate_id)
     submitted = (
         db.query(ExamAttempt.id)
         .filter(
@@ -202,6 +212,21 @@ def _load_attempt_with_snapshots(
     return attempt
 
 
+def _ensure_attempt_scope(db: Session, attempt: ExamAttempt) -> None:
+    """Reject repaired/stale attempts whose formal roster scope was removed."""
+
+    scoped = (
+        db.query(ExamCandidateScope.id)
+        .filter(
+            ExamCandidateScope.exam_id == attempt.exam_id,
+            ExamCandidateScope.candidate_id == attempt.candidate_id,
+        )
+        .first()
+    )
+    if scoped is None:
+        raise CandidateNotEligibleError(attempt.candidate_id)
+
+
 def _attempt_deadline(attempt: ExamAttempt) -> datetime:
     return ensure_aware(attempt.ends_at)
 
@@ -225,6 +250,7 @@ def verify_attempt_session(
         or not compare_digest(actual_hash, attempt.attempt_session_hash)
     ):
         raise AttemptSessionConflictError()
+    _ensure_attempt_scope(db, attempt)
     return attempt
 
 
@@ -237,6 +263,7 @@ def takeover_attempt_session(
     attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=True)
     if attempt.candidate_id != candidate_id:
         raise AttemptNotFoundError(attempt_id)
+    _ensure_attempt_scope(db, attempt)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
     credential, credential_hash = _new_attempt_session_credential()
@@ -266,7 +293,7 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
         raise CandidateNotFoundError(candidate_id)
-    if candidate.status != "active" or not candidate.should_attend:
+    if candidate.status != "active":
         raise CandidateNotEligibleError(candidate_id)
     scope = db.execute(
         select(ExamCandidateScope.id)
@@ -451,6 +478,7 @@ def _build_exam_start_response_from_attempt(attempt: ExamAttempt) -> ExamStartRe
 
 def get_attempt(db: Session, attempt_id: int) -> AttemptRead:
     attempt = _load_attempt_with_snapshots(db, attempt_id)
+    _ensure_attempt_scope(db, attempt)
     return AttemptRead(
         id=attempt.id,
         exam_id=attempt.exam_id,
@@ -494,6 +522,7 @@ def save_answers(
     assert_backup_write_allowed(db)
     loader = load_attempt or _load_attempt_with_snapshots
     attempt = loader(db, attempt_id, for_update=True)
+    _ensure_attempt_scope(db, attempt)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
     if _is_attempt_expired(attempt):
@@ -538,6 +567,7 @@ def submit_attempt(
     assert_backup_write_allowed(db)
     loader = load_attempt or _load_attempt_with_snapshots
     attempt = loader(db, attempt_id, for_update=True)
+    _ensure_attempt_scope(db, attempt)
     result = score_and_mark_attempt_submitted(
         attempt, submit_type=submit_type, submitted_at=datetime.now(UTC)
     )
@@ -593,6 +623,7 @@ def score_and_mark_attempt_submitted(
 
 def get_attempt_result(db: Session, attempt_id: int) -> AttemptResultRead:
     attempt = _load_attempt_with_snapshots(db, attempt_id)
+    _ensure_attempt_scope(db, attempt)
     if attempt.status not in SUBMITTED_STATUSES:
         raise AttemptResultNotReadyError(attempt_id)
     return build_attempt_result(attempt)

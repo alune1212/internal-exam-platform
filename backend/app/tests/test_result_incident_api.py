@@ -49,7 +49,14 @@ def _admin_headers(client: TestClient) -> dict[str, str]:
 def _seed_started_attempt(db: Session):
     exam = create_exam(db, title="事故恢复考试")
     candidate = create_candidate(db, name="事故考生")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
     create_question_with_options(db, analysis="发布后解析")
     start = exam_service.start_exam(db, exam.id, candidate.id)
@@ -105,7 +112,14 @@ def test_void_and_bulk_retake_apis_preserve_incident_and_row_outcomes() -> None:
     exam, first, first_start = _seed_started_attempt(db)
     submit_answers(db, first_start.attempt_id, first_start.questions, ["A"])
     second = create_candidate(db, name="第二考生")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=second.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=second.id,
+            roster_email=second.email,
+            roster_name=second.name or "待注册",
+        )
+    )
     db.commit()
     second_start = exam_service.start_exam(db, exam.id, second.id)
     headers = _admin_headers(client)

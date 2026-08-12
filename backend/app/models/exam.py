@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -81,7 +82,31 @@ class ExamQuestionPool(TimestampMixin, Base):
 class ExamCandidateScope(TimestampMixin, Base):
     __tablename__ = "exam_candidate_scope"
     __table_args__ = (
+        CheckConstraint(
+            "roster_email = lower(trim(roster_email)) "
+            "AND length(trim(roster_email)) > 3",
+            name="ck_exam_candidate_scope_roster_email_normalized",
+        ),
+        CheckConstraint(
+            "length(trim(roster_name)) > 0",
+            name="ck_exam_candidate_scope_roster_name_nonblank",
+        ),
+        CheckConstraint(
+            "invitation_status IN ('not_sent', 'sent', 'failed')",
+            name="ck_exam_candidate_scope_invitation_status",
+        ),
         UniqueConstraint("exam_id", "candidate_id", name="uq_exam_candidate_scope"),
+        Index(
+            "ux_exam_candidate_scope_exam_roster_email",
+            "exam_id",
+            "roster_email",
+            unique=True,
+        ),
+        Index(
+            "ix_exam_candidate_scope_invitation_claim",
+            "invitation_status",
+            "invitation_claimed_at",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -91,9 +116,47 @@ class ExamCandidateScope(TimestampMixin, Base):
     candidate_id: Mapped[int] = mapped_column(
         ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    roster_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    roster_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    department: Mapped[str | None] = mapped_column(String(100))
+    position: Mapped[str | None] = mapped_column(String(100))
+    exam_group: Mapped[str | None] = mapped_column(String(100))
+    roster_remark: Mapped[str | None] = mapped_column(Text)
+    invitation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="not_sent", index=True
+    )
+    last_invitation_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    invitation_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invitation_error_class: Mapped[str | None] = mapped_column(String(100))
+    invitation_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    invitation_claim_owner: Mapped[str | None] = mapped_column(String(200))
 
     exam = relationship("Exam", back_populates="candidate_scopes")
     candidate = relationship("Candidate")
+
+    @property
+    def invitation_state(self) -> str:
+        """Alias used by delivery code while the database column stays explicit."""
+
+        return self.invitation_status
+
+    @invitation_state.setter
+    def invitation_state(self, value: str) -> None:
+        self.invitation_status = value
+
+    @property
+    def remark(self) -> str | None:
+        """Scope-owned replacement for the old global candidate remark."""
+
+        return self.roster_remark
+
+    @remark.setter
+    def remark(self, value: str | None) -> None:
+        self.roster_remark = value
 
 
 class ExamRetakeGrant(TimestampMixin, Base):

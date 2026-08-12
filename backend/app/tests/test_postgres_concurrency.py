@@ -155,10 +155,21 @@ def _seed_exam(
 
         candidate_ids: list[int] = []
         for index in range(candidate_count):
-            candidate = Candidate(name=f"PG 考生 {index}", status="active")
+            candidate = Candidate(
+                name=f"PG 考生 {index}",
+                email=f"pg-candidate-{index}@example.com",
+                status="active",
+            )
             db.add(candidate)
             db.flush()
-            db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+            db.add(
+                ExamCandidateScope(
+                    exam_id=exam.id,
+                    candidate_id=candidate.id,
+                    roster_email=candidate.email,
+                    roster_name=candidate.name or "待注册",
+                )
+            )
             candidate_ids.append(candidate.id)
 
         db.commit()

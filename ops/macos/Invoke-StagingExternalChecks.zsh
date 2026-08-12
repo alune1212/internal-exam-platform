@@ -67,7 +67,7 @@ macos_assert_outside_worktree "$root" >/dev/null
 macos_layout "$root"
 macos_assert_protected_configuration "$root"
 macos_acquire_lock "$MACOS_LAYOUT_STATE/.operation.lock"
-macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT
+macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT CANDIDATE_PUBLIC_BASE_URL
 cleanup_external_checks() {
   macos_restore_environment
   macos_release_lock
@@ -113,6 +113,7 @@ macos_secure_path "$output_dir"
 export APP_VERSION_TAG="${run_commit:l}"
 export APP_VERSION="$(macos_json_get "$release_path/release-manifest.json" applicationVersion)"
 export GIT_COMMIT="${run_commit:l}"
+export CANDIDATE_PUBLIC_BASE_URL="http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}"
 
 [[ -n "$smtp_output" ]] || smtp_output="$output_dir/staging-check-smtp-${run_id}.json"
 [[ -n "$browser_output" ]] || browser_output="$output_dir/staging-check-browser-${run_id}.json"

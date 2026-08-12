@@ -43,7 +43,7 @@ macos_assert_project_name formal "$MACOS_FORMAL_PROJECT"
 
 macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT \
   INTERNAL_LAN_BIND_IP CANDIDATE_GATEWAY_PORT OPERATOR_GATEWAY_PORT \
-  POSTGRES_LOOPBACK_PORT FRONTEND_LOOPBACK_PORT CORS_ORIGINS
+  POSTGRES_LOOPBACK_PORT FRONTEND_LOOPBACK_PORT CORS_ORIGINS CANDIDATE_PUBLIC_BASE_URL
 cleanup_start() {
   if [[ "$start_status" != passed ]]; then
     macos_compose "$MACOS_STATE_PATH" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT" stop >/dev/null 2>&1 || true
@@ -67,6 +67,7 @@ if (( maintenance == 1 )); then
   export POSTGRES_LOOPBACK_PORT=25432
   export FRONTEND_LOOPBACK_PORT=25173
   export CORS_ORIGINS=http://127.0.0.1:28080
+  export CANDIDATE_PUBLIC_BASE_URL=http://127.0.0.1:28080
 fi
 macos_compose "$MACOS_STATE_PATH" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT" up -d --no-build db
 if (( maintenance == 0 )); then

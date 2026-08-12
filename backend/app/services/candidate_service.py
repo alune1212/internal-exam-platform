@@ -1,56 +1,46 @@
+"""Email OTP authentication and platform-account lifecycle services."""
+
+from __future__ import annotations
+
 import hashlib
 import hmac
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from hashlib import sha256
-from secrets import randbelow
+from secrets import token_urlsafe
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
+from app.core.rate_limit import check_candidate_otp_send_rate_limit
 from app.core.security import create_candidate_token
 from app.core.time import ensure_aware
-from app.models import Candidate, CandidateLoginChallenge
+from app.models import Candidate, CandidateLoginChallenge, ExamCandidateScope
 from app.schemas.candidate import (
+    AccountAdminRead,
+    AccountProfileRead,
+    AccountUnavailableResponse,
+    AuthenticatedCandidateLoginResponse,
     CandidateLoginChallengeResponse,
     CandidateLoginRequest,
-    CandidateLoginResponse,
     CandidateLoginVerifyRequest,
+    CandidateLoginVerifyResponse,
+    CandidateProfileUpdate,
     CandidateRead,
+    RegistrationCompleteRequest,
+    RegistrationRequiredResponse,
+    normalize_email,
 )
 from app.services.operational_lock_service import assert_backup_write_allowed
 
 logger = logging.getLogger(__name__)
 
-
-class CandidateLoginError(DomainError):
-    """Reserved for callers that need to surface an identity error.
-
-    The challenge request path no longer raises this — it returns a uniform
-    200 envelope for every outcome. It is kept for callers (e.g., admin
-    flows) that still need a typed 404.
-    """
-
-    status_code = 404
-
-    def __init__(self) -> None:
-        super().__init__("未找到匹配的考试人员")
-
-
-class CandidateLoginAmbiguousError(DomainError):
-    """Reserved for callers that need to surface an ambiguity error.
-
-    The challenge request path no longer raises this. It is kept for callers
-    that still need a typed 409.
-    """
-
-    status_code = 409
-
-    def __init__(self) -> None:
-        super().__init__("姓名匹配到多名考试人员，请填写员工号")
+if TYPE_CHECKING:
+    from fastapi import Request
+    from sqlalchemy.orm import Session
 
 
 class CandidateLoginChallengeError(DomainError):
@@ -60,14 +50,37 @@ class CandidateLoginChallengeError(DomainError):
         super().__init__("验证码无效或已过期")
 
 
+class RegistrationCredentialError(DomainError):
+    status_code = 400
+
+    def __init__(self) -> None:
+        super().__init__("注册凭证无效或已过期")
+
+
+class AccountUnavailableError(DomainError):
+    status_code = 403
+
+    def __init__(self) -> None:
+        super().__init__("账号暂不可用，请联系管理员重新激活。")
+
+
+class AccountNotFoundError(DomainError):
+    status_code = 404
+
+    def __init__(self) -> None:
+        super().__init__("账号不存在")
+
+
+class AccountStatusTransitionError(DomainError):
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__("仅已完成注册的账号支持启用或停用")
+
+
 @dataclass(frozen=True)
 class CandidateLoginEmailPayload:
-    """Arguments the route should pass to ``send_candidate_login_otp``.
-
-    ``None`` from the service means "do not send an email" — used for the
-    sentinel path so that unknown / ambiguous / inactive / missing-email
-    identities do not leak via SMTP side effects.
-    """
+    """Data handed to the route's post-commit delivery task."""
 
     to_email: str
     candidate_name: str
@@ -78,57 +91,40 @@ class CandidateLoginEmailPayload:
 @dataclass(frozen=True)
 class CandidateLoginChallengeRequestResult:
     response: CandidateLoginChallengeResponse
-    email: CandidateLoginEmailPayload | None
-
-
-def _with_token(candidate: Candidate) -> CandidateLoginResponse:
-    candidate_read = CandidateRead.model_validate(candidate)
-    return CandidateLoginResponse(
-        **candidate_read.model_dump(),
-        token=create_candidate_token(candidate.id),
-    )
+    email: CandidateLoginEmailPayload
 
 
 def request_candidate_login_challenge(
-    db: Session, payload: CandidateLoginRequest, *, request_ip: str | None = None
+    db: Session,
+    payload: CandidateLoginRequest,
+    *,
+    request_ip: str | None = None,
 ) -> CandidateLoginChallengeRequestResult:
-    """Persist a challenge row, then return the uniform response.
+    """Create an email-bound OTP challenge and commit before delivery.
 
-    The challenge row is committed before any email delivery is considered,
-    so SMTP latency / failure cannot roll back the persisted state. Email
-    delivery is the route's responsibility — it should enqueue
-    ``send_candidate_login_otp`` via FastAPI ``BackgroundTasks`` when
-    ``result.email`` is not None.
-
-    For unknown, ambiguous, inactive, or missing-email identities, the
-    challenge row is created against a designated sentinel candidate and
-    no email is sent. The response envelope, status code, and timing are
-    identical to a valid request, so the caller cannot enumerate the
-    roster from the response.
+    The lookup is deliberately performed only to associate an existing
+    account/suggested name.  Unknown valid mailboxes follow the same path and
+    are sent a real OTP; no sentinel row is created or consulted.
     """
-    # Login challenge rows, including sentinel rows for unknown identities,
-    # are formal data writes and must stop during cutover.
+
     assert_backup_write_allowed(db)
+    email = normalize_email(payload.email)
     now = datetime.now(UTC)
-    expires_at = now + timedelta(seconds=settings.candidate_login_otp_ttl_seconds)
-    resend_available_at = now + timedelta(
-        seconds=settings.candidate_login_otp_resend_cooldown_seconds
-    )
-    request_ip_hash = _hash_request_ip(request_ip)
-
-    real_candidate, lookup_outcome = _resolve_login_candidate(db, payload)
-    target = (
-        real_candidate if real_candidate is not None else _get_sentinel_candidate(db)
+    request_ip_hash = _hash_request_source(request_ip)
+    check_candidate_otp_send_rate_limit(
+        db, normalized_email=email, request_ip_hash=request_ip_hash, now=now
     )
 
-    if real_candidate is None:
-        _audit_unknown_identity(payload, lookup_outcome, request_ip_hash)
+    _cleanup_expired_challenges(db, now)
+    _enforce_resend_cooldown(db, email, now)
+    _consume_open_challenges(db, email, now)
 
-    _consume_open_challenges(db, target.id, now)
-
+    account = _find_account_by_email(db, email)
     otp = _generate_otp()
+    expires_at = now + timedelta(seconds=settings.candidate_login_otp_ttl_seconds)
     challenge = CandidateLoginChallenge(
-        candidate_id=target.id,
+        candidate_id=account.id if account is not None else None,
+        email=email,
         delivery_channel="email",
         otp_hash=_hash_otp(otp),
         expires_at=expires_at,
@@ -137,78 +133,366 @@ def request_candidate_login_challenge(
     db.add(challenge)
     db.commit()
     db.refresh(challenge)
+    logger.info(
+        "candidate_login.challenge_created",
+        extra={
+            "event": "candidate_login.challenge_created",
+            "challenge_id": challenge.id,
+            "account_id": account.id if account is not None else None,
+            "request_ip_hash": request_ip_hash,
+        },
+    )
 
-    email_payload: CandidateLoginEmailPayload | None = None
-    if real_candidate is not None and real_candidate.email:
-        email_payload = CandidateLoginEmailPayload(
-            to_email=real_candidate.email,
-            candidate_name=real_candidate.name,
-            otp=otp,
-            expires_at=expires_at,
-        )
-
+    candidate_name = (
+        (getattr(account, "name", None) or "用户") if account is not None else "用户"
+    )
     return CandidateLoginChallengeRequestResult(
         response=CandidateLoginChallengeResponse(
             challenge_id=challenge.id,
-            expires_at=challenge.expires_at,
-            resend_available_at=resend_available_at,
+            expires_at=ensure_aware(challenge.expires_at),
+            resend_available_at=now
+            + timedelta(seconds=settings.candidate_login_otp_resend_cooldown_seconds),
         ),
-        email=email_payload,
+        email=CandidateLoginEmailPayload(
+            to_email=email,
+            candidate_name=candidate_name,
+            otp=otp,
+            expires_at=expires_at,
+        ),
     )
 
 
 def verify_candidate_login_challenge(
     db: Session, payload: CandidateLoginVerifyRequest
-) -> CandidateLoginResponse:
-    # Wrong-OTP attempt counters and successful challenge consumption both
-    # mutate the shared formal dataset.
+) -> CandidateLoginVerifyResponse:
+    """Atomically consume an OTP and return the appropriate auth outcome."""
+
     assert_backup_write_allowed(db)
     challenge = db.get(CandidateLoginChallenge, payload.challenge_id)
     if challenge is None:
         raise CandidateLoginChallengeError()
     now = datetime.now(UTC)
-    if (
-        challenge.consumed_at is not None
-        or ensure_aware(challenge.expires_at) <= now
-        or challenge.attempt_count >= settings.candidate_login_otp_attempt_limit
-    ):
+    if not _challenge_is_open(challenge, now):
         raise CandidateLoginChallengeError()
-
-    if not hmac.compare_digest(challenge.otp_hash, _hash_otp(payload.otp.strip())):
-        # Conditional increment: only count if still unconsumed / not over limit /
-        # not expired. Closes the lost-update window where two concurrent wrong-OTP
-        # requests both read attempt_count=N and both write N+1.
+    if not hmac.compare_digest(challenge.otp_hash, _hash_otp(payload.otp)):
         _increment_attempt_count(db, challenge.id, now)
         db.commit()
         raise CandidateLoginChallengeError()
 
-    # Authoritative atomic consume. If another concurrent request already
-    # consumed this challenge (or the attempt_count was just bumped to the
-    # limit by the failed-OTP branch), the WHERE clause matches zero rows
-    # and we reject — closing the read-check-then-write replay window.
-    result = _consume_challenge(db, challenge.id, now)
-    if result == 0:
+    if _consume_challenge(db, challenge.id, now) == 0:
         db.rollback()
         raise CandidateLoginChallengeError()
 
-    candidate = db.get(Candidate, challenge.candidate_id)
-    if (
-        candidate is None
-        or candidate.is_login_sentinel
-        or candidate.status != "active"
-        or not candidate.email
-    ):
-        # Sentinel challenges, inactive candidates, and rows without email
-        # all reject here — without surfacing the outcome to the caller.
-        db.rollback()
-        raise CandidateLoginChallengeError()
+    email = normalize_email(challenge.email)
+    account = _find_account_by_email(db, email)
+    if account is not None and account.status == "inactive":
+        db.commit()
+        logger.info(
+            "candidate_login.verified",
+            extra={
+                "event": "candidate_login.verified",
+                "challenge_id": challenge.id,
+                "account_id": account.id,
+                "outcome": "account_unavailable",
+            },
+        )
+        return AccountUnavailableResponse(outcome="account_unavailable")
+
+    if account is not None and account.status == "active":
+        db.commit()
+        db.refresh(account)
+        logger.info(
+            "candidate_login.verified",
+            extra={
+                "event": "candidate_login.verified",
+                "challenge_id": challenge.id,
+                "account_id": account.id,
+                "outcome": "authenticated",
+            },
+        )
+        return _authenticated_response(account)
+
+    credential = token_urlsafe(32)
+    challenge.registration_credential_hash = _hash_registration_credential(credential)
+    registration_expires_at = now + timedelta(
+        seconds=_registration_credential_ttl_seconds()
+    )
+    challenge.registration_credential_expires_at = registration_expires_at
+    challenge.registration_credential_consumed_at = None
+    # Pending imports keep their account association; unknown mailboxes remain
+    # unassociated until registration completion creates the account.
+    if account is not None and getattr(challenge, "candidate_id", None) is None:
+        challenge.candidate_id = account.id
     db.commit()
-    db.refresh(candidate)
-    return _with_token(candidate)
+    logger.info(
+        "candidate_login.verified",
+        extra={
+            "event": "candidate_login.verified",
+            "challenge_id": challenge.id,
+            "account_id": account.id if account is not None else None,
+            "outcome": "registration_required",
+        },
+    )
+    return RegistrationRequiredResponse(
+        outcome="registration_required",
+        registration_credential=credential,
+        registration_expires_at=registration_expires_at,
+        email=email,
+        suggested_display_name=_registration_name_suggestion(db, account),
+    )
+
+
+def complete_registration(
+    db: Session, payload: RegistrationCompleteRequest
+) -> AuthenticatedCandidateLoginResponse:
+    """Consume a registration credential and activate/create the account."""
+
+    assert_backup_write_allowed(db)
+    now = datetime.now(UTC)
+    credential_hash = _hash_registration_credential(payload.registration_credential)
+    challenge = (
+        db.query(CandidateLoginChallenge)
+        .filter(
+            CandidateLoginChallenge.registration_credential_hash == credential_hash,
+            CandidateLoginChallenge.registration_credential_consumed_at.is_(None),
+            CandidateLoginChallenge.registration_credential_expires_at > now,
+        )
+        .order_by(CandidateLoginChallenge.id.desc())
+        .first()
+    )
+    if challenge is None:
+        raise RegistrationCredentialError()
+
+    # The conditional update closes replay races between two completion calls.
+    consumed = (
+        db.query(CandidateLoginChallenge)
+        .filter(
+            CandidateLoginChallenge.id == challenge.id,
+            CandidateLoginChallenge.registration_credential_consumed_at.is_(None),
+            CandidateLoginChallenge.registration_credential_expires_at > now,
+        )
+        .update(
+            {CandidateLoginChallenge.registration_credential_consumed_at: now},
+            synchronize_session=False,
+        )
+    )
+    if consumed == 0:
+        db.rollback()
+        raise RegistrationCredentialError()
+
+    email = normalize_email(challenge.email)
+    account = _find_account_by_email(db, email)
+    if account is None:
+        account = Candidate(email=email, name=payload.display_name, status="active")
+        try:
+            # Keep the credential-consumption update in the outer transaction
+            # while isolating only the unique-email insert in a savepoint.  A
+            # concurrent completion may win the unique race; rolling back the
+            # whole session here would make our credential replayable.
+            with db.begin_nested():
+                db.add(account)
+                db.flush()
+        except IntegrityError:
+            account = _find_account_by_email(db, email)
+            if account is None:
+                # The insert lost a unique race but the winner disappeared
+                # before it could be read.  Persist the credential consume so
+                # this ambiguous completion cannot be replayed.
+                db.commit()
+                raise RegistrationCredentialError() from None
+
+    # Re-evaluate the winner's status after a unique-email race as well as
+    # for an account that was present before completion.  Never mint a token
+    # for an inactive/pending/non-standard state, and only complete a pending
+    # account with this one-time credential.  An active winner's display name
+    # is intentionally left untouched.
+    if account.status == "inactive":
+        db.commit()
+        raise AccountUnavailableError()
+    if account.status == "pending":
+        account.name = payload.display_name
+        account.status = "active"
+    if account.status != "active":
+        db.commit()
+        raise RegistrationCredentialError()
+    # A concurrent/duplicate completion must not overwrite an active name.
+    challenge.candidate_id = account.id
+    db.commit()
+    db.refresh(account)
+    logger.info(
+        "candidate_account.registration_completed",
+        extra={
+            "event": "candidate_account.registration_completed",
+            "challenge_id": challenge.id,
+            "account_id": account.id,
+            "status": account.status,
+        },
+    )
+    return _authenticated_response(account)
+
+
+def get_account_profile(db: Session, candidate_id: int) -> AccountProfileRead:
+    account = _get_account(db, candidate_id)
+    return AccountProfileRead.model_validate(account)
+
+
+def update_account_profile(
+    db: Session, candidate_id: int, payload: CandidateProfileUpdate
+) -> AccountProfileRead:
+    assert_backup_write_allowed(db)
+    account = _get_account(db, candidate_id)
+    account.name = payload.display_name.strip()
+    db.commit()
+    db.refresh(account)
+    logger.info(
+        "candidate_account.profile_updated",
+        extra={
+            "event": "candidate_account.profile_updated",
+            "account_id": account.id,
+            "status": account.status,
+        },
+    )
+    return AccountProfileRead.model_validate(account)
+
+
+def list_accounts(
+    db: Session,
+    *,
+    query: str | None = None,
+    status: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[AccountAdminRead]:
+    limit = min(max(limit, 1), 200)
+    offset = max(offset, 0)
+    statement = db.query(Candidate)
+    if query and query.strip():
+        search = query.strip().lower()
+        statement = statement.filter(
+            (func.lower(Candidate.email).contains(search))
+            | (func.lower(Candidate.name).contains(search))
+        )
+    if status in {"pending", "active", "inactive"}:
+        statement = statement.filter(Candidate.status == status)
+    accounts = statement.order_by(Candidate.id).offset(offset).limit(limit).all()
+    return [AccountAdminRead.model_validate(account) for account in accounts]
+
+
+def set_account_status(
+    db: Session,
+    candidate_id: int,
+    status: str,
+    *,
+    operator_subject: str | None = None,
+    request: Request | None = None,
+) -> AccountAdminRead:
+    if status not in {"active", "inactive"}:
+        raise AccountStatusTransitionError()
+    assert_backup_write_allowed(db)
+    account = _get_account(db, candidate_id)
+    if (
+        account.status == "pending"
+        or not (getattr(account, "name", None) or "").strip()
+    ):
+        raise AccountStatusTransitionError()
+    previous_status = account.status
+    if previous_status == status:
+        return AccountAdminRead.model_validate(account)
+    account.status = status
+    if operator_subject:
+        # Import lazily to keep the account service usable by worker jobs that
+        # do not initialize the admin API module.
+        from app.services.audit_service import record_admin_event
+
+        record_admin_event(
+            db,
+            operator_subject=operator_subject,
+            action=(
+                "account_activated" if status == "active" else "account_deactivated"
+            ),
+            target_type="account",
+            target_id=account.id,
+            metadata={
+                "account_id": account.id,
+                "from_status": previous_status,
+                "to_status": status,
+            },
+            request=request,
+        )
+    db.commit()
+    db.refresh(account)
+    logger.info(
+        "candidate_account.status_changed",
+        extra={
+            "event": "candidate_account.status_changed",
+            "account_id": account.id,
+            "status": account.status,
+        },
+    )
+    return AccountAdminRead.model_validate(account)
+
+
+def get_active_account(db: Session, candidate_id: int) -> Candidate:
+    """Load the current account state for the shared candidate dependency."""
+
+    account = _get_account(db, candidate_id)
+    if account.status != "active":
+        raise AccountUnavailableError()
+    return account
+
+
+def _authenticated_response(account: Candidate) -> AuthenticatedCandidateLoginResponse:
+    token_expires_at = datetime.now(UTC) + timedelta(
+        seconds=_candidate_token_ttl_seconds()
+    )
+    return AuthenticatedCandidateLoginResponse(
+        outcome="authenticated",
+        account=CandidateRead.model_validate(account),
+        token=create_candidate_token(account.id),
+        token_expires_at=token_expires_at,
+    )
+
+
+def _get_account(db: Session, candidate_id: int) -> Candidate:
+    account = db.get(Candidate, candidate_id, populate_existing=True)
+    if account is None:
+        raise AccountNotFoundError()
+    return account
+
+
+def _find_account_by_email(db: Session, email: str) -> Candidate | None:
+    return (
+        db.query(Candidate)
+        .filter(func.lower(Candidate.email) == normalize_email(email))
+        .order_by(Candidate.id)
+        .first()
+    )
+
+
+def _registration_name_suggestion(db: Session, account: Candidate | None) -> str | None:
+    if account is None:
+        return None
+    account_name = (getattr(account, "name", None) or "").strip()
+    if account_name:
+        return account_name
+    scope = (
+        db.query(ExamCandidateScope)
+        .filter(ExamCandidateScope.candidate_id == account.id)
+        .order_by(ExamCandidateScope.id.desc())
+        .first()
+    )
+    return (scope.roster_name or "").strip() if scope is not None else None
+
+
+def _challenge_is_open(challenge: CandidateLoginChallenge, now: datetime) -> bool:
+    return (
+        challenge.consumed_at is None
+        and ensure_aware(challenge.expires_at) > now
+        and challenge.attempt_count < settings.candidate_login_otp_attempt_limit
+    )
 
 
 def _increment_attempt_count(db: Session, challenge_id: int, now: datetime) -> None:
-    """Atomically bump attempt_count, gated on the row still being open."""
     (
         db.query(CandidateLoginChallenge)
         .filter(
@@ -229,7 +513,6 @@ def _increment_attempt_count(db: Session, challenge_id: int, now: datetime) -> N
 
 
 def _consume_challenge(db: Session, challenge_id: int, now: datetime) -> int:
-    """Atomically mark consumed_at; returns the rowcount (0 means lost the race)."""
     return (
         db.query(CandidateLoginChallenge)
         .filter(
@@ -239,141 +522,114 @@ def _consume_challenge(db: Session, challenge_id: int, now: datetime) -> int:
             < settings.candidate_login_otp_attempt_limit,
             CandidateLoginChallenge.expires_at > now,
         )
-        .update(
-            {CandidateLoginChallenge.consumed_at: now},
-            synchronize_session=False,
-        )
+        .update({CandidateLoginChallenge.consumed_at: now}, synchronize_session=False)
     )
 
 
-def _resolve_login_candidate(
-    db: Session, payload: CandidateLoginRequest
-) -> tuple[Candidate | None, str]:
-    """Resolve a login request to a real candidate, or classify the failure.
-
-    Returns ``(candidate, outcome)`` where ``outcome`` is one of
-    ``"found" | "invalid_input" | "not_found" | "ambiguous" | "inactive" |
-    "missing_email"``. On any non-``"found"`` outcome ``candidate`` is None
-    and the caller should fall back to the sentinel row.
-    """
-    name = payload.name.strip()
-    email = str(payload.email).strip().lower() if payload.email else None
-    if not name or not email:
-        return None, "invalid_input"
-
-    if payload.employee_no:
-        candidate = (
-            db.query(Candidate)
-            .filter(
-                Candidate.name == name,
-                Candidate.employee_no == payload.employee_no.strip(),
-                func.lower(Candidate.email) == email,
-            )
-            .one_or_none()
-        )
-        if candidate is None:
-            return None, "not_found"
-    else:
-        candidates = (
-            db.query(Candidate)
-            .filter(
-                Candidate.name == name,
-                func.lower(Candidate.email) == email,
-            )
-            .order_by(Candidate.id)
-            .limit(2)
-            .all()
-        )
-        if not candidates:
-            return None, "not_found"
-        if len(candidates) > 1:
-            return None, "ambiguous"
-        candidate = candidates[0]
-
-    if candidate.is_login_sentinel:
-        # The sentinel row matches its own name; treat as not_found so we
-        # do not surface the sentinel through the lookup path.
-        return None, "not_found"
-    if candidate.status != "active":
-        return None, "inactive"
-    if not candidate.email:
-        return None, "missing_email"
-    return candidate, "found"
-
-
-def _get_sentinel_candidate(db: Session) -> Candidate:
-    """Return the designated sentinel candidate used for unknown identities.
-
-    The migration ``202607030002_candidate_login_sentinel`` ensures exactly
-    one such row exists. The lookup is cached per request via the session.
-    """
-    sentinel = (
-        db.query(Candidate).filter(Candidate.is_login_sentinel.is_(True)).one_or_none()
-    )
-    if sentinel is None:
-        # Defensive: if the sentinel is missing, fail closed rather than
-        # leaking the response differential. This should never happen in
-        # production once the migration has run.
-        raise RuntimeError(
-            "candidate login sentinel row missing; run "
-            "alembic upgrade head to install it"
-        )
-    return sentinel
-
-
-def _audit_unknown_identity(
-    payload: CandidateLoginRequest, outcome: str, request_ip_hash: str | None
-) -> None:
-    """Emit a single structured WARN log line for unknown-identity attempts.
-
-    The log is the only audit signal — the response is uniform and never
-    reveals the outcome. Identity fields are hashed to avoid logging
-    plaintext roster data. The rate limiter on the route already caps
-    the request rate, so this is a secondary audit trail.
-    """
-    name_hash = hashlib.sha256(payload.name.encode("utf-8")).hexdigest()
-    email_hash = hashlib.sha256(str(payload.email or "").encode("utf-8")).hexdigest()
-    employee_no_hash = hashlib.sha256(
-        (payload.employee_no or "").encode("utf-8")
-    ).hexdigest()
-    logger.warning(
-        "candidate_login.unknown_identity",
-        extra={
-            "event": "candidate_login.unknown_identity",
-            "outcome": outcome,
-            "name_sha256": f"sha256:{name_hash}",
-            "email_sha256": f"sha256:{email_hash}",
-            "employee_no_sha256": f"sha256:{employee_no_hash}",
-            "request_ip_hash": request_ip_hash,
-        },
-    )
-
-
-def _consume_open_challenges(db: Session, candidate_id: int, now: datetime) -> None:
+def _consume_open_challenges(db: Session, email: str, now: datetime) -> None:
     (
         db.query(CandidateLoginChallenge)
         .filter(
-            CandidateLoginChallenge.candidate_id == candidate_id,
+            CandidateLoginChallenge.email == email,
             CandidateLoginChallenge.consumed_at.is_(None),
         )
-        .update({"consumed_at": now}, synchronize_session=False)
+        .update({CandidateLoginChallenge.consumed_at: now}, synchronize_session=False)
     )
 
 
+def _enforce_resend_cooldown(db: Session, email: str, now: datetime) -> None:
+    cooldown = settings.candidate_login_otp_resend_cooldown_seconds
+    if cooldown <= 0:
+        return
+    latest = (
+        db.query(CandidateLoginChallenge)
+        .filter(CandidateLoginChallenge.email == email)
+        .order_by(CandidateLoginChallenge.created_at.desc())
+        .first()
+    )
+    if latest is None:
+        return
+    if (now - ensure_aware(latest.created_at)).total_seconds() < cooldown:
+        from app.core.rate_limit import PublicTokenRateLimitError
+
+        raise PublicTokenRateLimitError()
+
+
+def _cleanup_expired_challenges(db: Session, now: datetime) -> None:
+    batch_size = max(
+        1, int(getattr(settings, "candidate_login_cleanup_batch_size", 100))
+    )
+    retention_seconds = max(
+        int(
+            getattr(
+                settings,
+                "candidate_login_challenge_retention_seconds",
+                getattr(
+                    settings,
+                    "candidate_login_global_rate_limit_window_seconds",
+                    24 * 60 * 60,
+                ),
+            )
+        ),
+        60,
+    )
+    cleanup_before = now - timedelta(seconds=retention_seconds)
+    expired = (
+        db.query(CandidateLoginChallenge)
+        .filter(
+            CandidateLoginChallenge.created_at <= cleanup_before,
+            CandidateLoginChallenge.expires_at <= now,
+        )
+        .order_by(CandidateLoginChallenge.id)
+        .limit(batch_size)
+        .all()
+    )
+    for challenge in expired:
+        db.delete(challenge)
+    if expired:
+        db.flush()
+
+
 def _generate_otp() -> str:
-    if settings.candidate_login_test_otp:
-        return settings.candidate_login_test_otp
+    test_otp = settings.candidate_login_test_otp
+    if test_otp:
+        return test_otp
+    from secrets import randbelow
+
     return f"{randbelow(1_000_000):06d}"
 
 
 def _hash_otp(otp: str) -> str:
     key = settings.token_secret.encode("utf-8")
     payload = f"candidate-login-otp:{otp}".encode()
-    return hmac.new(key, payload, sha256).hexdigest()
+    return hmac.new(key, payload, hashlib.sha256).hexdigest()
 
 
-def _hash_request_ip(request_ip: str | None) -> str | None:
+def _hash_registration_credential(credential: str) -> str:
+    key = settings.token_secret.encode("utf-8")
+    payload = f"candidate-registration:{credential}".encode()
+    return hmac.new(key, payload, hashlib.sha256).hexdigest()
+
+
+def _hash_request_source(request_ip: str | None) -> str | None:
     if not request_ip:
         return None
     digest = hashlib.sha256(request_ip.encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
+
+
+def _registration_credential_ttl_seconds() -> int:
+    return min(
+        settings.candidate_login_otp_ttl_seconds,
+        int(
+            getattr(
+                settings,
+                "candidate_registration_credential_ttl_seconds",
+                settings.candidate_login_otp_ttl_seconds,
+            )
+        ),
+    )
+
+
+def _candidate_token_ttl_seconds() -> int:
+    return min(int(settings.candidate_token_ttl_seconds), 4 * 60 * 60)

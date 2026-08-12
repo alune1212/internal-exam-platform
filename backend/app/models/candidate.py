@@ -1,13 +1,14 @@
 import enum
 
-from sqlalchemy import Boolean, Index, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import CheckConstraint, Index, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.database import Base
 from app.models.base import TimestampMixin
 
 
 class CandidateStatus(enum.StrEnum):
+    pending = "pending"
     active = "active"
     inactive = "inactive"
 
@@ -15,28 +16,32 @@ class CandidateStatus(enum.StrEnum):
 class Candidate(TimestampMixin, Base):
     __tablename__ = "candidate"
     __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'active', 'inactive')",
+            name="ck_candidate_status",
+        ),
+        CheckConstraint(
+            "email = lower(trim(email)) AND length(trim(email)) > 3",
+            name="ck_candidate_email_normalized",
+        ),
+        CheckConstraint(
+            "name IS NULL OR length(trim(name)) > 0",
+            name="ck_candidate_name_nonblank",
+        ),
+        CheckConstraint(
+            "status = 'pending' OR (name IS NOT NULL AND length(trim(name)) > 0)",
+            name="ck_candidate_completed_name",
+        ),
         Index("ix_candidate_name", "name"),
-        Index("ix_candidate_exam_group", "exam_group"),
+        Index("ux_candidate_email", "email", unique=True),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    employee_no: Mapped[str | None] = mapped_column(
-        String(100), unique=True, index=True
-    )
-    department: Mapped[str | None] = mapped_column(String(100))
-    position: Mapped[str | None] = mapped_column(String(100))
-    phone_suffix: Mapped[str | None] = mapped_column(String(20))
-    email: Mapped[str | None] = mapped_column(String(255))
-    exam_group: Mapped[str | None] = mapped_column(String(100))
-    should_attend: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default=CandidateStatus.active.value, index=True
+        String(20), nullable=False, default=CandidateStatus.pending.value, index=True
     )
-    is_login_sentinel: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, index=True
-    )
-    remark: Mapped[str | None] = mapped_column(Text)
 
     attempts = relationship("ExamAttempt", back_populates="candidate")
     practice_answers = relationship("PracticeAnswer", back_populates="candidate")
@@ -50,3 +55,7 @@ class Candidate(TimestampMixin, Base):
         back_populates="candidate",
         cascade="all, delete-orphan",
     )
+
+    # ``name`` remains the physical compatibility column; a synonym lets new
+    # services query or assign the account-facing display-name terminology.
+    display_name = synonym("name")

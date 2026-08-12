@@ -3,25 +3,35 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getAdminExams } from "@/api/exams";
-import { getScoreReport } from "@/api/reports";
+import { getRanking, getScoreReport } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import { adminPageCopy, adminPageText, adminTableCopy } from "@/lib/pageCopy";
 import type { ScoreReportRow } from "@/types/report";
 
-const columns: ColumnDef<ScoreReportRow>[] = [
+type ScoreReportDisplayRow = ScoreReportRow & { rank: number | null };
+
+const columns: ColumnDef<ScoreReportDisplayRow>[] = [
   {
-    accessorKey: "candidate_name",
-    header: adminTableCopy.name,
-    cell: ({ row }) => <span className="font-medium">{row.original.candidate_name}</span>,
-    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.name },
+    accessorKey: "rank",
+    header: "RANK · 名次",
+    cell: ({ row }) => (
+      <span className="font-mono text-sm tabular-nums">{row.original.rank ?? "-"}</span>
+    ),
+    meta: { mobilePriority: "primary", mobileLabel: "名次" },
   },
   {
-    accessorKey: "employee_no",
-    header: adminTableCopy.employeeNo,
-    cell: ({ row }) => <span className="font-mono text-sm">{row.original.employee_no ?? "-"}</span>,
-    meta: { mobileLabel: adminTableCopy.employeeNo },
+    accessorKey: "roster_name",
+    header: "ROSTER NAME · 名单姓名",
+    cell: ({ row }) => <span className="font-medium">{row.original.roster_name}</span>,
+    meta: { mobilePriority: "primary", mobileLabel: "名单姓名" },
+  },
+  {
+    accessorKey: "roster_email",
+    header: "ROSTER EMAIL · 名单邮箱",
+    cell: ({ row }) => <span className="font-mono text-sm">{row.original.roster_email}</span>,
+    meta: { mobileLabel: "名单邮箱" },
   },
   {
     accessorKey: "department",
@@ -80,11 +90,20 @@ export function ScoreReportPage() {
       ]}
       queryEnabled={!examsPending}
       isLoading={examsPending}
-      queryFn={() => {
+      queryFn={async () => {
         if (examsLoadError) {
           throw new Error("考试列表加载失败");
         }
-        return getScoreReport(selectedExamId ?? null);
+        const scores = await getScoreReport(selectedExamId ?? null);
+        if (!selectedExamId) {
+          return scores.map((row) => ({ ...row, rank: null }));
+        }
+        const ranking = await getRanking(selectedExamId);
+        const rankByCandidate = new Map(ranking.map((row) => [row.candidate_id, row.rank]));
+        return scores.map((row) => ({
+          ...row,
+          rank: rankByCandidate.get(row.candidate_id) ?? null,
+        }));
       }}
       columns={columns}
       actions={

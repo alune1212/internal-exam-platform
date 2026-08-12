@@ -42,8 +42,8 @@ describe("pageCopy", () => {
 
   it("defines restrained page titles separately from domain labels", () => {
     expect(candidatePageText).toMatchObject({
-      login: { title: "入场核验" },
-      exams: { title: "待完成的考试" },
+      login: { title: "邮箱登录" },
+      exams: { title: "受邀考试" },
       examRules: { title: "阅读规则，开始作答" },
       result: { title: "本次答卷" },
       practice: { title: "日常练习", emptyTitle: "暂无可练习题目" },

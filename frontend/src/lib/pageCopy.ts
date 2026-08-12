@@ -1,8 +1,8 @@
 export const candidatePageCopy = {
-  login: "EXAM TAKER · 登录",
+  login: "USER · 邮箱登录",
   learning: "LEARNING · 学习",
   practice: "PRACTICE · 练习",
-  exams: "EXAMS · 考试",
+  exams: "EXAMS · 受邀考试",
   examRules: "EXAM RULES · 考试说明",
   result: "EXAM RESULT · 考试结果",
   review: "REVIEW · 答题回顾",
@@ -15,20 +15,30 @@ export const candidatePageCopy = {
 
 export const candidatePageText = {
   login: {
-    title: "入场核验",
-    description: "输入姓名与邮箱获取验证码；员工号用于匹配应考名单。",
+    title: "邮箱登录",
+    description: "输入邮箱获取验证码。首次登录时，验证邮箱并填写姓名即可创建账号。",
+    permissionNote: "登录后可进行学习、练习和错题复习；正式考试仅对受邀用户开放。",
     error: "请求失败，请稍后重试。如问题持续，请联系管理员。",
-    otpSent:
-      "如果您的信息已登记在应考名单中，验证码会发送到对应邮箱。请在 1–2 分钟内查看收件箱与垃圾邮件夹；未收到可等待冷却结束后点击「重新发送验证码」。如有疑问请联系管理员。",
+    otpSent: (maskedEmail: string, validityMinutes = 10) =>
+      `验证码已发送至 ${maskedEmail}，${validityMinutes} 分钟内有效。请查看收件箱和垃圾邮件；倒计时结束后可重新发送。`,
     otpError: "验证码无效或已过期，请重新获取后再试。",
+    accountUnavailable: "该账号暂不可用，请联系管理员重新激活后再登录。",
+    registrationTitle: "完成账号注册",
+    registrationDescription: "验证邮箱后，请确认姓名即可创建账号。",
+    profileTitle: "账号资料",
+    profileDescription: "更新用户显示姓名；邮箱是账号的只读身份。",
   },
   exams: {
-    title: "待完成的考试",
-    description: "开放中的考试会显示在这里，开始前请确认规则。",
-    emptyTitle: "暂无待完成考试。",
-    emptyDescription: "考试发布并开放后会显示在这里。",
+    title: "受邀考试",
+    description: "已发布且受邀的考试会立即显示；开始前请确认开放时间和规则。",
+    emptyTitle: "暂无受邀考试。",
+    emptyDescription: "正式考试仅对受邀用户开放；学习、练习和错题复习可随时使用。",
     errorTitle: "考试列表加载失败。",
-    errorDescription: "请稍后重试，或联系管理员确认考试是否已发布。",
+    errorDescription: "请稍后重试，或联系管理员确认受邀考试状态。",
+    invited: "应考人员 · 已受邀",
+    upcoming: "尚未开放",
+    unavailable: "暂不可进入",
+    available: "可以开始",
   },
   learning: {
     title: "视频学习",
@@ -62,7 +72,7 @@ export const candidatePageText = {
     emptyDescription: "管理员导入并启用题目后会显示。",
     errorTitle: "练习暂不可用。",
     errorDescription: "请稍后重试，或联系管理员确认题库状态。",
-    loginTitle: "请先完成入场核验。",
+    loginTitle: "请先登录。",
     loginDescription: "登录后可进入练习，并保留本题记录。",
   },
 } as const;
@@ -133,7 +143,8 @@ export const adminPageText = {
 } as const;
 
 export const productTerms = {
-  examTaker: "考试人",
+  user: "用户",
+  examTaker: "应考人员",
   participant: "应考人员",
   roster: "应考名单",
   questionBank: "题库",

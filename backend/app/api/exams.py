@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, Request, UploadFile
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, UploadFile
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id, require_admin
@@ -10,7 +10,9 @@ from app.schemas.exam import (
     BulkRetakeApplyRequest,
     BulkRetakePreviewRead,
     BulkRetakePreviewRequest,
+    ExamCandidateCreate,
     ExamCandidateRow,
+    ExamCandidateUpdate,
     ExamCreate,
     ExamPublishRequest,
     ExamRead,
@@ -18,12 +20,14 @@ from app.schemas.exam import (
     ExamUpdate,
     FormalExamEvidenceRead,
     FormalExamEvidenceRequest,
+    InvitationScheduleRead,
+    InvitationStatusRead,
     PublicationReadinessRead,
     ResultDetailsReleaseRead,
     ResultDetailsReleaseRequest,
 )
 from app.schemas.question import QuestionImportResult
-from app.services import exam_service
+from app.services import exam_service, invitation_service
 from app.services.audit_service import record_admin_event
 
 router = APIRouter(prefix="/exams", tags=["exams"])
@@ -154,6 +158,36 @@ def list_exam_candidates(
     return ApiResponse(data=exam_service.list_exam_candidates(db, exam_id))
 
 
+@admin_router.post(
+    "/{exam_id}/candidates", response_model=ApiResponse[ExamCandidateRow]
+)
+def add_exam_candidate(
+    exam_id: int,
+    payload: ExamCandidateCreate,
+    db: Session = Depends(get_db),
+) -> ApiResponse[ExamCandidateRow]:
+    return ApiResponse(data=exam_service.add_exam_candidate(db, exam_id, payload))
+
+
+@admin_router.patch(
+    "/{exam_id}/candidates/{candidate_id}",
+    response_model=ApiResponse[ExamCandidateRow],
+)
+@admin_router.put(
+    "/{exam_id}/candidates/{candidate_id}",
+    response_model=ApiResponse[ExamCandidateRow],
+)
+def update_exam_candidate(
+    exam_id: int,
+    candidate_id: int,
+    payload: ExamCandidateUpdate,
+    db: Session = Depends(get_db),
+) -> ApiResponse[ExamCandidateRow]:
+    return ApiResponse(
+        data=exam_service.update_exam_candidate(db, exam_id, candidate_id, payload)
+    )
+
+
 @admin_router.delete("/{exam_id}/candidates/{candidate_id}")
 def remove_exam_candidate(
     exam_id: int,
@@ -162,6 +196,109 @@ def remove_exam_candidate(
 ) -> ApiResponse[dict[str, int]]:
     return ApiResponse(
         data=exam_service.remove_exam_candidate(db, exam_id, candidate_id)
+    )
+
+
+def _schedule_read(
+    schedule: invitation_service.InvitationSchedule,
+) -> InvitationScheduleRead:
+    return InvitationScheduleRead(
+        exam_id=schedule.exam_id,
+        mode=schedule.mode,
+        selected_count=schedule.selected_count,
+        accepted_count=schedule.accepted_count,
+        rejected_count=schedule.rejected_count,
+        scheduled_count=schedule.scheduled_count,
+    )
+
+
+@admin_router.get(
+    "/{exam_id}/invitations", response_model=ApiResponse[InvitationStatusRead]
+)
+@admin_router.get(
+    "/{exam_id}/invitations/status", response_model=ApiResponse[InvitationStatusRead]
+)
+def get_invitation_status(
+    exam_id: int, db: Session = Depends(get_db)
+) -> ApiResponse[InvitationStatusRead]:
+    return ApiResponse(
+        data=InvitationStatusRead.model_validate(
+            invitation_service.invitation_status(db, exam_id)
+        )
+    )
+
+
+def _schedule_invitations(
+    exam_id: int,
+    *,
+    mode: str,
+    background_tasks: BackgroundTasks,
+    operator_subject: str,
+    db: Session,
+) -> InvitationScheduleRead:
+    schedule = invitation_service.claim_invitations(
+        db,
+        exam_id,
+        mode=mode,
+        operator_subject=operator_subject,
+        commit=False,
+    )
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    background_tasks.add_task(
+        invitation_service.deliver_claimed_invitations,
+        schedule.scope_ids,
+        schedule.claim_owner,
+        session_factory=sessionmaker(
+            bind=db.get_bind(), autoflush=False, expire_on_commit=False
+        ),
+        operator_subject=operator_subject,
+    )
+    return _schedule_read(schedule)
+
+
+@admin_router.post(
+    "/{exam_id}/invitations/send",
+    response_model=ApiResponse[InvitationScheduleRead],
+)
+def send_invitations(
+    exam_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    operator_subject: str = Depends(require_admin),
+) -> ApiResponse[InvitationScheduleRead]:
+    return ApiResponse(
+        data=_schedule_invitations(
+            exam_id,
+            mode="initial",
+            background_tasks=background_tasks,
+            operator_subject=operator_subject,
+            db=db,
+        )
+    )
+
+
+@admin_router.post(
+    "/{exam_id}/invitations/resend",
+    response_model=ApiResponse[InvitationScheduleRead],
+)
+def resend_invitations(
+    exam_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    operator_subject: str = Depends(require_admin),
+) -> ApiResponse[InvitationScheduleRead]:
+    return ApiResponse(
+        data=_schedule_invitations(
+            exam_id,
+            mode="resend",
+            background_tasks=background_tasks,
+            operator_subject=operator_subject,
+            db=db,
+        )
     )
 
 

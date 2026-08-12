@@ -22,6 +22,7 @@ export function CandidateImportPage() {
     mutationFn: (selected: File) => importCandidates(examId, selected),
     onSuccess: () => {
       setNotice({ tone: "success", message: importCopy.rosterImportComplete });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "exam-candidates", examId] });
       queryClient.invalidateQueries({ queryKey: ["admin", "absent-candidates"] });
     },
     onError: (error) =>
@@ -42,7 +43,7 @@ export function CandidateImportPage() {
       <PageHeader
         eyebrow={adminPageCopy.roster}
         title={adminPageText.roster.importTitle}
-        description={adminPageText.roster.importDescription}
+        description="上传 email、candidate_name 及可选部门、职位、考试组和备注；系统会按规范化邮箱创建或复用待完成注册账户。"
       />
 
       <ImportPanel

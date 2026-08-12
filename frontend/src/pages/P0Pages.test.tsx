@@ -63,10 +63,9 @@ vi.mock("@/api/questions", () => ({
 const candidate: Candidate = {
   id: 1,
   token: "candidate-token",
-  name: "张敏",
-  employee_no: "E1001",
-  department: "产品部",
-  should_attend: true,
+  token_expires_at: "2099-01-01T00:00:00.000Z",
+  email: "zhangmin@example.com",
+  display_name: "张敏",
   status: "active",
 };
 
@@ -280,7 +279,17 @@ describe("P0 pages", () => {
       expires_at: "2026-07-03T08:10:00Z",
       resend_available_at: "2026-07-03T08:01:00Z",
     });
-    vi.mocked(verifyCandidateLoginOtp).mockResolvedValue(candidate);
+    vi.mocked(verifyCandidateLoginOtp).mockResolvedValue({
+      outcome: "authenticated",
+      account: {
+        id: candidate.id,
+        email: candidate.email,
+        display_name: candidate.display_name,
+        status: candidate.status,
+      },
+      token: candidate.token,
+      token_expires_at: candidate.token_expires_at,
+    });
   });
 
   it("renders the clean candidate login copy with email OTP fields", () => {
@@ -291,14 +300,13 @@ describe("P0 pages", () => {
     });
 
     expect(screen.getByTestId("candidate-login-header")).toBeInTheDocument();
-    expect(screen.getByText("EXAM TAKER · 登录")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "入场核验" })).toHaveClass(
+    expect(screen.getByText("USER · 邮箱登录")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "邮箱登录" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
-    expect(screen.getByLabelText("姓名")).toBeInTheDocument();
     expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
-    expect(screen.queryByLabelText("手机号后四位")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("员工号（可选）")).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
@@ -311,15 +319,11 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    await user.type(screen.getByLabelText("姓名"), "张敏");
-    await user.type(screen.getByLabelText("员工号（可选）"), "E1001");
     await user.type(screen.getByLabelText("邮箱"), "zhangmin@example.com");
     await user.click(screen.getByRole("button", { name: "发送验证码" }));
 
     await waitFor(() => expect(requestCandidateLoginOtp).toHaveBeenCalled());
     expect(vi.mocked(requestCandidateLoginOtp).mock.calls[0][0]).toEqual({
-      name: "张敏",
-      employee_no: "E1001",
       email: "zhangmin@example.com",
     });
     expect(screen.getByLabelText("验证码")).toBeInTheDocument();
@@ -335,11 +339,10 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    await user.type(screen.getByLabelText("姓名"), "张敏");
     await user.type(screen.getByLabelText("邮箱"), "zhangmin@example.com");
     await user.click(screen.getByRole("button", { name: "发送验证码" }));
     await user.type(await screen.findByLabelText("验证码"), "123456");
-    await user.click(screen.getByRole("button", { name: "进入平台" }));
+    await user.click(screen.getByRole("button", { name: "验证并继续" }));
 
     await waitFor(() => expect(verifyCandidateLoginOtp).toHaveBeenCalled());
     expect(vi.mocked(verifyCandidateLoginOtp).mock.calls[0][0]).toEqual({
@@ -358,11 +361,10 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    await user.type(screen.getByLabelText("姓名"), "张敏");
     await user.type(screen.getByLabelText("邮箱"), "zhangmin@example.com");
     await user.click(screen.getByRole("button", { name: "发送验证码" }));
     await user.type(await screen.findByLabelText("验证码"), "000000");
-    await user.click(screen.getByRole("button", { name: "进入平台" }));
+    await user.click(screen.getByRole("button", { name: "验证并继续" }));
 
     expect(await screen.findByText("验证码无效或已过期，请重新获取后再试。")).toBeInTheDocument();
   });
@@ -951,8 +953,8 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByTestId("candidate-exam-list-shell")).toHaveClass("gap-8");
-    expect(await screen.findByText("待完成的考试")).toBeInTheDocument();
-    expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
+    expect(await screen.findByText("受邀考试")).toBeInTheDocument();
+    expect(screen.getByText("EXAMS · 受邀考试")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "内部考试" })).not.toHaveClass("tracking-[-0.04em]");
     const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);
@@ -966,7 +968,7 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByRole("heading", { name: "考试列表加载失败。" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "待完成的考试" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "受邀考试" })).toBeInTheDocument();
     expect(screen.queryByText("今天暂无考试安排。")).not.toBeInTheDocument();
   });
 
@@ -999,9 +1001,9 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByText("稍后开放")).toBeInTheDocument();
-    expect(screen.getByText("NOT OPEN · 未开放")).toBeInTheDocument();
-    expect(screen.getByText("ENDED · 已结束")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "不可进入" }).length).toBe(2);
+    expect(screen.getAllByText("尚未开放").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("暂不可进入").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /尚未开放|暂不可进入/ }).length).toBe(2);
   });
 
   it("links in-progress exams directly to the existing attempt", async () => {
@@ -1031,7 +1033,7 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findByText("待完成的考试")).toBeInTheDocument();
+    expect(await screen.findByText("受邀考试")).toBeInTheDocument();
   });
 
   it("falls back to the empty-state heading when there are no active exams", async () => {
@@ -1040,20 +1042,26 @@ describe("P0 pages", () => {
 
     renderPage("exams", <ExamListPage />);
 
-    expect(await screen.findByRole("heading", { name: "暂无待完成考试。" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "暂无受邀考试。" })).toBeInTheDocument();
   });
 
   it("shows the actual API error when starting an exam fails", async () => {
     const user = userEvent.setup();
+    vi.mocked(getActiveExams).mockResolvedValue([exam]);
     vi.mocked(startExam).mockRejectedValueOnce(
       new ApiError("考试人已有进行中的考试记录 #9", 409, "考试人已有进行中的考试记录 #9"),
     );
 
-    renderPage("exams/:examId/start", <ExamStartPage />, {
-      candidate,
-      loginCandidate: vi.fn(),
-      logoutCandidate: vi.fn(),
-    });
+    renderPage(
+      "exams/:examId/start",
+      <ExamStartPage />,
+      {
+        candidate,
+        loginCandidate: vi.fn(),
+        logoutCandidate: vi.fn(),
+      },
+      "exams/1/start",
+    );
 
     const startButton = await screen.findByRole("button", { name: /开始考试/ });
     await user.click(startButton);
@@ -1065,15 +1073,21 @@ describe("P0 pages", () => {
 
   it("does not offer continue action after the exam was already handed in", async () => {
     const user = userEvent.setup();
+    vi.mocked(getActiveExams).mockResolvedValue([exam]);
     vi.mocked(startExam).mockRejectedValueOnce(
       new ApiError("考试记录 #10 已交卷", 409, "考试记录 #10 已交卷"),
     );
 
-    renderPage("exams/:examId/start", <ExamStartPage />, {
-      candidate,
-      loginCandidate: vi.fn(),
-      logoutCandidate: vi.fn(),
-    });
+    renderPage(
+      "exams/:examId/start",
+      <ExamStartPage />,
+      {
+        candidate,
+        loginCandidate: vi.fn(),
+        logoutCandidate: vi.fn(),
+      },
+      "exams/1/start",
+    );
 
     const startButton = await screen.findByRole("button", { name: /开始考试/ });
     await user.click(startButton);
@@ -1132,13 +1146,19 @@ describe("P0 pages", () => {
 
   it("falls back to a generic message when the start-exam error has no detail", async () => {
     const user = userEvent.setup();
+    vi.mocked(getActiveExams).mockResolvedValue([exam]);
     vi.mocked(startExam).mockRejectedValueOnce(new Error("network down"));
 
-    renderPage("exams/:examId/start", <ExamStartPage />, {
-      candidate,
-      loginCandidate: vi.fn(),
-      logoutCandidate: vi.fn(),
-    });
+    renderPage(
+      "exams/:examId/start",
+      <ExamStartPage />,
+      {
+        candidate,
+        loginCandidate: vi.fn(),
+        logoutCandidate: vi.fn(),
+      },
+      "exams/1/start",
+    );
 
     const startButton = await screen.findByRole("button", { name: /开始考试/ });
     await user.click(startButton);

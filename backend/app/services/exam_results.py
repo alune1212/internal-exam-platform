@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     AdminAuditEvent,
-    Candidate,
     Exam,
     ExamAttempt,
     ExamCandidateScope,
@@ -249,10 +248,13 @@ def _retake_preview_rows(
         )
         .all()
     }
-    candidates = {
-        candidate.id: candidate
-        for candidate in db.query(Candidate)
-        .filter(Candidate.id.in_(candidate_ids))
+    scopes = {
+        scope.candidate_id: scope
+        for scope in db.query(ExamCandidateScope)
+        .filter(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id.in_(candidate_ids),
+        )
         .all()
     }
     unused_grants = {
@@ -267,11 +269,16 @@ def _retake_preview_rows(
     }
     rows: list[BulkRetakeRow] = []
     for candidate_id in sorted(set(candidate_ids)):
-        candidate = candidates.get(candidate_id)
+        scope = scopes.get(candidate_id)
         attempt = _latest_attempt(db, exam_id, candidate_id)
         base = {
             "candidate_id": candidate_id,
-            "candidate_name": candidate.name if candidate else None,
+            # Formal identity is always the frozen scope snapshot.  The
+            # compatibility ``candidate_name`` field is retained in this
+            # response for old clients but receives the same frozen value.
+            "candidate_name": scope.roster_name if scope else None,
+            "roster_email": scope.roster_email if scope else None,
+            "roster_name": scope.roster_name if scope else None,
             "attempt_id": attempt.id if attempt else None,
             "prior_status": attempt.status if attempt else None,
         }

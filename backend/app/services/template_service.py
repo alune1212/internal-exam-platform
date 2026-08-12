@@ -68,30 +68,26 @@ QUESTION_EXAMPLES = [
     ],
 ]
 
-CANDIDATE_HEADERS = [
-    "name",
-    "employee_no",
+# The standalone personnel import was retired.  The only supported candidate
+# workbook is a draft exam roster keyed by normalized email.  Keep the optional
+# organization columns in the template so operators can prepare the frozen
+# formal identity without touching the global account profile.
+EXAM_ROSTER_HEADERS = [
+    "email",
+    "candidate_name",
     "department",
     "position",
-    "phone_suffix",
-    "email",
     "exam_group",
-    "should_attend",
-    "status",
     "remark",
 ]
 
-CANDIDATE_EXAMPLES = [
+EXAM_ROSTER_EXAMPLES = [
     [
+        "zhangsan@example.com",
         "张三",
-        "E1001",
         "综合管理部",
         "工程师",
-        "1234",
-        "zhangsan@example.com",
         "A组",
-        "true",
-        "active",
         None,
     ],
 ]
@@ -138,5 +134,7 @@ def generate_question_template() -> BytesIO:
     return _build_workbook("题库导入模板", QUESTION_HEADERS, QUESTION_EXAMPLES)
 
 
-def generate_candidate_template() -> BytesIO:
-    return _build_workbook("应考名单导入模板", CANDIDATE_HEADERS, CANDIDATE_EXAMPLES)
+def generate_exam_roster_template() -> BytesIO:
+    return _build_workbook(
+        "应考名单导入模板", EXAM_ROSTER_HEADERS, EXAM_ROSTER_EXAMPLES
+    )

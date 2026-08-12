@@ -1,7 +1,28 @@
 export type ScoreReportRow = {
-  candidate_name: string;
-  employee_no?: string | null;
+  candidate_id: number;
+  roster_name: string;
+  roster_email: string;
   department?: string | null;
+  position?: string | null;
+  exam_group?: string | null;
+  roster_remark?: string | null;
+  exam_id: number;
+  exam_title: string;
+  score: number;
+  total_score: number;
+  submitted_at?: string | null;
+};
+
+export type RankingRow = {
+  rank: number;
+  candidate_id: number;
+  roster_name: string;
+  roster_email: string;
+  department?: string | null;
+  position?: string | null;
+  exam_group?: string | null;
+  roster_remark?: string | null;
+  exam_id: number;
   exam_title: string;
   score: number;
   total_score: number;
@@ -26,9 +47,13 @@ export type WrongQuestionRow = {
 
 export type AbsentCandidateRow = {
   candidate_id: number;
-  name: string;
-  employee_no?: string | null;
+  exam_id: number;
+  exam_title?: string | null;
+  roster_name: string;
+  roster_email: string;
   department?: string | null;
+  position?: string | null;
   exam_group?: string | null;
+  roster_remark?: string | null;
   attendance_status: "not_started" | "in_progress" | "submitted";
 };

@@ -16,11 +16,10 @@ vi.mock("@/api/auth", () => ({
 const mockCandidate = {
   id: 42,
   token: "expired-token",
-  name: "张三",
-  employee_no: "YG0001",
-  department: "综合管理部",
-  status: "active",
-  should_attend: true,
+  token_expires_at: "2099-01-01T00:00:00.000Z",
+  email: "zhangsan@example.com",
+  display_name: "张三",
+  status: "active" as const,
 };
 const supportedUserAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36";
@@ -96,7 +95,7 @@ describe("CandidateLayout", () => {
   it("renders the login route as a clean auth screen without candidate navigation or footer", () => {
     renderCandidateShell("/login");
 
-    expect(screen.getByRole("heading", { name: "入场核验" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "邮箱登录" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "学习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "练习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "考试" })).not.toBeInTheDocument();
@@ -121,7 +120,7 @@ describe("CandidateLayout", () => {
       clearCurrentCandidate("unauthorized");
     });
 
-    expect(await screen.findByRole("heading", { name: "入场核验" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "邮箱登录" })).toBeInTheDocument();
     expect(screen.queryByText("考试列表")).not.toBeInTheDocument();
   });
 });

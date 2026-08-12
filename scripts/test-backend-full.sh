@@ -25,6 +25,8 @@ docker compose \
 
 cd "$repo_root/backend"
 
+python3 "$repo_root/scripts/check-legacy-contracts.py"
+
 ENVIRONMENT=development \
 DATABASE_URL="$database_url" \
 UV_CACHE_DIR="$uv_cache_dir" \

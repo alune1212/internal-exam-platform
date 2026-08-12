@@ -35,7 +35,7 @@ export function WrongQuestionReviewPage() {
       <PageShell className="mx-auto max-w-3xl py-12">
         <PageState
           state="notLoggedIn"
-          title="请先完成入场核验。"
+          title="请先登录。"
           description="登录后可查看自己的错题记录。"
         />
       </PageShell>

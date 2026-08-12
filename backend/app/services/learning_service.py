@@ -233,12 +233,10 @@ def get_learning_report(
     if video_id is not None:
         query = query.filter(LearningVideo.id == video_id)
     videos = query.order_by(LearningVideo.created_at.desc()).all()
-    candidates = (
-        db.query(Candidate)
-        .filter(Candidate.status == "active")
-        .order_by(Candidate.name, Candidate.id)
-        .all()
-    )
+    # Learning is account-scoped rather than exam-scoped.  Include pending and
+    # inactive rows in the administrator report so lifecycle state is visible
+    # and historical progress is not silently dropped after deactivation.
+    candidates = db.query(Candidate).order_by(Candidate.name, Candidate.id).all()
     progress_rows = (
         db.query(LearningVideoProgress)
         .filter(LearningVideoProgress.video_id.in_([video.id for video in videos]))
@@ -274,10 +272,9 @@ def generate_learning_report_workbook(
     sheet.append(
         [
             "CID · 人员ID",
-            "NAME · 姓名",
-            "EMP NO · 工号",
-            "DEPT · 部门",
-            "GROUP · 分组",
+            "ACCOUNT EMAIL · 用户邮箱",
+            "ACCOUNT NAME · 用户姓名",
+            "ACCOUNT STATUS · 账户状态",
             "VID · 视频ID",
             "VIDEO · 视频",
             "VIDEO STATUS · 视频状态",
@@ -292,17 +289,20 @@ def generate_learning_report_workbook(
         sheet.append(
             [
                 escape_excel_cell(row.candidate_id),
-                escape_excel_cell(row.candidate_name),
-                escape_excel_cell(row.employee_no),
-                escape_excel_cell(row.department),
-                escape_excel_cell(row.exam_group),
+                escape_excel_cell(row.account_email),
+                escape_excel_cell(row.display_name),
+                escape_excel_cell(row.account_status),
                 escape_excel_cell(row.video_id),
                 escape_excel_cell(row.video_title),
-                VIDEO_STATUS_LABELS.get(row.video_status, row.video_status),
+                escape_excel_cell(
+                    VIDEO_STATUS_LABELS.get(row.video_status, row.video_status)
+                ),
                 row.duration_seconds,
                 row.completion_percent,
-                LEARNING_STATUS_LABELS.get(
-                    row.completion_status, row.completion_status
+                escape_excel_cell(
+                    LEARNING_STATUS_LABELS.get(
+                        row.completion_status, row.completion_status
+                    )
                 ),
                 row.last_heartbeat_at.isoformat() if row.last_heartbeat_at else None,
                 row.completed_at.isoformat() if row.completed_at else None,
@@ -442,10 +442,12 @@ def _report_row(
         completion_status = "not_started"
     return LearningReportRow(
         candidate_id=candidate.id,
-        candidate_name=candidate.name,
-        employee_no=candidate.employee_no,
-        department=candidate.department,
-        exam_group=candidate.exam_group,
+        # New accounts always have a normalized email; the fallback keeps
+        # historical rows readable during an additive migration before the
+        # non-null constraint is enforced.
+        account_email=candidate.email or "",
+        display_name=candidate.display_name,
+        account_status=candidate.status,
         video_id=video.id,
         video_title=video.title,
         video_status=video.status,

@@ -46,6 +46,18 @@ function completionVariant(status: LearningCompletionStatus): StatusPillVariant 
   return "default";
 }
 
+const accountStatusLabels: Record<string, string> = {
+  pending: "待完成注册",
+  active: "已启用",
+  inactive: "已停用",
+};
+
+function accountStatusVariant(status: string): StatusPillVariant {
+  if (status === "active") return "success";
+  if (status === "inactive") return "error";
+  return "warning";
+}
+
 function LearningReportFilters({
   videos,
   videoId,
@@ -136,22 +148,26 @@ function LearningReportExportButton({
 
 const columns: ColumnDef<LearningReportRow>[] = [
   {
-    accessorKey: "candidate_name",
-    header: adminTableCopy.name,
-    cell: ({ row }) => <span className="font-medium">{row.original.candidate_name}</span>,
-    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.name },
+    accessorKey: "display_name",
+    header: "ACCOUNT NAME · 用户姓名",
+    cell: ({ row }) => <span className="font-medium">{row.original.display_name || "未填写"}</span>,
+    meta: { mobilePriority: "primary", mobileLabel: "用户姓名" },
   },
   {
-    accessorKey: "employee_no",
-    header: adminTableCopy.employeeNo,
-    cell: ({ row }) => <span className="font-mono text-sm">{row.original.employee_no ?? "-"}</span>,
-    meta: { mobileLabel: adminTableCopy.employeeNo },
+    accessorKey: "account_email",
+    header: "ACCOUNT EMAIL · 用户邮箱",
+    cell: ({ row }) => <span className="font-mono text-sm">{row.original.account_email}</span>,
+    meta: { mobileLabel: "用户邮箱" },
   },
   {
-    accessorKey: "department",
-    header: adminTableCopy.department,
-    cell: ({ row }) => row.original.department ?? "-",
-    meta: { mobileLabel: adminTableCopy.department },
+    accessorKey: "account_status",
+    header: "ACCOUNT STATUS · 账户状态",
+    cell: ({ row }) => (
+      <StatusPill variant={accountStatusVariant(row.original.account_status)}>
+        {accountStatusLabels[row.original.account_status] ?? "未知状态"}
+      </StatusPill>
+    ),
+    meta: { mobileLabel: "账户状态" },
   },
   {
     accessorKey: "video_title",
@@ -219,7 +235,7 @@ export function AdminLearningReportPage() {
     <ReportPage
       title={adminPageText.learning.reportTitle}
       chapterLabel={adminPageCopy.learning}
-      description={adminPageText.learning.reportDescription}
+      description="按视频和完成状态查看用户的学习进度；身份使用平台账号邮箱、显示名与状态。"
       queryKey={adminKeys.learningReport(selectedVideoId, selectedStatus)}
       queryEnabled={!videosPending}
       isLoading={videosPending}

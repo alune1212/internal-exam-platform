@@ -50,3 +50,32 @@ describe("downloadReportExport", () => {
     await expect(downloadReportExport()).rejects.toThrow("报表导出失败");
   });
 });
+
+describe("getRanking", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    sessionStorage.clear();
+  });
+
+  it("requests the selected exam ranking with the admin token", async () => {
+    vi.stubEnv("VITE_API_BASE_URL", "http://api.example.test");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ success: true, data: [], message: "" }),
+      }),
+    );
+    const { setAdminToken } = await import("@/lib/adminSession");
+    const { getRanking } = await import("@/api/reports");
+
+    setAdminToken("admin-pass");
+    await getRanking("7");
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://api.example.test/api/admin/reports/rankings?exam_id=7");
+    expect((init.headers as Headers).get("X-Admin-Token")).toBe("admin-pass");
+  });
+});

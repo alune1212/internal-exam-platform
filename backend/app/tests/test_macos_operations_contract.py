@@ -938,6 +938,45 @@ def test_lifecycle_cleanup_preserves_lock_release() -> None:
     assert "macos_release_lock" in staging
 
 
+def test_candidate_public_base_url_tracks_formal_maintenance_and_staging_modes() -> (
+    None
+):
+    start = (MACOS_OPS / "Start-Platform.zsh").read_text(encoding="utf-8")
+    preflight = (MACOS_OPS / "Test-FormalPreflight.zsh").read_text(encoding="utf-8")
+    staging = (MACOS_OPS / "Invoke-Staging.zsh").read_text(encoding="utf-8")
+    runtime = (MACOS_OPS / "Invoke-StagingRuntimeChecks.zsh").read_text(
+        encoding="utf-8"
+    )
+    restore = (MACOS_OPS / "Invoke-StagingBackupRestoreCheck.zsh").read_text(
+        encoding="utf-8"
+    )
+    drill = (MACOS_OPS / "Invoke-RestoreDrill.zsh").read_text(encoding="utf-8")
+    capture = (MACOS_OPS / "Capture-PrivilegedHostEvidence.zsh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "CANDIDATE_PUBLIC_BASE_URL" in start
+    assert "export CANDIDATE_PUBLIC_BASE_URL=http://127.0.0.1:28080" in start
+    assert "CANDIDATE_PUBLIC_BASE_URL" in preflight
+    assert "http://${formal_lan_ip}:${formal_candidate_port}" in preflight
+    assert "http://${lan_ip}:${candidate_port}" in preflight
+    assert (
+        'export CANDIDATE_PUBLIC_BASE_URL="http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}"'
+        in staging
+    )
+    assert (
+        'export CANDIDATE_PUBLIC_BASE_URL="http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}"'
+        in runtime
+    )
+    assert (
+        'export CANDIDATE_PUBLIC_BASE_URL="http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}"'
+        in restore
+    )
+    assert "export CANDIDATE_PUBLIC_BASE_URL=http://127.0.0.1:28080" in drill
+    assert "read_formal_value_into CANDIDATE_PUBLIC_BASE_URL" in capture
+    assert "candidatePublicBaseUrl" in capture
+
+
 def test_fresh_formal_writer_commissioning_is_two_phase_and_fail_closed() -> None:
     initialize = (MACOS_OPS / "Initialize-FormalWriter.zsh").read_text(encoding="utf-8")
     common = (MACOS_OPS / "Common.zsh").read_text(encoding="utf-8")

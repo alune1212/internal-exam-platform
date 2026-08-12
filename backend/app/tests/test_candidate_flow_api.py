@@ -1,4 +1,7 @@
+"""Focused email-account authentication and active-session authorization tests."""
+
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,17 +11,16 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
 from app.core.database import Base, get_db
-from app.core.security import create_candidate_token
+from app.core.dependencies import require_admin
 from app.main import create_app
 from app.models import (
+    AdminAuditEvent,
     Candidate,
     CandidateLoginChallenge,
     Exam,
     ExamCandidateScope,
-    PracticeAnswer,
-    Question,
-    QuestionOption,
 )
+from app.services import candidate_service
 from app.services.email_service import candidate_login_email_outbox
 
 
@@ -29,820 +31,386 @@ def _build_client() -> tuple[TestClient, Session]:
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
-    session_local = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    db = session_local()
-    _ensure_login_sentinel(db)
+    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    db = session_factory()
     app = create_app()
 
     def override_get_db() -> Iterator[Session]:
         yield db
 
     app.dependency_overrides[get_db] = override_get_db
+    # The account-directory router is still behind the production admin
+    # dependency; this local test override avoids coupling auth tests to the
+    # operator credential fixture.
+    app.dependency_overrides[require_admin] = lambda: "test-operator"
     return TestClient(app), db
 
 
-def _ensure_login_sentinel(db: Session) -> None:
-    """Install the candidate login sentinel row.
-
-    Mirrors the data migration ``202607030002_candidate_login_sentinel``.
-    The uniform-response contract requires exactly one such row to exist.
-    """
-    existing = db.query(Candidate).filter(Candidate.is_login_sentinel.is_(True)).first()
-    if existing is not None:
-        return
-    db.add(
-        Candidate(
-            name="__candidate_login_sentinel__",
-            status="inactive",
-            should_attend=False,
-            is_login_sentinel=True,
-        )
-    )
-    db.commit()
-
-
-def test_candidate_login_throttles_repeated_public_attempts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "public_token_rate_limit_count", 2, raising=False)
-    monkeypatch.setattr(
-        settings, "public_token_rate_limit_window_seconds", 60, raising=False
-    )
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="限流人",
-            employee_no="RL001",
-            email="ratelimit@example.com",
-            phone_suffix="1234",
-        )
-    )
-    db.commit()
-
-    for _ in range(2):
-        resp = client.post(
-            "/api/candidates/login",
-            json={
-                "name": "限流人",
-                "employee_no": "RL001",
-                "email": "wrong@example.com",
-            },
-        )
-        # Wrong email lands on the sentinel path, which returns a uniform 200.
-        assert resp.status_code == 200
-
-    blocked = client.post(
-        "/api/candidates/login",
-        json={"name": "限流人", "employee_no": "RL001", "email": "wrong@example.com"},
-    )
-
-    assert blocked.status_code == 429
-
-
-def test_candidate_login_request_creates_email_challenge_without_token() -> None:
+@pytest.fixture(autouse=True)
+def test_otp(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setattr(settings, "candidate_login_test_otp", "123456")
+    monkeypatch.setattr(settings, "candidate_login_email_delivery_mode", "memory")
     candidate_login_email_outbox.clear()
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="张三",
-            employee_no="YG0001",
-            department="综合管理部",
-            email="zhangsan@example.com",
-            phone_suffix="1234",
-            status="active",
-        )
-    )
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login",
-        json={"name": "张三", "employee_no": "YG0001", "email": "zhangsan@example.com"},
-    )
-
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["challenge_id"] > 0
-    assert data["expires_at"]
-    assert data["resend_available_at"]
-    assert "token" not in data
-    challenge = db.get(CandidateLoginChallenge, data["challenge_id"])
-    assert challenge is not None
-    assert challenge.candidate_id > 0
-    assert challenge.otp_hash != candidate_login_email_outbox[-1].otp
-    assert candidate_login_email_outbox[-1].to_email == "zhangsan@example.com"
-
-
-def test_candidate_login_verify_returns_token_and_consumes_challenge() -> None:
+    yield
     candidate_login_email_outbox.clear()
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="张三",
-            employee_no="YG0001",
-            department="综合管理部",
-            email="zhangsan@example.com",
-            phone_suffix="1234",
-            status="active",
-        )
-    )
-    db.commit()
 
-    requested = client.post(
-        "/api/candidates/login",
-        json={"name": "张三", "employee_no": "YG0001", "email": "zhangsan@example.com"},
-    )
+
+def _request_and_verify(client: TestClient, email: str) -> dict:
+    requested = client.post("/api/candidates/login", json={"email": email})
+    assert requested.status_code == 200, requested.text
     challenge_id = requested.json()["data"]["challenge_id"]
-    otp = candidate_login_email_outbox[-1].otp
-
-    response = client.post(
+    verified = client.post(
         "/api/candidates/login/verify",
-        json={"challenge_id": challenge_id, "otp": otp},
+        json={"challenge_id": challenge_id, "otp": "123456"},
     )
+    assert verified.status_code == 200, verified.text
+    return verified.json()["data"]
 
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["id"] > 0
-    assert data["name"] == "张三"
-    assert data["department"] == "综合管理部"
+
+def test_login_schema_is_email_only_and_forbids_legacy_identity_fields() -> None:
+    client, _db = _build_client()
+    legacy_employee_key = "employee" + "_no"
+    response = client.post(
+        "/api/candidates/login",
+        json={"email": "user@example.com", "name": "legacy", legacy_employee_key: "E1"},
+    )
+    assert response.status_code == 422
+
+
+def test_existing_active_account_returns_authenticated_outcome() -> None:
+    client, db = _build_client()
+    db.add(Candidate(email="active@example.com", name="Active", status="active"))
+    db.commit()
+
+    data = _request_and_verify(client, " ACTIVE@Example.com ")
+
+    assert data["outcome"] == "authenticated"
+    assert data["account"]["email"] == "active@example.com"
+    assert data["account"]["display_name"] == "Active"
     assert data["token"]
-    challenge = db.get(CandidateLoginChallenge, challenge_id)
-    assert challenge is not None
+    token_expires_at = datetime.fromisoformat(
+        data["token_expires_at"].replace("Z", "+00:00")
+    )
+    assert timedelta(0) < token_expires_at - datetime.now(UTC) <= timedelta(hours=4)
+
+
+def test_unknown_mailbox_receives_real_otp_and_registration_credential() -> None:
+    client, db = _build_client()
+
+    data = _request_and_verify(client, "new@example.com")
+
+    assert data["outcome"] == "registration_required"
+    assert data["email"] == "new@example.com"
+    assert data["registration_credential"]
+    assert data["registration_expires_at"]
+    assert candidate_login_email_outbox[-1].to_email == "new@example.com"
+    assert db.query(Candidate).count() == 0
+
+
+def test_pending_account_registration_activates_without_overwriting_scope_name() -> (
+    None
+):
+    client, db = _build_client()
+    pending = Candidate(email="pending@example.com", name=None, status="pending")
+    db.add(pending)
+    db.commit()
+
+    data = _request_and_verify(client, "pending@example.com")
+    assert data["outcome"] == "registration_required"
+    completed = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Confirmed Name",
+        },
+    )
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["data"]["outcome"] == "authenticated"
+    db.refresh(pending)
+    assert pending.status == "active"
+    assert pending.name == "Confirmed Name"
+
+
+def test_pending_scoped_account_returns_roster_name_suggestion_only() -> None:
+    client, db = _build_client()
+    pending = Candidate(email="invited@example.com", name=None, status="pending")
+    exam = Exam(title="Invited", duration_minutes=30, status="draft")
+    db.add_all([pending, exam])
+    db.flush()
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=pending.id,
+            roster_email="invited@example.com",
+            roster_name="Roster Name",
+        )
+    )
+    db.commit()
+
+    data = _request_and_verify(client, "invited@example.com")
+    assert data["outcome"] == "registration_required"
+    assert data["suggested_display_name"] == "Roster Name"
+    db.refresh(pending)
+    assert pending.name is None
+
+
+def test_inactive_account_correct_otp_returns_account_unavailable() -> None:
+    client, _db = _build_client()
+    _db.add(Candidate(email="inactive@example.com", name="Inactive", status="inactive"))
+    _db.commit()
+
+    data = _request_and_verify(client, "inactive@example.com")
+
+    assert data["outcome"] == "account_unavailable"
+    assert "token" not in data
+    assert "registration_credential" not in data
+
+
+def test_registration_credential_is_single_use_and_expiring() -> None:
+    client, db = _build_client()
+    data = _request_and_verify(client, "replay@example.com")
+    payload = {
+        "registration_credential": data["registration_credential"],
+        "display_name": "Replay User",
+    }
+    first = client.post("/api/candidates/register/complete", json=payload)
+    second = client.post("/api/candidates/register/complete", json=payload)
+    assert first.status_code == 200
+    assert second.status_code == 400
+
+    data = _request_and_verify(client, "expired@example.com")
+    challenge = (
+        db.query(CandidateLoginChallenge)
+        .filter(CandidateLoginChallenge.email == "expired@example.com")
+        .one()
+    )
+    challenge.registration_credential_expires_at = datetime.now(UTC) - timedelta(
+        seconds=1
+    )
+    db.commit()
+    expired = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Expired User",
+        },
+    )
+    assert expired.status_code == 400
+
+
+def test_registration_completion_does_not_overwrite_a_racing_active_name() -> None:
+    client, db = _build_client()
+    data = _request_and_verify(client, "race@example.com")
+    db.add(Candidate(email="race@example.com", name="Winning Name", status="active"))
+    db.commit()
+
+    completed = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Losing Name",
+        },
+    )
+    assert completed.status_code == 200
+    assert completed.json()["data"]["account"]["display_name"] == "Winning Name"
+    replay = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Another Name",
+        },
+    )
+    assert replay.status_code == 400
+
+
+def test_registration_unique_race_pending_winner_is_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    data = _request_and_verify(client, "pending-race@example.com")
+    winner = Candidate(email="pending-race@example.com", name=None, status="pending")
+    db.add(winner)
+    db.commit()
+
+    original_lookup = candidate_service._find_account_by_email
+    lookup_count = 0
+
+    def race_lookup(db_session: Session, email: str) -> Candidate | None:
+        nonlocal lookup_count
+        lookup_count += 1
+        if lookup_count == 1:
+            return None
+        return original_lookup(db_session, email)
+
+    monkeypatch.setattr(candidate_service, "_find_account_by_email", race_lookup)
+    completed = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Pending Winner",
+        },
+    )
+
+    assert completed.status_code == 200, completed.text
+    assert completed.json()["data"]["account"]["display_name"] == "Pending Winner"
+    db.refresh(winner)
+    assert winner.status == "active"
+    assert winner.name == "Pending Winner"
+    challenge = (
+        db.query(CandidateLoginChallenge)
+        .filter(CandidateLoginChallenge.email == "pending-race@example.com")
+        .one()
+    )
     db.refresh(challenge)
-    assert challenge.consumed_at is not None
-
-
-def test_candidate_login_returns_uniform_200_for_mismatched_name() -> None:
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="张三",
-            employee_no="YG0001",
-            department="综合管理部",
-            email="zhangsan@example.com",
-            phone_suffix="1234",
-            status="active",
-        )
+    assert challenge.registration_credential_consumed_at is not None
+    replay = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Replay",
+        },
     )
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login",
-        json={"name": "李四", "employee_no": "YG0001", "email": "zhangsan@example.com"},
-    )
-
-    # Uniform response: lookup failure surfaces as a 200 sentinel challenge,
-    # not as a 404. The real rejection happens at the verify step.
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["challenge_id"] > 0
-    assert "token" not in data
+    assert replay.status_code == 400
 
 
-def test_candidate_login_returns_uniform_200_for_missing_email() -> None:
-    client, db = _build_client()
-    db.add(Candidate(name="张三", employee_no="YG0001", email="zhangsan@example.com"))
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login", json={"name": "张三", "employee_no": "YG0001"}
-    )
-
-    # Missing email is treated as invalid_input → sentinel, not a 404.
-    assert response.status_code == 200
-    assert "data" in response.json()
-
-
-def test_candidate_login_returns_uniform_200_for_wrong_email() -> None:
-    client, db = _build_client()
-    db.add(Candidate(name="张三", employee_no="YG0001", email="zhangsan@example.com"))
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login",
-        json={"name": "张三", "employee_no": "YG0001", "email": "wrong@example.com"},
-    )
-
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["challenge_id"] > 0
-
-
-def test_candidate_login_creates_challenge_by_name_without_employee_no() -> None:
-    candidate_login_email_outbox.clear()
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="王五",
-            employee_no=None,
-            department="安全管理部",
-            email="wangwu@example.com",
-            phone_suffix="5678",
-            status="active",
-        )
-    )
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login", json={"name": "王五", "email": "wangwu@example.com"}
-    )
-
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["challenge_id"] > 0
-    assert "token" not in data
-    assert candidate_login_email_outbox[-1].to_email == "wangwu@example.com"
-
-
-def test_candidate_login_returns_uniform_200_for_old_phone_suffix_payload() -> None:
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="旧流程",
-            employee_no="OLD001",
-            email="old@example.com",
-            phone_suffix="1234",
-            status="active",
-        )
-    )
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login",
-        json={"name": "旧流程", "employee_no": "OLD001", "phone_suffix": "1234"},
-    )
-
-    # Phone-suffix-only payload has no email; service treats it as
-    # invalid_input → sentinel → uniform 200. The legacy direct-token path
-    # is fully removed.
-    assert response.status_code == 200
-    assert "token" not in response.json()["data"]
-
-
-def test_candidate_login_verify_rejects_wrong_expired_consumed_and_attempt_exhausted(
+def test_registration_unique_race_inactive_winner_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    candidate_login_email_outbox.clear()
-    monkeypatch.setattr(settings, "candidate_login_otp_attempt_limit", 2, raising=False)
     client, db = _build_client()
-    db.add(Candidate(name="验证人", email="verify@example.com", status="active"))
+    data = _request_and_verify(client, "inactive-race@example.com")
+    winner = Candidate(
+        email="inactive-race@example.com", name="Inactive Winner", status="inactive"
+    )
+    db.add(winner)
     db.commit()
 
+    original_lookup = candidate_service._find_account_by_email
+    lookup_count = 0
+
+    def race_lookup(db_session: Session, email: str) -> Candidate | None:
+        nonlocal lookup_count
+        lookup_count += 1
+        if lookup_count == 1:
+            return None
+        return original_lookup(db_session, email)
+
+    monkeypatch.setattr(candidate_service, "_find_account_by_email", race_lookup)
+    completed = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Should Not Activate",
+        },
+    )
+
+    assert completed.status_code == 403, completed.text
+    db.refresh(winner)
+    assert winner.status == "inactive"
+    assert winner.name == "Inactive Winner"
+    challenge = (
+        db.query(CandidateLoginChallenge)
+        .filter(CandidateLoginChallenge.email == "inactive-race@example.com")
+        .one()
+    )
+    db.refresh(challenge)
+    assert challenge.registration_credential_consumed_at is not None
+    replay = client.post(
+        "/api/candidates/register/complete",
+        json={
+            "registration_credential": data["registration_credential"],
+            "display_name": "Replay",
+        },
+    )
+    assert replay.status_code == 400
+
+
+def test_challenge_cleanup_keeps_recent_expired_rows_for_quota_evidence() -> None:
+    client, db = _build_client()
     requested = client.post(
-        "/api/candidates/login", json={"name": "验证人", "email": "verify@example.com"}
+        "/api/candidates/login", json={"email": "recent-expired@example.com"}
     )
-    challenge_id = requested.json()["data"]["challenge_id"]
-
-    wrong = client.post(
-        "/api/candidates/login/verify",
-        json={"challenge_id": challenge_id, "otp": "000000"},
+    assert requested.status_code == 200
+    challenge = db.get(
+        CandidateLoginChallenge, requested.json()["data"]["challenge_id"]
     )
-    exhausted = client.post(
-        "/api/candidates/login/verify",
-        json={"challenge_id": challenge_id, "otp": "111111"},
-    )
-    blocked = client.post(
-        "/api/candidates/login/verify",
-        json={
-            "challenge_id": challenge_id,
-            "otp": candidate_login_email_outbox[-1].otp,
-        },
-    )
-
-    assert wrong.status_code == 404
-    assert exhausted.status_code == 404
-    assert blocked.status_code == 404
-
-
-def test_candidate_login_resend_invalidates_previous_challenge() -> None:
-    candidate_login_email_outbox.clear()
-    client, db = _build_client()
-    db.add(Candidate(name="重发人", email="resend@example.com", status="active"))
-    db.commit()
-
-    first = client.post(
-        "/api/candidates/login", json={"name": "重发人", "email": "resend@example.com"}
-    )
-    first_id = first.json()["data"]["challenge_id"]
-    first_otp = candidate_login_email_outbox[-1].otp
-    second = client.post(
-        "/api/candidates/login", json={"name": "重发人", "email": "resend@example.com"}
-    )
-    second_id = second.json()["data"]["challenge_id"]
-
-    old_verify = client.post(
-        "/api/candidates/login/verify",
-        json={"challenge_id": first_id, "otp": first_otp},
-    )
-    new_verify = client.post(
-        "/api/candidates/login/verify",
-        json={"challenge_id": second_id, "otp": candidate_login_email_outbox[-1].otp},
-    )
-
-    assert second_id != first_id
-    assert old_verify.status_code == 404
-    assert new_verify.status_code == 200
-
-
-def test_candidate_login_persists_same_row_count_for_valid_and_invalid_identities() -> (
-    None
-):
-    """Observation equality: a real-candidate request and an unknown-identity
-    request must each leave behind exactly one challenge row, so timing and
-    row-count side channels cannot be used to enumerate the roster."""
-    from collections import Counter
-
-    candidate_login_email_outbox.clear()
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="张三",
-            employee_no="YG0001",
-            email="zhangsan@example.com",
-            status="active",
-        )
-    )
-    db.commit()
-
-    valid = client.post(
-        "/api/candidates/login",
-        json={"name": "张三", "email": "zhangsan@example.com"},
-    )
-    unknown = client.post(
-        "/api/candidates/login",
-        json={"name": "不存在", "email": "nobody@example.com"},
-    )
-    ambiguous = client.post(
-        "/api/candidates/login",
-        json={"name": "重名", "email": "dup@example.com"},
-    )
-
-    assert valid.status_code == unknown.status_code == ambiguous.status_code == 200
-    rows = db.query(CandidateLoginChallenge).all()
-    assert len(rows) == 3
-    counter = Counter(r.candidate_id for r in rows)
-    # Two of the three challenges point at the sentinel; one points at the
-    # real candidate. The sentinel id is the one that appears more than once.
-    sentinel_id, sentinel_count = counter.most_common(1)[0]
-    assert sentinel_count == 2
-    other_ids = [cid for cid in counter if cid != sentinel_id]
-    assert len(other_ids) == 1
-    assert counter[other_ids[0]] == 1
-
-
-def test_candidate_login_sentinel_challenge_is_rejected_at_verify() -> None:
-    """A challenge created against the sentinel must reject at verify time,
-    even if the OTP could be guessed. The verify step reads the candidate
-    and rejects on ``is_login_sentinel`` / inactive status / missing email."""
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="活跃人",
-            email="active@example.com",
-            status="active",
-        )
-    )
-    db.commit()
-
-    unknown = client.post(
-        "/api/candidates/login",
-        json={"name": "未知", "email": "nobody@example.com"},
-    )
-    sentinel_challenge_id = unknown.json()["data"]["challenge_id"]
-
-    # The verify step must reject the sentinel challenge with the same 404
-    # envelope as any other invalid challenge — the caller cannot tell
-    # whether the underlying identity was real.
-    verify = client.post(
-        "/api/candidates/login/verify",
-        json={"challenge_id": sentinel_challenge_id, "otp": "000000"},
-    )
-    assert verify.status_code == 404
-
-
-def test_candidate_login_commits_challenge_before_email_delivery(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """SMTP failure during post-commit delivery must not roll back the
-    challenge row and must not surface a 5xx to the caller."""
-    from app.api import candidates as candidates_api
-
-    def _boom(**_kwargs: object) -> None:
-        raise RuntimeError("simulated SMTP failure")
-
-    monkeypatch.setattr(candidates_api, "deliver_candidate_login_otp", _boom)
-    candidate_login_email_outbox.clear()
-    client, db = _build_client()
-    db.add(
-        Candidate(
-            name="张三",
-            email="zhangsan@example.com",
-            status="active",
-        )
-    )
-    db.commit()
-
-    response = client.post(
-        "/api/candidates/login",
-        json={"name": "张三", "email": "zhangsan@example.com"},
-    )
-
-    # The route swallows the background-task failure and still returns 200.
-    assert response.status_code == 200
-    challenge_id = response.json()["data"]["challenge_id"]
-    # The challenge row must still exist and be verifiable by the candidate.
-    challenge = db.get(CandidateLoginChallenge, challenge_id)
     assert challenge is not None
-    assert challenge.consumed_at is None
+    challenge.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    db.commit()
+
+    # A subsequent request runs bounded opportunistic cleanup, but the row is
+    # still inside the configured retention window and must remain queryable.
+    next_request = client.post(
+        "/api/candidates/login", json={"email": "other@example.com"}
+    )
+    assert next_request.status_code == 200
+    assert db.get(CandidateLoginChallenge, challenge.id) is not None
 
 
-def test_candidate_login_unknown_identity_emits_audit_log(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Each unknown-identity request must emit a single WARN log line with
-    hashed identity fields, and no such log line for a valid request."""
-    import logging
+def test_profile_exposes_read_only_email_and_only_allows_display_name_edit() -> None:
+    client, db = _build_client()
+    db.add(Candidate(email="profile@example.com", name="Before", status="active"))
+    db.commit()
+    token = _request_and_verify(client, "profile@example.com")["token"]
 
+    profile = client.get("/api/account/profile", headers={"X-Candidate-Token": token})
+    assert profile.status_code == 200
+    assert profile.json()["data"]["email"] == "profile@example.com"
+    assert "token" not in profile.json()["data"]
+
+    edited = client.patch(
+        "/api/account/profile",
+        headers={"X-Candidate-Token": token},
+        json={"display_name": "After"},
+    )
+    assert edited.status_code == 200
+    assert edited.json()["data"]["display_name"] == "After"
+    rejected_email = client.patch(
+        "/api/account/profile",
+        headers={"X-Candidate-Token": token},
+        json={"display_name": "Nope", "email": "other@example.com"},
+    )
+    assert rejected_email.status_code == 422
+
+
+def test_admin_search_and_status_controls_take_effect_on_existing_token() -> None:
     client, db = _build_client()
     db.add(
-        Candidate(
-            name="活跃人",
-            email="active@example.com",
-            status="active",
-        )
+        Candidate(email="operator-target@example.com", name="Target", status="active")
     )
     db.commit()
-
-    with caplog.at_level(logging.WARNING, logger="app.services.candidate_service"):
-        valid = client.post(
-            "/api/candidates/login",
-            json={"name": "活跃人", "email": "active@example.com"},
-        )
-        unknown = client.post(
-            "/api/candidates/login",
-            json={"name": "不存在", "email": "nobody@example.com"},
-        )
-
-    assert valid.status_code == 200
-    assert unknown.status_code == 200
-    unknown_logs = [
-        record
-        for record in caplog.records
-        if getattr(record, "event", None) == "candidate_login.unknown_identity"
-    ]
-    assert len(unknown_logs) == 1
-    record = unknown_logs[0]
-    # No plaintext identity fields.
-    assert "active@example.com" not in record.getMessage()
-    assert "nobody@example.com" not in record.getMessage()
-
-
-def test_practice_answer_returns_feedback_and_preserves_each_retry() -> None:
-    client, db = _build_client()
-    candidate = Candidate(name="张三", employee_no="YG0001", status="active")
-    question = Question(
-        question_type="multiple", stem="哪些属于安全要求？", score=2, status="active"
+    target = (
+        db.query(Candidate)
+        .filter(Candidate.email == "operator-target@example.com")
+        .one()
     )
-    db.add_all([candidate, question])
-    db.flush()
-    db.add_all(
-        [
-            QuestionOption(
-                question_id=question.id,
-                label="A",
-                content="定期改密",
-                is_correct=True,
-                sort_order=1,
-            ),
-            QuestionOption(
-                question_id=question.id,
-                label="B",
-                content="开启 MFA",
-                is_correct=True,
-                sort_order=2,
-            ),
-            QuestionOption(
-                question_id=question.id,
-                label="C",
-                content="共享密码",
-                is_correct=False,
-                sort_order=3,
-            ),
-        ]
+    token = _request_and_verify(client, target.email)["token"]
+
+    found = client.get("/api/admin/accounts", params={"search": "OPERATOR-TARGET"})
+    assert found.status_code == 200
+    assert found.json()["data"][0]["email"] == "operator-target@example.com"
+
+    deactivated = client.patch(
+        f"/api/admin/accounts/{target.id}/status", json={"status": "inactive"}
     )
-    db.commit()
-
-    response = client.post(
-        "/api/practice/answers",
-        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
-        json={
-            "question_id": question.id,
-            "selected_answer": "B,A",
-        },
+    assert deactivated.status_code == 200
+    event = (
+        db.query(AdminAuditEvent)
+        .filter(AdminAuditEvent.action == "account_deactivated")
+        .order_by(AdminAuditEvent.id.desc())
+        .first()
     )
+    assert event is not None
+    assert event.target_id == str(target.id)
+    assert event.metadata_json == {
+        "account_id": target.id,
+        "from_status": "active",
+        "to_status": "inactive",
+    }
+    assert "operator-target@example.com" not in str(event.metadata_json)
+    blocked = client.get("/api/account/profile", headers={"X-Candidate-Token": token})
+    assert blocked.status_code == 401
 
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["question_id"] == question.id
-    assert data["selected_answer"] == "B,A"
-    assert data["correct_answer"] == "A,B"
-    assert data["is_correct"] is True
-    assert data["analysis"] is None
-    assert data["option_comparison"] == [
-        {"label": "A", "content": "定期改密", "selected": True, "correct": True},
-        {"label": "B", "content": "开启 MFA", "selected": True, "correct": True},
-        {"label": "C", "content": "共享密码", "selected": False, "correct": False},
-    ]
-    assert "score_awarded" not in data
-
-    retry = client.post(
-        "/api/practice/answers",
-        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
-        json={"question_id": question.id, "selected_answer": "C"},
-    )
-
-    assert retry.status_code == 200
-    assert retry.json()["data"]["is_correct"] is False
-    saved = db.query(PracticeAnswer).order_by(PracticeAnswer.id).all()
-    assert len(saved) == 2
-    assert saved[0].id != saved[1].id
-    assert [row.selected_answer for row in saved] == ["B,A", "C"]
-    assert [row.is_correct for row in saved] == [True, False]
-
-
-def test_practice_questions_require_candidate_token() -> None:
-    client, _ = _build_client()
-
-    response = client.get("/api/practice/questions")
-
-    assert response.status_code == 401
-
-
-def test_practice_questions_hide_answers_and_analysis_for_authenticated_candidate() -> (
-    None
-):
-    client, db = _build_client()
-    candidate = Candidate(name="张三", employee_no="YG0001", status="active")
-    question = Question(
-        question_type="single",
-        stem="安全题",
-        analysis="不要提前泄露解析",
-        score=2,
-        status="active",
-    )
-    db.add_all([candidate, question])
-    db.flush()
-    db.add_all(
-        [
-            QuestionOption(
-                question_id=question.id,
-                label="A",
-                content="正确",
-                is_correct=True,
-                sort_order=1,
-            ),
-            QuestionOption(
-                question_id=question.id,
-                label="B",
-                content="错误",
-                is_correct=False,
-                sort_order=2,
-            ),
-        ]
-    )
-    db.commit()
-
-    response = client.get(
-        "/api/practice/questions",
-        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
-    )
-
-    assert response.status_code == 200
-    row = response.json()["data"][0]
-    assert "analysis" not in row
-    assert "is_correct" not in row["options"][0]
-
-
-def test_practice_questions_reject_inactive_candidate_token() -> None:
-    client, db = _build_client()
-    candidate = Candidate(name="张三", employee_no="YG0001", status="inactive")
-    question = Question(
-        question_type="single",
-        stem="安全题",
-        score=2,
-        status="active",
-    )
-    db.add_all([candidate, question])
-    db.commit()
-
-    response = client.get(
-        "/api/practice/questions",
-        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
-    )
-
-    assert response.status_code == 404
-
-
-def test_active_exams_requires_candidate_token() -> None:
-    client, db = _build_client()
-    db.add(Exam(title="安全考试", duration_minutes=60, status="active"))
-    db.commit()
-
-    response = client.get("/api/exams/active")
-
-    assert response.status_code == 401
-
-
-def test_active_exams_returns_only_candidate_scoped_exams() -> None:
-    client, db = _build_client()
-    candidate = Candidate(name="张三", employee_no="YG0001", status="active")
-    scoped_exam = Exam(title="可参加考试", duration_minutes=60, status="active")
-    other_exam = Exam(title="其他考试", duration_minutes=60, status="active")
-    db.add_all([candidate, scoped_exam, other_exam])
-    db.flush()
-    db.add(ExamCandidateScope(exam_id=scoped_exam.id, candidate_id=candidate.id))
-    db.commit()
-
-    response = client.get(
-        "/api/exams/active",
-        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
-    )
-
-    assert response.status_code == 200
-    rows = response.json()["data"]
-    assert [row["title"] for row in rows] == ["可参加考试"]
-
-
-def test_practice_answer_uses_candidate_token_not_request_body() -> None:
-    client, db = _build_client()
-    token_candidate = Candidate(name="张三", employee_no="YG0001", status="active")
-    body_candidate = Candidate(name="李四", employee_no="YG0002", status="active")
-    question = Question(
-        question_type="single",
-        stem="安全题",
-        analysis="提交后返回",
-        score=2,
-        status="active",
-    )
-    db.add_all([token_candidate, body_candidate, question])
-    db.flush()
-    db.add_all(
-        [
-            QuestionOption(
-                question_id=question.id,
-                label="A",
-                content="正确",
-                is_correct=True,
-                sort_order=1,
-            ),
-            QuestionOption(
-                question_id=question.id,
-                label="B",
-                content="错误",
-                is_correct=False,
-                sort_order=2,
-            ),
-        ]
-    )
-    db.commit()
-
-    response = client.post(
-        "/api/practice/answers",
-        headers={"X-Candidate-Token": create_candidate_token(token_candidate.id)},
-        json={
-            "candidate_id": body_candidate.id,
-            "question_id": question.id,
-            "selected_answer": "A",
-        },
-    )
-
-    assert response.status_code == 200
-    data = response.json()["data"]
-    assert data["correct_answer"] == "A"
-    assert data["analysis"] == "提交后返回"
-    db.refresh(token_candidate)
-    assert token_candidate.practice_answers[0].question_id == question.id
-    db.refresh(body_candidate)
-    assert body_candidate.practice_answers == []
-
-
-def test_practice_answer_requires_candidate_token() -> None:
-    client, db = _build_client()
-    question = Question(question_type="single", stem="安全题", score=2, status="active")
-    db.add(question)
-    db.commit()
-
-    response = client.post(
-        "/api/practice/answers",
-        json={"question_id": question.id, "selected_answer": "A"},
-    )
-
-    assert response.status_code == 401
-
-
-def test_wrong_question_review_filters_mastery_and_isolates_candidates() -> None:
-    client, db = _build_client()
-    candidate = Candidate(name="张三", employee_no="YG0001", status="active")
-    other = Candidate(name="李四", employee_no="YG0002", status="active")
-    mastered_question = Question(
-        question_type="single",
-        stem="已掌握题",
-        analysis="解析一",
-        category_1="安全",
-        category_2="账号",
-        score=2,
-        status="active",
-    )
-    learning_question = Question(
-        question_type="single",
-        stem="待巩固题",
-        analysis="解析二",
-        category_1="合规",
-        category_2="流程",
-        score=2,
-        status="active",
-    )
-    db.add_all([candidate, other, mastered_question, learning_question])
-    db.flush()
-    for question in (mastered_question, learning_question):
-        db.add_all(
-            [
-                QuestionOption(
-                    question_id=question.id,
-                    label="A",
-                    content="正确",
-                    is_correct=True,
-                    sort_order=1,
-                ),
-                QuestionOption(
-                    question_id=question.id,
-                    label="B",
-                    content="错误",
-                    is_correct=False,
-                    sort_order=2,
-                ),
-            ]
-        )
-    db.commit()
-
-    candidate_headers = {"X-Candidate-Token": create_candidate_token(candidate.id)}
-    other_headers = {"X-Candidate-Token": create_candidate_token(other.id)}
-    for selected_answer in ("B", "A"):
-        response = client.post(
-            "/api/practice/answers",
-            headers=candidate_headers,
-            json={
-                "question_id": mastered_question.id,
-                "selected_answer": selected_answer,
-            },
-        )
-        assert response.status_code == 200
-    assert (
-        client.post(
-            "/api/practice/answers",
-            headers=candidate_headers,
-            json={"question_id": learning_question.id, "selected_answer": "B"},
-        ).status_code
-        == 200
-    )
-    assert (
-        client.post(
-            "/api/practice/answers",
-            headers=other_headers,
-            json={"question_id": mastered_question.id, "selected_answer": "B"},
-        ).status_code
-        == 200
-    )
-
-    mastered = client.get(
-        "/api/practice/wrong-questions?category_1=安全&mastered=true",
-        headers=candidate_headers,
-    )
-    assert mastered.status_code == 200
-    rows = mastered.json()["data"]
-    assert len(rows) == 1
-    assert rows[0]["stem"] == "已掌握题"
-    assert rows[0]["mastered"] is True
-    assert rows[0]["incorrect_count"] == 1
-    assert rows[0]["total_attempts"] == 2
-    assert len(rows[0]["history"]) == 2
-
-    learning = client.get(
-        "/api/practice/wrong-questions?mastered=false", headers=candidate_headers
-    )
-    assert learning.status_code == 200
-    assert [row["stem"] for row in learning.json()["data"]] == ["待巩固题"]
-
-    other_rows = client.get(
-        "/api/practice/wrong-questions", headers=other_headers
-    ).json()["data"]
-    assert len(other_rows) == 1
-    assert other_rows[0]["total_attempts"] == 1
-    assert other_rows[0]["mastered"] is False
-
-
-def test_wrong_question_review_requires_candidate_token() -> None:
-    client, _ = _build_client()
-
-    response = client.get("/api/practice/wrong-questions")
-
-    assert response.status_code == 401
+    reactivated = client.post(f"/api/admin/accounts/{target.id}/activate")
+    assert reactivated.status_code == 200
+    restored = client.get("/api/account/profile", headers={"X-Candidate-Token": token})
+    assert restored.status_code == 200

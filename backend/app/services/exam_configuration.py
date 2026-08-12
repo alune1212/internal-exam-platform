@@ -33,7 +33,6 @@ from app.services.operational_lock_service import assert_admin_mutation_allowed
 
 VALID_EXAM_STATUSES = {"draft", "active", "archived"}
 MAX_FORMAL_DURATION_MINUTES = 120
-EARLY_LOGIN_MINUTES = 30
 START_GRACE_MINUTES = 15
 
 
@@ -85,6 +84,34 @@ def _freeze_question_pool(
         )
 
 
+def _freeze_roster(db: Session, exam: Exam) -> None:
+    """Validate and flush the complete roster in the publication transaction."""
+
+    scopes = (
+        db.query(ExamCandidateScope)
+        .filter(ExamCandidateScope.exam_id == exam.id)
+        .with_for_update()
+        .all()
+    )
+    if not scopes:
+        raise CandidateNotEligibleError(0)
+    for scope in scopes:
+        candidate = db.get(Candidate, scope.candidate_id)
+        reason = _validate_roster_scope(scope, candidate)
+        if reason:
+            raise ExamConfigError(reason)
+        # Publication always starts with an explicit unsent state.  Existing
+        # draft rows should already carry this default, but assigning it here
+        # makes the freeze invariant explicit and prevents stale test fixtures
+        # from inheriting a delivery claim.
+        scope.invitation_status = "not_sent"
+        scope.invitation_claimed_at = None
+        scope.invitation_claim_owner = None
+        scope.invitation_error_class = None
+        scope.invitation_sent_at = None
+    db.flush()
+
+
 def _exam_has_question_pool(db: Session, exam_id: int) -> bool:
     return (
         db.query(ExamQuestionPool.id)
@@ -107,12 +134,10 @@ def _assert_exam_available(exam: Exam) -> None:
 
 
 def _candidate_exam_is_visible(exam: Exam, *, now: datetime | None = None) -> bool:
-    if exam.available_from is None:
-        return True
-    current = now or datetime.now(UTC)
-    return current >= ensure_aware(exam.available_from) - timedelta(
-        minutes=EARLY_LOGIN_MINUTES
-    )
+    # Published scoped exams are visible immediately.  ``_assert_exam_available``
+    # remains the authoritative start-time/grace/deadline gate.
+    _ = exam, now
+    return True
 
 
 def _exam_availability_status(exam: Exam) -> str:
@@ -187,6 +212,24 @@ def _validate_exam_activation_requirements(
     _validate_fixed_rule_capacity(db, question_rule)
 
 
+def _validate_roster_scope(
+    scope: ExamCandidateScope, candidate: Candidate | None
+) -> str | None:
+    if candidate is None:
+        return "应考名单关联账号不存在"
+    if not normalize_candidate_email(scope.roster_email):
+        return "应考名单邮箱无效"
+    if normalize_candidate_email(candidate.email) != normalize_candidate_email(
+        scope.roster_email
+    ):
+        return "应考名单邮箱与账号不一致"
+    if not scope.roster_name or not scope.roster_name.strip():
+        return "应考名单姓名不能为空"
+    if candidate.status == "inactive":
+        return "应考名单中包含已停用账号"
+    return None
+
+
 def get_publication_readiness(db: Session, exam_id: int) -> PublicationReadinessRead:
     exam = db.get(Exam, exam_id)
     if exam is None:
@@ -195,11 +238,10 @@ def get_publication_readiness(db: Session, exam_id: int) -> PublicationReadiness
     blockers: list[PublicationReadinessIssue] = []
     warnings: list[PublicationReadinessIssue] = []
     questions = _load_active_question_pool(db)
-    roster = (
-        db.query(Candidate)
-        .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
+    scopes = (
+        db.query(ExamCandidateScope)
         .filter(ExamCandidateScope.exam_id == exam_id)
-        .order_by(Candidate.id)
+        .order_by(ExamCandidateScope.id)
         .all()
     )
 
@@ -222,22 +264,24 @@ def get_publication_readiness(db: Session, exam_id: int) -> PublicationReadiness
             PublicationReadinessIssue(code="invalid_exam_config", message=str(exc))
         )
 
-    if not roster:
+    if not scopes:
         blockers.append(
             PublicationReadinessIssue(code="empty_roster", message="应考名单不能为空")
         )
-    unusable_email_count = sum(
-        1
-        for candidate in roster
-        if candidate.status != "active"
-        or not candidate.should_attend
-        or normalize_candidate_email(candidate.email) is None
-    )
-    if unusable_email_count:
+    scope_errors = [
+        error
+        for scope in scopes
+        if (
+            error := _validate_roster_scope(
+                scope, db.get(Candidate, scope.candidate_id)
+            )
+        )
+    ]
+    if scope_errors:
         blockers.append(
             PublicationReadinessIssue(
                 code="roster_email_not_ready",
-                message=f"应考名单中有 {unusable_email_count} 人状态或邮箱不可用",
+                message=f"应考名单中有 {len(scope_errors)} 行身份或邮箱不可用",
             )
         )
     try:
@@ -250,7 +294,7 @@ def get_publication_readiness(db: Session, exam_id: int) -> PublicationReadiness
         warnings.append(
             PublicationReadinessIssue(
                 code="missing_available_from",
-                message="未设置开考时间，无法显示提前登录和开考宽限提示",
+                message="未设置开考时间，候选人列表将不显示开考时间提示",
             )
         )
     if exam.available_until is None:
@@ -274,11 +318,16 @@ def get_publication_readiness(db: Session, exam_id: int) -> PublicationReadiness
         "question_ids": [question.id for question in questions],
         "roster": [
             {
-                "id": candidate.id,
-                "active": candidate.status == "active" and candidate.should_attend,
-                "email_ready": normalize_candidate_email(candidate.email) is not None,
+                "scope_id": scope.id,
+                "candidate_id": scope.candidate_id,
+                "roster_email": scope.roster_email,
+                "roster_name": scope.roster_name,
+                "department": scope.department,
+                "position": scope.position,
+                "exam_group": scope.exam_group,
+                "roster_remark": scope.roster_remark,
             }
-            for candidate in roster
+            for scope in scopes
         ],
     }
     fingerprint = hashlib.sha256(
@@ -293,7 +342,7 @@ def get_publication_readiness(db: Session, exam_id: int) -> PublicationReadiness
         exam_id=exam.id,
         ready=not blockers,
         prospective_pool_count=len(questions),
-        roster_count=len(roster),
+        roster_count=len(scopes),
         blockers=blockers,
         warnings=warnings,
         fingerprint=fingerprint,
@@ -399,6 +448,7 @@ def update_exam(
             raise ExamConfigError(f"发布预检未通过：{messages}")
         exam.status = "active"
         _freeze_question_pool(db, exam)
+        _freeze_roster(db, exam)
 
     if commit:
         db.commit()

@@ -1,6 +1,6 @@
 # macOS 正式宿主运维手册
 
-本手册是当前 Mac-first 正式运行的命令入口。宿主为 Apple Silicon macOS + Docker Desktop；正式项目固定为 internal-exam-formal，候选入口使用完成 DHCP reservation 后确定的 `http://${FORMAL_LAN_IP}:8080`，操作员入口只允许 `http://127.0.0.1:8081`。正式根目录本身必须位于开发工作树之外并受保护；其 configuration、releases、backups、evidence、diagnostics 和 state 才是正式 mutable paths。release source、staging 临时路径和独立第二副本可以位于其它受控路径，但不得使用 checkout、Docker raw disk 或 named volume 内部目录作为迁移/备份输入。所有命令都不应把真实 secret 写进 shell 历史、日志或证据。
+本手册是当前 Mac-first 正式运行的命令入口。宿主为 Apple Silicon macOS + Docker Desktop；正式项目固定为 internal-exam-formal，应考人员入口使用完成 DHCP reservation 后确定的 `http://${FORMAL_LAN_IP}:8080`，操作员入口只允许 `http://127.0.0.1:8081`。正式根目录本身必须位于开发工作树之外并受保护；其 configuration、releases、backups、evidence、diagnostics 和 state 才是正式 mutable paths。release source、staging 临时路径和独立第二副本可以位于其它受控路径，但不得使用 checkout、Docker raw disk 或 named volume 内部目录作为迁移/备份输入。所有命令都不应把真实 secret 写进 shell 历史、日志或证据。
 
 当前现场尚未确定正式地址：实测 `192.168.2.34` 已被其他设备占用；不得把它写入正式配置，也不得擅自把当前 `192.168.2.46` 或任何其它地址当作正式地址。网络管理员必须先为未占用地址建立 DHCP reservation，随后把同一个 `<FORMAL_LAN_IP>` 统一写入 `formal.env`、CORS、pf 规则和 host/network evidence；在此之前网络验收和正式开考均保持阻断。
 
@@ -111,7 +111,7 @@ zsh ops/macos/Invoke-Staging.zsh \
   --root "$MAC_ROOT"
 
 # 从 Up 的日志/JSON 取出本次 run-<id>，然后由版本化容器探测
-# health/migration、服务重启恢复和候选/操作员路由；该命令只生成它实际探测的
+# health/migration、服务重启恢复和应考人员/操作员路由；该命令只生成它实际探测的
 # 三类 raw evidence，不会伪造 browser、SMTP 或 capacity 通过。
 RUN_IDENTITY="$MAC_ROOT/staging/<commit12>/evidence/run-<run-id>.json"
 HEALTH_MIGRATION="$MAC_ROOT/staging/<commit12>/evidence/health-migration-<run-id>.json"
@@ -225,7 +225,7 @@ Down 只删除该 commit-scoped staging project/volume，不得对 formal 执行
 正式 promotion 前必须完成：
 
 - 100-client 容量门禁（100/100、0 errors、P95/连接/worker 条件全部通过）；
-- real SMTP、split ingress、浏览器 UAT、服务/worker 重启和磁盘水位；
+- real OTP/invitation SMTP、split ingress、浏览器 UAT、服务/worker 重启和磁盘水位；
 - pre-upgrade paired backup 与独立第二存储校验；
 - source writer 状态、当前 migration head 和人工“允许发布”决定。
 
@@ -242,7 +242,7 @@ zsh ops/macos/Promote-Release.zsh \
 
 promotion 会在 formal project 中使用 --no-build、核对 portable backup、记录 current/previous release state；它不是考试批准。promotion 后仍须重新运行 Mac preflight、第二设备负向入口检查和人工开考确认。
 
-正式 preflight 使用实际的 Mac 脚本；它要求 Docker settings、AC/sleep、time、FileVault、firewall、privileged `pf`/network-time evidence、真实 SMTP 和 browser evidence。首次 generation-1 commissioning 时，`Activate` 会在私有 maintenance 阶段内部生成 target-maintenance preflight；普通正式重启/发布仍按下列命令显式运行：
+正式 preflight 使用实际的 Mac 脚本；它要求 Docker settings、AC/sleep、time、FileVault、firewall、privileged `pf`/network-time evidence、真实 OTP/邀请 SMTP 和 browser evidence。首次 generation-1 commissioning 时，`Activate` 会在私有 maintenance 阶段内部生成 target-maintenance preflight；普通正式重启/发布仍按下列命令显式运行：
 
 ~~~zsh
 # 先由 designated account 完成一次 sudo ticket；不要以 root 运行整段 preflight。
@@ -258,6 +258,17 @@ zsh ops/macos/Test-FormalPreflight.zsh \
 ~~~
 
 `Capture-PrivilegedHostEvidence.zsh` 必须由 designated account 以普通用户运行；它只对固定的只读 `pfctl`/`systemsetup` 探针使用 `sudo -n`。禁止写成 `sudo zsh ops/macos/Test-FormalPreflight.zsh ...`，也不要把任何真实 sudo 密码写入命令、日志或证据。预检命令失败即阻断 promotion/开考，并写入带 checksum 的 formal-preflight evidence；即使 status 通过，approval 仍为 manual-required。
+
+### 账号/名单 destructive migration gate
+
+账号和名单迁移必须在维护窗口按 `docs/official-exam-uat-checklist.md` 的破坏性门禁执行：
+
+1. 停止 development/staging 和所有非必要 writer；确认没有 `in_progress` attempt，取得 writer fence、协调写冻结、verified paired PostgreSQL/media backup、独立加密第二副本和隔离 restore。
+2. 运行只读 account-migration preflight，检查真实账号邮箱存在、格式有效、trim + lowercase 后无重复，历史 attempt 都有 scope，scope 可补齐冻结 `roster_email`/`roster_name`。预检失败不修改 schema、账号、scope、attempt 或 challenge，也不暴露完整邮箱。
+3. 先执行 additive/backfill migration 并校验账号/scope/attempt 计数、外键、冻结 roster 和题池；通过后才删除登录 sentinel、旧全局人员/组织/出席字段及索引/约束。
+4. destructive boundary 之后禁止 `alembic downgrade`。任何失败都停止所有 writer，使用上一 release + 已验证 paired backup restore-only 回滚，并重新跑 migration head、count、health、入口、OTP/邀请 SMTP、profile、frozen-report 和人工 preflight；若备份后已有写入，必须遵循精确数据损失确认。
+
+迁移后的最小 browser/SMTP smoke 必须覆盖 active/pending/inactive 账号、六位十分钟 OTP、注册完成、四小时 session/no remember-me、邮箱/来源/全局限流、同源邀请回跳、initial send/failed-only resend，以及 profile 编辑不改写冻结 roster/report。没有真实外部 SMTP 与桌面/手机证据时保持 BLOCKED。
 
 ### 初始 formal writer commissioning（generation 1）
 
@@ -431,7 +442,7 @@ zsh ops/macos/Rollback-Release.zsh \
   --root "$HOME/Library/Application Support/InternalExam"
 ~~~
 
-禁止 alembic downgrade。迁移或正式写入后只能使用上一 release + 已验证 paired backup 恢复，并重新执行 health、migration、入口、SMTP 和人工 preflight。
+禁止 `alembic downgrade`。账号/名单 destructive migration 或任何正式写入后只能停止全部 writer，使用上一 release + 已验证 paired backup restore-only 恢复，不得伪造已删除的全局人员/出席数据；恢复后重新执行 migration/count、health、入口、OTP/邀请 SMTP、profile/frozen-report 和人工 preflight。
 
 Mac→Windows 迁移必须先：
 

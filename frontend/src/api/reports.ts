@@ -3,6 +3,7 @@ import { getAdminToken } from "@/lib/adminSession";
 import type {
   AbsentCandidateRow,
   QuestionAccuracyRow,
+  RankingRow,
   ScoreReportRow,
   WrongQuestionRow,
 } from "@/types/report";
@@ -17,6 +18,10 @@ function withExamFilter(path: string, examId?: string | null) {
 
 export function getScoreReport(examId?: string | null) {
   return apiRequest<ScoreReportRow[]>(withExamFilter("/api/admin/reports/scores", examId));
+}
+
+export function getRanking(examId: string) {
+  return apiRequest<RankingRow[]>(withExamFilter("/api/admin/reports/rankings", examId));
 }
 
 export function getQuestionAccuracy(examId?: string | null) {

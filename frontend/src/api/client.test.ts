@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { apiRequest, ApiError } from "./client";
 import { setAdminToken, clearAdminToken } from "@/lib/adminSession";
 import { setCurrentCandidate, clearCurrentCandidate } from "@/lib/candidateSession";
+import { setAttemptSession } from "@/lib/attemptSession";
+import { writeAttemptDraft } from "@/lib/attemptDraft";
 import type { Candidate } from "@/types/candidate";
 
 // Node.js v26 has an experimental localStorage that conflicts with jsdom.
@@ -29,11 +31,10 @@ Object.defineProperty(window, "localStorage", { value: mockStorage });
 const mockCandidate: Candidate = {
   id: 42,
   token: "candidate-token",
-  name: "张三",
-  employee_no: "E001",
-  department: "技术部",
+  token_expires_at: "2099-01-01T00:00:00.000Z",
+  email: "zhangsan@example.com",
+  display_name: "张三",
   status: "active",
-  should_attend: true,
 };
 
 function mockFetchJson(data: unknown, status = 200) {
@@ -138,9 +139,20 @@ describe("apiRequest auth headers", () => {
 
   it("401 候选人请求清 token", async () => {
     setCurrentCandidate(mockCandidate);
+    const attemptSession = {
+      candidateId: mockCandidate.id,
+      attemptId: 9,
+      credential: "attempt-token",
+      generation: 1,
+      answerRevision: 0,
+    };
+    setAttemptSession(attemptSession);
+    writeAttemptDraft(attemptSession, { 1: "A" });
     mockFetchJson(null, 401);
     await expect(apiRequest("/api/exams/active")).rejects.toBeInstanceOf(ApiError);
     expect(sessionStorage.getItem("internal-exam-candidate")).toBeNull();
+    expect(sessionStorage.getItem("internal-exam-attempt-session:42:9")).toBeNull();
+    expect(sessionStorage.getItem("internal-exam-attempt-draft:42:9")).toBeNull();
     expect(window.location.pathname).toBe("/login");
   });
 });

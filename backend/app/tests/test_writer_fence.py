@@ -893,7 +893,7 @@ def test_writer_fence_api_blocks_writes_but_keeps_health_and_reads_available(
 
     blocked = client.post(
         "/api/candidates/login",
-        json={"name": candidate.name, "email": candidate.email},
+        json={"email": candidate.email},
     )
     assert blocked.status_code == 409
     assert "写栅栏" in blocked.json()["detail"]

@@ -37,12 +37,13 @@ evidence_written=0
 environment_saved=0
 candidate_port=8080
 operator_port=8081
+candidate_public_base_url="unknown"
 pf_evidence_digest="unknown"
 network_time_evidence_digest="unknown"
 
 write_preflight_evidence() {
   local status_value="$1" destination json
-  json="{\"schemaVersion\":1,\"kind\":\"formal-preflight\",\"status\":\"$status_value\",\"checkedAt\":\"$(macos_now_iso)\",\"check\":\"$current_check\",\"version\":\"$(macos_json_escape "$release_version")\",\"commit\":\"$(macos_json_escape "$release_commit")\",\"hostId\":\"$(macos_json_escape "${MACOS_HOST_ID:-unknown}")\",\"architecture\":\"arm64\",\"candidatePort\":$candidate_port,\"operatorPort\":$operator_port,\"targetMaintenance\":$target_maintenance,\"pfEvidenceSha256\":\"$(macos_json_escape "$pf_evidence_digest")\",\"networkTimeEvidenceSha256\":\"$(macos_json_escape "$network_time_evidence_digest")\",\"secrets\":\"redacted\",\"approval\":\"manual-required\"}"
+  json="{\"schemaVersion\":1,\"kind\":\"formal-preflight\",\"status\":\"$status_value\",\"checkedAt\":\"$(macos_now_iso)\",\"check\":\"$current_check\",\"version\":\"$(macos_json_escape "$release_version")\",\"commit\":\"$(macos_json_escape "$release_commit")\",\"hostId\":\"$(macos_json_escape "${MACOS_HOST_ID:-unknown}")\",\"architecture\":\"arm64\",\"candidatePort\":$candidate_port,\"candidatePublicBaseUrl\":\"$(macos_json_escape "$candidate_public_base_url")\",\"operatorPort\":$operator_port,\"targetMaintenance\":$target_maintenance,\"pfEvidenceSha256\":\"$(macos_json_escape "$pf_evidence_digest")\",\"networkTimeEvidenceSha256\":\"$(macos_json_escape "$network_time_evidence_digest")\",\"secrets\":\"redacted\",\"approval\":\"manual-required\"}"
   if [[ -n "$evidence_path" ]]; then
     destination="$(macos_resolve_path "$evidence_path")"
     [[ "$destination" == "$MACOS_LAYOUT_EVIDENCE"/* ]] || macos_die "preflight evidence must remain in the protected evidence directory"
@@ -84,7 +85,7 @@ else
   macos_acquire_lock "$MACOS_LAYOUT_STATE/.operation.lock"
 fi
 macos_save_environment INTERNAL_LAN_BIND_IP CANDIDATE_GATEWAY_PORT OPERATOR_GATEWAY_PORT \
-  POSTGRES_LOOPBACK_PORT FRONTEND_LOOPBACK_PORT CORS_ORIGINS
+  POSTGRES_LOOPBACK_PORT FRONTEND_LOOPBACK_PORT CORS_ORIGINS CANDIDATE_PUBLIC_BASE_URL
 environment_saved=1
 if (( target_maintenance == 1 )); then
   candidate_port=28080
@@ -95,18 +96,21 @@ if (( target_maintenance == 1 )); then
   export POSTGRES_LOOPBACK_PORT=25432
   export FRONTEND_LOOPBACK_PORT=25173
   export CORS_ORIGINS="http://127.0.0.1:${candidate_port}"
+  export CANDIDATE_PUBLIC_BASE_URL="http://127.0.0.1:${candidate_port}"
 fi
 macos_require_formal_paths
 macos_read_cutover_identity
 formal_lan_ip="$(macos_formal_value INTERNAL_LAN_BIND_IP)"
 formal_approved_cidr="$(macos_formal_value PF_APPROVED_CIDR)"
 formal_candidate_port="$(macos_formal_value CANDIDATE_GATEWAY_PORT)"
+formal_candidate_public_base_url="$(macos_formal_value CANDIDATE_PUBLIC_BASE_URL)"
 formal_operator_port="$(macos_formal_value OPERATOR_GATEWAY_PORT)"
 formal_postgres_port="$(macos_formal_value POSTGRES_LOOPBACK_PORT)"
 formal_frontend_port="$(macos_formal_value FRONTEND_LOOPBACK_PORT)"
 formal_backend_port=8000
 [[ "$formal_candidate_port" =~ '^[0-9]+$' && "$formal_operator_port" =~ '^[0-9]+$' && "$formal_postgres_port" =~ '^[0-9]+$' && "$formal_frontend_port" =~ '^[0-9]+$' ]] || macos_die "formal service ports are missing or invalid"
 [[ "$formal_backend_port" =~ '^[0-9]+$' ]] || macos_die "formal backend port is invalid"
+[[ "$formal_candidate_public_base_url" == "http://${formal_lan_ip}:${formal_candidate_port}" ]] || macos_die "CANDIDATE_PUBLIC_BASE_URL must exactly match the fixed formal candidate address"
 
 current_check=privileged_host_evidence
 host_identity_digest="$(macos_sha256 "$MACOS_LAYOUT_STATE/host-identity.json")"
@@ -159,6 +163,7 @@ if (( target_maintenance == 1 )); then
   # Maintenance Compose uses an isolated loopback port pair, while the
   # privileged PF evidence remains bound to the production values read above.
   cors_origins="http://127.0.0.1:${candidate_port}"
+  candidate_public_base_url="http://127.0.0.1:${candidate_port}"
 else
   candidate_port="$formal_candidate_port"
   operator_port="$formal_operator_port"
@@ -167,6 +172,8 @@ else
     *) macos_die "INTERNAL_LAN_BIND_IP must be one fixed private IPv4 address" ;;
   esac
   [[ "$cors_origins" == "http://${lan_ip}:${candidate_port}" ]] || macos_die "CORS_ORIGINS must exactly match the fixed candidate address"
+  candidate_public_base_url="$formal_candidate_public_base_url"
+  [[ "$candidate_public_base_url" == "http://${lan_ip}:${candidate_port}" ]] || macos_die "CANDIDATE_PUBLIC_BASE_URL must exactly match the fixed candidate address"
 fi
 
 current_check=docker_desktop_settings

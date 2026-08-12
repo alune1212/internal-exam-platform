@@ -9,36 +9,36 @@
 
 ## 核心表
 
-### candidate
+### candidate（平台账号兼容表）
 
-考试人和应考人员表。
+该表保留 `candidate` 名称和既有 `candidate_id` 外键，以兼容 attempt、练习、学习和审计历史；公开语义是平台账号，而不是全局考试名单。
 
-关键字段：`id`、`name`、`employee_no`、`department`、`position`、`phone_suffix`、`email`、`exam_group`、`should_attend`、`status`、`remark`、`created_at`、`updated_at`。
+关键字段：`id`、`name`（公开为 `display_name`）、`email`、`status`、`created_at`、`updated_at`。
 
 约束和索引：
 
-- `employee_no` 唯一，可空。
-- `name`、`exam_group`、`status` 建索引。
-- 没有员工号时的姓名唯一校验由 service 层处理。
-- 严格考试人登录使用 `name` + `email` + 可选 `employee_no` 创建邮件 OTP challenge；新导入名单必须提供可用 `email`，`phone_suffix` 仅作为保留资料字段。
-- `is_login_sentinel`（NOT NULL，默认 `false`）标识考试人登录 sentinel 行；该列建索引，数据库里**必须有且仅有一行** `is_login_sentinel = true`，由迁移 `202607030002_candidate_login_sentinel` 安装。Sentinel 行 `name` 为 `__candidate_login_sentinel__`、`status='inactive'`、`email IS NULL`、`should_attend=false`，**禁止**被加入 `exam_candidate_scope`、被 exam-candidate 导入复用、也**禁止**被操作员删除或重命名——它是未知身份登录请求的兜底 challenge 目标。verify 阶段会拒绝指向 sentinel 的 challenge，因此即使有人猜中 OTP 也无法签发 candidate token。
+- `email` 必填、trim + lowercase 规范化、大小写不敏感唯一；不做 plus-address、点号或供应商别名折叠。
+- `status` 只能是 `pending`、`active`、`inactive`；`pending` 可无显示名称，`active`/`inactive` 必须有非空显示名称。
+- `name`、`email`、`status` 建索引；账号目录按规范化邮箱、显示名称和状态搜索。
+- 显示名称可由用户自助编辑；规范化邮箱只读，不提供改邮箱、密码或物理删除。inactive 账号保持邮箱唯一并保留历史。
+- 旧的全局人员/组织/出席字段已从当前 schema、API 和报表合同移除；只可在不可变历史迁移或显式迁移预检 fixture 中出现。
 
 ### candidate_login_challenge
 
-考试人邮件 OTP 登录 challenge 表。
+邮箱 OTP 登录/注册 challenge 表。challenge 绑定规范化邮箱，可选关联已存在账号；未知邮箱不再依赖 sentinel 行。
 
-关键字段：`id`、`candidate_id`、`delivery_channel`、`otp_hash`、`expires_at`、`consumed_at`、`attempt_count`、`request_ip_hash`、`created_at`、`updated_at`。
+关键字段：`id`、`email`、可选 `candidate_id`、`delivery_channel`、`otp_hash`、`expires_at`、`consumed_at`、`attempt_count`、`request_ip_hash`、短时注册完成凭据 verifier、`created_at`、`updated_at`。
 
 约束和索引：
 
-- `candidate_id` 外键关联 `candidate.id`，删除考试人时级联删除 challenge。
-- `candidate_id`、`expires_at`、`(candidate_id, consumed_at)` 建索引，供未消费 challenge 失效、过期清理和登录验证使用。
+- `email` 保存规范化值；按 `email`、`expires_at`、`(email, consumed_at)` 建索引，供同邮箱未消费 challenge 失效、过期清理和验证。
+- OTP 为六位数字，十分钟有效、单次使用、最多五次校验；重新申请会让同邮箱未消费 challenge 失效，发送冷却 60 秒。
+- 注册完成凭据仅保存 hash，短时有效且单次使用；challenge、凭据、token、SMTP secret 不写日志。
+- 发送限制同时按规范化邮箱、请求来源 hash 和全局窗口计算；进程重启不能绕过限制。
 
 说明：
 
-- `otp_hash` 只保存验证码 verifier，不保存明文 OTP。
-- challenge 短期有效、单次使用，并记录验证码尝试次数。
-- 重新请求验证码会让同一考试人的未消费 challenge 失效，再创建新的 challenge。
+- active 账号验证后直接返回签名四小时 token；pending 或新邮箱验证后只返回注册完成凭据，填写显示名称后才激活并签发 token；inactive 账号验证后返回账号不可用，不可借此创建替代账号。
 
 ### question
 
@@ -119,7 +119,7 @@
 说明：
 
 - `attempt_no` 和 `attempt_kind` 区分首次考试与补考；默认首次 attempt 使用 `initial`，补考授权消耗后创建 `retake` attempt。
-- 报表和名单页以考试人在该考试中交卷时间最靠后的已交卷 attempt 作为当前参考状态。
+- 报表和名单页以该考试 scope 内交卷时间最靠后的有效 attempt 作为当前参考状态；作废 attempt 不计入正常聚合，但保留 incident 证据。
 
 ### exam_attempt_question
 
@@ -150,9 +150,9 @@
 
 说明：
 
-- 练习提交通过 `X-Candidate-Token` 解析当前考试人，不接受请求体里的 `candidate_id`。
-- 练习题列表在提交前不返回正确答案或解析；提交响应只向当前已认证考试人返回该次作答的对错、正确答案、解析和选项对比。
-- 每次提交都插入新的不可变记录；重做不会更新或删除旧记录。错题复习按考试人和题目聚合这些记录，最后一次答对时显示“已掌握”。
+- 练习提交通过 `X-Candidate-Token` 解析当前 active 用户，不接受请求体里的 `candidate_id`。
+- 练习题列表在提交前不返回正确答案或解析；提交响应只向当前已认证用户返回该次作答的对错、正确答案、解析和选项对比。
+- 每次提交都插入新的不可变记录；重做不会更新或删除旧记录。错题复习按用户账号和题目聚合这些记录，最后一次答对时显示“已掌握”。
 
 ### learning_video
 
@@ -168,19 +168,19 @@
 
 说明：
 
-- 只有 `published` 视频会展示给考试人。
-- `archived` 视频不再出现在考试人学习列表，但管理员报表仍可统计其历史学习记录。
+- 只有 `published` 视频会展示给 active 用户。
+- `archived` 视频不再出现在用户学习列表，但管理员报表仍可统计其历史学习记录。
 - 本地媒体目录应与 PostgreSQL 数据库一起备份，否则恢复后元数据和视频文件会不一致。
 
 ### learning_video_progress
 
-考试人的视频学习进度表。
+用户的视频学习进度表。
 
 关键字段：`id`、`video_id`、`candidate_id`、`last_position_seconds`、`watched_seconds`、`completion_percent`、`watched_intervals`、`completed_at`、`last_heartbeat_at`、`created_at`、`updated_at`。
 
 约束和索引：
 
-- `(video_id, candidate_id)` 唯一，每个考试人对每个视频只有一条进度记录。
+- `(video_id, candidate_id)` 唯一，每个用户对每个视频只有一条进度记录。
 - `video_id` 删除时级联删除对应进度。
 - `candidate_id`、`video_id`、`completed_at` 和 `last_heartbeat_at` 建索引，供学习报表使用。
 
@@ -188,7 +188,7 @@
 
 - `watched_intervals` 使用 JSON 保存去重后的观看区间，例如 `[{"start": 0, "end": 30}]`。
 - 服务端合并重叠区间，并限制单次心跳可计入长度，避免拖动跳转或重复心跳虚增完成度。
-- 学习进度独立于 `exam_attempt`、`practice_answer` 和考试报表；完成视频不改变考试资格、成绩或排名。
+- 学习进度独立于 `exam_attempt`、`practice_answer` 和正式考试报表；完成视频不改变考试 scope、成绩或排名。
 
 ### import_batch
 
@@ -198,19 +198,26 @@
 
 说明：
 
-- 题库导入、人员导入、单场考试名单导入均写入本表。
+- 题库导入和单场考试名单导入均写入本表；不再存在独立的全局账号/人员导入批次。
 - 失败报告下载基于本表生成 Excel，包含导入类型、文件名、总数、成功数、失败数、生成时间和逐行失败原因。
 
 ### exam_candidate_scope
 
 考试应考名单范围表。
 
-关键字段：`id`、`exam_id`、`candidate_id`、`created_at`、`updated_at`。
+关键字段：`id`、`exam_id`、`candidate_id`、`roster_email`、`roster_name`、`department`、`position`、`exam_group`、`roster_remark`、`invitation_status`、`last_invitation_attempt_at`、`invitation_sent_at`、`invitation_error_class`、`invitation_claimed_at`、`invitation_claim_owner`、`created_at`、`updated_at`。
 
 约束：
 
-- `(exam_id, candidate_id)` 唯一。
-- 仅名单内 active 且应考人员可以开始对应考试。
+- `(exam_id, candidate_id)` 和 `(exam_id, roster_email)` 唯一；`roster_email` trim + lowercase 且 `roster_name` 非空。
+- 只有 scope 内关联的 active 账号才能发现、开始、恢复或读取对应正式考试；pending scope 可在完成注册后使用，inactive 账号必须由管理员重新激活。
+- 发布前名单可编辑；发布事务同时冻结 roster snapshot 和 exam question pool，之后不允许增删改 scope identity。
+- `invitation_status` 只能为 `not_sent`、`sent`、`failed`。发布不会自动发送邮件，管理员必须显式执行 initial send；resend 只接受 `failed`。
+
+说明：
+
+- `roster_name`、`roster_email` 和组织字段是正式报表、出席、排名、incident、retake 和 Excel 导出的冻结身份；账号显示名称变化不会改写它们。
+- 邀请链接只包含同源考试回跳路径，不含 token、OTP、邀请码、scope id 或其他授权凭据。
 
 ### exam_retake_grant
 

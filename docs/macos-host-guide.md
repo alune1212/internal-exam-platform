@@ -56,8 +56,8 @@ docker system df
 
 - 正式地址仍未决定。现场实测 `192.168.2.34` 已被其他设备占用；不得使用它，也不得擅自把当前 `192.168.2.46` 或任何其它地址写入正式配置。网络团队必须先为未占用的 `<FORMAL_LAN_IP>` 建立 DHCP reservation；没有 reservation、地址冲突或实际租约不匹配时，不得开考。不要临时热点、link-local、公网地址或任意 `0.0.0.0`。
 - DHCP reservation 完成后，将同一个 `<FORMAL_LAN_IP>` 统一写入 `INTERNAL_LAN_BIND_IP`、`CORS_ORIGINS=http://<FORMAL_LAN_IP>:8080`、pf/受管防火墙规则和 host/network evidence；不允许旧地址和新地址双写。
-- 考生入口为 `http://<FORMAL_LAN_IP>:8080`；操作员入口严格为 Mac 本机 `http://127.0.0.1:8081`。PostgreSQL `5432`、前端直连 `5173`、admin/operations/readiness detail、docs 和 OpenAPI 不得向局域网开放。
-- pf/受管防火墙只允许已批准 CIDR 到 `<FORMAL_LAN_IP>:8080` 的候选流量；`8081` 只允许 `127.0.0.1`。禁止公网端口转发、访客网、未授权 VPN 和其他网段。
+- 应考人员入口为 `http://<FORMAL_LAN_IP>:8080`；操作员入口严格为 Mac 本机 `http://127.0.0.1:8081`。PostgreSQL `5432`、前端直连 `5173`、admin/operations/readiness detail、docs 和 OpenAPI 不得向局域网开放。
+- pf/受管防火墙只允许已批准 CIDR 到 `<FORMAL_LAN_IP>:8080` 的应考人员流量；`8081` 只允许 `127.0.0.1`。禁止公网端口转发、访客网、未授权 VPN 和其他网段。
 - 这是 [`security-http-exception.md`](security-http-exception.md) 记录的共享办公局域网 HTTP 例外，没有传输加密，不能称为“安全 HTTP”“内网 HTTPS”或等同 HTTPS。
 
 至少用一台已批准的第二办公设备实测：`<FORMAL_LAN_IP>:8080` 可达，`8081/5432/5173` 及 `/admin`、`/api/admin/`、`/operations`、`/docs`、`/openapi.json` 不可达；Mac 本机能访问 `127.0.0.1:8081`。固定租约或 CORS 变化时，先停止 formal candidate gateway，更新配置、重建证据并完成预检；不能在旧地址和新地址上双写。
@@ -75,8 +75,8 @@ route -n get default
 ## FileVault、pf、电源和时间
 
 - 系统盘及保存正式配置/备份的磁盘必须启用 FileVault 或公司认可的等效全盘加密；恢复密钥和外接盘密钥进入受控密钥库。
-- macOS Application Firewall 与受管 pf 规则必须可核验，并满足上面的单一候选入口规则。不得为排障执行 `pfctl -F all`、关闭 FileVault 或关闭防火墙。
-- MacBook 正式考试期间必须接入稳定 AC 电源；**不能把电池电量当作正式电源方案**。若 MacBook 离开 AC、进入低电量或电源适配器异常，立即停止新考生进入并按考试日流程暂停/改期。Mac mini/台式 Mac 还应接 UPS，并验证低电量通知或受控关机。
+- macOS Application Firewall 与受管 pf 规则必须可核验，并满足上面的单一应考人员入口规则。不得为排障执行 `pfctl -F all`、关闭 FileVault 或关闭防火墙。
+- MacBook 正式考试期间必须接入稳定 AC 电源；**不能把电池电量当作正式电源方案**。若 MacBook 离开 AC、进入低电量或电源适配器异常，立即停止新应考人员进入并按考试日流程暂停/改期。Mac mini/台式 Mac 还应接 UPS，并验证低电量通知或受控关机。
 - 关闭睡眠、休眠、自动关机以及会暂停 Docker 的屏幕锁定路径，但保留账号锁屏和最小桌面暴露。写入电源策略必须在维护窗口执行，不在考试中试错。
 - macOS、Docker Desktop、基础镜像和应用更新只在维护窗口进行；更新前先创建配对备份并在 staging 验证，考试中禁止自动重启。
 - 时间必须与公司认可时间源同步；开考前核对 macOS、浏览器、容器日志和运维页时间，避免 OTP、token、截止时间或备份证据误判。
@@ -140,6 +140,6 @@ fresh formal root 的实际顺序是：已安装 sealed release → `Initialize-
 
 当前 Mac UAT 至少覆盖 macOS Chrome、macOS Safari 和一台真实 Android Chrome 或 iOS Safari。嵌入式浏览器、过旧版本和未知 user agent 必须阻断；浏览器运行时不访问公共 CDN、字体或遥测服务。
 
-正式证据包至少包含：macOS/版本、arm64、Docker/Compose 版本、AutoStart/Resource Saver/8 CPU/8 GiB、固定 IP 和 DHCP reservation、CORS、FileVault、pf、防火墙、AC/UPS/睡眠、时间、formal root 权限、release manifest/SHA-256、ARM64 镜像、staging、真实 SMTP、服务重启、备份/独立加密第二存储/restore drill、split ingress、真实桌面/手机 UAT 和 100-client 结果。browser、SMTP、capacity、backup/restore、第二设备/未授权 CIDR 和 LaunchAgent 现场门禁必须来自真实外部/现场操作；本机静态检查、synthetic JSON 或手写 `passed` 不能替代它们。证据不得包含密码、OTP、token、SMTP secret、数据库 URL、上传内容或不必要个人数据。
+正式证据包至少包含：macOS/版本、arm64、Docker/Compose 版本、AutoStart/Resource Saver/8 CPU/8 GiB、固定 IP 和 DHCP reservation、CORS、FileVault、pf、防火墙、AC/UPS/睡眠、时间、formal root 权限、release manifest/SHA-256、ARM64 镜像、staging、账号迁移 preflight/backfill/destructive-check（如适用）、真实 OTP/邀请 SMTP、服务重启、备份/独立加密第二存储/restore drill、split ingress、真实桌面/手机 UAT 和 100-client 结果。browser、SMTP、capacity、backup/restore、第二设备/未授权 CIDR、账号迁移和 LaunchAgent 现场门禁必须来自真实外部/现场操作；本机静态检查、synthetic JSON 或手写 `passed` 不能替代它们。证据不得包含密码、OTP、token、SMTP secret、数据库 URL、完整邮箱、上传内容或不必要个人数据。
 
 Mac 证据只证明 Mac host 的状态；它**不满足**未来 Windows Docker Desktop + WSL2 的 AMD64 staging、恢复、网络、防火墙、备份恢复、桌面/手机 UAT 或正式 promotion。Windows 迁移必须按 [`host-migration.md`](host-migration.md) 重新生成完整证据，并在切换前后保持单写入者。

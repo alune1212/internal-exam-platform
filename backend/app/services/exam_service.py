@@ -6,11 +6,16 @@ configuration, paper generation, attempt lifecycle, and result construction.
 
 from sqlalchemy.orm import Session
 
-from app.models import Candidate, Exam, ExamCandidateScope, ImportBatch
+from app.models import Candidate, Exam, ExamCandidateScope
 from app.models.attempt import TERMINAL_ATTEMPT_STATUSES
 from app.schemas.attempt import AnswerSaveRequest, AnswerSaveResponse, AttemptResultRead
-from app.schemas.exam import ExamCandidateRow, ExamRead
-from app.schemas.question import ImportFailure, QuestionImportResult
+from app.schemas.exam import (
+    ExamCandidateCreate,
+    ExamCandidateRow,
+    ExamCandidateUpdate,
+    ExamRead,
+)
+from app.schemas.question import QuestionImportResult
 from app.services.exam_attempts import (
     _has_unused_retake_grant,
     _latest_attempt_for_candidate,
@@ -48,7 +53,6 @@ from app.services.exam_attempts import (
 )
 from app.services.exam_configuration import (
     _build_exam_read,
-    _candidate_exam_is_visible,
     _question_pool_counts_by_exam,
 )
 from app.services.exam_configuration import (
@@ -151,7 +155,7 @@ def _build_exam_read_for_candidate(
     db: Session, exam: Exam, candidate_id: int
 ) -> ExamRead | None:
     candidate = db.get(Candidate, candidate_id)
-    if candidate is None or candidate.status != "active" or not candidate.should_attend:
+    if candidate is None or candidate.status != "active":
         return None
     scope = (
         db.query(ExamCandidateScope.id)
@@ -163,9 +167,6 @@ def _build_exam_read_for_candidate(
     )
     if scope is None:
         return None
-    if not _candidate_exam_is_visible(exam):
-        return None
-
     latest = _latest_attempt_for_candidate(db, exam.id, candidate_id)
     has_unused_retake_grant = _has_unused_retake_grant(db, exam.id, candidate_id)
     if (
@@ -220,17 +221,27 @@ def submit_attempt(db: Session, attempt_id: int, submit_type: str) -> AttemptRes
 
 
 def _build_exam_candidate_row(
-    db: Session, exam_id: int, candidate: Candidate
+    db: Session, exam_id: int, scope: ExamCandidateScope
 ) -> ExamCandidateRow:
+    candidate = scope.candidate or db.get(Candidate, scope.candidate_id)
+    if candidate is None:
+        raise CandidateNotFoundError(scope.candidate_id)
     latest = _latest_attempt_for_candidate(db, exam_id, candidate.id)
     return ExamCandidateRow(
+        scope_id=scope.id,
         candidate_id=candidate.id,
-        candidate_name=candidate.name,
-        employee_no=candidate.employee_no,
-        department=candidate.department,
-        exam_group=candidate.exam_group,
-        should_attend=candidate.should_attend,
-        candidate_status=candidate.status,
+        roster_email=scope.roster_email,
+        roster_name=scope.roster_name,
+        department=scope.department,
+        position=scope.position,
+        exam_group=scope.exam_group,
+        roster_remark=scope.roster_remark,
+        account_status=candidate.status,
+        invitation_status=scope.invitation_status,
+        last_invitation_attempt_at=scope.last_invitation_attempt_at,
+        invitation_sent_at=scope.invitation_sent_at,
+        invitation_error_class=scope.invitation_error_class,
+        invitation_claimed_at=scope.invitation_claimed_at,
         latest_attempt_id=latest.id if latest else None,
         latest_attempt_status=latest.status if latest else None,
         latest_score=float(latest.score) if latest else None,
@@ -246,23 +257,20 @@ def list_exam_candidates(db: Session, exam_id: int) -> list[ExamCandidateRow]:
     exam = db.get(Exam, exam_id)
     if exam is None:
         raise ExamNotFoundError(exam_id)
-    candidates = (
-        db.query(Candidate)
-        .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
+    scopes = (
+        db.query(ExamCandidateScope)
         .filter(ExamCandidateScope.exam_id == exam_id)
-        .order_by(Candidate.name, Candidate.id)
+        .order_by(ExamCandidateScope.roster_name, ExamCandidateScope.id)
         .all()
     )
-    return [
-        _build_exam_candidate_row(db, exam_id, candidate) for candidate in candidates
-    ]
+    return [_build_exam_candidate_row(db, exam_id, scope) for scope in scopes]
 
 
 def remove_exam_candidate(
     db: Session, exam_id: int, candidate_id: int
 ) -> dict[str, int]:
     assert_admin_mutation_allowed(db)
-    exam = db.get(Exam, exam_id)
+    exam = db.query(Exam).filter(Exam.id == exam_id).with_for_update().one_or_none()
     if exam is None:
         raise ExamNotFoundError(exam_id)
     if exam.status != "draft":
@@ -279,6 +287,61 @@ def remove_exam_candidate(
     return {"removed_count": deleted}
 
 
+def add_exam_candidate(
+    db: Session, exam_id: int, payload: ExamCandidateCreate, *, commit: bool = True
+) -> ExamCandidateRow:
+    """Add one normalized email roster row to a draft exam."""
+
+    assert_admin_mutation_allowed(db)
+    exam = db.query(Exam).filter(Exam.id == exam_id).with_for_update().one_or_none()
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    if exam.status != "draft":
+        raise ExamFrozenError("考试发布后应考名单已冻结")
+    from app.services.import_service import add_exam_roster_row
+
+    scope = add_exam_roster_row(db, exam_id, payload.model_dump())
+    if commit:
+        db.commit()
+        db.refresh(scope)
+    return _build_exam_candidate_row(db, exam_id, scope)
+
+
+def update_exam_candidate(
+    db: Session,
+    exam_id: int,
+    candidate_id: int,
+    payload: ExamCandidateUpdate,
+    *,
+    commit: bool = True,
+) -> ExamCandidateRow:
+    """Update one draft scope; account profile fields remain untouched."""
+
+    assert_admin_mutation_allowed(db)
+    exam = db.query(Exam).filter(Exam.id == exam_id).with_for_update().one_or_none()
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    if exam.status != "draft":
+        raise ExamFrozenError("考试发布后应考名单已冻结")
+    scope = (
+        db.query(ExamCandidateScope)
+        .filter(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .one_or_none()
+    )
+    if scope is None:
+        raise CandidateNotFoundError(candidate_id)
+    from app.services.import_service import update_exam_roster_row
+
+    update_exam_roster_row(db, scope, payload.model_dump(exclude_unset=True))
+    if commit:
+        db.commit()
+        db.refresh(scope)
+    return _build_exam_candidate_row(db, exam_id, scope)
+
+
 def create_retake_grant_row(
     db: Session, exam_id: int, candidate_id: int
 ) -> ExamCandidateRow:
@@ -287,7 +350,17 @@ def create_retake_grant_row(
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
         raise CandidateNotFoundError(candidate_id)
-    return _build_exam_candidate_row(db, exam_id, candidate)
+    scope = (
+        db.query(ExamCandidateScope)
+        .filter(
+            ExamCandidateScope.exam_id == exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .one_or_none()
+    )
+    if scope is None:
+        raise CandidateNotEligibleError(candidate_id)
+    return _build_exam_candidate_row(db, exam_id, scope)
 
 
 def import_exam_candidates_from_workbook(
@@ -298,111 +371,8 @@ def import_exam_candidates_from_workbook(
     *,
     commit: bool = True,
 ) -> QuestionImportResult:
-    assert_admin_mutation_allowed(db)
     from app.services import import_service
 
-    exam = db.get(Exam, exam_id)
-    if exam is None:
-        raise ExamNotFoundError(exam_id)
-    if exam.status != "draft":
-        raise ExamFrozenError("考试发布后应考名单已冻结")
-
-    import_service.validate_upload_file_size(file_obj)
-    parsed = import_service.parse_workbook(file_obj)
-    failures: list[ImportFailure] = []
-    success_count = 0
-    for row_number, row in enumerate(parsed.rows, start=2):
-        employee_no = import_service._optional_text(row.get("employee_no"))
-        candidate = None
-        if employee_no:
-            candidate = (
-                db.query(Candidate).filter(Candidate.employee_no == employee_no).first()
-            )
-        else:
-            name = import_service._optional_text(row.get("name"))
-            if name:
-                candidate = (
-                    db.query(Candidate)
-                    .filter(Candidate.employee_no.is_(None), Candidate.name == name)
-                    .first()
-                )
-        if candidate is None:
-            reason = import_service._validate_candidate_import_row(
-                row=row,
-                existing_employee_numbers={
-                    item[0]
-                    for item in db.query(Candidate.employee_no)
-                    .filter(Candidate.employee_no.isnot(None))
-                    .all()
-                },
-                existing_names_without_no={
-                    item[0]
-                    for item in db.query(Candidate.name)
-                    .filter(Candidate.employee_no.is_(None))
-                    .all()
-                },
-            )
-            if reason:
-                failures.append(ImportFailure(row_number=row_number, reason=reason))
-                continue
-            candidate = import_service._build_candidate(row)
-            db.add(candidate)
-            db.flush()
-        else:
-            row_email = import_service.normalize_candidate_email(row.get("email"))
-            email_reason = import_service.validate_candidate_email(row)
-            existing_email = import_service.normalize_candidate_email(candidate.email)
-            if email_reason == "邮箱格式不正确":
-                failures.append(
-                    ImportFailure(row_number=row_number, reason=email_reason)
-                )
-                continue
-            if existing_email is None:
-                if row_email is None:
-                    failures.append(
-                        ImportFailure(row_number=row_number, reason="邮箱不能为空")
-                    )
-                    continue
-                candidate.email = row_email
-            elif row_email is not None and row_email != existing_email:
-                failures.append(
-                    ImportFailure(
-                        row_number=row_number,
-                        reason="邮箱与已有考试人员不一致",
-                    )
-                )
-                continue
-            elif candidate.email != existing_email:
-                candidate.email = existing_email
-
-        exists = (
-            db.query(ExamCandidateScope.id)
-            .filter(
-                ExamCandidateScope.exam_id == exam_id,
-                ExamCandidateScope.candidate_id == candidate.id,
-            )
-            .first()
-        )
-        if exists is None:
-            db.add(ExamCandidateScope(exam_id=exam_id, candidate_id=candidate.id))
-        success_count += 1
-
-    batch = ImportBatch(
-        import_type="exam_candidates",
-        file_name=file_name,
-        total_count=parsed.total_count,
-        success_count=success_count,
-        failed_count=len(failures),
-        status="completed",
-        error_report=[failure.model_dump() for failure in failures],
-    )
-    db.add(batch)
-    db.flush()
-    if commit:
-        db.commit()
-    return QuestionImportResult(
-        batch_id=batch.id,
-        success_count=success_count,
-        failed_count=len(failures),
-        failures=failures,
+    return import_service.import_exam_roster_from_workbook(
+        db, exam_id, file_obj, file_name, commit=commit
     )

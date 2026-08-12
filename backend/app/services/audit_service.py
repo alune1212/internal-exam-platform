@@ -11,6 +11,7 @@ from app.models import AdminAuditEvent
 from app.services.operational_lock_service import assert_backup_write_allowed
 
 ALLOWED_METADATA_KEYS = {
+    "account_id",
     "archive_ref",
     "backup_ref",
     "batch_id",
@@ -19,11 +20,21 @@ ALLOWED_METADATA_KEYS = {
     "exam_id",
     "failed_count",
     "fingerprint",
+    "from_status",
     "granted_count",
+    "selected_count",
+    "accepted_count",
+    "rejected_count",
+    "mode",
+    "sent_count",
+    "sent",
+    "failed",
+    "outcome_classes",
     "operator_enabled",
     "outcome_artifact",
     "reason_code",
     "success_count",
+    "to_status",
     "voided_count",
 }
 
@@ -37,6 +48,21 @@ def _safe_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
             continue
         if value is None or isinstance(value, str | int | float | bool):
             safe[key] = value
+        elif key == "outcome_classes" and isinstance(value, list):
+            # Invitation outcomes are a bounded enum, never recipient data.
+            allowed_classes = {
+                "sent",
+                "failed",
+                "transient",
+                "permanent",
+                "smtp",
+                "delivery_error",
+            }
+            if len(value) <= 8 and all(
+                isinstance(item, str) and len(item) <= 32 and item in allowed_classes
+                for item in value
+            ):
+                safe[key] = list(value)
     return safe
 
 

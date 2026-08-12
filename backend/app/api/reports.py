@@ -9,6 +9,7 @@ from app.schemas.common import ApiResponse
 from app.schemas.report import (
     AbsentCandidateRow,
     QuestionAccuracyRow,
+    RankingRow,
     ScoreReportRow,
     WrongQuestionRow,
 )
@@ -23,6 +24,14 @@ def get_score_report(
     db: Session = Depends(get_db),
 ) -> ApiResponse[list[ScoreReportRow]]:
     return ApiResponse(data=report_service.get_score_report(db, exam_id=exam_id))
+
+
+@router.get("/rankings", response_model=ApiResponse[list[RankingRow]])
+def get_ranking(
+    exam_id: int,
+    db: Session = Depends(get_db),
+) -> ApiResponse[list[RankingRow]]:
+    return ApiResponse(data=report_service.get_ranking(db, exam_id=exam_id))
 
 
 @router.get("/question-accuracy", response_model=ApiResponse[list[QuestionAccuracyRow]])

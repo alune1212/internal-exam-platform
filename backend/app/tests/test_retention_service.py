@@ -21,7 +21,9 @@ from app.services import retention_service
 
 def _old_exam_graph(db: Session, *, now: datetime) -> tuple[Exam, Candidate]:
     old = now - timedelta(days=400)
-    candidate = Candidate(name="历史考试人", status="active")
+    candidate = Candidate(
+        name="历史考试人", email="retention-candidate@example.com", status="active"
+    )
     exam = Exam(
         title="历史考试",
         duration_minutes=60,
@@ -31,7 +33,14 @@ def _old_exam_graph(db: Session, *, now: datetime) -> tuple[Exam, Candidate]:
     )
     db.add_all([candidate, exam])
     db.flush()
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     attempt = ExamAttempt(
         exam_id=exam.id,
         candidate_id=candidate.id,

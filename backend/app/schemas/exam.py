@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.attempt import AttemptQuestionRead
 from app.schemas.common import ORMModel
@@ -61,13 +61,27 @@ class ExamStartResponse(BaseModel):
 
 
 class ExamCandidateRow(BaseModel):
+    """Frozen roster identity and delivery status for one exam scope.
+
+    ``candidate_id`` remains the compatibility account foreign key, while all
+    formal identity fields come from the scope snapshot.  Deliberately do not
+    expose the retired personnel/attendance fields here.
+    """
+
+    scope_id: int
     candidate_id: int
-    candidate_name: str
-    employee_no: str | None = None
+    roster_email: str
+    roster_name: str
     department: str | None = None
+    position: str | None = None
     exam_group: str | None = None
-    should_attend: bool
-    candidate_status: str
+    roster_remark: str | None = None
+    account_status: str = "pending"
+    invitation_status: str = "not_sent"
+    last_invitation_attempt_at: datetime | None = None
+    invitation_sent_at: datetime | None = None
+    invitation_error_class: str | None = None
+    invitation_claimed_at: datetime | None = None
     latest_attempt_id: int | None = None
     latest_attempt_status: str | None = None
     latest_score: float | None = None
@@ -76,6 +90,151 @@ class ExamCandidateRow(BaseModel):
     attempt_no: int | None = None
     attempt_kind: str | None = None
     has_unused_retake_grant: bool = False
+
+
+class ExamCandidateCreate(BaseModel):
+    """Draft roster row contract.
+
+    ``extra='forbid'`` ensures legacy employee/phone/attendance/status
+    columns cannot silently re-enter the JSON API.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=1, max_length=255)
+    candidate_name: str = Field(min_length=1, max_length=100)
+    department: str | None = Field(default=None, max_length=100)
+    position: str | None = Field(default=None, max_length=100)
+    exam_group: str | None = Field(default=None, max_length=100)
+    remark: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _validate_email(cls, value: object) -> object:
+        return _validate_roster_email(value)
+
+    @field_validator("candidate_name", mode="before")
+    @classmethod
+    def _validate_candidate_name(cls, value: object) -> object:
+        return _validate_roster_text(value, "姓名", required=True, max_length=100)
+
+    @field_validator("department", "position", "exam_group", mode="before")
+    @classmethod
+    def _validate_short_roster_text(cls, value: object) -> object:
+        return (
+            None
+            if value is None
+            else _validate_roster_text(
+                value, "名单字段", required=False, max_length=100
+            )
+        )
+
+    @field_validator("remark", mode="before")
+    @classmethod
+    def _validate_roster_remark(cls, value: object) -> object:
+        return (
+            None
+            if value is None
+            else _validate_roster_text(value, "备注", required=False, max_length=2000)
+        )
+
+
+class ExamCandidateUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str | None = Field(default=None, min_length=1, max_length=255)
+    candidate_name: str | None = Field(default=None, min_length=1, max_length=100)
+    department: str | None = Field(default=None, max_length=100)
+    position: str | None = Field(default=None, max_length=100)
+    exam_group: str | None = Field(default=None, max_length=100)
+    remark: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _validate_email(cls, value: object) -> object:
+        return None if value is None else _validate_roster_email(value)
+
+    @field_validator("candidate_name", mode="before")
+    @classmethod
+    def _validate_candidate_name(cls, value: object) -> object:
+        return (
+            None
+            if value is None
+            else _validate_roster_text(value, "姓名", required=True, max_length=100)
+        )
+
+    @field_validator("department", "position", "exam_group", mode="before")
+    @classmethod
+    def _validate_short_roster_text(cls, value: object) -> object:
+        return (
+            None
+            if value is None
+            else _validate_roster_text(
+                value, "名单字段", required=False, max_length=100
+            )
+        )
+
+    @field_validator("remark", mode="before")
+    @classmethod
+    def _validate_roster_remark(cls, value: object) -> object:
+        return (
+            None
+            if value is None
+            else _validate_roster_text(value, "备注", required=False, max_length=2000)
+        )
+
+
+def _validate_roster_email(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError("邮箱格式不正确")
+    normalized = value.strip().lower()
+    if not normalized or len(normalized) > 255:
+        raise ValueError("邮箱格式不正确")
+    if any(ord(char) < 32 for char in normalized):
+        raise ValueError("邮箱包含不支持的控制字符")
+    from app.schemas.candidate import normalize_email
+
+    try:
+        return normalize_email(normalized)
+    except ValueError as exc:
+        raise ValueError("邮箱格式不正确") from exc
+
+
+def _validate_roster_text(
+    value: object, label: str, *, required: bool, max_length: int
+) -> str | None:
+    if not isinstance(value, str):
+        raise ValueError(f"{label}格式不正确")
+    normalized = value.strip()
+    if not normalized:
+        if required:
+            raise ValueError(f"{label}不能为空")
+        return None
+    if len(normalized) > max_length:
+        raise ValueError(f"{label}长度不能超过{max_length}个字符")
+    if any(ord(char) < 32 for char in normalized):
+        raise ValueError(f"{label}包含不支持的控制字符")
+    return normalized
+
+
+class InvitationScheduleRead(BaseModel):
+    """Accepted/rejected scheduling counts; SMTP outcomes are polled later."""
+
+    exam_id: int
+    mode: str
+    selected_count: int = 0
+    accepted_count: int = 0
+    rejected_count: int = 0
+    scheduled_count: int = 0
+
+
+class InvitationStatusRead(BaseModel):
+    exam_id: int
+    total_count: int = 0
+    not_sent_count: int = 0
+    sent_count: int = 0
+    failed_count: int = 0
+    rows: list[ExamCandidateRow] = Field(default_factory=list)
 
 
 class PublicationReadinessIssue(BaseModel):
@@ -121,6 +280,8 @@ class BulkRetakeApplyRequest(BulkRetakePreviewRequest):
 class BulkRetakeRow(BaseModel):
     candidate_id: int
     candidate_name: str | None = None
+    roster_email: str | None = None
+    roster_name: str | None = None
     attempt_id: int | None = None
     prior_status: str | None = None
     outcome: str

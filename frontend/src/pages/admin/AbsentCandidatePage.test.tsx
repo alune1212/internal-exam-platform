@@ -30,8 +30,10 @@ describe("AbsentCandidatePage", () => {
         return [
           {
             candidate_id: 2,
-            name: "李四",
-            employee_no: "E002",
+            exam_id: 7,
+            exam_title: "正式考试",
+            roster_name: "李四",
+            roster_email: "lisi@example.com",
             department: "产品部",
             exam_group: "A",
             attendance_status: "in_progress",
@@ -41,8 +43,10 @@ describe("AbsentCandidatePage", () => {
       return [
         {
           candidate_id: 3,
-          name: "王五",
-          employee_no: "E003",
+          exam_id: 7,
+          exam_title: "正式考试",
+          roster_name: "王五",
+          roster_email: "wangwu@example.com",
           department: "技术部",
           exam_group: "B",
           attendance_status: "not_started",

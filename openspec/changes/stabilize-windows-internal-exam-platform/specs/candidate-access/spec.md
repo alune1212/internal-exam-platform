@@ -41,19 +41,6 @@ The system MUST fail closed when SMTP OTP delivery is unavailable and MUST NOT p
 - **THEN** no candidate token is issued without successful OTP verification
 - **AND** the operator follows the documented stop condition rather than bypassing authentication
 
-### Requirement: Early Candidate Login Window
-An eligible candidate SHALL be able to request and verify OTP login beginning 30 minutes before a formal exam's `available_from`, but MUST NOT start the attempt before `available_from`.
-
-#### Scenario: Candidate logs in early
-- **GIVEN** the candidate is eligible and the current time is within 30 minutes before `available_from`
-- **WHEN** OTP verification succeeds
-- **THEN** the candidate receives a token and sees the upcoming exam state
-- **AND** the start action remains unavailable until `available_from`
-
-#### Scenario: Candidate attempts to start before opening
-- **WHEN** a candidate calls the start API before `available_from`
-- **THEN** the system rejects the start without creating an attempt
-
 ### Requirement: Single Active Exam Device
 Each in-progress attempt MUST have one active attempt-session generation. Attempt read, save, and submit operations MUST require the current opaque attempt-session credential in addition to the candidate token.
 

@@ -157,6 +157,8 @@ jobs:
       - name: Verify deployment, macOS, and Windows workflow contracts
         working-directory: backend
         run: uv run pytest app/tests/test_deployment_config.py app/tests/test_macos_operations_contract.py app/tests/test_windows_operations.py app/tests/test_capacity_gate.py app/tests/test_security_scan_gate.py
+      - name: Reject retired candidate identity contracts
+        run: python3 scripts/check-legacy-contracts.py
       - name: Parse every PowerShell operation
         shell: pwsh
         run: ./ops/windows/Test-PowerShellSyntax.ps1

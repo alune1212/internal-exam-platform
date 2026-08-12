@@ -81,19 +81,24 @@ function resolveAvailability(exam: Exam, now = new Date()) {
 }
 
 function ExamCard({ exam }: { exam: Exam }) {
-  const isLive = exam.status === "active" || exam.status === "live";
+  const isLive = exam.status === "active" || exam.status === "live" || exam.status === "published";
   const hasInProgressAttempt =
     exam.latest_attempt_status === "in_progress" && exam.latest_attempt_id;
   const totalQuestions = resolveQuestionCount(exam.question_rule);
   const availability = resolveAvailability(exam);
   const canEnter = availability.canEnter || Boolean(hasInProgressAttempt);
+  // The candidate active-exam endpoint is already scope-filtered; every row
+  // returned here represents an invited exam for the current user.
+  const isInvited = true;
   const totalScore =
     typeof exam.question_rule.total_score === "number" ? exam.question_rule.total_score : null;
 
   return (
     <article className="flex flex-col gap-5 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
       <p className="font-body text-caption font-medium uppercase italic tracking-[0.18em] text-muted">
-        {formatExamStatus(isLive ? "active" : exam.status)}
+        {isInvited
+          ? candidatePageText.exams.invited
+          : formatExamStatus(isLive ? "active" : exam.status)}
       </p>
       <h2 className="font-display text-display-sm font-semibold text-ink lg:text-display-md">
         {exam.title}
@@ -139,11 +144,19 @@ function ExamCard({ exam }: { exam: Exam }) {
           </Button>
         ) : (
           <Button type="button" size="sm" disabled>
-            不可进入
+            {availability.status === "not_started"
+              ? candidatePageText.exams.upcoming
+              : candidatePageText.exams.unavailable}
           </Button>
         )}
       </div>
-      <p className="text-caption uppercase tracking-[0.16em] text-muted">{availability.label}</p>
+      <p className="text-caption uppercase tracking-[0.16em] text-muted">
+        {availability.status === "not_started"
+          ? candidatePageText.exams.upcoming
+          : availability.canEnter
+            ? candidatePageText.exams.available
+            : candidatePageText.exams.unavailable}
+      </p>
     </article>
   );
 }
@@ -151,16 +164,12 @@ function ExamCard({ exam }: { exam: Exam }) {
 export function ExamListPage() {
   const candidate = getCurrentCandidate();
   const candidateId = candidate?.id ?? "anonymous";
-  const {
-    data = [],
-    isError,
-    isLoading,
-  } = useQuery({
+  const { data, isError, isLoading } = useQuery({
     queryKey: ["candidate", candidateId, "active-exams"],
     queryFn: getActiveExams,
     enabled: Boolean(candidate),
   });
-  const hasLoadError = isError && data.length === 0;
+  const hasLoadError = isError;
 
   return (
     <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
@@ -179,7 +188,7 @@ export function ExamListPage() {
           title={candidatePageText.exams.errorTitle}
           description={candidatePageText.exams.errorDescription}
         />
-      ) : data.length ? (
+      ) : data?.length ? (
         <div className="grid gap-5 md:grid-cols-2">
           {data.map((exam) => (
             <ExamCard key={exam.id} exam={exam} />

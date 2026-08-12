@@ -34,6 +34,10 @@ def readiness_check(db: Session = Depends(get_db)) -> ApiResponse[ReadinessStatu
 
 router.include_router(auth.router)
 router.include_router(candidates.router)
+router.include_router(candidates.account_router)
+router.include_router(
+    candidates.admin_accounts_router, dependencies=[Depends(require_admin)]
+)
 router.include_router(learning.router)
 router.include_router(practice.router)
 router.include_router(exams.router)

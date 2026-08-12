@@ -19,12 +19,24 @@ router = APIRouter(prefix="/attempts", tags=["attempts"])
 
 
 def _verify_attempt_ownership(db: Session, attempt_id: int, candidate_id: int) -> None:
-    from app.models import ExamAttempt
+    from app.models import ExamAttempt, ExamCandidateScope
 
     attempt = db.get(ExamAttempt, attempt_id)
     if attempt is None:
         raise AttemptNotFoundError(attempt_id)
     if attempt.candidate_id != candidate_id:
+        raise AttemptNotFoundError(attempt_id)
+    scoped = (
+        db.query(ExamCandidateScope.id)
+        .filter(
+            ExamCandidateScope.exam_id == attempt.exam_id,
+            ExamCandidateScope.candidate_id == candidate_id,
+        )
+        .first()
+    )
+    if scoped is None:
+        # Keep result ownership opaque when a stale attempt has no current
+        # formal roster scope.
         raise AttemptNotFoundError(attempt_id)
 
 

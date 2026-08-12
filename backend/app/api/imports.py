@@ -23,9 +23,9 @@ def download_question_template() -> StreamingResponse:
     )
 
 
-@router.get("/templates/candidates")
-def download_candidate_template() -> StreamingResponse:
-    stream = template_service.generate_candidate_template()
+@router.get("/templates/exam-roster")
+def download_exam_roster_template() -> StreamingResponse:
+    stream = template_service.generate_exam_roster_template()
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

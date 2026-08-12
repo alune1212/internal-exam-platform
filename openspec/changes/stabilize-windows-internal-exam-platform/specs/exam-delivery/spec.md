@@ -28,7 +28,7 @@ The system SHALL save answers during an in-progress attempt and SHALL score subm
 ## ADDED Requirements
 
 ### Requirement: Formal Exam Timing Boundary
-New or updated formal exams MUST have `duration_minutes` no greater than 120. Candidate login SHALL open 30 minutes before `available_from`, and new attempt starts SHALL close 15 minutes after `available_from`; a candidate starting within the grace period SHALL receive the full configured duration.
+New or updated formal exams MUST have `duration_minutes` no greater than 120. New attempt starts SHALL close 15 minutes after `available_from`; a candidate starting within the grace period SHALL receive the full configured duration. Platform authentication and published-exam discovery are owned by `open-email-registration-with-invited-exams` and are not restricted by this timing boundary.
 
 #### Scenario: Operator configures a valid formal window
 - **WHEN** a formal exam uses a duration of at most 120 minutes and a start cutoff 15 minutes after `available_from`

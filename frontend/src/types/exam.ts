@@ -18,13 +18,20 @@ export type Exam = {
 };
 
 export type ExamCandidateRow = {
+  scope_id?: number;
   candidate_id: number;
-  candidate_name: string;
-  employee_no?: string | null;
+  roster_email: string;
+  roster_name: string;
   department?: string | null;
+  position?: string | null;
   exam_group?: string | null;
-  should_attend: boolean;
-  candidate_status: string;
+  roster_remark?: string | null;
+  account_status: "pending" | "active" | "inactive" | string;
+  invitation_status: "not_sent" | "sent" | "failed" | string;
+  invitation_error_class?: string | null;
+  last_invitation_attempt_at?: string | null;
+  invitation_sent_at?: string | null;
+  invitation_claimed_at?: string | null;
   latest_attempt_id?: number | null;
   latest_attempt_status?: string | null;
   latest_score?: number | null;
@@ -33,6 +40,35 @@ export type ExamCandidateRow = {
   attempt_no?: number | null;
   attempt_kind?: string | null;
   has_unused_retake_grant: boolean;
+};
+
+export type ExamRosterPayload = {
+  email: string;
+  candidate_name: string;
+  department?: string | null;
+  position?: string | null;
+  exam_group?: string | null;
+  remark?: string | null;
+};
+
+export type InvitationDeliveryStatus = "not_sent" | "sent" | "failed";
+
+export type InvitationScheduleResult = {
+  exam_id?: number;
+  mode?: string;
+  selected_count?: number;
+  accepted_count: number;
+  rejected_count: number;
+  scheduled_count?: number;
+};
+
+export type InvitationStatusRead = {
+  exam_id: number;
+  total_count?: number;
+  not_sent_count?: number;
+  sent_count?: number;
+  failed_count?: number;
+  rows: ExamCandidateRow[];
 };
 
 export type PublicationReadinessIssue = {

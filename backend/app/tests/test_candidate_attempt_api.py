@@ -47,8 +47,9 @@ def test_attempt_routes_require_candidate_header() -> None:
 
 
 def test_attempt_routes_accept_candidate_token() -> None:
-    client, _ = _build_client()
-    token = create_candidate_token(1)
+    client, db = _build_client()
+    candidate = create_candidate(db)
+    token = create_candidate_token(candidate.id)
     resp = client.get("/api/attempts/1", headers={"X-Candidate-Token": token})
     assert resp.status_code == 404
 
@@ -87,7 +88,14 @@ def test_public_submit_rejects_non_manual_submit_type() -> None:
     client, db = _build_client()
     exam = create_exam(db)
     candidate = create_candidate(db)
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
     create_question_with_options(db)
     start = exam_service.start_exam(db, exam.id, candidate.id)
@@ -112,7 +120,14 @@ def test_result_rejects_in_progress_attempt_before_submission() -> None:
     client, db = _build_client()
     exam = create_exam(db)
     candidate = create_candidate(db)
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
     create_question_with_options(db, analysis="答案解析")
     start = exam_service.start_exam(db, exam.id, candidate.id)
@@ -129,7 +144,14 @@ def test_result_rejects_in_progress_attempt_before_submission() -> None:
 def _started_attempt(db: Session) -> tuple[int, int, str, str]:
     exam = create_exam(db)
     candidate = create_candidate(db)
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
     create_question_with_options(db)
     start = exam_service.start_exam(db, exam.id, candidate.id)
@@ -257,3 +279,54 @@ def test_takeover_rejects_candidate_token_older_than_fresh_otp_window() -> None:
 
     assert response.status_code == 401
     assert "重新通过邮件验证码" in response.json()["detail"]
+
+
+def test_stale_attempt_without_roster_scope_is_rejected_across_surfaces() -> None:
+    client, db = _build_client()
+    attempt_id, _candidate_id, token, credential = _started_attempt(db)
+    attempt = db.get(ExamAttempt, attempt_id)
+    assert attempt is not None
+    question_id = attempt.questions[0].id
+    scope = db.query(ExamCandidateScope).one()
+    db.delete(scope)
+    db.commit()
+    headers = {"X-Candidate-Token": token, "X-Attempt-Session": credential}
+
+    read = client.get(f"/api/attempts/{attempt_id}", headers=headers)
+    save = client.post(
+        f"/api/attempts/{attempt_id}/answers/save",
+        headers=headers,
+        json={
+            "answer_revision": 0,
+            "answers": [{"attempt_question_id": question_id, "selected_answer": "A"}],
+        },
+    )
+    submit = client.post(
+        f"/api/attempts/{attempt_id}/submit",
+        headers=headers,
+        json={"submit_type": "manual"},
+    )
+    takeover = client.post(
+        f"/api/attempts/{attempt_id}/takeover",
+        headers={"X-Candidate-Token": token},
+    )
+
+    assert read.status_code == 403
+    assert save.status_code == 403
+    assert submit.status_code == 403
+    assert takeover.status_code == 403
+
+    result_attempt_id, result_candidate_id, result_token, _ = _started_attempt(db)
+    exam_service.submit_attempt(db, result_attempt_id, "manual")
+    result_scope = (
+        db.query(ExamCandidateScope)
+        .filter(ExamCandidateScope.candidate_id == result_candidate_id)
+        .one()
+    )
+    db.delete(result_scope)
+    db.commit()
+    result = client.get(
+        f"/api/attempts/{result_attempt_id}/result",
+        headers={"X-Candidate-Token": result_token},
+    )
+    assert result.status_code == 404

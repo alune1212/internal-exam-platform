@@ -158,7 +158,9 @@ def test_candidate_learning_videos_require_active_candidate_token() -> None:
     client.post(
         f"/api/admin/learning/videos/{video['id']}/publish", headers=_admin_headers()
     )
-    inactive = Candidate(name="停用人员", status="inactive")
+    inactive = Candidate(
+        name="停用人员", email="inactive@example.com", status="inactive"
+    )
     db.add(inactive)
     db.commit()
 
@@ -168,7 +170,7 @@ def test_candidate_learning_videos_require_active_candidate_token() -> None:
     )
 
     assert missing_token.status_code == 401
-    assert inactive_token.status_code == 404
+    assert inactive_token.status_code == 401
 
 
 def test_candidate_sees_only_published_learning_videos() -> None:
@@ -264,11 +266,7 @@ def test_learning_progress_completion_skips_jumps_and_deduplicates_intervals() -
 def test_admin_learning_report_and_export() -> None:
     client, db = _build_client()
     candidate = create_candidate(
-        db,
-        name="学习人员",
-        employee_no="L001",
-        department="安全部",
-        status="active",
+        db, name="学习人员", email="learning@example.com", status="active"
     )
     video = _upload_video(client, duration_seconds=100)
     client.post(
@@ -289,7 +287,23 @@ def test_admin_learning_report_and_export() -> None:
 
     assert report.status_code == 200
     row = report.json()["data"][0]
-    assert row["candidate_name"] == "学习人员"
+    assert row["display_name"] == "学习人员"
+    assert row["account_email"] == "learning@example.com"
+    assert row["account_status"] == "active"
+    assert set(row) <= {
+        "candidate_id",
+        "account_email",
+        "display_name",
+        "account_status",
+        "video_id",
+        "video_title",
+        "video_status",
+        "duration_seconds",
+        "completion_percent",
+        "completion_status",
+        "last_heartbeat_at",
+        "completed_at",
+    }
     assert row["video_title"] == "安全培训"
     assert row["completion_status"] == "in_progress"
     assert row["completion_percent"] == 30
@@ -297,6 +311,38 @@ def test_admin_learning_report_and_export() -> None:
     workbook = load_workbook(BytesIO(export.content))
     assert workbook.active.title == "视频学习"
     assert workbook.active.cell(1, 1).value == "CID · 人员ID"
+    assert workbook.active.cell(1, 2).value == "ACCOUNT EMAIL · 用户邮箱"
+    assert workbook.active.cell(1, 3).value == "ACCOUNT NAME · 用户姓名"
+    assert workbook.active.cell(1, 4).value == "ACCOUNT STATUS · 账户状态"
+
+
+def test_admin_learning_report_keeps_lifecycle_rows_after_deactivation() -> None:
+    client, db = _build_client()
+    active = create_candidate(
+        db, name="学习用户", email="learning-active@example.com", status="active"
+    )
+    inactive = Candidate(
+        name="停用学习用户",
+        email="learning-inactive@example.com",
+        status="inactive",
+    )
+    db.add(inactive)
+    db.commit()
+    video = _upload_video(client, duration_seconds=100)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish", headers=_admin_headers()
+    )
+    db.refresh(active)
+    active.name = "学习用户新显示名"
+    db.commit()
+
+    response = client.get("/api/admin/learning/reports", headers=_admin_headers())
+
+    assert response.status_code == 200
+    rows = response.json()["data"]
+    by_email = {row["account_email"]: row for row in rows}
+    assert by_email["learning-active@example.com"]["display_name"] == "学习用户新显示名"
+    assert by_email["learning-inactive@example.com"]["account_status"] == "inactive"
 
 
 def test_video_learning_does_not_gate_exam_start_or_submit() -> None:
@@ -304,7 +350,14 @@ def test_video_learning_does_not_gate_exam_start_or_submit() -> None:
     candidate = create_candidate(db, name="考试人员", status="active")
     exam = create_exam(db, title="独立考试")
     create_question_with_options(db, stem="学习未完成也可考试")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name,
+        )
+    )
     db.commit()
     video = _upload_video(client, duration_seconds=100)
     client.post(

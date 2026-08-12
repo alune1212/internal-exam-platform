@@ -1,17 +1,18 @@
 import { uploadRequest } from "@/api/client";
 import { getAdminToken } from "@/lib/adminSession";
-import type { QuestionImportResult } from "@/types/imports";
+import type { QuestionImportResult, RosterImportResult } from "@/types/imports";
 
 export function importQuestions(file: File) {
   return uploadRequest<QuestionImportResult>("/api/admin/questions/import", file);
 }
 
 export function importCandidates(examId: string, file: File) {
-  return uploadRequest<QuestionImportResult>(`/api/admin/exams/${examId}/candidates/import`, file);
+  return uploadRequest<RosterImportResult>(`/api/admin/exams/${examId}/candidates/import`, file);
 }
 
 export async function downloadImportTemplate(type: "questions" | "candidates"): Promise<void> {
-  const response = await fetch(`/api/admin/imports/templates/${type}`, {
+  const templatePath = type === "questions" ? "questions" : "exam-roster";
+  const response = await fetch(`/api/admin/imports/templates/${templatePath}`, {
     headers: { "X-Admin-Token": getAdminToken() ?? "" },
   });
   if (!response.ok) throw new Error("下载失败");

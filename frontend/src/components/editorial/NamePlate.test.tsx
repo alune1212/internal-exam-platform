@@ -54,22 +54,22 @@ describe("NamePlate", () => {
   });
 
   it("can render from candidate input", () => {
-    render(<NamePlate candidate={{ name: "王五", employeeNo: "EMP-002", department: "产品部" }} />);
+    render(<NamePlate candidate={{ displayName: "王五", subtitle: "用户" }} />);
 
     expect(screen.getByText("王五")).toBeInTheDocument();
-    expect(screen.getByText("EMP-002 · 产品部")).toBeInTheDocument();
+    expect(screen.getByText("用户")).toBeInTheDocument();
   });
 
   it("lets explicit name and subtitle override candidate input", () => {
     render(
       <NamePlate
-        candidate={{ name: "王五", employeeNo: "EMP-002", department: "产品部" }}
+        candidate={{ displayName: "王五", subtitle: "用户" }}
         name="赵六"
-        subtitle="EMP-003 · 研发部"
+        subtitle="用户"
       />,
     );
 
     expect(screen.getByText("赵六")).toBeInTheDocument();
-    expect(screen.getByText("EMP-003 · 研发部")).toBeInTheDocument();
+    expect(screen.getByText("用户")).toBeInTheDocument();
   });
 });

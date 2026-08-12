@@ -24,7 +24,7 @@ try {
     Assert-ProtectedConfigurationAcl -ConfigurationPath $layout.Configuration
     $configuration = Read-DotEnv -Path $layout.FormalEnv
     $required = @(
-        'ENVIRONMENT', 'INTERNAL_LAN_BIND_IP', 'CORS_ORIGINS', 'DATABASE_URL',
+        'ENVIRONMENT', 'INTERNAL_LAN_BIND_IP', 'CORS_ORIGINS', 'CANDIDATE_PUBLIC_BASE_URL', 'DATABASE_URL',
         'PRIMARY_OPERATOR_USERNAME', 'PRIMARY_OPERATOR_PASSWORD',
         'BACKUP_OPERATOR_USERNAME', 'BACKUP_OPERATOR_PASSWORD', 'TOKEN_SECRET',
         'ADMIN_TOKEN_TTL_SECONDS', 'CANDIDATE_TOKEN_TTL_SECONDS',
@@ -45,7 +45,11 @@ try {
     if (-not (Test-PrivateIpv4 -Address $configuration.INTERNAL_LAN_BIND_IP)) {
         throw "INTERNAL_LAN_BIND_IP must be one fixed private IPv4 address."
     }
-    $checks.Add([ordered]@{ name = $currentCheck; status = 'passed'; bind = 'private-fixed-ip'; secrets = 'redacted' })
+    $expectedCandidateOrigin = "http://$($configuration.INTERNAL_LAN_BIND_IP):8080"
+    if ($configuration.CANDIDATE_PUBLIC_BASE_URL -cne $expectedCandidateOrigin) {
+        throw "CANDIDATE_PUBLIC_BASE_URL must exactly match the fixed candidate origin."
+    }
+    $checks.Add([ordered]@{ name = $currentCheck; status = 'passed'; bind = 'private-fixed-ip'; candidatePublicBaseUrl = $configuration.CANDIDATE_PUBLIC_BASE_URL; secrets = 'redacted' })
 
     $currentCheck = 'release_checksums'
     $state = Get-ReleaseState -Path $layout.CurrentRelease

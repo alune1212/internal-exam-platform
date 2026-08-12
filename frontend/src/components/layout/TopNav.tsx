@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { candidateActionCopy } from "@/lib/pageCopy";
 import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
-import type { Candidate } from "@/types/candidate";
+import { candidateDisplayName, type Candidate } from "@/types/candidate";
 
 type NavItem = {
   to: string;
@@ -31,10 +31,6 @@ type TopNavProps = {
   candidate: Candidate | null;
   onLogout: () => void;
 };
-
-function candidateSubtitle(candidate: Candidate) {
-  return [candidate.employee_no, candidate.department].filter(Boolean).join(" · ") || undefined;
-}
 
 function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
@@ -111,7 +107,9 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
           {isDesktop ? (
             candidate ? (
               <>
-                <NamePlate name={candidate.name} subtitle={candidateSubtitle(candidate)} />
+                <Link to="/profile" aria-label="打开账号资料">
+                  <NamePlate name={candidateDisplayName(candidate)} subtitle="用户" />
+                </Link>
                 {isInExam ? (
                   <Button asChild variant="outline" size="sm">
                     <Link to="/exams" aria-label={candidateActionCopy.returnExamList}>
@@ -153,7 +151,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
               <SheetContent side="bottom" className="rounded-t-lg">
                 <SheetHeader>
                   <SheetTitle className="font-display text-display-sm">导航</SheetTitle>
-                  <SheetDescription className="sr-only">考试人导航菜单</SheetDescription>
+                  <SheetDescription className="sr-only">用户导航菜单</SheetDescription>
                 </SheetHeader>
                 <nav className="flex flex-col gap-1 px-4 pb-6">
                   {navItems.map((item) => (
@@ -176,7 +174,13 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                   ))}
                   {candidate ? (
                     <div className="mt-4 flex flex-col gap-3 border-t border-hairline-soft pt-4">
-                      <NamePlate name={candidate.name} subtitle={candidateSubtitle(candidate)} />
+                      <Link
+                        to="/profile"
+                        onClick={() => setMobileOpen(false)}
+                        aria-label="打开账号资料"
+                      >
+                        <NamePlate name={candidateDisplayName(candidate)} subtitle="用户" />
+                      </Link>
                       {isInExam ? (
                         <Button asChild variant="outline">
                           <Link to="/exams" onClick={() => setMobileOpen(false)}>

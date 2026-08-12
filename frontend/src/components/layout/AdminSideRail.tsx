@@ -24,6 +24,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { to: "/admin/dashboard", label: "仪表盘", end: true },
+  { to: "/admin/accounts", label: "用户账户", activePattern: /^\/admin\/accounts(?:\/|$)/ },
   { to: "/admin/exams", label: "考试", activePattern: /^\/admin\/exams(?:\/|$)/ },
   { to: "/admin/questions", label: "题库", end: true },
   { to: "/admin/questions/import", label: "题库导入", end: true },

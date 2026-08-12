@@ -21,7 +21,7 @@ services:
       E2E_DISPOSABLE_DATABASE: "true"
       CANDIDATE_LOGIN_TEST_OTP: "246810"
       CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE: smtp
-      CANDIDATE_LOGIN_EMAIL_FROM: e2e-sender@example.test
+      CANDIDATE_LOGIN_EMAIL_FROM: e2e-sender@example.com
       CANDIDATE_LOGIN_SMTP_HOST: fake-smtp
       CANDIDATE_LOGIN_SMTP_PORT: "1025"
       CANDIDATE_LOGIN_SMTP_USE_TLS: "false"
@@ -29,6 +29,9 @@ services:
       CANDIDATE_LOGIN_SMTP_USERNAME: ""
       CANDIDATE_LOGIN_SMTP_PASSWORD: ""
       CANDIDATE_LOGIN_EMAIL_RETRY_BASE_SECONDS: "0"
+      CANDIDATE_PUBLIC_BASE_URL: http://nginx:80
+      INVITATION_SEND_BATCH_SIZE: "50"
+      INVITATION_CLAIM_TTL_SECONDS: "30"
     depends_on:
       fake-smtp:
         condition: service_started

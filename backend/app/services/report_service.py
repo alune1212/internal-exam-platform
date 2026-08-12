@@ -1,11 +1,10 @@
 from io import BytesIO
 
 from openpyxl import Workbook
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Candidate,
     Exam,
     ExamAttempt,
     ExamAttemptAnswer,
@@ -17,6 +16,7 @@ from app.models.attempt import SUBMITTED_STATUSES
 from app.schemas.report import (
     AbsentCandidateRow,
     QuestionAccuracyRow,
+    RankingRow,
     ScoreReportRow,
     WrongQuestionRow,
 )
@@ -30,25 +30,43 @@ ATTENDANCE_STATUS_LABELS = {
 
 
 def get_score_report(db: Session, exam_id: int | None = None) -> list[ScoreReportRow]:
-    """个人成绩：所有已交卷 attempt 的成绩汇总。"""
+    """个人成绩：按考试冻结的 roster identity 汇总已交卷结果。
+
+    The candidate row is deliberately not joined here.  A platform account's
+    display name/status may change after publication; formal reports must keep
+    the snapshot stored on the matching ``exam_candidate_scope`` row instead.
+    """
+
     latest_submitted = latest_submitted_attempts(db, exam_id=exam_id)
     query = (
         db.query(
-            Candidate.name,
-            Candidate.employee_no,
-            Candidate.department,
+            ExamCandidateScope.candidate_id,
+            ExamCandidateScope.roster_name,
+            ExamCandidateScope.roster_email,
+            ExamCandidateScope.department,
+            ExamCandidateScope.position,
+            ExamCandidateScope.exam_group,
+            ExamCandidateScope.roster_remark,
+            Exam.id,
             Exam.title,
             ExamAttempt.score,
             ExamAttempt.total_score,
             ExamAttempt.submitted_at,
         )
-        .join(ExamAttempt, ExamAttempt.candidate_id == Candidate.id)
+        .select_from(ExamAttempt)
         .join(Exam, Exam.id == ExamAttempt.exam_id)
         .join(
             latest_submitted,
             (latest_submitted.c.exam_id == ExamAttempt.exam_id)
             & (latest_submitted.c.candidate_id == ExamAttempt.candidate_id)
             & (latest_submitted.c.attempt_no == ExamAttempt.attempt_no),
+        )
+        .join(
+            ExamCandidateScope,
+            and_(
+                ExamCandidateScope.exam_id == ExamAttempt.exam_id,
+                ExamCandidateScope.candidate_id == ExamAttempt.candidate_id,
+            ),
         )
         .filter(ExamAttempt.status.in_(SUBMITTED_STATUSES))
     )
@@ -58,16 +76,141 @@ def get_score_report(db: Session, exam_id: int | None = None) -> list[ScoreRepor
 
     return [
         ScoreReportRow(
-            candidate_name=name,
-            employee_no=employee_no,
+            candidate_id=candidate_id,
+            roster_name=roster_name,
+            roster_email=roster_email,
             department=department,
+            position=position,
+            exam_group=exam_group,
+            roster_remark=roster_remark,
+            exam_id=exam_id_value,
             exam_title=exam_title,
             score=float(score),
             total_score=float(total_score),
             submitted_at=submitted_at,
         )
-        for name, employee_no, department, exam_title, score, total_score, submitted_at in rows
+        for (
+            candidate_id,
+            roster_name,
+            roster_email,
+            department,
+            position,
+            exam_group,
+            roster_remark,
+            exam_id_value,
+            exam_title,
+            score,
+            total_score,
+            submitted_at,
+        ) in rows
     ]
+
+
+def get_ranking(db: Session, exam_id: int) -> list[RankingRow]:
+    """Return the administrator ranking for one exam.
+
+    Only the latest non-voided submitted/auto-submitted attempt per scoped
+    account participates.  Rows are ordered by score descending, submission
+    time ascending, and candidate id ascending.  Ties use conventional
+    competition ranking (``1, 1, 3``), making the ordering deterministic even
+    when scores and submission times match.
+    """
+
+    latest_attempt_no = (
+        db.query(
+            ExamAttempt.exam_id.label("exam_id"),
+            ExamAttempt.candidate_id.label("candidate_id"),
+            func.max(ExamAttempt.attempt_no).label("attempt_no"),
+        )
+        .filter(
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.status.in_(SUBMITTED_STATUSES),
+            ExamAttempt.voided_at.is_(None),
+        )
+        .group_by(ExamAttempt.exam_id, ExamAttempt.candidate_id)
+        .subquery()
+    )
+    rows = (
+        db.query(
+            ExamCandidateScope.candidate_id,
+            ExamCandidateScope.roster_name,
+            ExamCandidateScope.roster_email,
+            ExamCandidateScope.department,
+            ExamCandidateScope.position,
+            ExamCandidateScope.exam_group,
+            ExamCandidateScope.roster_remark,
+            Exam.id,
+            Exam.title,
+            ExamAttempt.score,
+            ExamAttempt.total_score,
+            ExamAttempt.submitted_at,
+        )
+        .select_from(ExamAttempt)
+        .join(
+            latest_attempt_no,
+            (latest_attempt_no.c.exam_id == ExamAttempt.exam_id)
+            & (latest_attempt_no.c.candidate_id == ExamAttempt.candidate_id)
+            & (latest_attempt_no.c.attempt_no == ExamAttempt.attempt_no),
+        )
+        .join(
+            ExamCandidateScope,
+            and_(
+                ExamCandidateScope.exam_id == ExamAttempt.exam_id,
+                ExamCandidateScope.candidate_id == ExamAttempt.candidate_id,
+            ),
+        )
+        .join(Exam, Exam.id == ExamAttempt.exam_id)
+        .filter(
+            ExamAttempt.status.in_(SUBMITTED_STATUSES),
+            ExamAttempt.voided_at.is_(None),
+        )
+        .order_by(
+            ExamAttempt.score.desc(),
+            ExamAttempt.submitted_at.asc().nulls_last(),
+            ExamAttempt.candidate_id.asc(),
+        )
+        .all()
+    )
+
+    ranked: list[RankingRow] = []
+    previous_score = None
+    current_rank = 0
+    for position, row in enumerate(rows, start=1):
+        (
+            candidate_id,
+            roster_name,
+            roster_email,
+            department,
+            scope_position,
+            exam_group,
+            roster_remark,
+            row_exam_id,
+            exam_title,
+            score,
+            total_score,
+            submitted_at,
+        ) = row
+        if previous_score is None or score != previous_score:
+            current_rank = position
+            previous_score = score
+        ranked.append(
+            RankingRow(
+                rank=current_rank,
+                candidate_id=candidate_id,
+                roster_name=roster_name,
+                roster_email=roster_email,
+                department=department,
+                position=scope_position,
+                exam_group=exam_group,
+                roster_remark=roster_remark,
+                exam_id=row_exam_id,
+                exam_title=exam_title,
+                score=float(score),
+                total_score=float(total_score),
+                submitted_at=submitted_at,
+            )
+        )
+    return ranked
 
 
 def get_question_accuracy(
@@ -173,100 +316,85 @@ def get_wrong_questions(
 def get_absent_candidates(
     db: Session, exam_id: int | None = None, status: str = "not_started"
 ) -> list[AbsentCandidateRow]:
-    """参考状态：按未开始、进行中、已交卷拆分应考人员。"""
-    if exam_id is not None:
-        latest_attempt = latest_attempts(db, exam_id=exam_id)
-        base = (
-            db.query(Candidate)
-            .join(ExamCandidateScope, ExamCandidateScope.candidate_id == Candidate.id)
-            .filter(
-                ExamCandidateScope.exam_id == exam_id,
-                Candidate.should_attend == True,  # noqa: E712
-                Candidate.status == "active",
-            )
-        )
-        if status == "not_started":
-            rows = (
-                base.outerjoin(
-                    latest_attempt, latest_attempt.c.candidate_id == Candidate.id
-                )
-                .filter(
-                    or_(
-                        latest_attempt.c.attempt_id.is_(None),
-                        latest_attempt.c.status == "voided",
-                    )
-                )
-                .order_by(Candidate.name)
-                .all()
-            )
-        elif status == "in_progress":
-            rows = (
-                base.join(latest_attempt, latest_attempt.c.candidate_id == Candidate.id)
-                .filter(latest_attempt.c.status == "in_progress")
-                .order_by(Candidate.name)
-                .all()
-            )
-        elif status == "submitted":
-            rows = (
-                base.join(latest_attempt, latest_attempt.c.candidate_id == Candidate.id)
-                .filter(latest_attempt.c.status.in_(SUBMITTED_STATUSES))
-                .order_by(Candidate.name)
-                .all()
-            )
-        else:
-            rows = []
-    else:
-        latest_attempt = latest_attempts(db)
-        base = db.query(Candidate).filter(
-            Candidate.should_attend == True,  # noqa: E712
-            Candidate.status == "active",
-        )
-        if status == "not_started":
-            rows = (
-                base.outerjoin(
-                    latest_attempt, latest_attempt.c.candidate_id == Candidate.id
-                )
-                .filter(
-                    or_(
-                        latest_attempt.c.attempt_id.is_(None),
-                        latest_attempt.c.status == "voided",
-                    )
-                )
-                .order_by(Candidate.name)
-                .all()
-            )
-        elif status == "in_progress":
-            rows = (
-                base.join(latest_attempt, latest_attempt.c.candidate_id == Candidate.id)
-                .filter(latest_attempt.c.status == "in_progress")
-                .distinct()
-                .order_by(Candidate.name)
-                .all()
-            )
-        elif status == "submitted":
-            rows = (
-                base.join(
-                    latest_attempt,
-                    latest_attempt.c.candidate_id == Candidate.id,
-                )
-                .filter(latest_attempt.c.status.in_(SUBMITTED_STATUSES))
-                .distinct()
-                .order_by(Candidate.name)
-                .all()
-            )
-        else:
-            rows = []
+    """参考状态：按未开始、进行中、已交卷拆分冻结 roster。
 
+    Scope rows are the driving table so pending/inactive accounts and scoped
+    recipients without an attempt remain visible.  The account row is not
+    joined, which makes deactivation/profile edits irrelevant to historical
+    formal attendance.
+    """
+    if status not in {"not_started", "in_progress", "submitted"}:
+        return []
+
+    latest_attempt = latest_attempts(db, exam_id=exam_id)
+    query = (
+        db.query(
+            ExamCandidateScope.candidate_id,
+            ExamCandidateScope.exam_id,
+            Exam.title,
+            ExamCandidateScope.roster_name,
+            ExamCandidateScope.roster_email,
+            ExamCandidateScope.department,
+            ExamCandidateScope.position,
+            ExamCandidateScope.exam_group,
+            ExamCandidateScope.roster_remark,
+            latest_attempt.c.attempt_id,
+            latest_attempt.c.status,
+        )
+        .select_from(ExamCandidateScope)
+        .join(Exam, Exam.id == ExamCandidateScope.exam_id)
+        .outerjoin(
+            latest_attempt,
+            and_(
+                latest_attempt.c.exam_id == ExamCandidateScope.exam_id,
+                latest_attempt.c.candidate_id == ExamCandidateScope.candidate_id,
+            ),
+        )
+    )
+    if exam_id is not None:
+        query = query.filter(ExamCandidateScope.exam_id == exam_id)
+
+    if status == "not_started":
+        query = query.filter(
+            or_(
+                latest_attempt.c.attempt_id.is_(None),
+                latest_attempt.c.status == "voided",
+            )
+        )
+    elif status == "in_progress":
+        query = query.filter(latest_attempt.c.status == "in_progress")
+    else:
+        query = query.filter(latest_attempt.c.status.in_(SUBMITTED_STATUSES))
+
+    rows = query.order_by(
+        ExamCandidateScope.roster_name, ExamCandidateScope.exam_id
+    ).all()
     return [
         AbsentCandidateRow(
-            candidate_id=c.id,
-            name=c.name,
-            employee_no=c.employee_no,
-            department=c.department,
-            exam_group=c.exam_group,
+            candidate_id=candidate_id,
+            exam_id=scope_exam_id,
+            exam_title=exam_title,
+            roster_name=roster_name,
+            roster_email=roster_email,
+            department=department,
+            position=position,
+            exam_group=exam_group,
+            roster_remark=roster_remark,
             attendance_status=status,
         )
-        for c in rows
+        for (
+            candidate_id,
+            scope_exam_id,
+            exam_title,
+            roster_name,
+            roster_email,
+            department,
+            position,
+            exam_group,
+            roster_remark,
+            _attempt_id,
+            _attempt_status,
+        ) in rows
     ]
 
 
@@ -340,9 +468,12 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
         workbook,
         "个人成绩",
         [
-            "NAME · 姓名",
-            "EMP NO · 工号",
+            "ROSTER NAME · 名单姓名",
+            "ROSTER EMAIL · 名单邮箱",
             "DEPT · 部门",
+            "POSITION · 职位",
+            "GROUP · 分组",
+            "REMARK · 备注",
             "EXAM · 考试",
             "SCORE · 得分",
             "TOTAL · 总分",
@@ -350,9 +481,12 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
         ],
         [
             [
-                row.candidate_name,
-                row.employee_no,
+                row.roster_name,
+                row.roster_email,
                 row.department,
+                row.position,
+                row.exam_group,
+                row.roster_remark,
                 row.exam_title,
                 row.score,
                 row.total_score,
@@ -402,19 +536,27 @@ def generate_report_workbook(db: Session, exam_id: int | None = None) -> BytesIO
         "参考状态",
         [
             "CID · 人员ID",
-            "NAME · 姓名",
-            "EMP NO · 工号",
+            "EXAM ID · 考试ID",
+            "EXAM · 考试",
+            "ROSTER NAME · 名单姓名",
+            "ROSTER EMAIL · 名单邮箱",
             "DEPT · 部门",
+            "POSITION · 职位",
             "GROUP · 分组",
+            "REMARK · 备注",
             "STATUS · 状态",
         ],
         [
             [
                 row.candidate_id,
-                row.name,
-                row.employee_no,
+                row.exam_id,
+                row.exam_title,
+                row.roster_name,
+                row.roster_email,
                 row.department,
+                row.position,
                 row.exam_group,
+                row.roster_remark,
                 ATTENDANCE_STATUS_LABELS.get(
                     row.attendance_status, row.attendance_status
                 ),

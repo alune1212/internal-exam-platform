@@ -4,7 +4,7 @@ from app.models.attempt import (
     ExamAttemptQuestion,
     PracticeAnswer,
 )
-from app.models.candidate import Candidate
+from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_login import CandidateLoginChallenge
 from app.models.exam import Exam, ExamCandidateScope, ExamQuestionPool, ExamRetakeGrant
 from app.models.import_batch import ImportBatch
@@ -16,6 +16,7 @@ __all__ = [
     "AdminAuditEvent",
     "Candidate",
     "CandidateLoginChallenge",
+    "CandidateStatus",
     "Exam",
     "ExamAttempt",
     "ExamAttemptAnswer",

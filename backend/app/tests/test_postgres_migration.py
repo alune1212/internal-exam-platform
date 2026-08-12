@@ -15,8 +15,8 @@ from app.services.exam_attempts import get_attempt, get_attempt_result
 
 POSTGRES_TEST_DATABASE_URL = os.environ.get("POSTGRES_TEST_DATABASE_URL")
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
-PREVIOUS_REVISION = "202607030002"
-CURRENT_REVISION = "202608070001"
+PREVIOUS_REVISION = "202608070001"
+CURRENT_REVISION = "202608110001"
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -43,12 +43,17 @@ def migrated_postgres() -> Iterator[tuple[Engine, sessionmaker[Session]]]:
     engine = create_engine(POSTGRES_TEST_DATABASE_URL, pool_pre_ping=True)
     _assert_isolated_database(engine)
     config = _alembic_config(POSTGRES_TEST_DATABASE_URL)
-    command.upgrade(config, "head")
-    command.downgrade(config, PREVIOUS_REVISION)
+    # The new migration's downgrade is intentionally restore-only and raises;
+    # reset this disposable database explicitly before each upgrade test.
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP SCHEMA IF EXISTS public CASCADE")
+        connection.exec_driver_sql("CREATE SCHEMA public")
+    command.upgrade(config, PREVIOUS_REVISION)
     try:
         yield engine, sessionmaker(bind=engine, expire_on_commit=False)
     finally:
-        command.upgrade(config, "head")
+        with engine.begin() as connection:
+            connection.exec_driver_sql("DROP SCHEMA IF EXISTS public CASCADE")
         engine.dispose()
 
 
@@ -66,18 +71,42 @@ def _seed_legacy_submitted_attempt(engine: Engine) -> tuple[int, int]:
         connection.execute(
             text(
                 "INSERT INTO candidate "
-                "(id, name, should_attend, status, is_login_sentinel, created_at, updated_at) "
-                "VALUES (1, '历史考生', true, 'active', false, :now, :now)"
+                "(id, name, email, should_attend, status, is_login_sentinel, "
+                "department, position, exam_group, remark, created_at, updated_at) "
+                "VALUES (1, '历史考生', 'history@example.com', true, 'active', false, "
+                "'历史部门', '历史岗位', '历史组', '历史备注', :now, :now)"
             ),
             {"now": now},
         )
         connection.execute(
             text(
+                "INSERT INTO candidate "
+                "(id, name, email, should_attend, status, is_login_sentinel, "
+                "created_at, updated_at) "
+                "VALUES (2, '__candidate_login_sentinel__', NULL, false, "
+                "'inactive', true, :now, :now)"
+            ),
+            {"now": now},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO candidate_login_challenge "
+                "(id, candidate_id, delivery_channel, otp_hash, expires_at, "
+                "consumed_at, attempt_count, request_ip_hash, created_at, updated_at) "
+                "VALUES (1, 1, 'email', 'real-otp', :expires, NULL, 0, NULL, :now, :now), "
+                "(2, 2, 'email', 'sentinel-otp', :expires, NULL, 0, NULL, :now, :now)"
+            ),
+            {"expires": now + timedelta(minutes=5), "now": now},
+        )
+        connection.execute(
+            text(
                 "INSERT INTO exam "
                 "(id, title, duration_minutes, question_rule, status, "
-                "show_answer_after_submit, show_ranking, created_at, updated_at) "
+                "show_answer_after_submit, show_ranking, "
+                "result_details_released_at, result_details_released_by, "
+                "created_at, updated_at) "
                 "VALUES (1, '历史考试', 60, CAST(:rule AS json), 'active', "
-                "true, true, :now, :now)"
+                "true, true, :now, 'migration', :now, :now)"
             ),
             {"rule": "{}", "now": now},
         )
@@ -98,6 +127,14 @@ def _seed_legacy_submitted_attempt(engine: Engine) -> tuple[int, int]:
                 "submitted": now,
                 "now": now,
             },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO exam_candidate_scope "
+                "(exam_id, candidate_id, created_at, updated_at) "
+                "VALUES (1, 1, :now, :now)"
+            ),
+            {"now": now},
         )
         connection.execute(
             text(
@@ -155,3 +192,50 @@ def test_upgrade_preserves_historical_visibility_snapshots_and_submission(
     assert result.show_answer_after_submit is True
     assert result.questions[0].correct_answer_snapshot == "A"
     assert result.questions[0].analysis_snapshot == "历史解析"
+    with engine.connect() as connection:
+        columns = {
+            row[0]
+            for row in connection.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'candidate'"
+                )
+            )
+        }
+        assert {
+            "employee_no",
+            "phone_suffix",
+            "should_attend",
+            "department",
+            "position",
+            "exam_group",
+            "remark",
+            "is_login_sentinel",
+        }.isdisjoint(columns)
+        scope = connection.execute(
+            text(
+                "SELECT roster_email, roster_name, department, position, "
+                "exam_group, roster_remark, invitation_status "
+                "FROM exam_candidate_scope WHERE exam_id = 1 AND candidate_id = 1"
+            )
+        ).one()
+        assert tuple(scope) == (
+            "history@example.com",
+            "历史考生",
+            "历史部门",
+            "历史岗位",
+            "历史组",
+            "历史备注",
+            "not_sent",
+        )
+        challenges = connection.execute(
+            text(
+                "SELECT id, candidate_id, email, consumed_at "
+                "FROM candidate_login_challenge ORDER BY id"
+            )
+        ).all()
+        assert len(challenges) == 1
+        assert challenges[0][0] == 1
+        assert challenges[0][1] == 1
+        assert challenges[0][2] == "history@example.com"
+        assert challenges[0][3] is not None

@@ -52,32 +52,8 @@ def db() -> Iterator[Session]:
     Base.metadata.create_all(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     with session_factory() as session:
-        _ensure_candidate_login_sentinel(session)
         yield session
     Base.metadata.drop_all(engine)
-
-
-def _ensure_candidate_login_sentinel(db: Session) -> None:
-    """Mirror the data migration in tests.
-
-    The ``202607030002_candidate_login_sentinel`` migration inserts exactly
-    one sentinel row in production. Tests build the schema via
-    ``Base.metadata.create_all`` and skip migrations, so we install the
-    sentinel row here to keep the service happy under the uniform-response
-    contract.
-    """
-    existing = db.query(Candidate).filter(Candidate.is_login_sentinel.is_(True)).first()
-    if existing is not None:
-        return
-    db.add(
-        Candidate(
-            name="__candidate_login_sentinel__",
-            status="inactive",
-            should_attend=False,
-            is_login_sentinel=True,
-        )
-    )
-    db.commit()
 
 
 def _test_auto_pool_exam_ids(db: Session) -> set[int]:
@@ -104,7 +80,13 @@ def create_exam(db: Session, **kwargs) -> Exam:
 
 def create_candidate(db: Session, **kwargs) -> Candidate:
     """创建考生的测试辅助函数。"""
-    defaults = {"name": "张三", "email": "zhangsan@example.com"}
+    sequence = int(db.info.get("test_candidate_sequence", 0)) + 1
+    db.info["test_candidate_sequence"] = sequence
+    defaults = {
+        "name": "张三",
+        "email": f"candidate-{sequence}@example.com",
+        "status": "active",
+    }
     defaults.update(kwargs)
     candidate = Candidate(**defaults)
     db.add(candidate)

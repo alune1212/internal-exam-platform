@@ -3,6 +3,11 @@
 ### Requirement: Ranking Uses Submitted Results
 The system SHALL calculate administrator-only rankings from submitted or auto-submitted formal attempt results and MUST exclude voided attempts. Candidate-facing APIs and pages MUST NOT expose ranking.
 
+#### Scenario: Candidate has submitted attempts
+- **GIVEN** candidates have submitted or auto-submitted attempts for an exam
+- **WHEN** the ranking endpoint is requested through the authenticated administrator surface
+- **THEN** the ranking reflects persisted eligible attempt scores for that exam
+
 #### Scenario: Administrator requests ranking
 - **GIVEN** candidates have submitted or auto-submitted attempts for an exam
 - **WHEN** an authenticated operator requests ranking through the loopback admin surface

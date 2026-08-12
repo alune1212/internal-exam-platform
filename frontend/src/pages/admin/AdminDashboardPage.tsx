@@ -91,15 +91,15 @@ export function AdminDashboardPage() {
 
   const activity: ActivityItem[] = [
     ...(scores.data ?? []).slice(0, 5).map((score) => ({
-      id: `score-${score.candidate_name}-${score.exam_title}`,
-      title: `${score.candidate_name} 已交卷：${score.exam_title}`,
+      id: `score-${score.roster_name}-${score.exam_title}`,
+      title: `${score.roster_name} 已交卷：${score.exam_title}`,
       caption: `得分 ${score.score} / ${score.total_score}`,
       when: score.submitted_at ?? "-",
       tone: "success" as const,
     })),
     ...(absent.data ?? []).slice(0, 5).map((candidate) => ({
       id: `absent-${candidate.candidate_id}-${candidate.exam_group ?? ""}`,
-      title: `${candidate.name} 尚未开始考试`,
+      title: `${candidate.roster_name} 尚未开始考试`,
       caption: candidate.exam_group ?? candidate.department ?? "-",
       when: "未到",
       tone: "warning" as const,

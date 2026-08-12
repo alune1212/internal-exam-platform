@@ -34,10 +34,9 @@ const video: LearningVideo = {
 
 const reportRow: LearningReportRow = {
   candidate_id: 3,
-  candidate_name: "张敏",
-  employee_no: "E1001",
-  department: "产品部",
-  exam_group: null,
+  account_email: "zhangmin@example.com",
+  display_name: "张敏",
+  account_status: "active",
   video_id: 7,
   video_title: "安全培训",
   video_status: "published",

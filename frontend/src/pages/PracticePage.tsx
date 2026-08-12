@@ -158,7 +158,7 @@ export function PracticePage() {
           />
           <div className="mt-6 flex justify-center">
             <Button asChild>
-              <Link to="/login">去登录</Link>
+              <Link to="/login?returnTo=%2Fpractice">去登录</Link>
             </Button>
           </div>
         </div>

@@ -35,6 +35,9 @@ def test_external_staging_producer_is_executable_and_syntax_valid() -> None:
 def test_external_staging_producer_has_fail_closed_real_gate_contract() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
 
+    assert "CANDIDATE_PUBLIC_BASE_URL" in script
+    assert "http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}" in script
+
     # SMTP evidence comes from the selected backend image and retains only the
     # recipient domain/timestamp; a failed command never reaches the writer.
     assert "app.ops.preflight smtp" in script

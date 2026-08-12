@@ -37,7 +37,16 @@ from app.tests.conftest import (
 
 
 def add_exam_candidate_scope(db: Session, exam_id: int, candidate_id: int) -> None:
-    db.add(ExamCandidateScope(exam_id=exam_id, candidate_id=candidate_id))
+    candidate = db.get(Candidate, candidate_id)
+    assert candidate is not None
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam_id,
+            candidate_id=candidate_id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
 
 
@@ -687,8 +696,8 @@ def test_start_exam_generates_independent_equivalent_papers_for_same_exam(
             "pass_score": 60,
         },
     )
-    first_candidate = create_candidate(db, name="甲", employee_no="E001")
-    second_candidate = create_candidate(db, name="乙", employee_no="E002")
+    first_candidate = create_candidate(db, name="甲", email="first@example.com")
+    second_candidate = create_candidate(db, name="乙", email="second@example.com")
     add_exam_candidate_scope(db, exam.id, first_candidate.id)
     add_exam_candidate_scope(db, exam.id, second_candidate.id)
     categories = ["交通", "安全", "工伤", "廉政"]
@@ -1552,8 +1561,16 @@ def test_publication_readiness_and_exact_title_confirmation(db: Session) -> None
 
 def test_publication_readiness_reports_roster_email_blocker(db: Session) -> None:
     exam = create_exam(db, status="draft")
-    candidate = create_candidate(db, email=None)
-    add_exam_candidate_scope(db, exam.id, candidate.id)
+    candidate = create_candidate(db, email="real@example.com")
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email="other@example.com",
+            roster_name="名单名",
+        )
+    )
+    db.commit()
     create_question_with_options(db, stem="邮箱预检题")
 
     readiness = exam_service.get_publication_readiness(db, exam.id)
@@ -1567,7 +1584,7 @@ def test_formal_duration_cannot_exceed_120_minutes(db: Session) -> None:
         exam_service.create_exam(db, ExamCreate(title="超时考试", duration_minutes=121))
 
 
-def test_candidate_exam_visibility_opens_30_minutes_early(db: Session) -> None:
+def test_candidate_exam_visibility_is_immediate_after_publication(db: Session) -> None:
     candidate = create_candidate(db)
     hidden_exam = create_exam(
         db,
@@ -1584,7 +1601,7 @@ def test_candidate_exam_visibility_opens_30_minutes_early(db: Session) -> None:
 
     visible = exam_service.list_active_exams(db, candidate.id)
 
-    assert [exam.id for exam in visible] == [visible_exam.id]
+    assert [exam.id for exam in visible] == [hidden_exam.id, visible_exam.id]
 
 
 def test_new_attempt_start_closes_after_15_minute_grace(db: Session) -> None:
@@ -1642,7 +1659,7 @@ def test_submit_attempt_with_no_answers_zeros_score(db: Session) -> None:
 def test_start_exam_rejects_inactive_candidate(db: Session) -> None:
     exam = create_exam(db)
     candidate = Candidate(
-        name="禁用人", employee_no="E999", status="inactive", should_attend=True
+        name="禁用人", email="inactive@example.com", status="inactive"
     )
     db.add(candidate)
     db.commit()

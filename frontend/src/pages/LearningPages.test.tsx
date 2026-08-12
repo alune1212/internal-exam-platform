@@ -29,10 +29,9 @@ vi.mock("@/api/learning", () => ({
 const candidate: Candidate = {
   id: 1,
   token: "candidate-token",
-  name: "张敏",
-  employee_no: "E1001",
-  department: "产品部",
-  should_attend: true,
+  token_expires_at: "2099-01-01T00:00:00.000Z",
+  email: "zhangmin@example.com",
+  display_name: "张敏",
   status: "active",
 };
 
@@ -180,7 +179,7 @@ describe("Learning pages", () => {
       </CandidateContext>,
     );
 
-    expect(await screen.findByRole("heading", { name: "入场核验" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "邮箱登录" })).toBeInTheDocument();
     expect(vi.mocked(getLearningVideos)).not.toHaveBeenCalled();
   });
 

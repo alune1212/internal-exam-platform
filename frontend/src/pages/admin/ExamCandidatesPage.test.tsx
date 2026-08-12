@@ -12,6 +12,11 @@ import {
   importExamCandidates,
 } from "@/api/exams";
 import { downloadImportFailureReport } from "@/api/imports";
+import {
+  getExamInvitationStatus,
+  resendFailedExamInvitations,
+  sendExamInvitations,
+} from "@/api/invitations";
 import { ExamCandidatesPage } from "@/pages/admin/ExamCandidatesPage";
 
 vi.mock("@/api/exams", () => ({
@@ -25,6 +30,15 @@ vi.mock("@/api/exams", () => ({
 vi.mock("@/api/imports", () => ({
   downloadImportTemplate: vi.fn(),
   downloadImportFailureReport: vi.fn(),
+}));
+
+vi.mock("@/api/invitations", () => ({
+  addExamRosterRow: vi.fn(),
+  getExamInvitationStatus: vi.fn(),
+  removeExamRosterRow: vi.fn(),
+  resendFailedExamInvitations: vi.fn(),
+  sendExamInvitations: vi.fn(),
+  updateExamRosterRow: vi.fn(),
 }));
 
 function renderPage() {
@@ -60,11 +74,11 @@ describe("ExamCandidatesPage", () => {
     vi.mocked(getExamCandidates).mockResolvedValue([
       {
         candidate_id: 1,
-        candidate_name: "张三",
-        employee_no: "E001",
+        roster_email: "zhangsan@example.com",
+        roster_name: "张三",
         department: "安全部",
-        should_attend: true,
-        candidate_status: "active",
+        account_status: "active",
+        invitation_status: "not_sent",
         latest_attempt_status: "submitted",
         latest_score: 88,
         latest_total_score: 100,
@@ -82,17 +96,26 @@ describe("ExamCandidatesPage", () => {
     });
     vi.mocked(createRetakeGrant).mockResolvedValue({
       candidate_id: 1,
-      candidate_name: "张三",
-      employee_no: "E001",
+      roster_email: "zhangsan@example.com",
+      roster_name: "张三",
       department: "安全部",
-      should_attend: true,
-      candidate_status: "active",
+      account_status: "active",
+      invitation_status: "not_sent",
       latest_attempt_status: "submitted",
       latest_score: 88,
       latest_total_score: 100,
       attempt_no: 1,
       attempt_kind: "initial",
       has_unused_retake_grant: true,
+    });
+    vi.mocked(sendExamInvitations).mockResolvedValue({ accepted_count: 1, rejected_count: 0 });
+    vi.mocked(getExamInvitationStatus).mockResolvedValue({
+      exam_id: 1,
+      rows: [],
+    });
+    vi.mocked(resendFailedExamInvitations).mockResolvedValue({
+      accepted_count: 1,
+      rejected_count: 0,
     });
   });
 
@@ -222,5 +245,113 @@ describe("ExamCandidatesPage", () => {
     await user.click(await screen.findByRole("button", { name: "下载失败明细" }));
 
     expect(downloadImportFailureReport).toHaveBeenCalledWith(9);
+  });
+
+  it("keeps the draft roster editable and exposes explicit initial invitation send only after publication", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAdminExams).mockResolvedValue([
+      {
+        id: 1,
+        title: "安全知识竞赛",
+        description: null,
+        duration_minutes: 60,
+        question_rule: {},
+        status: "active",
+        show_answer_after_submit: true,
+      },
+    ]);
+    renderPage();
+
+    await screen.findByText("张三");
+    expect(await screen.findByRole("button", { name: "初次发送邀请" })).toBeEnabled();
+    expect(screen.queryByText("已发送")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "初次发送邀请" }));
+    await waitFor(() => expect(sendExamInvitations).toHaveBeenCalledWith("1"));
+    expect(await screen.findByText(/初次邀请已接受 1 条/)).toBeInTheDocument();
+  });
+
+  it("resends failed recipients only and never offers a resend for sent rows", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getExamCandidates).mockResolvedValueOnce([
+      {
+        candidate_id: 1,
+        roster_email: "zhangsan@example.com",
+        roster_name: "张三",
+        account_status: "active",
+        invitation_status: "failed",
+        invitation_error_class: "smtp_transient",
+        latest_attempt_status: "submitted",
+        latest_score: 88,
+        latest_total_score: 100,
+        attempt_no: 1,
+        attempt_kind: "initial",
+        has_unused_retake_grant: false,
+      },
+    ]);
+    vi.mocked(getAdminExams).mockResolvedValue([
+      {
+        id: 1,
+        title: "安全知识竞赛",
+        description: null,
+        duration_minutes: 60,
+        question_rule: {},
+        status: "active",
+        show_answer_after_submit: true,
+      },
+    ]);
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "仅重发失败项" }));
+    await waitFor(() => expect(resendFailedExamInvitations).toHaveBeenCalledWith("1"));
+    expect(await screen.findByText(/失败重发已接受 1 条/)).toBeInTheDocument();
+  });
+
+  it("refreshes final invitation state after a slow background delivery", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAdminExams).mockResolvedValue([
+      {
+        id: 1,
+        title: "安全知识竞赛",
+        description: null,
+        duration_minutes: 60,
+        question_rule: {},
+        status: "active",
+        show_answer_after_submit: true,
+      },
+    ]);
+    vi.mocked(getExamCandidates).mockResolvedValueOnce([
+      {
+        candidate_id: 1,
+        roster_email: "zhangsan@example.com",
+        roster_name: "张三",
+        account_status: "active",
+        invitation_status: "not_sent",
+        invitation_claimed_at: "2026-08-11T08:00:00Z",
+        has_unused_retake_grant: false,
+      },
+    ]);
+    vi.mocked(getExamInvitationStatus).mockResolvedValueOnce({
+      exam_id: 1,
+      rows: [
+        {
+          candidate_id: 1,
+          roster_email: "zhangsan@example.com",
+          roster_name: "张三",
+          account_status: "active",
+          invitation_status: "sent",
+          invitation_claimed_at: null,
+          invitation_sent_at: "2026-08-11T08:00:20Z",
+          has_unused_retake_grant: false,
+        },
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("发送中")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "初次发送邀请" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "刷新邀请状态" }));
+    expect(await screen.findByText("已发送")).toBeInTheDocument();
+    expect(getExamInvitationStatus).toHaveBeenCalledTimes(1);
   });
 });

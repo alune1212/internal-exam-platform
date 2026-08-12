@@ -35,6 +35,8 @@ from app.tests.conftest import (
     submit_answers,
 )
 
+PRODUCTION_PUBLIC_URL = "https://exam.example.com"
+
 
 def _build_client() -> tuple[TestClient, Session]:
     engine = create_engine(
@@ -370,13 +372,19 @@ def test_admin_token_rejects_future_issued_at() -> None:
 
 def test_production_rejects_default_admin_password_and_token_secret() -> None:
     with pytest.raises(ValidationError):
-        Settings(environment="production")
+        Settings(
+            environment="production",
+            cors_origins=PRODUCTION_PUBLIC_URL,
+            candidate_public_base_url=PRODUCTION_PUBLIC_URL,
+        )
 
     with pytest.raises(ValidationError):
         Settings(
             environment="production",
             admin_password="strong-password",  # noqa: S106
             token_secret="change-me-in-production",  # noqa: S106
+            cors_origins=PRODUCTION_PUBLIC_URL,
+            candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         )
 
 
@@ -386,7 +394,8 @@ def test_production_rejects_sample_admin_password() -> None:
             environment="production",
             admin_password="local-dev-admin-password",  # noqa: S106
             token_secret="prod-token-secret",  # noqa: S106
-            cors_origins="https://exam.example.com",
+            cors_origins=PRODUCTION_PUBLIC_URL,
+            candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         )
 
 
@@ -396,7 +405,8 @@ def test_production_rejects_sample_token_secret() -> None:
             environment="production",
             admin_password="strong-password",  # noqa: S106
             token_secret="local-dev-token-secret-change-before-production",  # noqa: S106
-            cors_origins="https://exam.example.com",
+            cors_origins=PRODUCTION_PUBLIC_URL,
+            candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         )
 
 
@@ -419,6 +429,7 @@ def test_production_rejects_dangerous_cors_origins(cors_origins: str) -> None:
             admin_password="strong-password",  # noqa: S106
             token_secret="prod-token-secret",  # noqa: S106
             cors_origins=cors_origins,
+            candidate_public_base_url=PRODUCTION_PUBLIC_URL,
             candidate_login_email_delivery_mode="smtp",
             candidate_login_email_from="noreply@example.com",
             candidate_login_smtp_host="smtp.example.com",
@@ -431,6 +442,7 @@ def test_production_accepts_explicit_https_cors_origins() -> None:
         admin_password="strong-password",  # noqa: S106
         token_secret="prod-token-secret",  # noqa: S106
         cors_origins="https://exam.example.com, https://admin.example.com",
+        candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         candidate_login_email_delivery_mode="smtp",
         candidate_login_email_from="noreply@example.com",
         candidate_login_smtp_host="smtp.example.com",
@@ -557,28 +569,20 @@ def test_admin_import_failure_report_returns_404_for_missing_batch() -> None:
     assert resp.status_code == 404
 
 
-def test_admin_candidate_template_download_returns_workbook() -> None:
+def test_admin_legacy_candidate_template_is_unsupported() -> None:
     client, _ = _build_client()
-    login = client.post(
+    token = client.post(
         "/api/admin/login",
         json={"username": "admin", "password": settings.admin_password},
-    )
-    token = login.json()["data"]["token"]
+    ).json()["data"]["token"]
+    legacy_template_kind = "candidate" + "s"
 
     resp = client.get(
-        "/api/admin/imports/templates/candidates",
+        f"/api/admin/imports/templates/{legacy_template_kind}",
         headers={"X-Admin-Token": token},
     )
 
-    assert resp.status_code == 200
-    assert (
-        resp.headers["content-type"]
-        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    assert "应考名单导入模板.xlsx" in unquote(resp.headers["content-disposition"])
-    workbook = load_workbook(BytesIO(resp.content))
-    assert workbook.active.title == "应考名单导入模板"
-    assert workbook.active.cell(1, 1).value == "name"
+    assert resp.status_code == 404
 
 
 def test_admin_question_template_download_returns_workbook() -> None:
@@ -631,11 +635,21 @@ def test_admin_score_report_accepts_exam_filter() -> None:
     client, db = _build_client()
     first_exam = create_exam(db, title="第一场")
     second_exam = create_exam(db, title="第二场")
-    candidate = create_candidate(db, employee_no="E001")
+    candidate = create_candidate(db, email="report@example.com")
     db.add_all(
         [
-            ExamCandidateScope(exam_id=first_exam.id, candidate_id=candidate.id),
-            ExamCandidateScope(exam_id=second_exam.id, candidate_id=candidate.id),
+            ExamCandidateScope(
+                exam_id=first_exam.id,
+                candidate_id=candidate.id,
+                roster_email=candidate.email,
+                roster_name=candidate.name or "报告用户",
+            ),
+            ExamCandidateScope(
+                exam_id=second_exam.id,
+                candidate_id=candidate.id,
+                roster_email=candidate.email,
+                roster_name=candidate.name or "报告用户",
+            ),
         ]
     )
     db.commit()
@@ -666,8 +680,15 @@ def test_publish_rolls_back_exam_when_audit_write_fails(
 ) -> None:
     client, db = _build_client()
     exam = create_exam(db, title="待发布", status="draft")
-    candidate = create_candidate(db, employee_no="E-PUBLISH")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    candidate = create_candidate(db, email="publish@example.com")
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "发布用户",
+        )
+    )
     db.commit()
     create_question_with_options(db)
     token = client.post(

@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models import ExamCandidateScope
+from app.models import ExamAttempt, ExamCandidateScope
 from app.services import exam_service, report_service
 from app.services.excel_security import escape_excel_cell
 from app.tests.conftest import (
@@ -15,12 +15,12 @@ from app.tests.conftest import (
 def _setup_exam_with_candidates(db: Session):
     """创建一场考试、两个考生、两道题，返回 (exam, c1, c2, start1, start2)。"""
     exam = create_exam(db, title="测试考试")
-    c1 = create_candidate(db, name="张三", employee_no="E001", department="技术部")
-    c2 = create_candidate(db, name="李四", employee_no="E002", department="产品部")
+    c1 = create_candidate(db, name="张三", email="zhangsan@example.com")
+    c2 = create_candidate(db, name="李四", email="lisi@example.com")
     db.add_all(
         [
-            ExamCandidateScope(exam_id=exam.id, candidate_id=c1.id),
-            ExamCandidateScope(exam_id=exam.id, candidate_id=c2.id),
+            _scope(exam, c1, department="技术部"),
+            _scope(exam, c2, department="产品部"),
         ]
     )
     db.commit()
@@ -30,6 +30,17 @@ def _setup_exam_with_candidates(db: Session):
     r1 = exam_service.start_exam(db, exam.id, c1.id)
     r2 = exam_service.start_exam(db, exam.id, c2.id)
     return exam, c1, c2, r1, r2
+
+
+def _scope(exam, candidate, **kwargs) -> ExamCandidateScope:
+    defaults = {
+        "exam_id": exam.id,
+        "candidate_id": candidate.id,
+        "roster_email": candidate.email,
+        "roster_name": candidate.name or "待确认",
+    }
+    defaults.update(kwargs)
+    return ExamCandidateScope(**defaults)
 
 
 # --- 个人成绩 ---
@@ -71,13 +82,115 @@ def test_score_report_uses_latest_submitted_attempt(db: Session) -> None:
     assert row.score == 0
 
 
+def test_ranking_uses_latest_results_and_competition_ties(db: Session) -> None:
+    exam, c1, c2, r1, r2 = _setup_exam_with_candidates(db)
+    submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
+    submit_answers(db, r2.attempt_id, r2.questions, ["A", "A"])
+    exam_service.create_retake_grant(db, exam.id, c1.id)
+    c1_retake = exam_service.start_exam(db, exam.id, c1.id)
+    submit_answers(db, c1_retake.attempt_id, c1_retake.questions, ["B", "B"])
+
+    c3 = create_candidate(db, name="王五", email="wangwu@example.com")
+    db.add(_scope(exam, c3))
+    db.commit()
+    r3 = exam_service.start_exam(db, exam.id, c3.id)
+    submit_answers(db, r3.attempt_id, r3.questions, ["A", "A"])
+    # Equal score and timestamp must still have stable candidate-id ordering.
+    r3_attempt = db.get(ExamAttempt, r3.attempt_id)
+    r2_attempt = db.get(ExamAttempt, r2.attempt_id)
+    assert r3_attempt is not None
+    assert r2_attempt is not None
+    r3_attempt.submitted_at = r2_attempt.submitted_at
+    db.commit()
+
+    ranking = report_service.get_ranking(db, exam.id)
+
+    assert [(row.rank, row.candidate_id, row.score) for row in ranking] == [
+        (1, c2.id, 10.0),
+        (1, c3.id, 10.0),
+        (3, c1.id, 0.0),
+    ]
+    assert ranking[0].roster_name == "李四"
+    assert ranking[1].roster_email == "wangwu@example.com"
+
+
+def test_ranking_excludes_voided_attempts(db: Session) -> None:
+    exam = create_exam(db, title="作废排名称")
+    candidate = create_candidate(db, name="作废人员", email="voided@example.com")
+    db.add(_scope(exam, candidate))
+    db.commit()
+    create_question_with_options(db, stem="作废题", score=5)
+    started = exam_service.start_exam(db, exam.id, candidate.id)
+    submit_answers(db, started.attempt_id, started.questions, ["A"])
+    exam_service.void_attempt(
+        db,
+        started.attempt_id,
+        operator_subject="admin",
+        reason="测试作废",
+    )
+
+    assert report_service.get_ranking(db, exam.id) == []
+
+
+def test_formal_report_keeps_frozen_scope_identity_after_profile_edit_and_deactivation(
+    db: Session,
+) -> None:
+    exam, candidate, _other, start, _other_start = _setup_exam_with_candidates(db)
+    submit_answers(db, start.attempt_id, start.questions, ["A", "A"])
+    scope = (
+        db.query(ExamCandidateScope)
+        .filter(
+            ExamCandidateScope.exam_id == exam.id,
+            ExamCandidateScope.candidate_id == candidate.id,
+        )
+        .one()
+    )
+    candidate.name = "平台新显示名"
+    candidate.status = "inactive"
+    db.commit()
+
+    score = next(
+        row
+        for row in report_service.get_score_report(db)
+        if row.candidate_id == candidate.id
+    )
+    attendance = next(
+        row
+        for row in report_service.get_absent_candidates(
+            db, exam_id=exam.id, status="submitted"
+        )
+        if row.candidate_id == candidate.id
+    )
+
+    assert score.roster_name == scope.roster_name == "张三"
+    assert score.roster_email == scope.roster_email == "zhangsan@example.com"
+    assert attendance.roster_name == "张三"
+    assert attendance.roster_email == "zhangsan@example.com"
+    for row in (score, attendance):
+        assert set(row.model_dump()) <= {
+            "candidate_id",
+            "exam_id",
+            "exam_title",
+            "roster_name",
+            "roster_email",
+            "department",
+            "position",
+            "exam_group",
+            "roster_remark",
+            "score",
+            "total_score",
+            "submitted_at",
+            "attendance_status",
+        }
+
+
 def test_reports_filter_by_exam_id(db: Session) -> None:
     exam, c1, _c2, r1, r2 = _setup_exam_with_candidates(db)
     submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
     submit_answers(db, r2.attempt_id, r2.questions, ["B", "B"])
 
     second_exam = create_exam(db, title="第二场考试")
-    db.add(ExamCandidateScope(exam_id=second_exam.id, candidate_id=c1.id))
+    db.add(_scope(second_exam, c1, roster_name="张三·第二场"))
     db.commit()
     second_start = exam_service.start_exam(db, second_exam.id, c1.id)
     submit_answers(db, second_start.attempt_id, second_start.questions, ["B", "B"])
@@ -91,6 +204,15 @@ def test_reports_filter_by_exam_id(db: Session) -> None:
     assert {row.candidate_name for row in first_scores} == {"张三", "李四"}
     assert [row.exam_title for row in second_scores] == ["第二场考试"]
     assert second_scores[0].score == 0
+    global_scores = [
+        row for row in report_service.get_score_report(db) if row.candidate_id == c1.id
+    ]
+    assert {
+        (row.exam_title, row.roster_name, row.roster_email) for row in global_scores
+    } == {
+        ("测试考试", "张三", "zhangsan@example.com"),
+        ("第二场考试", "张三·第二场", "zhangsan@example.com"),
+    }
     assert all(row.total_count == 1 for row in second_accuracy)
     assert all(row.correct_count == 0 for row in second_accuracy)
     assert {row.stem for row in first_wrong} == {"题目A", "题目B"}
@@ -165,8 +287,8 @@ def test_absent_candidates_splits_not_started_and_in_progress(db: Session) -> No
     submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
     # c2 已开考但未提交，不应再算作未开始缺考。
 
-    c3 = create_candidate(db, name="王五", employee_no="E003")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=c3.id))
+    c3 = create_candidate(db, name="王五", email="wangwu@example.com")
+    db.add(_scope(exam, c3))
     db.commit()
 
     report = report_service.get_absent_candidates(db, exam_id=exam.id)
@@ -194,8 +316,8 @@ def test_absent_candidates_uses_latest_attempt_state_per_exam(
     exam_service.create_retake_grant(db, exam.id, c1.id)
     exam_service.start_exam(db, exam.id, c1.id)
     exam_service.submit_attempt(db, r2.attempt_id, "auto")
-    c3 = create_candidate(db, name="王五", employee_no="E003")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=c3.id))
+    c3 = create_candidate(db, name="王五", email="wangwu@example.com")
+    db.add(_scope(exam, c3))
     db.commit()
 
     not_started = report_service.get_absent_candidates(db, exam_id=exam.id)
@@ -211,19 +333,35 @@ def test_absent_candidates_uses_latest_attempt_state_per_exam(
     assert [r.name for r in submitted] == ["李四"]
 
 
-def test_absent_candidates_excludes_non_should_attend(db: Session) -> None:
-    create_candidate(db, name="不需要参加", employee_no="E010", should_attend=False)
+def test_absent_candidates_includes_inactive_and_pending_scopes(db: Session) -> None:
+    exam = create_exam(db, title="冻结名单")
+    inactive = create_candidate(
+        db, name="已停用", email="inactive@example.com", status="inactive"
+    )
+    pending = create_candidate(
+        db, name=None, email="pending@example.com", status="pending"
+    )
+    db.add_all(
+        [
+            _scope(exam, inactive, roster_name="停用时名单"),
+            _scope(exam, pending, roster_name="待注册名单"),
+        ]
+    )
+    db.commit()
 
-    report = report_service.get_absent_candidates(db)
-    names = [r.name for r in report]
-    assert "不需要参加" not in names
+    report = report_service.get_absent_candidates(db, exam_id=exam.id)
+
+    assert [(row.roster_email, row.roster_name) for row in report] == [
+        ("inactive@example.com", "停用时名单"),
+        ("pending@example.com", "待注册名单"),
+    ]
 
 
 def test_absent_candidates_global_status_filter(db: Session) -> None:
     exam, c1, _c2, r1, _r2 = _setup_exam_with_candidates(db)
     submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
-    c3 = create_candidate(db, name="王五", employee_no="E003")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=c3.id))
+    c3 = create_candidate(db, name="王五", email="wangwu@example.com")
+    db.add(_scope(exam, c3))
     db.commit()
 
     assert [r.name for r in report_service.get_absent_candidates(db)] == ["王五"]
@@ -246,9 +384,12 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
 
     assert workbook.sheetnames == ["个人成绩", "题目正确率", "错题排行", "参考状态"]
     assert [cell.value for cell in workbook["个人成绩"][1]] == [
-        "NAME · 姓名",
-        "EMP NO · 工号",
+        "ROSTER NAME · 名单姓名",
+        "ROSTER EMAIL · 名单邮箱",
         "DEPT · 部门",
+        "POSITION · 职位",
+        "GROUP · 分组",
+        "REMARK · 备注",
         "EXAM · 考试",
         "SCORE · 得分",
         "TOTAL · 总分",
@@ -271,14 +412,18 @@ def test_report_workbook_contains_all_report_sheets(db: Session) -> None:
     ]
     assert [cell.value for cell in workbook["参考状态"][1]] == [
         "CID · 人员ID",
-        "NAME · 姓名",
-        "EMP NO · 工号",
+        "EXAM ID · 考试ID",
+        "EXAM · 考试",
+        "ROSTER NAME · 名单姓名",
+        "ROSTER EMAIL · 名单邮箱",
         "DEPT · 部门",
+        "POSITION · 职位",
         "GROUP · 分组",
+        "REMARK · 备注",
         "STATUS · 状态",
     ]
     exported_statuses = [
-        workbook["参考状态"].cell(row, 6).value
+        workbook["参考状态"].cell(row, 10).value
         for row in range(2, workbook["参考状态"].max_row + 1)
     ]
     assert exported_statuses == ["进行中", "已交卷"]
@@ -304,7 +449,7 @@ def test_report_workbook_escapes_formula_like_text(db: Session) -> None:
 
     exam = create_exam(db, title="=cmd")
     candidate = create_candidate(db, name='=HYPERLINK("http://example.test")')
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(_scope(exam, candidate))
     db.commit()
     create_question_with_options(db, stem="+SUM(1,1)")
     start = exam_service.start_exam(db, exam.id, candidate.id)
@@ -314,7 +459,7 @@ def test_report_workbook_escapes_formula_like_text(db: Session) -> None:
     workbook = load_workbook(workbook_stream, data_only=False)
 
     assert workbook["个人成绩"].cell(2, 1).value.startswith("'=")
-    assert workbook["个人成绩"].cell(2, 4).value == "'=cmd"
+    assert workbook["个人成绩"].cell(2, 7).value == "'=cmd"
     assert workbook["题目正确率"].cell(2, 2).value == "'+SUM(1,1)"
     assert workbook["错题排行"].cell(2, 2).value == "'+SUM(1,1)"
 
@@ -325,7 +470,7 @@ def test_report_workbook_filters_by_exam_id(db: Session) -> None:
     exam, c1, _c2, r1, _r2 = _setup_exam_with_candidates(db)
     submit_answers(db, r1.attempt_id, r1.questions, ["A", "A"])
     second_exam = create_exam(db, title="第二场考试")
-    db.add(ExamCandidateScope(exam_id=second_exam.id, candidate_id=c1.id))
+    db.add(_scope(second_exam, c1, roster_name="张三·第二场"))
     db.commit()
     second_start = exam_service.start_exam(db, second_exam.id, c1.id)
     submit_answers(db, second_start.attempt_id, second_start.questions, ["B", "B"])
@@ -333,5 +478,5 @@ def test_report_workbook_filters_by_exam_id(db: Session) -> None:
     workbook_stream = report_service.generate_report_workbook(db, exam_id=exam.id)
     workbook = load_workbook(workbook_stream)
 
-    assert workbook["个人成绩"].cell(2, 4).value == "测试考试"
-    assert workbook["个人成绩"].cell(3, 4).value is None
+    assert workbook["个人成绩"].cell(2, 7).value == "测试考试"
+    assert workbook["个人成绩"].cell(3, 7).value is None

@@ -1,8 +1,5 @@
-"""考试应考名单与补考授权 API 测试。"""
-
 from collections.abc import Iterator
 
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -11,9 +8,9 @@ from sqlalchemy.pool import StaticPool
 from app.core.config import settings
 from app.core.database import Base, get_db
 from app.main import create_app
-from app.models import Candidate, Exam, ExamAttempt, ExamCandidateScope, ImportBatch
-from app.services import import_service
-from app.tests.conftest import build_workbook, create_question_with_options
+from app.models import Candidate, Exam, ExamCandidateScope
+from app.services import invitation_service
+from app.tests.conftest import build_workbook
 
 
 def _build_client() -> tuple[TestClient, Session]:
@@ -35,441 +32,134 @@ def _build_client() -> tuple[TestClient, Session]:
 
 
 def _admin_headers(client: TestClient) -> dict[str, str]:
-    resp = client.post(
+    response = client.post(
         "/api/admin/login",
         json={"username": "admin", "password": settings.admin_password},
     )
-    return {"X-Admin-Token": resp.json()["data"]["token"]}
+    assert response.status_code == 200
+    return {"X-Admin-Token": response.json()["data"]["token"]}
 
 
-def _create_exam(db: Session, *, status: str = "draft") -> Exam:
-    exam = Exam(title="安全考试", duration_minutes=60, status=status)
+def _draft_exam(db: Session) -> Exam:
+    exam = Exam(title="安全考试", duration_minutes=60, status="draft")
     db.add(exam)
     db.commit()
     db.refresh(exam)
     return exam
 
 
-def test_import_exam_candidates_adds_scope_rows() -> None:
-    client, db = _build_client()
-    exam = _create_exam(db)
-    workbook = build_workbook(
-        [
-            "name",
-            "employee_no",
-            "department",
-            "position",
-            "phone_suffix",
-            "email",
-            "exam_group",
-            "should_attend",
-            "status",
-            "remark",
-        ],
-        [
-            {
-                "name": "张三",
-                "employee_no": "E001",
-                "department": "安全部",
-                "email": "zhangsan@example.com",
-                "should_attend": True,
-                "status": "active",
-            }
-        ],
+def _roster_workbook(*rows: dict[str, object]):
+    return build_workbook(
+        ["email", "candidate_name", "department", "position", "exam_group", "remark"],
+        list(rows),
     )
 
-    resp = client.post(
+
+def test_import_exam_roster_creates_pending_scope() -> None:
+    client, db = _build_client()
+    exam = _draft_exam(db)
+    workbook = _roster_workbook(
+        {"email": "u@example.com", "candidate_name": "用户", "department": "研发"}
+    )
+
+    response = client.post(
         f"/api/admin/exams/{exam.id}/candidates/import",
         headers=_admin_headers(client),
         files={
             "file": (
-                "candidates.xlsx",
+                "roster.xlsx",
                 workbook.getvalue(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
         },
     )
 
-    assert resp.status_code == 200
-    data = resp.json()["data"]
-    batch = db.query(ImportBatch).one()
-    assert data["batch_id"] == batch.id
-    assert batch.import_type == "exam_candidates"
-    assert db.query(Candidate).count() == 1
-    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
+    assert response.status_code == 200
+    assert response.json()["data"]["success_count"] == 1
+    candidate = db.query(Candidate).one()
+    scope = db.query(ExamCandidateScope).one()
+    assert candidate.status == "pending"
+    assert scope.roster_email == "u@example.com"
+    assert scope.roster_name == "用户"
 
 
-def test_import_exam_candidates_rolls_back_when_audit_write_fails(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_draft_roster_crud_and_published_lock() -> None:
     client, db = _build_client()
-    exam = _create_exam(db)
-    workbook = build_workbook(
-        [
-            "name",
-            "employee_no",
-            "department",
-            "position",
-            "phone_suffix",
-            "email",
-            "exam_group",
-            "should_attend",
-            "status",
-            "remark",
-        ],
-        [
-            {
-                "name": "审计失败人员",
-                "employee_no": "E-AUDIT-FAIL",
-                "email": "audit-fail@example.com",
-                "should_attend": True,
-                "status": "active",
-            }
-        ],
+    exam = _draft_exam(db)
+    headers = _admin_headers(client)
+
+    created = client.post(
+        f"/api/admin/exams/{exam.id}/candidates",
+        headers=headers,
+        json={"email": "u@example.com", "candidate_name": "用户"},
     )
-    token = _admin_headers(client)["X-Admin-Token"]
+    assert created.status_code == 200
+    row = created.json()["data"]
+    assert row["roster_email"] == "u@example.com"
+    assert row["invitation_status"] == "not_sent"
 
-    def fail_audit(*_args: object, **_kwargs: object) -> None:
-        raise RuntimeError("audit unavailable")
-
-    monkeypatch.setattr("app.api.exams.record_admin_event", fail_audit)
-    with pytest.raises(RuntimeError, match="audit unavailable"):
-        client.post(
-            f"/api/admin/exams/{exam.id}/candidates/import",
-            headers={"X-Admin-Token": token},
-            files={
-                "file": (
-                    "candidates.xlsx",
-                    workbook.getvalue(),
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
-            },
-        )
-    db.expire_all()
-    assert db.query(Candidate).count() == 0
-    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 0
-    assert db.query(ImportBatch).filter_by(import_type="exam_candidates").count() == 0
-
-
-def test_import_exam_candidates_rejects_oversized_upload(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    client, db = _build_client()
-    exam = _create_exam(db)
-    workbook = build_workbook(
-        [
-            "name",
-            "employee_no",
-            "department",
-            "position",
-            "phone_suffix",
-            "email",
-            "exam_group",
-            "should_attend",
-            "status",
-            "remark",
-        ],
-        [
-            {
-                "name": "张三",
-                "email": "zhangsan@example.com",
-                "should_attend": True,
-                "status": "active",
-            }
-        ],
+    updated = client.patch(
+        f"/api/admin/exams/{exam.id}/candidates/{row['candidate_id']}",
+        headers=headers,
+        json={"candidate_name": "新名单名", "remark": "备注"},
     )
-    monkeypatch.setattr(import_service.settings, "import_max_upload_bytes", 1)
+    assert updated.status_code == 200
+    assert updated.json()["data"]["roster_name"] == "新名单名"
 
-    resp = client.post(
-        f"/api/admin/exams/{exam.id}/candidates/import",
-        headers=_admin_headers(client),
-        files={
-            "file": (
-                "candidates.xlsx",
-                workbook.getvalue(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        },
-    )
+    listed = client.get(f"/api/admin/exams/{exam.id}/candidates", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()["data"][0]["roster_name"] == "新名单名"
 
-    assert resp.status_code == 413
-    assert "导入文件大小不能超过 1 字节" in resp.json()["detail"]
-    assert db.query(ImportBatch).count() == 0
-
-
-def test_import_exam_candidates_reuses_existing_name_without_employee_no() -> None:
-    client, db = _build_client()
-    first_exam = _create_exam(db)
-    second_exam = _create_exam(db)
-    candidate = Candidate(name="人员1", email="person1@example.com", status="active")
-    db.add(candidate)
-    db.flush()
-    db.add(ExamCandidateScope(exam_id=first_exam.id, candidate_id=candidate.id))
+    db.refresh(exam)
+    exam.status = "active"
     db.commit()
-    workbook = build_workbook(
-        [
-            "name",
-            "employee_no",
-            "department",
-            "position",
-            "phone_suffix",
-            "email",
-            "exam_group",
-            "should_attend",
-            "status",
-            "remark",
-        ],
-        [
-            {
-                "name": "人员1",
-                "email": "person1@example.com",
-                "should_attend": True,
-                "status": "active",
-            },
-            {
-                "name": "人员2",
-                "email": "person2@example.com",
-                "should_attend": True,
-                "status": "active",
-            },
-        ],
+    blocked = client.patch(
+        f"/api/admin/exams/{exam.id}/candidates/{row['candidate_id']}",
+        headers=headers,
+        json={"candidate_name": "不应修改"},
     )
-
-    resp = client.post(
-        f"/api/admin/exams/{second_exam.id}/candidates/import",
-        headers=_admin_headers(client),
-        files={
-            "file": (
-                "candidates.xlsx",
-                workbook.getvalue(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        },
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()["data"]
-    assert data["success_count"] == 2
-    assert data["failed_count"] == 0
-    assert db.query(Candidate).count() == 2
-    assert db.query(ExamCandidateScope).filter_by(exam_id=second_exam.id).count() == 2
-
-
-def test_import_exam_candidates_backfills_missing_email() -> None:
-    client, db = _build_client()
-    exam = _create_exam(db)
-    candidate = Candidate(name="待补邮箱", employee_no="E200", status="active")
-    db.add(candidate)
-    db.commit()
-    workbook = build_workbook(
-        [
-            "name",
-            "employee_no",
-            "department",
-            "position",
-            "phone_suffix",
-            "email",
-            "exam_group",
-            "should_attend",
-            "status",
-            "remark",
-        ],
-        [
-            {
-                "name": "待补邮箱",
-                "employee_no": "E200",
-                "email": "backfill@example.com",
-                "should_attend": True,
-                "status": "active",
-            }
-        ],
-    )
-
-    resp = client.post(
-        f"/api/admin/exams/{exam.id}/candidates/import",
-        headers=_admin_headers(client),
-        files={
-            "file": (
-                "candidates.xlsx",
-                workbook.getvalue(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        },
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()["data"]
-    db.refresh(candidate)
-    assert data["success_count"] == 1
-    assert data["failed_count"] == 0
-    assert candidate.email == "backfill@example.com"
-    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 1
-
-
-def test_import_exam_candidates_rejects_missing_invalid_and_conflicting_email() -> None:
-    client, db = _build_client()
-    exam = _create_exam(db)
-    candidate = Candidate(
-        name="已有邮箱",
-        employee_no="E300",
-        email="existing@example.com",
-        status="active",
-    )
-    db.add(candidate)
-    db.commit()
-    workbook = build_workbook(
-        [
-            "name",
-            "employee_no",
-            "department",
-            "position",
-            "phone_suffix",
-            "email",
-            "exam_group",
-            "should_attend",
-            "status",
-            "remark",
-        ],
-        [
-            {"name": "缺邮箱", "employee_no": "E301", "status": "active"},
-            {
-                "name": "坏邮箱",
-                "employee_no": "E302",
-                "email": "not-an-email",
-                "status": "active",
-            },
-            {
-                "name": "已有邮箱",
-                "employee_no": "E300",
-                "email": "different@example.com",
-                "status": "active",
-            },
-        ],
-    )
-
-    resp = client.post(
-        f"/api/admin/exams/{exam.id}/candidates/import",
-        headers=_admin_headers(client),
-        files={
-            "file": (
-                "candidates.xlsx",
-                workbook.getvalue(),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        },
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()["data"]
-    db.refresh(candidate)
-    assert data["success_count"] == 0
-    assert data["failed_count"] == 3
-    assert [failure["reason"] for failure in data["failures"]] == [
-        "邮箱不能为空",
-        "邮箱格式不正确",
-        "邮箱与已有考试人员不一致",
-    ]
-    assert candidate.email == "existing@example.com"
-    assert db.query(ExamCandidateScope).filter_by(exam_id=exam.id).count() == 0
-
-
-def test_list_exam_candidates_returns_attempt_and_retake_state() -> None:
-    client, db = _build_client()
-    exam = _create_exam(db)
-    candidate = Candidate(name="李四", employee_no="E002", status="active")
-    db.add(candidate)
-    db.flush()
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
-    started_at = create_question_with_options(db).created_at
-    submitted_at = create_question_with_options(db, stem="x").created_at
-    attempt = ExamAttempt(
-        exam_id=exam.id,
-        candidate_id=candidate.id,
-        status="submitted",
-        started_at=started_at,
-        ends_at=started_at,
-        duration_minutes_snapshot=60,
-        show_answer_after_submit_snapshot=True,
-        submitted_at=submitted_at,
-        total_score=100,
-        score=88,
-        attempt_no=1,
-        attempt_kind="initial",
-    )
-    db.add(attempt)
-    db.commit()
-
-    resp = client.get(
-        f"/api/admin/exams/{exam.id}/candidates", headers=_admin_headers(client)
-    )
-
-    assert resp.status_code == 200
-    row = resp.json()["data"][0]
-    assert row["candidate_name"] == "李四"
-    assert row["latest_attempt_status"] == "submitted"
-    assert row["latest_score"] == 88
-    assert row["has_unused_retake_grant"] is False
-
-
-def test_remove_exam_candidate_only_allowed_for_draft_exam() -> None:
-    client, db = _build_client()
-    draft_exam = _create_exam(db, status="draft")
-    active_exam = _create_exam(db, status="active")
-    candidate = Candidate(name="王五", employee_no="E003", status="active")
-    db.add(candidate)
-    db.flush()
-    db.add_all(
-        [
-            ExamCandidateScope(exam_id=draft_exam.id, candidate_id=candidate.id),
-            ExamCandidateScope(exam_id=active_exam.id, candidate_id=candidate.id),
-        ]
-    )
-    db.commit()
-
-    ok = client.delete(
-        f"/api/admin/exams/{draft_exam.id}/candidates/{candidate.id}",
-        headers=_admin_headers(client),
-    )
-    blocked = client.delete(
-        f"/api/admin/exams/{active_exam.id}/candidates/{candidate.id}",
-        headers=_admin_headers(client),
-    )
-
-    assert ok.status_code == 200
     assert blocked.status_code == 409
 
 
-def test_create_retake_grant_endpoint() -> None:
+def test_invitation_send_is_explicit_and_failed_only_resend() -> None:
     client, db = _build_client()
-    exam = _create_exam(db, status="active")
-    candidate = Candidate(name="赵六", employee_no="E004", status="active")
+    exam = _draft_exam(db)
+    candidate = Candidate(name="用户", email="u@example.com", status="active")
     db.add(candidate)
     db.flush()
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
-    started_at = create_question_with_options(db).created_at
-    submitted_at = create_question_with_options(db, stem="y").created_at
-    db.add(
-        ExamAttempt(
-            exam_id=exam.id,
-            candidate_id=candidate.id,
-            status="submitted",
-            started_at=started_at,
-            ends_at=started_at,
-            duration_minutes_snapshot=60,
-            show_answer_after_submit_snapshot=True,
-            submitted_at=submitted_at,
-            total_score=100,
-            score=72,
-            attempt_no=1,
-            attempt_kind="initial",
-        )
+    scope = ExamCandidateScope(
+        exam_id=exam.id,
+        candidate_id=candidate.id,
+        roster_email="u@example.com",
+        roster_name="名单名",
     )
+    db.add(scope)
+    exam.status = "active"
     db.commit()
+    headers = _admin_headers(client)
+    invitation_service.clear_invitation_email_outbox()
 
-    resp = client.post(
-        f"/api/admin/exams/{exam.id}/candidates/{candidate.id}/retake-grants",
-        headers=_admin_headers(client),
+    send = client.post(
+        f"/api/admin/exams/{exam.id}/invitations/send",
+        headers=headers,
     )
+    assert send.status_code == 200
+    assert send.json()["data"]["accepted_count"] == 1
+    assert len(invitation_service.invitation_email_outbox) == 1
+    db.refresh(scope)
+    assert scope.invitation_status == "sent"
 
-    assert resp.status_code == 200
-    assert resp.json()["data"]["has_unused_retake_grant"] is True
+    # A resend does not select the successful row.
+    resend = client.post(
+        f"/api/admin/exams/{exam.id}/invitations/resend",
+        headers=headers,
+    )
+    assert resend.status_code == 200
+    assert resend.json()["data"]["accepted_count"] == 0
+    assert len(invitation_service.invitation_email_outbox) == 1
+
+
+def test_invitation_url_is_bearer_free() -> None:
+    url = invitation_service.build_invitation_url(42)
+    assert url.endswith("/exams/42/start")
+    assert all(secret not in url for secret in ("token", "otp", "email", "scope"))

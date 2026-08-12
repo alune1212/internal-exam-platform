@@ -7,6 +7,7 @@ import {
   clearCurrentCandidate,
   getCurrentCandidate,
   setCurrentCandidate,
+  getSafeReturnTo,
 } from "@/lib/candidateSession";
 import { subscribeSessionChanges } from "@/lib/sessionEvents";
 import { cn } from "@/lib/utils";
@@ -22,7 +23,7 @@ export function CandidateLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [candidate, setCandidate] = useState<Candidate | null>(() => getCurrentCandidate());
-  const isLoginRoute = location.pathname === "/login";
+  const isAuthRoute = location.pathname === "/login" || location.pathname === "/register";
   const browserSupport = detectBrowserSupport(window.navigator.userAgent);
 
   useEffect(() => {
@@ -54,8 +55,10 @@ export function CandidateLayout() {
     );
   }
 
-  if (!candidate && !isLoginRoute) {
-    return <Navigate to="/login" replace />;
+  if (!candidate && !isAuthRoute) {
+    const currentTarget = `${location.pathname}${location.search}${location.hash}`;
+    const returnTo = getSafeReturnTo(currentTarget);
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
   }
 
   function loginCandidate(nextCandidate: Candidate) {
@@ -68,12 +71,12 @@ export function CandidateLayout() {
   }
 
   return (
-    <div className={cn("flex min-h-screen flex-col bg-canvas", isLoginRoute && "bg-canvas-warm")}>
-      {isLoginRoute ? null : <TopNav candidate={candidate} onLogout={logoutCandidate} />}
+    <div className={cn("flex min-h-screen flex-col bg-canvas", isAuthRoute && "bg-canvas-warm")}>
+      {isAuthRoute ? null : <TopNav candidate={candidate} onLogout={logoutCandidate} />}
       <main
         className={cn(
           "w-full flex-1",
-          isLoginRoute
+          isAuthRoute
             ? "flex min-h-screen items-center justify-center px-4 py-8 md:px-6"
             : "mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10",
         )}

@@ -9,3 +9,5 @@ export type QuestionImportResult = {
   failed_count: number;
   failures: ImportFailure[];
 };
+
+export type RosterImportResult = QuestionImportResult;

@@ -16,6 +16,20 @@ OTP_PATTERN = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 MESSAGES: deque[dict[str, str]] = deque(maxlen=100)
 
 
+def _latest_message(recipient: str = "", kind: str = "") -> dict[str, str] | None:
+    """Return the latest captured message matching safe test-only filters."""
+
+    return next(
+        (
+            item
+            for item in reversed(MESSAGES)
+            if (not recipient or item["to"].casefold() == recipient)
+            and (not kind or (kind == "otp" and bool(item["otp"])))
+        ),
+        None,
+    )
+
+
 async def _smtp_client(
     reader: asyncio.StreamReader, writer: asyncio.StreamWriter
 ) -> None:
@@ -85,17 +99,13 @@ async def _http_client(
         method, target, _ = request_line.split(" ", 2)
         parsed = urlparse(target)
         recipient = parse_qs(parsed.query).get("recipient", [""])[0].casefold()
-        if method != "GET" or parsed.path != "/messages/latest":
+        kind = parse_qs(parsed.query).get("kind", [""])[0].casefold()
+        if kind not in {"", "otp"}:
+            status, payload = "400 Bad Request", {"error": "unsupported kind"}
+        elif method != "GET" or parsed.path != "/messages/latest":
             status, payload = "404 Not Found", {"error": "not found"}
         else:
-            message = next(
-                (
-                    item
-                    for item in reversed(MESSAGES)
-                    if not recipient or item["to"].casefold() == recipient
-                ),
-                None,
-            )
+            message = _latest_message(recipient, kind)
             status = "200 OK" if message else "404 Not Found"
             payload = message or {"error": "message not found"}
     except (ValueError, UnicodeError):

@@ -26,6 +26,7 @@ def _valid_internal_backend(**overrides: object) -> Settings:
         "database_url": "postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam",
         "cors_origins": "http://192.168.50.10:8080",
         "internal_lan_bind_ip": "192.168.50.10",
+        "candidate_public_base_url": "http://192.168.50.10:8080",
         "admin_password": "strong-admin-password",
         "primary_operator_username": "primary-operator",
         "primary_operator_password": "strong-primary-password",
@@ -53,6 +54,79 @@ def test_email_retry_defaults_are_bounded() -> None:
 
     assert configured.candidate_login_email_max_attempts == 3
     assert configured.candidate_login_email_retry_base_seconds == 1.0
+
+
+def test_account_and_invitation_limits_have_bounded_defaults() -> None:
+    configured = _settings()
+
+    assert configured.candidate_registration_credential_ttl_seconds == 600
+    assert configured.candidate_login_email_rate_limit_count == 5
+    assert configured.candidate_login_source_rate_limit_count == 30
+    assert configured.candidate_login_global_rate_limit_window_seconds == 86400
+    assert configured.candidate_login_cleanup_batch_size == 100
+    assert configured.candidate_login_challenge_retention_seconds == 86400
+    assert configured.invitation_send_batch_size == 200
+    assert configured.invitation_claim_ttl_seconds == 300
+
+
+@pytest.mark.parametrize(
+    "candidate_public_base_url",
+    [
+        "",
+        "localhost:8080",
+        "http://user:secret@localhost:8080",
+        "http://localhost:8080/exams",
+        "http://localhost:8080?examId=1",
+        "ftp://localhost:21",
+    ],
+)
+def test_candidate_public_base_url_must_be_an_origin(
+    candidate_public_base_url: str,
+) -> None:
+    with pytest.raises(ValidationError, match="CANDIDATE_PUBLIC_BASE_URL"):
+        _settings(candidate_public_base_url=candidate_public_base_url)
+
+
+def test_registration_credential_cannot_outlive_otp() -> None:
+    with pytest.raises(ValidationError, match="不能超过验证码有效期"):
+        _settings(
+            candidate_login_otp_ttl_seconds=600,
+            candidate_registration_credential_ttl_seconds=601,
+        )
+
+
+def test_challenge_retention_covers_persisted_rate_windows() -> None:
+    with pytest.raises(ValidationError, match="不能小于验证码限流或注册凭据窗口"):
+        _settings(
+            candidate_login_global_rate_limit_window_seconds=86400,
+            candidate_login_challenge_retention_seconds=86399,
+        )
+
+
+def test_production_candidate_origin_must_be_https_and_in_cors() -> None:
+    common = {
+        "environment": "production",
+        "app_role": "backend",
+        "database_url": "postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam",
+        "cors_origins": "https://exam.example.com",
+        "admin_password": "strong-admin-password",
+        "token_secret": "strong-token-secret",
+        "candidate_login_email_delivery_mode": "smtp",
+        "candidate_login_email_from": "exam@example.com",
+        "candidate_login_smtp_host": "smtp.example.com",
+    }
+
+    configured = _settings(
+        **common,
+        candidate_public_base_url="https://exam.example.com",
+    )
+    assert configured.candidate_public_base_url == "https://exam.example.com"
+
+    with pytest.raises(ValidationError, match="必须属于 CORS_ORIGINS"):
+        _settings(
+            **common,
+            candidate_public_base_url="https://elsewhere.example.com",
+        )
 
 
 def test_smtp_transport_defaults_to_starttls() -> None:
@@ -175,6 +249,10 @@ def test_internal_backend_rejects_unencrypted_smtp() -> None:
         ({"cors_origins": "*"}, "CORS_ORIGINS"),
         ({"cors_origins": "http://192.168.50.11:8080"}, "CORS_ORIGINS"),
         ({"cors_origins": "https://192.168.50.10"}, "CORS_ORIGINS"),
+        (
+            {"candidate_public_base_url": "http://192.168.50.11:8080"},
+            "CANDIDATE_PUBLIC_BASE_URL",
+        ),
     ],
 )
 def test_internal_backend_rejects_unsafe_configuration(

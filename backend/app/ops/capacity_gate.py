@@ -329,16 +329,23 @@ def _seed(
         db.add(ExamQuestionPool(exam_id=exam.id, question_id=question.id, sort_order=0))
         identities: list[tuple[int, str]] = []
         for index in range(clients):
+            email = f"capacity-{run_id}-{index + 1:03d}@example.test"
+            display_name = f"容量用户 {index + 1:03d}"
             candidate = Candidate(
-                name=f"容量考生 {index + 1:03d}",
-                employee_no=f"CAP-{run_id}-{index + 1:03d}",
-                email=f"capacity-{run_id}-{index + 1:03d}@example.test",
+                name=display_name,
+                email=email,
                 status="active",
-                should_attend=True,
             )
             db.add(candidate)
             db.flush()
-            db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+            db.add(
+                ExamCandidateScope(
+                    exam_id=exam.id,
+                    candidate_id=candidate.id,
+                    roster_email=email,
+                    roster_name=display_name,
+                )
+            )
             identities.append((candidate.id, create_candidate_token(candidate.id)))
         db.commit()
         return exam.id, identities, run_id

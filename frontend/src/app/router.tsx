@@ -21,6 +21,8 @@ function routeElement(Component: ComponentType) {
 }
 
 const LoginPage = lazyNamed(() => import("@/pages/LoginPage"), "LoginPage");
+const RegistrationPage = lazyNamed(() => import("@/pages/RegistrationPage"), "RegistrationPage");
+const ProfilePage = lazyNamed(() => import("@/pages/ProfilePage"), "ProfilePage");
 const LearningListPage = lazyNamed(() => import("@/pages/LearningListPage"), "LearningListPage");
 const LearningVideoPage = lazyNamed(() => import("@/pages/LearningVideoPage"), "LearningVideoPage");
 const PracticePage = lazyNamed(() => import("@/pages/PracticePage"), "PracticePage");
@@ -36,6 +38,10 @@ const AdminLoginPage = lazyNamed(() => import("@/pages/admin/AdminLoginPage"), "
 const AdminDashboardPage = lazyNamed(
   () => import("@/pages/admin/AdminDashboardPage"),
   "AdminDashboardPage",
+);
+const AccountDirectoryPage = lazyNamed(
+  () => import("@/pages/admin/AccountDirectoryPage"),
+  "AccountDirectoryPage",
 );
 const QuestionListPage = lazyNamed(
   () => import("@/pages/admin/QuestionListPage"),
@@ -84,6 +90,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/login" replace /> },
       { path: "login", element: routeElement(LoginPage) },
+      { path: "register", element: routeElement(RegistrationPage) },
+      { path: "profile", element: routeElement(ProfilePage) },
       { path: "learning", element: routeElement(LearningListPage) },
       { path: "learning/:videoId", element: routeElement(LearningVideoPage) },
       { path: "practice", element: routeElement(PracticePage) },
@@ -101,6 +109,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: "dashboard", element: routeElement(AdminDashboardPage) },
+      { path: "accounts", element: routeElement(AccountDirectoryPage) },
       { path: "questions", element: routeElement(QuestionListPage) },
       { path: "questions/import", element: routeElement(QuestionImportPage) },
       { path: "exams", element: routeElement(AdminExamListPage) },

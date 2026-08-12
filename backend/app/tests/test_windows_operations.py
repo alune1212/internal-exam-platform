@@ -180,6 +180,22 @@ def test_staging_isolated_from_formal_ports_project_and_volumes() -> None:
     assert "internal-exam-formal" not in staging
 
 
+def test_candidate_public_base_url_tracks_windows_staging_and_formal_preflight() -> (
+    None
+):
+    staging = _script("Invoke-Staging.ps1")
+    preflight = _script("Test-FormalPreflight.ps1")
+
+    assert "CANDIDATE_PUBLIC_BASE_URL = $env:CANDIDATE_PUBLIC_BASE_URL" in staging
+    assert "$env:CANDIDATE_PUBLIC_BASE_URL = 'http://127.0.0.1:18080'" in staging
+    assert "'CANDIDATE_PUBLIC_BASE_URL'" in preflight
+    assert (
+        '$expectedCandidateOrigin = "http://$($configuration.INTERNAL_LAN_BIND_IP):8080"'
+        in preflight
+    )
+    assert "-cne $expectedCandidateOrigin" in preflight
+
+
 def test_preflight_is_fail_closed_and_redacted() -> None:
     preflight = _script("Test-FormalPreflight.ps1")
 

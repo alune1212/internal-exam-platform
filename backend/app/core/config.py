@@ -54,6 +54,19 @@ class Settings(BaseSettings):
     candidate_login_otp_ttl_seconds: int = Field(default=10 * 60, ge=60)
     candidate_login_otp_attempt_limit: int = Field(default=5, ge=1)
     candidate_login_otp_resend_cooldown_seconds: int = Field(default=60, ge=0)
+    candidate_registration_credential_ttl_seconds: int = Field(default=10 * 60, ge=60)
+    candidate_login_email_rate_limit_count: int = Field(default=5, ge=1)
+    candidate_login_email_rate_limit_window_seconds: int = Field(default=10 * 60, ge=1)
+    candidate_login_source_rate_limit_count: int = Field(default=30, ge=1)
+    candidate_login_source_rate_limit_window_seconds: int = Field(default=10 * 60, ge=1)
+    candidate_login_global_rate_limit_count: int = Field(default=10_000, ge=1)
+    candidate_login_global_rate_limit_window_seconds: int = Field(
+        default=24 * 60 * 60, ge=1
+    )
+    candidate_login_cleanup_batch_size: int = Field(default=100, ge=1, le=10_000)
+    candidate_login_challenge_retention_seconds: int = Field(
+        default=24 * 60 * 60, ge=60
+    )
     candidate_login_test_otp: str = ""
     candidate_login_email_delivery_mode: str = "memory"
     candidate_login_email_max_attempts: int = Field(default=3, ge=1, le=10)
@@ -65,6 +78,11 @@ class Settings(BaseSettings):
     candidate_login_smtp_password: str = ""
     candidate_login_smtp_use_tls: bool = True
     candidate_login_smtp_use_ssl: bool = False
+    candidate_public_base_url: str = "http://localhost:8080"
+    invitation_send_batch_size: int = Field(default=200, ge=1, le=5000)
+    invitation_claim_ttl_seconds: int = Field(default=5 * 60, ge=30)
+    invitation_admin_rate_limit_count: int = Field(default=10, ge=1)
+    invitation_admin_rate_limit_window_seconds: int = Field(default=60, ge=1)
     import_max_upload_bytes: int = Field(default=5 * 1024 * 1024, ge=1)
     import_max_rows: int = Field(default=5000, ge=1)
     import_max_sheets: int = Field(default=1, ge=1)
@@ -123,6 +141,22 @@ class Settings(BaseSettings):
                 "CANDIDATE_LOGIN_SMTP_USERNAME 与 CANDIDATE_LOGIN_SMTP_PASSWORD "
                 "必须同时配置或同时留空"
             )
+        if (
+            self.candidate_registration_credential_ttl_seconds
+            > self.candidate_login_otp_ttl_seconds
+        ):
+            raise ValueError(
+                "CANDIDATE_REGISTRATION_CREDENTIAL_TTL_SECONDS 不能超过验证码有效期"
+            )
+        if self.candidate_login_challenge_retention_seconds < max(
+            self.candidate_login_email_rate_limit_window_seconds,
+            self.candidate_login_source_rate_limit_window_seconds,
+            self.candidate_login_global_rate_limit_window_seconds,
+            self.candidate_registration_credential_ttl_seconds,
+        ):
+            raise ValueError(
+                "CANDIDATE_LOGIN_CHALLENGE_RETENTION_SECONDS 不能小于验证码限流或注册凭据窗口"
+            )
 
         if self.environment == "internal" or (
             self.environment == "production" and self.app_role == "worker"
@@ -131,6 +165,8 @@ class Settings(BaseSettings):
 
         if self.app_role == "worker":
             return self
+
+        self._validate_candidate_public_base_url()
 
         if self.environment in {"internal", "production"}:
             if self.environment == "internal":
@@ -239,6 +275,10 @@ class Settings(BaseSettings):
                 or parsed_port is None
             ):
                 raise ValueError("internal 环境必须配置精确的 CORS_ORIGINS")
+        if self.candidate_public_base_url.rstrip("/") != expected_origin:
+            raise ValueError(
+                "internal 环境的 CANDIDATE_PUBLIC_BASE_URL 必须等于固定考试人入口"
+            )
 
     def _validate_production_cors(self) -> None:
         origins = self.cors_origin_list
@@ -252,6 +292,37 @@ class Settings(BaseSettings):
                 or parsed.hostname in {"localhost", "127.0.0.1", "0.0.0.0"}  # noqa: S104
             ):
                 raise ValueError("production 环境必须配置安全的 CORS_ORIGINS")
+
+    def _validate_candidate_public_base_url(self) -> None:
+        raw_value = self.candidate_public_base_url.strip()
+        parsed = urlparse(raw_value)
+        try:
+            parsed_port = parsed.port
+        except ValueError:
+            raise ValueError("CANDIDATE_PUBLIC_BASE_URL 必须是有效的站点来源") from None
+        if (
+            not raw_value
+            or parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+            or (parsed_port is not None and not 1 <= parsed_port <= 65_535)
+        ):
+            raise ValueError("CANDIDATE_PUBLIC_BASE_URL 必须是无路径和凭据的站点来源")
+        if self.environment == "production" and parsed.scheme != "https":
+            raise ValueError(
+                "production 环境的 CANDIDATE_PUBLIC_BASE_URL 必须使用 HTTPS"
+            )
+        if self.environment == "production" and raw_value.rstrip("/") not in {
+            origin.rstrip("/") for origin in self.cors_origin_list
+        }:
+            raise ValueError(
+                "production 环境的 CANDIDATE_PUBLIC_BASE_URL 必须属于 CORS_ORIGINS"
+            )
 
     @property
     def cors_origin_list(self) -> list[str]:

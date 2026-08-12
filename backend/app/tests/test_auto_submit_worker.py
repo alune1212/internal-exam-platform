@@ -18,7 +18,14 @@ from app.tests.conftest import (
 def _start_attempt(db: Session, *, ends_at: datetime) -> int:
     exam = create_exam(db, duration_minutes=30)
     candidate = create_candidate(db, name=f"worker-{ends_at.timestamp()}")
-    db.add(ExamCandidateScope(exam_id=exam.id, candidate_id=candidate.id))
+    db.add(
+        ExamCandidateScope(
+            exam_id=exam.id,
+            candidate_id=candidate.id,
+            roster_email=candidate.email,
+            roster_name=candidate.name or "待注册",
+        )
+    )
     db.commit()
     create_question_with_options(db, stem=f"worker question {ends_at.timestamp()}")
     start = exam_service.start_exam(db, exam.id, candidate.id)

@@ -4,9 +4,8 @@ import { pickPastel } from "@/lib/pastelPalette";
 import { cn } from "@/lib/utils";
 
 export interface NamePlateCandidate {
-  name: string;
-  employeeNo?: string;
-  department?: string;
+  displayName?: string;
+  subtitle?: string;
 }
 
 export interface NamePlateProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -14,12 +13,6 @@ export interface NamePlateProps extends React.HTMLAttributes<HTMLDivElement> {
   subtitle?: string;
   candidate?: NamePlateCandidate;
   avatarSize?: number;
-}
-
-function buildCandidateSubtitle(candidate: NamePlateCandidate | undefined) {
-  if (!candidate) return undefined;
-
-  return [candidate.employeeNo, candidate.department].filter(Boolean).join(" · ") || undefined;
 }
 
 export function NamePlate({
@@ -30,8 +23,8 @@ export function NamePlate({
   className,
   ...props
 }: NamePlateProps) {
-  const displayName = name ?? candidate?.name ?? "";
-  const displaySubtitle = subtitle ?? buildCandidateSubtitle(candidate);
+  const displayName = name ?? candidate?.displayName ?? "";
+  const displaySubtitle = subtitle ?? candidate?.subtitle;
   const initial = (displayName.trim().charAt(0) || "?").toUpperCase();
   const avatarBg = pickPastel(displayName);
 

@@ -59,6 +59,7 @@ json_or_unknown() {
 }
 
 candidate_ip="unknown"
+candidate_public_base_url="unknown"
 approved_cidr="unknown"
 candidate_port=0
 operator_port=0
@@ -101,6 +102,7 @@ read_formal_value_into() {
 }
 
 read_formal_value_into INTERNAL_LAN_BIND_IP candidate_ip
+read_formal_value_into CANDIDATE_PUBLIC_BASE_URL candidate_public_base_url
 read_formal_value_into PF_APPROVED_CIDR approved_cidr
 read_formal_value_into CANDIDATE_GATEWAY_PORT candidate_port
 read_formal_value_into OPERATOR_GATEWAY_PORT operator_port
@@ -122,6 +124,9 @@ for port_name in candidate_port operator_port postgres_port frontend_port; do
     typeset -g "$port_name=0"
   fi
 done
+if [[ "$candidate_public_base_url" != "http://${candidate_ip}:${candidate_port}" ]]; then
+  record_failure "CANDIDATE_PUBLIC_BASE_URL must exactly match the fixed candidate address"
+fi
 
 # The output files are always replaced atomically.  If configuration or
 # operator checks fail, they remain empty and the manifests below are failed;
@@ -202,7 +207,7 @@ write_capture_manifest() {
   macos_checksummed_json "$destination"
 }
 
-pf_json="{\"schemaVersion\":1,\"kind\":\"macos-pf-export\",\"provider\":\"pf\",\"status\":\"$capture_status\",\"checkedAt\":\"$(json_or_unknown "$checked_at")\",\"hostOS\":\"darwin\",\"architecture\":\"arm64\",\"hostId\":\"$(json_or_unknown "$host_id")\",\"hostIdentitySha256\":\"$(json_or_unknown "$host_identity_digest")\",\"bootMarkerSha256\":\"$(json_or_unknown "$boot_marker_digest")\",\"designatedHostAccount\":\"$(json_or_unknown "$designated_host_account")\",\"approvedCidr\":\"$(json_or_unknown "$approved_cidr")\",\"candidateAddress\":\"$(json_or_unknown "$candidate_ip")\",\"candidateIp\":\"$(json_or_unknown "$candidate_ip")\",\"candidatePort\":$candidate_port,\"operatorPort\":$operator_port,\"postgresPort\":$postgres_port,\"databasePort\":$postgres_port,\"frontendPort\":$frontend_port,\"backendPort\":$backend_port,\"infoCommand\":\"/usr/bin/sudo -n /sbin/pfctl -s info\",\"infoExitCode\":$pf_info_exit,\"infoArtifact\":\"$pf_info_artifact\",\"infoOutputSha256\":\"$pf_info_digest\",\"rulesCommand\":\"/usr/bin/sudo -n /sbin/pfctl -sr\",\"rulesExitCode\":$pf_rules_exit,\"rulesArtifact\":\"$pf_rules_artifact\",\"rulesOutputSha256\":\"$pf_rules_digest\",\"secrets\":\"redacted\"$failure_json}"
+pf_json="{\"schemaVersion\":1,\"kind\":\"macos-pf-export\",\"provider\":\"pf\",\"status\":\"$capture_status\",\"checkedAt\":\"$(json_or_unknown "$checked_at")\",\"hostOS\":\"darwin\",\"architecture\":\"arm64\",\"hostId\":\"$(json_or_unknown "$host_id")\",\"hostIdentitySha256\":\"$(json_or_unknown "$host_identity_digest")\",\"bootMarkerSha256\":\"$(json_or_unknown "$boot_marker_digest")\",\"designatedHostAccount\":\"$(json_or_unknown "$designated_host_account")\",\"approvedCidr\":\"$(json_or_unknown "$approved_cidr")\",\"candidateAddress\":\"$(json_or_unknown "$candidate_ip")\",\"candidateIp\":\"$(json_or_unknown "$candidate_ip")\",\"candidatePublicBaseUrl\":\"$(json_or_unknown "$candidate_public_base_url")\",\"candidatePort\":$candidate_port,\"operatorPort\":$operator_port,\"postgresPort\":$postgres_port,\"databasePort\":$postgres_port,\"frontendPort\":$frontend_port,\"backendPort\":$backend_port,\"infoCommand\":\"/usr/bin/sudo -n /sbin/pfctl -s info\",\"infoExitCode\":$pf_info_exit,\"infoArtifact\":\"$pf_info_artifact\",\"infoOutputSha256\":\"$pf_info_digest\",\"rulesCommand\":\"/usr/bin/sudo -n /sbin/pfctl -sr\",\"rulesExitCode\":$pf_rules_exit,\"rulesArtifact\":\"$pf_rules_artifact\",\"rulesOutputSha256\":\"$pf_rules_digest\",\"secrets\":\"redacted\"$failure_json}"
 network_json="{\"schemaVersion\":1,\"kind\":\"macos-network-time-export\",\"status\":\"$capture_status\",\"checkedAt\":\"$(json_or_unknown "$checked_at")\",\"hostOS\":\"darwin\",\"architecture\":\"arm64\",\"hostId\":\"$(json_or_unknown "$host_id")\",\"hostIdentitySha256\":\"$(json_or_unknown "$host_identity_digest")\",\"bootMarkerSha256\":\"$(json_or_unknown "$boot_marker_digest")\",\"designatedHostAccount\":\"$(json_or_unknown "$designated_host_account")\",\"command\":\"/usr/bin/sudo -n /usr/sbin/systemsetup -getusingnetworktime\",\"exitCode\":$network_time_exit,\"outputArtifact\":\"$network_time_artifact\",\"outputSha256\":\"$network_time_digest\",\"secrets\":\"redacted\"$failure_json}"
 write_capture_manifest "$pf_manifest" "$pf_json"
 write_capture_manifest "$network_time_manifest" "$network_json"

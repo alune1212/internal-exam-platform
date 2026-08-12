@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getAdminExams } from "@/api/exams";
 import {
   downloadReportExport,
+  getRanking,
   getQuestionAccuracy,
   getScoreReport,
   getWrongQuestions,
@@ -20,6 +21,7 @@ vi.mock("@/api/exams", () => ({
 
 vi.mock("@/api/reports", () => ({
   getScoreReport: vi.fn(),
+  getRanking: vi.fn(),
   getQuestionAccuracy: vi.fn(),
   getWrongQuestions: vi.fn(),
   downloadReportExport: vi.fn(),
@@ -47,6 +49,7 @@ describe("ScoreReportPage", () => {
       },
     ]);
     vi.mocked(getScoreReport).mockResolvedValue([]);
+    vi.mocked(getRanking).mockResolvedValue([]);
     vi.mocked(getQuestionAccuracy).mockResolvedValue([]);
     vi.mocked(getWrongQuestions).mockResolvedValue([]);
     vi.mocked(downloadReportExport).mockResolvedValue();
@@ -59,12 +62,48 @@ describe("ScoreReportPage", () => {
     expect(await screen.findByRole("heading", { name: "成绩册" })).toBeInTheDocument();
     expect(await screen.findByDisplayValue("正式考试")).toBeInTheDocument();
     await waitFor(() => expect(getScoreReport).toHaveBeenCalledWith("7"));
+    await waitFor(() => expect(getRanking).toHaveBeenCalledWith("7"));
 
     await user.click(await screen.findByRole("button", { name: /导出当前考试/ }));
 
     await waitFor(() => expect(downloadReportExport).toHaveBeenCalledTimes(1));
     expect(downloadReportExport).toHaveBeenCalledWith("7");
     expect(await screen.findByRole("status")).toHaveTextContent("报表已开始下载");
+  });
+
+  it("renders the selected exam ranking beside score rows", async () => {
+    vi.mocked(getScoreReport).mockResolvedValueOnce([
+      {
+        candidate_id: 9,
+        roster_name: "冻结名单",
+        roster_email: "frozen@example.com",
+        exam_id: 7,
+        exam_title: "正式考试",
+        score: 90,
+        total_score: 100,
+        submitted_at: "2026-08-11T10:00:00Z",
+      },
+    ]);
+    vi.mocked(getRanking).mockResolvedValueOnce([
+      {
+        rank: 1,
+        candidate_id: 9,
+        roster_name: "冻结名单",
+        roster_email: "frozen@example.com",
+        exam_id: 7,
+        exam_title: "正式考试",
+        score: 90,
+        total_score: 100,
+        submitted_at: "2026-08-11T10:00:00Z",
+      },
+    ]);
+
+    renderReportPage();
+
+    expect(await screen.findByText("冻结名单")).toBeInTheDocument();
+    expect(screen.getByText("名次")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    await waitFor(() => expect(getRanking).toHaveBeenCalledWith("7"));
   });
 
   it("renders exam-list failures as report errors instead of exporting all scores", async () => {

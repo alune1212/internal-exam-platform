@@ -29,9 +29,10 @@ function renderSideRail(initialPath: string, matches = true) {
 }
 
 describe("AdminSideRail", () => {
-  it("renders all six admin nav items", () => {
+  it("renders all seven admin nav items", () => {
     renderSideRail("/admin/dashboard");
     expect(screen.getByRole("link", { name: "仪表盘" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "用户账户" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库导入" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
@@ -46,10 +47,12 @@ describe("AdminSideRail", () => {
       .getAllByRole("link")
       .map((link) => link.textContent)
       .filter((name): name is string =>
-        Boolean(name && ["仪表盘", "考试", "题库", "题库导入", "学习", "报表"].includes(name)),
+        Boolean(
+          name && ["仪表盘", "用户账户", "考试", "题库", "题库导入", "学习", "报表"].includes(name),
+        ),
       );
 
-    expect(navNames).toEqual(["仪表盘", "考试", "题库", "题库导入", "学习", "报表"]);
+    expect(navNames).toEqual(["仪表盘", "用户账户", "考试", "题库", "题库导入", "学习", "报表"]);
   });
 
   it("renders the dark wordmark with the admin subtitle", () => {

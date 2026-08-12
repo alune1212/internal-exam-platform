@@ -9,13 +9,13 @@
 - 默认单个上传文件不超过 5 MiB（`IMPORT_MAX_UPLOAD_BYTES=5242880`）。
 - 默认单次导入不超过 5000 行数据（不含表头）。
 - 默认只读取第 1 个工作表；包含更多工作表会被拒绝。
-- 这些限制同样适用于题库、应考名单和单场考试名单导入。
+- 这些限制同样适用于题库和单场应考名单导入。
 
 模板下载：
 
 - 题库导入模板：`GET /api/admin/imports/templates/questions`
-- 应考名单导入模板：`GET /api/admin/imports/templates/candidates`
-- 模板接口返回带表头和示例行的 Excel 文件，并使用 `filename*` 兼容中文文件名。
+- 单场应考名单模板：`GET /api/admin/exams/{exam_id}/candidates/template`
+- 模板接口返回带表头和示例行的 Excel 文件，并使用 `filename*` 兼容中文文件名；不再提供独立的全局账号/人员模板或导入 API。
 
 建议字段：
 
@@ -70,42 +70,36 @@ remark
 
 失败报告：
 
-- 题库导入、应考名单导入、单场考试名单导入都会写入 `import_batch`。
+- 题库导入和单场应考名单导入都会写入 `import_batch`；独立全局账号导入已移除。
 - 可通过管理端导入结果入口或 `GET /api/admin/imports/{batch_id}/failure-report` 下载 Excel。
 - 工作簿包含 `导入批次` 和 `失败明细` 两个 sheet。
 - `导入批次` 包含导入类型、文件名、总数、成功数、失败数、生成时间。
 - `失败明细` 使用 `ROW · 行号` 和 `REASON · 原因` 作为导出表头；接口响应和 `import_batch.error_report` 内部仍使用 `row_number` 和 `reason`。
 
-## 应考名单 Excel
+## 单场应考名单 Excel
 
-建议字段：
+每次导入都绑定一个 `exam_id`。建议字段：
 
 ```text
-name
-employee_no
+email
+candidate_name
 department
 position
-phone_suffix
-email
 exam_group
-should_attend
-status
 remark
 ```
 
-校验规则：
+校验与匹配规则：
 
-- `name` 必填。
-- `email` 用于考试人邮件 OTP 登录，正式名单必须填写有效邮箱。
-- `phone_suffix` 为保留资料字段，不再作为严格登录校验因素。
-- 有 `employee_no` 时优先使用 `employee_no` 作为唯一识别字段。
-- 没有 `employee_no` 时，按“无员工号 + 姓名”识别已有人员。
-- 单场考试导入时，已存在人员会被复用并加入当前考试名单，不会因为其他考试已导入同名人员而失败；已有人员缺少邮箱时可由本次导入行补全，已有邮箱与导入行邮箱冲突时该行失败。
-- `should_attend` 默认为 true。
-- `status` 建议使用 `active` 或 `inactive`。
+- `email` 和 `candidate_name` 必填；邮箱 trim + lowercase 后按规范化值校验格式。
+- 可选字段只属于当前考试 scope；不得把账号显示名称或组织字段写回全局账号。
+- 系统按规范化邮箱复用已有 active/pending 账号；不存在时创建不能登录的 `pending` 账号，再创建当前考试的 draft scope。
+- 同一考试中重复邮箱、缺失/非法邮箱、inactive 账号、旧字段行或无法取得冻结身份的行按行失败，不自动按姓名合并，不部分授予考试权限。
+- 账号显示名称只能由用户在注册完成/Profile 中编辑；`candidate_name` 写入 `roster_name`，发布时与 `roster_email`、组织字段一起冻结。
+- 发布后 scope 不可编辑、删除或补录；发布不会自动发送邀请邮件。管理员显式执行 initial send，重发动作只接受 `invitation_status=failed` 的行。
 
 参考状态计算：
 
 ```text
-未开始人员 = 当前考试应考名单 - 已开考人员
+未开始人员 = 当前考试冻结 roster - 该考试已有有效 attempt 的人员
 ```

@@ -2,7 +2,7 @@
 
 > 当前正式宿主是 Apple Silicon macOS + Docker Desktop；本页不是当前开考指南。它只描述未来 Windows target 的准备合同。Mac→Windows 的备份、source stop、单写入者、回滚和证据语义见 [`host-migration.md`](host-migration.md)，Mac 证据不满足本页的 Windows acceptance。
 
-Windows target 在真实 staging、恢复、网络、防火墙、SMTP、浏览器和 100-client 门禁全部通过并完成人工 promotion 前，不得开放候选入口，也不得与 Mac 并行写入。
+Windows target 在真实 staging、恢复、网络、防火墙、SMTP、浏览器和 100-client 门禁全部通过并完成人工 promotion 前，不得开放应考人员入口，也不得与 Mac 并行写入。
 
 ## 主机和账号
 
@@ -30,6 +30,13 @@ Docker Desktop 只保留项目需要的 CPU、内存和磁盘资源；不得启�
 - Windows 防火墙只在 Private/Domain profile 允许已批准办公网段访问 TCP 8080；Public profile 一律阻断。禁止路由器公网转发、UPnP、访客网和 VPN 非授权网段访问。
 - TCP 8081、5432、5173 只绑定 `127.0.0.1`。操作员必须坐在正式主机本地使用 `http://127.0.0.1:8081`；不能从办公电脑远程打开管理入口。
 - 普通办公设备和手机与平台共用现有办公局域网，因此第一阶段 HTTP 风险必须按 [`security-http-exception.md`](security-http-exception.md) 明确接受，不能描述为安全传输。
+
+## 账号、名单和 Windows 外部验收
+
+- 从 Mac paired backup 恢复后，先取得 writer fence、协调写冻结、无 `in_progress` attempt、独立加密第二副本和隔离 restore 证据；运行只读 account-migration preflight，确认邮箱可规范化且无重复、历史 attempt 都有 scope、scope 可补齐冻结 `roster_email`/`roster_name`。预检失败不得写 schema、账号、scope 或 challenge。
+- 先做 additive/backfill 并核对账号/scope/attempt 计数、外键、冻结 roster 和题池；随后才允许 destructive migration 删除旧全局人员/组织/出席字段及登录占位数据。该边界后禁止 `alembic downgrade`，失败只能停止 writer，使用上一 release + verified paired backup restore-only 回滚并重跑全部门禁。
+- Windows 真实桌面/手机 UAT 必须覆盖：统一“邮箱登录”六位 OTP（十分钟、单次、最多五次、60 秒重发冷却）及 SMTP fail-closed；新邮箱/pending 完成显示名称后才取得四小时 session，inactive 返回不可用；不提供 remember-me，Profile 仅可改显示名称且邮箱只读；同源邀请回跳不携带 token/OTP/invite code，发布后显式 initial-send、failed-only resend，正式报表只读冻结 roster identity。
+- 通过上述 UAT、真实邀请 SMTP、服务恢复、容量和 second-copy restore 后，才能人工批准 promotion；Mac 的证据不得代替 Windows evidence。
 
 ## 电源、时间和更新
 

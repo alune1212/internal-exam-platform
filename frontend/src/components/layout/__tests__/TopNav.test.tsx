@@ -7,10 +7,10 @@ import type { Candidate } from "@/types/candidate";
 
 const candidate: Candidate = {
   id: 1,
-  name: "张敏",
-  employee_no: "E1001",
-  department: "产品部",
-  should_attend: true,
+  token: "candidate-token",
+  token_expires_at: "2099-01-01T00:00:00.000Z",
+  email: "zhangmin@example.com",
+  display_name: "张敏",
   status: "active",
 };
 
@@ -101,7 +101,7 @@ describe("TopNav", () => {
   it("renders the candidate NamePlate when a candidate is logged in", () => {
     renderTopNav({ candidate, onLogout: () => {} });
     expect(screen.getByText("张敏")).toBeInTheDocument();
-    expect(screen.getByText(/E1001/)).toBeInTheDocument();
+    expect(screen.getByText("用户")).toBeInTheDocument();
   });
 
   it("renders a login link when no candidate is logged in", () => {
