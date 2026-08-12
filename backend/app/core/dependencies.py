@@ -31,7 +31,7 @@ class CandidateAuthError(DomainError):
 
 def get_current_candidate_id(
     x_candidate_token: str | None = Header(None, alias="X-Candidate-Token"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, use_cache=False),
 ) -> int:
     """Parse the token and enforce the account's current active status.
 
@@ -46,17 +46,26 @@ def get_current_candidate_id(
     candidate_id = parse_candidate_token(x_candidate_token)
     if candidate_id is None:
         raise CandidateAuthError("无效的考试人身份")
-    candidate = db.get(Candidate, candidate_id, populate_existing=True)
-    if candidate is None:
+
+    # The route also depends on ``get_db``.  This dependency deliberately uses
+    # a distinct, uncached session and releases its connection as soon as the
+    # authorization lookup is complete, avoiding an idle-in-transaction auth
+    # checkout during a concurrent exam flow.
+    try:
+        candidate = db.get(Candidate, candidate_id, populate_existing=True)
+        candidate_status = candidate.status if candidate is not None else None
+    finally:
+        db.close()
+    if candidate_status is None:
         raise CandidateAuthError("无效的考试人身份")
-    if candidate.status != "active":
+    if candidate_status != "active":
         raise CandidateAuthError("账号暂不可用，请联系管理员重新激活。")
     return candidate_id
 
 
 def get_fresh_candidate_id(
     x_candidate_token: str | None = Header(None, alias="X-Candidate-Token"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db, use_cache=False),
 ) -> int:
     """Require a candidate token freshly issued by OTP verification for takeover."""
     from app.core.config import settings
@@ -69,7 +78,12 @@ def get_fresh_candidate_id(
     )
     if candidate_id is None:
         raise CandidateAuthError("请重新通过邮件验证码登录后接管考试。")
-    candidate = db.get(Candidate, candidate_id, populate_existing=True)
-    if candidate is None or candidate.status != "active":
+
+    try:
+        candidate = db.get(Candidate, candidate_id, populate_existing=True)
+        candidate_status = candidate.status if candidate is not None else None
+    finally:
+        db.close()
+    if candidate_status != "active":
         raise CandidateAuthError("账号暂不可用，请联系管理员重新激活。")
     return candidate_id
