@@ -148,7 +148,7 @@ if ($bundledSecurityCheckedAt.ToString('o') -ne ([DateTimeOffset]::Parse([string
 }
 
 $checksumRows = @{}
-foreach ($line in Get-Content -LiteralPath $checksumsPath -Encoding ASCII) {
+foreach ($line in Get-Content -LiteralPath $checksumsPath -Encoding UTF8) {
     if ($line -notmatch '^([0-9a-f]{64})  (.+)$') { throw "Invalid SHA256SUMS row." }
     $checksumRelative = [string]$Matches[2]
     $normalizedChecksumRelative = $checksumRelative.Replace('\', '/')

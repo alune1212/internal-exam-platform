@@ -142,7 +142,7 @@ try {
     $checksumLines = foreach ($file in ($manifest.files | Sort-Object path)) {
         "$($file.sha256)  $($file.path)"
     }
-    $checksumLines | Set-Content -LiteralPath $checksumPath -Encoding ASCII
+    $checksumLines | Set-Content -LiteralPath $checksumPath -Encoding UTF8
 } finally {
     $env:APP_IMAGE_REPOSITORY = $previousRepository
     $env:APP_VERSION_TAG = $previousTag

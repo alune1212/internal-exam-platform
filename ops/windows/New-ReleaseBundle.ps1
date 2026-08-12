@@ -302,7 +302,7 @@ $manifest = [ordered]@{
 $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $destinationRoot 'release-manifest.json') -Encoding UTF8
 
 $checksumLines = foreach ($file in ($manifest.files | Sort-Object path)) { "$($file.sha256)  $($file.path)" }
-$checksumLines | Set-Content -LiteralPath (Join-Path $destinationRoot 'SHA256SUMS') -Encoding ASCII
+$checksumLines | Set-Content -LiteralPath (Join-Path $destinationRoot 'SHA256SUMS') -Encoding UTF8
 
 & (Join-Path $destinationRoot 'ops\windows\Test-ReleaseBundle.ps1') -ReleasePath $destinationRoot
 if (-not $?) { throw "Generated release bundle did not validate." }

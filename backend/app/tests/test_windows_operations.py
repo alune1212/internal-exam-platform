@@ -172,6 +172,19 @@ def test_release_bundle_verifier_counts_single_checksum_metadata_property() -> N
     assert "@($manifest.releaseFileChecksums.PSObject.Properties).Count" in verifier
 
 
+def test_windows_sha256sums_use_utf8_for_unicode_release_paths() -> None:
+    generator = _script("New-ReleaseBundle.ps1")
+    verifier = _script("Test-ReleaseBundle.ps1")
+    image_builder = _script("Build-ReleaseImages.ps1")
+
+    assert "Join-Path $destinationRoot 'SHA256SUMS') -Encoding UTF8" in generator
+    assert "Get-Content -LiteralPath $checksumsPath -Encoding UTF8" in verifier
+    assert (
+        "$checksumLines | Set-Content -LiteralPath $checksumPath -Encoding UTF8"
+        in image_builder
+    )
+
+
 def test_release_build_includes_all_patched_final_images() -> None:
     script = _script("Build-ReleaseImages.ps1")
 
