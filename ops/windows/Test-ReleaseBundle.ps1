@@ -169,7 +169,7 @@ foreach ($line in Get-Content -LiteralPath $checksumsPath -Encoding ASCII) {
 $expectedPaths = @($manifest.files | ForEach-Object { $_.path })
 if ($checksumRows.Count -ne $expectedPaths.Count) { throw "Checksum file count does not match manifest." }
 if (-not $manifest.releaseFileChecksums) { throw "Release file checksum metadata is missing." }
-if ($manifest.releaseFileChecksums.PSObject.Properties.Count -ne $expectedPaths.Count) {
+if (@($manifest.releaseFileChecksums.PSObject.Properties).Count -ne $expectedPaths.Count) {
     throw "Release file checksum metadata count does not match manifest."
 }
 foreach ($file in $manifest.files) {

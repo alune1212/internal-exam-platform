@@ -166,6 +166,12 @@ def test_release_bundle_keeps_unicode_git_paths_unquoted() -> None:
     )
 
 
+def test_release_bundle_verifier_counts_single_checksum_metadata_property() -> None:
+    verifier = _script("Test-ReleaseBundle.ps1")
+
+    assert "@($manifest.releaseFileChecksums.PSObject.Properties).Count" in verifier
+
+
 def test_release_build_includes_all_patched_final_images() -> None:
     script = _script("Build-ReleaseImages.ps1")
 
