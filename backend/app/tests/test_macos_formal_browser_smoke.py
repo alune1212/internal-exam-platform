@@ -10,11 +10,36 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "ops" / "macos" / "Capture-FormalBrowserSmokeEvidence.zsh"
+INSTALLER = REPO_ROOT / "ops" / "macos" / "Install-Release.zsh"
+
+
+def _git_mode(path: Path) -> int:
+    relative = path.relative_to(REPO_ROOT)
+    git = shutil.which("git")
+    assert git is not None, "git is required to inspect the repository index"
+    result = subprocess.run(  # noqa: S603
+        [git, "-C", str(REPO_ROOT), "ls-files", "--stage", "--", str(relative)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    rows = [line for line in result.stdout.splitlines() if line]
+    assert len(rows) == 1, f"expected one Git index entry for {relative}: {rows!r}"
+    return int(rows[0].split(maxsplit=1)[0], 8)
 
 
 def test_formal_browser_smoke_producer_is_owner_only_and_parses() -> None:
     assert SCRIPT.is_file()
-    assert SCRIPT.stat().st_mode & 0o777 == 0o700
+    # Git can persist only the executable bit.  The formal release installer
+    # tightens this to owner-only mode after copying the immutable bundle.
+    assert _git_mode(SCRIPT) == 0o100755
+    installer = INSTALLER.read_text(encoding="utf-8")
+    assert (
+        "find \"$temporary_target/ops/macos\" -type f -name '*.zsh' -print" in installer
+    )
+    assert 'chmod 700 "$file"' in installer
     zsh = shutil.which("zsh")
     if not zsh:
         pytest.skip("zsh is unavailable on this runner")

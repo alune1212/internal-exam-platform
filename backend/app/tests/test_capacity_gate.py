@@ -20,6 +20,7 @@ from app.ops.capacity_gate import (
     _normalise_docker_platform,
     _normalise_image_evidence,
     _p95,
+    _seed_candidate_email,
     _warmup_run_id,
     _write_report,
 )
@@ -85,6 +86,13 @@ def test_capacity_gate_requires_exactly_100_clients() -> None:
     assert _exact_client_count("100") == 100
     with pytest.raises(ArgumentTypeError, match="exactly 100"):
         _exact_client_count("99")
+
+
+def test_capacity_seed_email_is_lowercase_for_mixed_case_run_id() -> None:
+    run_id = "run-IRzr2s6zT1s0"
+    email = _seed_candidate_email(run_id, 0)
+    assert email == email.lower()
+    assert "IRzr" not in email
 
 
 def test_capacity_warmup_run_identity_is_scoped_to_current_run(

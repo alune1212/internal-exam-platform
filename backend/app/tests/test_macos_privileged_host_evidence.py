@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import platform
 import shutil
 import subprocess
 from datetime import UTC, datetime
@@ -15,6 +16,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MACOS_OPS = REPO_ROOT / "ops" / "macos"
 BOOT_MARKER = "kern.boottime: { sec = 1, usec = 2 }"
+
+
+def _require_macos_runtime() -> str:
+    if platform.system() != "Darwin":
+        pytest.skip("privileged host evidence is a macOS-only runtime contract")
+    zsh = shutil.which("zsh")
+    if zsh is None:
+        pytest.skip("zsh is unavailable on this runner")
+    return zsh
 
 
 def _sha256(path: Path) -> str:
@@ -198,6 +208,7 @@ def _assert_fixture(
     network: bool = False,
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    zsh = _require_macos_runtime()
     function = (
         "macos_assert_network_time_evidence" if network else "macos_assert_pf_evidence"
     )
@@ -229,7 +240,7 @@ def _assert_fixture(
     # zsh positional arguments are intentionally used rather than interpolated
     # so a fixture path cannot become shell syntax.
     return subprocess.run(  # noqa: S603
-        ["zsh", "-c", shell, "fixture", str(MACOS_OPS), *args],  # noqa: S607
+        [zsh, "-c", shell, "fixture", str(MACOS_OPS), *args],
         cwd=REPO_ROOT,
         env=env or os.environ.copy(),
         capture_output=True,
@@ -269,9 +280,7 @@ def test_privileged_evidence_scripts_use_fixed_commands_and_passthrough() -> Non
 
 def test_capture_uses_protected_owner_not_application_operator(tmp_path: Path) -> None:
     root = _capture_fixture(tmp_path, app_operator="different-application-user")
-    zsh = shutil.which("zsh")
-    if zsh is None:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_runtime()
     result = subprocess.run(  # noqa: S603
         [
             zsh,
@@ -306,9 +315,7 @@ def test_capture_rejects_protected_root_owned_by_another_account(
     tmp_path: Path,
 ) -> None:
     root = _capture_fixture(tmp_path, app_operator="different-application-user")
-    zsh = shutil.which("zsh")
-    if zsh is None:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_runtime()
     fake_bin = tmp_path / "owner-check-bin"
     fake_bin.mkdir(mode=0o700)
     fake_stat = fake_bin / "stat"

@@ -269,6 +269,12 @@ def _assert_formal_evidence_identity(
         )
 
 
+def _seed_candidate_email(run_id: str, index: int) -> str:
+    """Build a database-normalized email while preserving the evidence run id."""
+
+    return f"capacity-{run_id.lower()}-{index + 1:03d}@example.test"
+
+
 def _seed(
     clients: int,
     *,
@@ -329,7 +335,7 @@ def _seed(
         db.add(ExamQuestionPool(exam_id=exam.id, question_id=question.id, sort_order=0))
         identities: list[tuple[int, str]] = []
         for index in range(clients):
-            email = f"capacity-{run_id}-{index + 1:03d}@example.test"
+            email = _seed_candidate_email(run_id, index)
             display_name = f"容量用户 {index + 1:03d}"
             candidate = Candidate(
                 name=display_name,

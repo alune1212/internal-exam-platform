@@ -1,4 +1,5 @@
 import json
+import platform
 import plistlib
 import re
 import shutil
@@ -10,6 +11,33 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MACOS_OPS = REPO_ROOT / "ops" / "macos"
+RELEASE_INSTALLER = MACOS_OPS / "Install-Release.zsh"
+
+
+def _git_mode(path: Path) -> int:
+    relative = path.relative_to(REPO_ROOT)
+    git = shutil.which("git")
+    assert git is not None, "git is required to inspect the repository index"
+    result = subprocess.run(  # noqa: S603
+        [git, "-C", str(REPO_ROOT), "ls-files", "--stage", "--", str(relative)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    rows = [line for line in result.stdout.splitlines() if line]
+    assert len(rows) == 1, f"expected one Git index entry for {relative}: {rows!r}"
+    return int(rows[0].split(maxsplit=1)[0], 8)
+
+
+def _require_macos_zsh() -> str:
+    if platform.system() != "Darwin":
+        pytest.skip("macOS Common.zsh runtime tests are skipped off Darwin")
+    zsh = shutil.which("zsh")
+    if zsh is None:
+        pytest.skip("zsh is unavailable on this runner")
+    return zsh
 
 
 def _shell_scripts() -> list[Path]:
@@ -198,16 +226,19 @@ def test_every_zsh_operation_parses_and_every_launchagent_plist_lints() -> None:
 
 
 def test_every_zsh_operation_is_owner_only_executable() -> None:
+    installer = RELEASE_INSTALLER.read_text(encoding="utf-8")
+    assert (
+        "find \"$temporary_target/ops/macos\" -type f -name '*.zsh' -print" in installer
+    )
+    assert 'chmod 700 "$file"' in installer
     for script in _shell_scripts():
-        assert script.stat().st_mode & 0o777 == 0o700, (
-            f"{script} must be owner-only executable (mode 0700)"
-        )
+        # The Git index stores 100755, while Install-Release.zsh applies the
+        # owner-only 0700 runtime contract on the formal host.
+        assert _git_mode(script) == 0o100755, f"{script} must be executable in Git"
 
 
 def test_common_uses_real_temporary_layout_and_rejects_dangerous_roots() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-contract-",
@@ -252,9 +283,7 @@ macos_check_checksum "$artifact"
 
 
 def test_common_command_vector_and_redaction_do_not_execute_secret_payloads() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-redaction-",
@@ -299,9 +328,7 @@ macos_redact_file "$3" "$4"
 
 
 def test_cutover_sidecar_recovery_requires_canonical_binding_and_exact_fence() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-sidecar-",
@@ -342,9 +369,7 @@ fi
 
 
 def test_pending_cutover_retires_source_and_keeps_target_private() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-retirement-",
@@ -848,9 +873,7 @@ def test_common_lock_and_formal_path_contracts_are_canonical() -> None:
 
 
 def test_common_evidence_names_are_unique_with_same_second_writes() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-evidence-",
@@ -874,9 +897,7 @@ second="$(macos_write_evidence "$2/evidence" same '{"status":"passed","secrets":
 
 
 def test_formal_compose_volume_override_is_checksum_bound_and_owner_only() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-volumes-",
@@ -1113,9 +1134,7 @@ def test_initial_writer_browser_evidence_binds_exact_private_smoke_schema() -> N
 
 
 def test_lineage_writer_repairs_missing_and_json_only_checksum_on_exact_retry() -> None:
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     initialize = (MACOS_OPS / "Initialize-FormalWriter.zsh").read_text(encoding="utf-8")
     function_start = initialize.index("bootstrap_validate_terminal_semantics() {")
@@ -1169,9 +1188,7 @@ macos_write_lineage_once
 def test_public_writer_guard_rejects_pending_bootstrap_and_allows_private_maintenance() -> (
     None
 ):
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-bootstrap-guard-",
@@ -1202,9 +1219,7 @@ macos_assert_formal_writer_ready 1
 def test_activated_generation_one_lineage_survives_current_release_upgrade_and_tamper() -> (
     None
 ):
-    zsh = shutil.which("zsh")
-    if not zsh:
-        pytest.skip("zsh is unavailable on this runner")
+    zsh = _require_macos_zsh()
 
     with tempfile.TemporaryDirectory(
         prefix="internal-exam-macos-lineage-",
