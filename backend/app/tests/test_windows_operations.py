@@ -146,7 +146,7 @@ def test_release_bundle_requires_exact_clean_git_source_and_rejects_injection() 
     assert "Git commit does not match the source HEAD" in generator
     assert "status --porcelain=v1 --untracked-files=all" in generator
     assert "ls-tree -r --name-only HEAD" in generator
-    assert "ls-tree -r --name-only -z HEAD" not in generator
+    assert "core.quotePath=false" in generator
     assert "Get-ChildItem -LiteralPath $sourceRoot -File -Recurse" not in generator
     assert "Source Git tree contains an unsupported file entry" in generator
     assert "Source tree must be clean" in generator
@@ -154,6 +154,16 @@ def test_release_bundle_requires_exact_clean_git_source_and_rejects_injection() 
     assert "unmanifested file" in verifier
     assert "ReparsePoint" in verifier
     assert "unsafe path entry" in verifier
+
+
+def test_release_bundle_keeps_unicode_git_paths_unquoted() -> None:
+    generator = _script("New-ReleaseBundle.ps1")
+
+    assert re.search(
+        r"git -C \$sourceRoot -c core\.quotePath=false "
+        r"ls-tree -r --name-only HEAD",
+        generator,
+    )
 
 
 def test_release_build_includes_all_patched_final_images() -> None:

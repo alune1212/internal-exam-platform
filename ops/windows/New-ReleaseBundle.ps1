@@ -124,9 +124,10 @@ if (Test-Path -LiteralPath $destinationRoot) { throw "Destination already exists
 New-Item -ItemType Directory -Path $destinationRoot | Out-Null
 
 # Enumerate the exact committed HEAD tree instead of walking the filesystem;
-# ignored local files never enter the release inventory. Security evidence is
-# intentionally added separately below.
-$trackedFiles = @(& git -C $sourceRoot ls-tree -r --name-only HEAD 2>$null)
+# ignored local files never enter the release inventory. Disable Git's default
+# C-style path quoting so tracked non-ASCII names remain usable on Windows;
+# security evidence is intentionally added separately below.
+$trackedFiles = @(& git -C $sourceRoot -c core.quotePath=false ls-tree -r --name-only HEAD 2>$null)
 if ($LASTEXITCODE -ne 0 -or $trackedFiles.Count -eq 0) {
     throw "Source Git tree inventory is unavailable."
 }
