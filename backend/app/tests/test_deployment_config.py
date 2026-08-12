@@ -298,6 +298,8 @@ def test_gateways_use_same_origin_csp_and_candidate_denies_admin_routes() -> Non
         assert "media-src 'self'" in nginx_conf
     for denied_route in (
         "location ^~ /admin",
+        "location = /operations",
+        "location ^~ /operations/",
         "location ^~ /api/admin/",
         "location ^~ /api/operations",
         "location = /api/ready",
