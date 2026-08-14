@@ -30,6 +30,8 @@ from app.models import (
 
 E2E_EXAM_TITLE = "E2E 邀请考试（即将开放）"
 E2E_INVITATION_STATUS_EXAM_TITLE = "E2E 邀请投递状态"
+E2E_WORKSPACE_EXAM_TITLE = "E2E 工作台发布流程"
+E2E_FORMAL_EXAM_TITLE = "E2E 正式考试流程"
 E2E_QUESTION_SOURCE_NO = "E2E-Q-001"
 E2E_STATUS_QUESTION_SOURCE_NO = "E2E-Q-002"
 
@@ -39,6 +41,9 @@ E2E_UNSCOPED_EMAIL = "e2e.unscoped@example.com"
 E2E_INACTIVE_EMAIL = "e2e.inactive@example.com"
 E2E_SENT_EMAIL = "e2e.invited.sent@example.com"
 E2E_FAILED_EMAIL = "e2e.invited.failed@example.com"
+E2E_WORKSPACE_EMAIL = "e2e.workspace@example.com"
+E2E_FORMAL_EMAIL = "e2e.formal@example.com"
+E2E_CONFLICT_EMAIL = "e2e.conflict@example.com"
 
 
 @dataclass(frozen=True)
@@ -47,23 +52,33 @@ class SeededE2EData:
 
     upcoming_exam_id: int
     invitation_status_exam_id: int
+    workspace_exam_id: int
+    formal_exam_id: int
     scoped_account_id: int
     pending_account_id: int
     unscoped_account_id: int
     inactive_account_id: int
     sent_scope_account_id: int
     failed_scope_account_id: int
+    workspace_account_id: int
+    formal_account_id: int
+    conflict_account_id: int
 
     def as_public_dict(self) -> dict[str, int]:
         return {
             "upcoming_exam_id": self.upcoming_exam_id,
             "invitation_status_exam_id": self.invitation_status_exam_id,
+            "workspace_exam_id": self.workspace_exam_id,
+            "formal_exam_id": self.formal_exam_id,
             "scoped_account_id": self.scoped_account_id,
             "pending_account_id": self.pending_account_id,
             "unscoped_account_id": self.unscoped_account_id,
             "inactive_account_id": self.inactive_account_id,
             "sent_scope_account_id": self.sent_scope_account_id,
             "failed_scope_account_id": self.failed_scope_account_id,
+            "workspace_account_id": self.workspace_account_id,
+            "formal_account_id": self.formal_account_id,
+            "conflict_account_id": self.conflict_account_id,
         }
 
 
@@ -152,6 +167,7 @@ def _ensure_exam(
     question: Question,
     available_from: datetime,
     available_until: datetime,
+    status: str = "active",
 ) -> Exam:
     exam = db.query(Exam).filter(Exam.title == title).one_or_none()
     if exam is None:
@@ -166,7 +182,7 @@ def _ensure_exam(
                 "mode": "fixed_paper",
                 "type_counts": {"single": 1},
             },
-            status="active",
+            status=status,
             show_answer_after_submit=False,
             show_ranking=False,
             available_from=available_from,
@@ -177,7 +193,7 @@ def _ensure_exam(
     else:
         # The fixture is disposable; ensure an interrupted run cannot leave a
         # draft or stale opening window for the next browser invocation.
-        exam.status = "active"
+        exam.status = status
         exam.available_from = available_from
         exam.available_until = available_until
         exam.question_rule = {
@@ -270,6 +286,24 @@ def seed_operational_data() -> SeededE2EData:
         failed_account = _ensure_account(
             db, email=E2E_FAILED_EMAIL, display_name=None, status="pending"
         )
+        workspace_account = _ensure_account(
+            db,
+            email=E2E_WORKSPACE_EMAIL,
+            display_name="工作台应考人员",
+            status="active",
+        )
+        formal_account = _ensure_account(
+            db,
+            email=E2E_FORMAL_EMAIL,
+            display_name="正式考试用户",
+            status="active",
+        )
+        conflict_account = _ensure_account(
+            db,
+            email=E2E_CONFLICT_EMAIL,
+            display_name="冲突恢复用户",
+            status="active",
+        )
 
         question = _ensure_question(
             db,
@@ -295,6 +329,21 @@ def seed_operational_data() -> SeededE2EData:
             db,
             title=E2E_INVITATION_STATUS_EXAM_TITLE,
             question=status_question,
+            available_from=now - timedelta(minutes=5),
+            available_until=now + timedelta(hours=2),
+        )
+        workspace_exam = _ensure_exam(
+            db,
+            title=E2E_WORKSPACE_EXAM_TITLE,
+            question=question,
+            available_from=now - timedelta(minutes=5),
+            available_until=now + timedelta(hours=2),
+            status="draft",
+        )
+        formal_exam = _ensure_exam(
+            db,
+            title=E2E_FORMAL_EXAM_TITLE,
+            question=question,
             available_from=now - timedelta(minutes=5),
             available_until=now + timedelta(hours=2),
         )
@@ -344,16 +393,47 @@ def seed_operational_data() -> SeededE2EData:
             department="运营",
             exam_group="E2E-FAILED",
         )
+        _ensure_scope(
+            db,
+            exam=workspace_exam,
+            account=workspace_account,
+            roster_name="工作台冻结姓名",
+            department="运营",
+            exam_group="E2E-WORKSPACE",
+        )
+        _ensure_scope(
+            db,
+            exam=formal_exam,
+            account=formal_account,
+            roster_name="正式考试姓名",
+            invitation_status="sent",
+            department="质量保障",
+            exam_group="E2E-FORMAL",
+        )
+        _ensure_scope(
+            db,
+            exam=formal_exam,
+            account=conflict_account,
+            roster_name="冲突恢复姓名",
+            invitation_status="sent",
+            department="质量保障",
+            exam_group="E2E-CONFLICT",
+        )
         db.commit()
         return SeededE2EData(
             upcoming_exam_id=upcoming.id,
             invitation_status_exam_id=invitation_status_exam.id,
+            workspace_exam_id=workspace_exam.id,
+            formal_exam_id=formal_exam.id,
             scoped_account_id=scoped.id,
             pending_account_id=pending.id,
             unscoped_account_id=unscoped.id,
             inactive_account_id=inactive.id,
             sent_scope_account_id=sent_account.id,
             failed_scope_account_id=failed_account.id,
+            workspace_account_id=workspace_account.id,
+            formal_account_id=formal_account.id,
+            conflict_account_id=conflict_account.id,
         )
 
 

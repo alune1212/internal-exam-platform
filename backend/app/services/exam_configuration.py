@@ -140,8 +140,8 @@ def _candidate_exam_is_visible(exam: Exam, *, now: datetime | None = None) -> bo
     return True
 
 
-def _exam_availability_status(exam: Exam) -> str:
-    now = datetime.now(UTC)
+def _exam_availability_status(exam: Exam, *, now: datetime | None = None) -> str:
+    now = now or datetime.now(UTC)
     if exam.available_from is not None and now < ensure_aware(exam.available_from):
         return "not_started"
     if exam.available_from is not None and now > ensure_aware(
@@ -180,6 +180,7 @@ def _build_exam_read(
     updates: dict[str, object] | None = None,
     *,
     pool_counts: dict[int, int] | None = None,
+    observed_at: datetime | None = None,
 ) -> ExamRead:
     pool_count = (
         pool_counts.get(exam.id, 0)
@@ -188,7 +189,7 @@ def _build_exam_read(
     )
     data: dict[str, object] = {
         "question_pool_count": pool_count,
-        "availability_status": _exam_availability_status(exam),
+        "availability_status": _exam_availability_status(exam, now=observed_at),
     }
     if updates:
         data.update(updates)
@@ -402,9 +403,9 @@ def update_exam(
 ) -> ExamRead:
     assert_admin_mutation_allowed(db)
     raw_updates = payload.model_dump(exclude_unset=True)
-    activating_request = raw_updates.get("status") == "active"
+    status_update_requested = "status" in raw_updates
     query = db.query(Exam).filter(Exam.id == exam_id)
-    if activating_request:
+    if status_update_requested:
         query = query.with_for_update().populate_existing()
     exam = query.one_or_none()
     if exam is None:

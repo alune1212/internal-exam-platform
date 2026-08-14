@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -250,6 +250,84 @@ class PublicationReadinessRead(BaseModel):
     blockers: list[PublicationReadinessIssue] = Field(default_factory=list)
     warnings: list[PublicationReadinessIssue] = Field(default_factory=list)
     fingerprint: str
+
+
+ExamWorkspaceNextAction = Literal[
+    "manage_roster",
+    "fix_readiness",
+    "publish",
+    "wait_invitation_delivery",
+    "send_invitations",
+    "resend_failed_invitations",
+    "wait_for_open",
+    "monitor_exam",
+    "review_incidents",
+    "release_result_details",
+    "archive_exam",
+    "complete",
+]
+
+
+class ExamWorkspaceRosterSummary(BaseModel):
+    """Aggregate roster and account lifecycle counts for one exam.
+
+    The workspace intentionally returns no scope rows or account identity
+    fields.  These counts are sufficient for an operator to understand
+    publication readiness without exposing roster PII.
+    """
+
+    total_count: int = Field(default=0, ge=0)
+    active_count: int = Field(default=0, ge=0)
+    pending_count: int = Field(default=0, ge=0)
+    inactive_count: int = Field(default=0, ge=0)
+
+
+class ExamWorkspaceInvitationSummary(BaseModel):
+    """Delivery state counts; in-flight claims are tracked independently."""
+
+    not_sent_count: int = Field(default=0, ge=0)
+    sent_count: int = Field(default=0, ge=0)
+    failed_count: int = Field(default=0, ge=0)
+    in_flight_count: int = Field(default=0, ge=0)
+
+
+class ExamWorkspaceAttendanceSummary(BaseModel):
+    """Latest-attempt attendance counts for the frozen exam roster."""
+
+    not_started_count: int = Field(default=0, ge=0)
+    in_progress_count: int = Field(default=0, ge=0)
+    submitted_count: int = Field(default=0, ge=0)
+
+
+class ExamWorkspaceAttemptSummary(BaseModel):
+    """Raw attempt history counts, retaining each status separately."""
+
+    in_progress_count: int = Field(default=0, ge=0)
+    submitted_count: int = Field(default=0, ge=0)
+    auto_submitted_count: int = Field(default=0, ge=0)
+    voided_count: int = Field(default=0, ge=0)
+
+
+class ExamWorkspaceIncidentSummary(BaseModel):
+    """Void incidents and still-available retake grants."""
+
+    voided_count: int = Field(default=0, ge=0)
+    unused_retake_count: int = Field(default=0, ge=0)
+
+
+class ExamWorkspaceRead(BaseModel):
+    """Privacy-bounded aggregate operational view for one exam."""
+
+    observed_at: datetime
+    exam: ExamRead
+    readiness: PublicationReadinessRead | None = None
+    roster_summary: ExamWorkspaceRosterSummary
+    invitation_summary: ExamWorkspaceInvitationSummary
+    attendance_summary: ExamWorkspaceAttendanceSummary
+    attempt_summary: ExamWorkspaceAttemptSummary
+    incident_summary: ExamWorkspaceIncidentSummary
+    next_action: ExamWorkspaceNextAction
+    next_action_reason: str
 
 
 class ExamPublishRequest(BaseModel):

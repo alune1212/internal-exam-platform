@@ -89,6 +89,7 @@ POST /api/admin/exams
 GET  /api/admin/exams
 PUT  /api/admin/exams/{exam_id}
 GET  /api/admin/exams/{exam_id}/publication-readiness
+GET  /api/admin/exams/{exam_id}/workspace
 POST /api/admin/exams/{exam_id}/publish
 
 POST /api/admin/exams/{exam_id}/candidates/import
@@ -140,6 +141,7 @@ GET  /api/admin/learning/reports/export?video_id={id}&status=completed
 - operations snapshot 只供 loopback 管理入口读取，汇总版本、迁移、服务/worker、锁、磁盘、备份、第二副本、恢复、保留和安全扫描状态。
 - 保留删除采用 preview -> archive -> verified paired backup -> explicit IDs/confirmation 的两阶段门禁，不允许直接数据库删除。
 - `/api/admin/exams` 的创建、列表和更新已持久化到 `exam` 表；管理端考试编辑页保存 `question_rule` JSON 和开放时间窗口。列表返回 `question_pool_count` 和 `availability_status`。
+- `/api/admin/exams/{exam_id}/workspace` 是 admin-only 的单场聚合读模型，只返回一个 UTC `observed_at`、考试/发布就绪摘要、名单/邀请/出席/attempt/incident 汇总和服务端 advisory `next_action`/`next_action_reason`，不返回 roster rows 或 identity 字段。`next_action` 只供导航提示，所有 mutation 仍在服务端重新校验。
 - 考试从 draft 切换 active 时冻结 `exam_question_pool`；active 后时长和抽题规则不可修改。
 - 题库导入接口执行标准 Excel 行级校验，合法行写入 `question` / `question_option`，并写入 `import_batch` 记录失败行号和原因。
 - Excel 导入默认限制为 5 MiB、5000 行数据、1 个工作表；超限会返回 400 级业务错误，限制可通过后端环境变量调整。

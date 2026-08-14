@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
-import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
+import { Link, Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -697,6 +697,133 @@ describe("P0 pages", () => {
         0,
       ),
     );
+  });
+
+  it("guards beforeunload only while the active attempt has unsynchronized work", async () => {
+    let resolveSave: (value: {
+      saved_count: number;
+      saved_at: string;
+      answer_revision: number;
+    }) => void = () => {};
+    vi.mocked(saveAttemptAnswers).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    await user.click((await screen.findAllByRole("radio", { name: /选项 B：上海/ }))[0]);
+    await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(1));
+
+    const unsavedEvent = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unsavedEvent);
+    expect(unsavedEvent.defaultPrevented).toBe(true);
+
+    resolveSave({ saved_count: 1, saved_at: "2026-08-14T00:02:00.000Z", answer_revision: 1 });
+    await waitFor(() => expect(screen.getByTestId("exam-save-status")).toHaveTextContent("已保存"));
+
+    const savedEvent = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(savedEvent);
+    expect(savedEvent.defaultPrevented).toBe(false);
+  });
+
+  it("shows an in-app leave warning and lets the candidate stay or leave explicitly", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveAttemptAnswers).mockImplementation(() => new Promise(() => {}));
+
+    function TakingWithLeaveLink() {
+      return (
+        <>
+          <ExamTakingPage />
+          <Link to="/exams">离开考试</Link>
+        </>
+      );
+    }
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: <Outlet />,
+          children: [
+            { path: "exams/:examId/taking", element: <TakingWithLeaveLink /> },
+            { path: "exams", element: <div>考试列表</div> },
+          ],
+        },
+      ],
+      { initialEntries: ["/exams/1/taking?attemptId=10"] },
+    );
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    );
+
+    await user.click((await screen.findAllByRole("radio", { name: /选项 B：上海/ }))[0]);
+    await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalledTimes(1));
+    const leaveLink = screen.getByRole("link", { name: "离开考试" });
+
+    await user.click(leaveLink);
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "留在考试" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "仍要离开" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "留在考试" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "离开考试" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "离开考试" }));
+    await user.click(screen.getByRole("button", { name: "仍要离开" }));
+    expect(await screen.findByText("考试列表")).toBeInTheDocument();
+  });
+
+  it("keeps shortcuts inside the question workspace and exposes mobile save and sheet actions", async () => {
+    const user = userEvent.setup();
+    renderPage(
+      "exams/:examId/taking",
+      <ExamTakingPage />,
+      undefined,
+      "exams/1/taking?attemptId=10",
+    );
+
+    await screen.findAllByRole("radio", { name: /选项 B：上海/ });
+    const heading = screen.getAllByTestId("exam-question-heading")[0];
+    heading.focus();
+    expect(document.activeElement).toBe(heading);
+    await user.keyboard("b");
+    await waitFor(() => expect(saveAttemptAnswers).toHaveBeenCalled());
+
+    const optionB = screen.getAllByRole("radio", { name: /选项 B：上海/ });
+    optionB.forEach((option) => expect(option).toHaveAttribute("aria-checked", "true"));
+
+    const saveButtons = screen.getAllByRole("button", { name: "保存答案" });
+    expect(saveButtons.length).toBeGreaterThanOrEqual(2);
+    const workspace = screen.getByTestId("exam-save-status").closest("[data-exam-workspace]");
+    expect(workspace).not.toBeNull();
+    expect(
+      Array.from(workspace?.querySelectorAll("*") ?? []).some((element) =>
+        String(element.className).includes("safe-area-inset-bottom"),
+      ),
+    ).toBe(true);
+
+    const sheetTrigger = screen.getByRole("button", { name: "打开题号导航" });
+    await user.click(sheetTrigger);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("button", { name: "交卷" })).toBeInTheDocument();
+    (dialog as HTMLElement).focus();
+    await user.keyboard("a");
+    expect(optionB[0]).toHaveAttribute("aria-checked", "true");
   });
 
   it("renders the exam result page black-card result copy and filter controls", async () => {

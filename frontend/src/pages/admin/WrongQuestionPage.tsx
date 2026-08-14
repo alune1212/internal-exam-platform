@@ -71,6 +71,7 @@ export function WrongQuestionPage() {
       ]}
       queryEnabled={!examsPending}
       isLoading={examsPending}
+      onRetry={() => exams.refetch()}
       queryFn={() => {
         if (examsLoadError) {
           throw new Error("考试列表加载失败");

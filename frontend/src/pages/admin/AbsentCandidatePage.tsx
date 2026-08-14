@@ -73,6 +73,7 @@ export function AbsentCandidatePage() {
       chapterLabel={adminPageCopy.reports}
       description={adminPageText.reports.attendance.description}
       queryKey={["admin", "absent-candidates", status, selectedExamId]}
+      onRetry={() => exams.refetch()}
       queryFn={() =>
         selectedExamId ? getAbsentCandidates(status, selectedExamId) : getAbsentCandidates(status)
       }

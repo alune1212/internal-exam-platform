@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useBlocker, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { ApiError, getErrorMessage } from "@/api/client";
 import { PageShell, PageState } from "@/components/page";
@@ -48,6 +48,7 @@ export function ExamTakingPage() {
     answers,
     answersRef,
     saveStatus,
+    hasUnsynchronizedWork,
     updateAnswers,
     performFullSave,
     cancelPendingSave,
@@ -63,6 +64,35 @@ export function ExamTakingPage() {
     invalidateSession,
   });
   const remainingSeconds = useAttemptCountdown(attempt);
+  const [navigationBypass, setNavigationBypass] = useState(false);
+  const navigationBypassRef = useRef(false);
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string | undefined>();
+  const shouldGuardNavigation = Boolean(
+    attempt?.status === "in_progress" && hasUnsynchronizedWork && !navigationBypass,
+  );
+  const shouldBlockNavigation = useCallback(
+    () => shouldGuardNavigation && !navigationBypassRef.current,
+    [shouldGuardNavigation],
+  );
+  const blocker = useBlocker(shouldBlockNavigation);
+
+  useEffect(() => {
+    if (!shouldGuardNavigation && blocker.state === "blocked") {
+      blocker.reset();
+    }
+  }, [blocker, shouldGuardNavigation]);
+
+  useEffect(() => {
+    if (!shouldGuardNavigation) return;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [shouldGuardNavigation]);
 
   useEffect(() => {
     if (
@@ -140,6 +170,8 @@ export function ExamTakingPage() {
 
   const beginFreshTakeover = useCallback(() => {
     const returnTo = `/exams/${examId}/taking?attemptId=${encodeURIComponent(attemptId ?? "")}&takeover=1`;
+    navigationBypassRef.current = true;
+    setNavigationBypass(true);
     clearCurrentCandidate();
     navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
   }, [attemptId, examId, navigate]);
@@ -147,9 +179,21 @@ export function ExamTakingPage() {
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (target) {
-        const tag = target.tagName.toLowerCase();
-        if (tag === "input" || tag === "textarea" || target.isContentEditable) return;
+      const workspace = target?.closest<HTMLElement>("[data-exam-workspace]");
+      if (
+        !workspace ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey ||
+        target?.isContentEditable ||
+        target?.closest(
+          "button, a, input, textarea, select, option, [role='button'], [role='dialog'], [role='alertdialog'], [data-exam-overlay], [data-radix-dialog-content], [data-radix-popper-content-wrapper]",
+        )
+      ) {
+        return;
       }
       if (event.key === "ArrowLeft") {
         event.preventDefault();
@@ -201,6 +245,7 @@ export function ExamTakingPage() {
       return;
     }
     autoSubmittedRef.current = true;
+    setLiveAnnouncement("考试时间已到，正在自动交卷。");
     submission.requestSubmit("manual");
   }, [attempt, remainingSeconds, submission]);
 
@@ -364,6 +409,7 @@ export function ExamTakingPage() {
       activeIndex={activeIndex}
       total={total}
       answeredCount={answeredCount}
+      activeQuestionAnswered={Boolean(answers[activeQuestion.id])}
       remainingSeconds={remainingSeconds}
       stemChapterLabel={stemChapterLabel}
       stemTitle={activeQuestion.stem_snapshot}
@@ -373,6 +419,7 @@ export function ExamTakingPage() {
       activeQuestionId={activeQuestion.id}
       isLastQuestion={isLastQuestion}
       saveStatus={saveStatus}
+      hasUnsynchronizedWork={hasUnsynchronizedWork}
       submitPending={submission.isPending}
       submitErrorVisible={submission.isError}
       onSelectOption={(label) => {
@@ -396,6 +443,10 @@ export function ExamTakingPage() {
       onSubmit={() => submission.requestSubmit("manual")}
       onRetrySave={() => void performFullSave()}
       onResolveConflict={beginFreshTakeover}
+      navigationWarning={
+        blocker.state === "blocked" ? { onStay: blocker.reset, onLeave: blocker.proceed } : null
+      }
+      liveAnnouncement={liveAnnouncement}
     />
   );
 }

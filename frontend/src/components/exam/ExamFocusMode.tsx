@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Save } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { candidateActionCopy } from "@/lib/pageCopy";
@@ -14,6 +14,7 @@ export type ExamFocusModeProps = {
     current: number;
     total: number;
     answered: number;
+    currentAnswered?: boolean;
   };
   remainingSeconds: number;
   stem: {
@@ -40,6 +41,7 @@ export type ExamFocusModeProps = {
   };
   className?: string;
   children?: ReactNode;
+  questionHeadingId?: string;
 };
 
 export function ExamFocusMode({
@@ -52,9 +54,20 @@ export function ExamFocusMode({
   nav,
   className,
   children,
+  questionHeadingId = "exam-question-heading",
 }: ExamFocusModeProps) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const currentQuestion = progress.current;
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, [currentQuestion, stem.chapterLabel, stem.title]);
+
+  const answeredLabel =
+    (progress.currentAnswered ?? options.some((option) => option.selected)) ? "已作答" : "未作答";
+
   return (
-    <div className={cn("flex flex-col gap-6", className)}>
+    <div className={cn("flex min-w-0 flex-col gap-6", className)} data-exam-question-workspace>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <ProgressCapsule
           current={progress.current}
@@ -64,20 +77,34 @@ export function ExamFocusMode({
         <Timer remainingSeconds={remainingSeconds} />
       </div>
 
-      <article className="flex flex-col gap-6 rounded-lg border border-hairline bg-surface-card p-6 shadow-card md:p-8">
+      <article className="flex min-w-0 flex-col gap-6 rounded-lg border border-hairline bg-surface-card p-4 shadow-card sm:p-6 md:p-8">
         <header className="flex flex-col gap-2 border-b border-hairline pb-4">
-          <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
+          <span
+            id={`${questionHeadingId}-eyebrow`}
+            className="font-display text-caption uppercase italic tracking-[0.18em] text-muted"
+          >
             {stem.chapterLabel}
           </span>
-          <h2 className="font-display text-display-md font-semibold leading-snug text-ink">
+          <h2
+            id={questionHeadingId}
+            ref={headingRef}
+            tabIndex={-1}
+            data-testid="exam-question-heading"
+            aria-describedby={`${questionHeadingId}-eyebrow ${questionHeadingId}-state`}
+            className="break-words font-display text-display-md font-semibold leading-snug text-ink focus-visible:outline-none"
+          >
             {stem.title}
           </h2>
+          <span id={`${questionHeadingId}-state`} className="sr-only">
+            第 {progress.current} 题，{answeredLabel}。
+          </span>
         </header>
 
         <div
           className="flex flex-col gap-3"
           role={selectionType === "multiple" ? "group" : "radiogroup"}
-          aria-label="选项列表"
+          aria-labelledby={questionHeadingId}
+          aria-describedby={`${questionHeadingId}-state`}
         >
           {options.map((option) => (
             <OptionCard

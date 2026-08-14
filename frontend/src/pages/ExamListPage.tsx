@@ -3,7 +3,7 @@ import { ArrowUpRight, Clock, FileText, Hash } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { getActiveExams } from "@/api/exams";
-import { PageHeader, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { getCurrentCandidate } from "@/lib/candidateSession";
 import {
@@ -164,12 +164,14 @@ function ExamCard({ exam }: { exam: Exam }) {
 export function ExamListPage() {
   const candidate = getCurrentCandidate();
   const candidateId = candidate?.id ?? "anonymous";
-  const { data, isError, isLoading } = useQuery({
+  const { data, dataUpdatedAt, isError, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["candidate", candidateId, "active-exams"],
     queryFn: getActiveExams,
     enabled: Boolean(candidate),
+    retry: false,
   });
-  const hasLoadError = isError;
+  const hasLoadError = isError && !data;
+  const hasStaleError = isError && Boolean(data);
 
   return (
     <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
@@ -179,6 +181,14 @@ export function ExamListPage() {
         description={candidatePageText.exams.description}
       />
 
+      {hasStaleError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={dataUpdatedAt}
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
+      ) : null}
+
       {isLoading ? (
         <PageState state="loading" rows={3} />
       ) : hasLoadError ? (
@@ -187,6 +197,7 @@ export function ExamListPage() {
           eyebrow={candidatePageCopy.error}
           title={candidatePageText.exams.errorTitle}
           description={candidatePageText.exams.errorDescription}
+          onRetry={() => void refetch()}
         />
       ) : data?.length ? (
         <div className="grid gap-5 md:grid-cols-2">

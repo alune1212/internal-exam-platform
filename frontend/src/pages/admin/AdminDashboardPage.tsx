@@ -5,8 +5,9 @@ import { getAdminQuestions } from "@/api/questions";
 import { getAbsentCandidates, getScoreReport } from "@/api/reports";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { adminPageCopy, formatAttemptStatus, formatExamStatus } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
@@ -67,27 +68,50 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 }
 
 export function AdminDashboardPage() {
-  const questions = useQuery({ queryKey: ["admin", "questions"], queryFn: getAdminQuestions });
-  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
-  const scores = useQuery({ queryKey: ["admin", "score-report"], queryFn: () => getScoreReport() });
+  const questions = useQuery({
+    queryKey: ["admin", "questions"],
+    queryFn: getAdminQuestions,
+    retry: false,
+  });
+  const exams = useQuery({
+    queryKey: ["admin", "exams"],
+    queryFn: getAdminExams,
+    retry: false,
+  });
+  const scores = useQuery({
+    queryKey: ["admin", "score-report"],
+    queryFn: () => getScoreReport(),
+    retry: false,
+  });
   const absent = useQuery({
     queryKey: ["admin", "absent-candidates", "not_started"],
     queryFn: () => getAbsentCandidates("not_started"),
+    retry: false,
   });
 
   const questionsLoading = !questions.data && questions.isLoading;
   const examsLoading = !exams.data && exams.isLoading;
   const scoresLoading = !scores.data && scores.isLoading;
   const absentLoading = !absent.data && absent.isLoading;
-  const questionsError = !questions.data && questions.isError;
-  const examsError = !exams.data && exams.isError;
-  const scoresError = !scores.data && scores.isError;
-  const absentError = !absent.data && absent.isError;
+  const questionsError = questions.isError && !questions.data;
+  const examsError = exams.isError && !exams.data;
+  const scoresError = scores.isError && !scores.data;
+  const absentError = absent.isError && !absent.data;
+  const hasStaleData =
+    (questions.isError && Boolean(questions.data)) ||
+    (exams.isError && Boolean(exams.data)) ||
+    (scores.isError && Boolean(scores.data)) ||
+    (absent.isError && Boolean(absent.data));
   const liveExams = (exams.data ?? []).filter(
     (exam) => exam.status === "active" || exam.status === "live",
   ).length;
   const hasMetricError = questionsError || examsError || scoresError || absentError;
   const activityUnavailable = scoresError || absentError;
+
+  const retryDashboard = () =>
+    Promise.all([questions.refetch(), exams.refetch(), scores.refetch(), absent.refetch()]);
+
+  const retryActivity = () => Promise.all([scores.refetch(), absent.refetch()]);
 
   const activity: ActivityItem[] = [
     ...(scores.data ?? []).slice(0, 5).map((score) => ({
@@ -113,6 +137,21 @@ export function AdminDashboardPage() {
         title={hasMetricError ? "部分数据暂不可用。" : "一切就绪。"}
         description={`最近一次刷新 · ${new Date().toLocaleString("zh-CN")}`}
       />
+
+      {hasStaleData ? (
+        <PageStaleNotice
+          lastSuccessfulAt={Math.max(
+            questions.dataUpdatedAt,
+            exams.dataUpdatedAt,
+            scores.dataUpdatedAt,
+            absent.dataUpdatedAt,
+          )}
+          onRetry={retryDashboard}
+          retrying={
+            questions.isFetching || exams.isFetching || scores.isFetching || absent.isFetching
+          }
+        />
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
@@ -143,10 +182,13 @@ export function AdminDashboardPage() {
         />
       </section>
       {hasMetricError ? (
-        <Alert variant="error">
+        <Alert variant="error" className="items-start gap-3 sm:flex-row sm:items-center">
           <AlertDescription>
             部分仪表盘指标加载失败，当前数值已标记为不可用，请稍后重试。
           </AlertDescription>
+          <Button type="button" size="sm" variant="outline" onClick={() => void retryDashboard()}>
+            重试指标
+          </Button>
         </Alert>
       ) : null}
 
@@ -163,6 +205,7 @@ export function AdminDashboardPage() {
             eyebrow={adminPageCopy.error}
             title="最近活动加载失败。"
             description="请稍后重试，或检查成绩与参考状态接口。"
+            onRetry={() => void retryActivity()}
             className="py-8"
           />
         ) : activity.length ? (

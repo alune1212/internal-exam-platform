@@ -15,6 +15,7 @@ export type ExamNavigatorProps = {
   className?: string;
   desktopLayout?: boolean;
   sheetLayout?: boolean;
+  idPrefix?: string;
   onJump: (targetId: string, itemId: number) => void;
   onSubmit?: () => void;
   submitLabel?: string;
@@ -49,6 +50,7 @@ export function ExamNavigator({
   className,
   desktopLayout = true,
   sheetLayout = false,
+  idPrefix = "exam-nav",
   onJump,
   onSubmit,
   submitLabel = candidateActionCopy.submitExam,
@@ -94,11 +96,17 @@ export function ExamNavigator({
             <ul className="grid grid-cols-5 gap-2">
               {group.items.map((item) => (
                 <li key={item.id} className="contents">
+                  <span id={`${idPrefix}-state-${item.id}`} className="sr-only">
+                    {item.answered ? "已作答" : "未作答"}
+                    {activeId === item.id ? "，当前题" : ""}
+                  </span>
                   <button
                     type="button"
                     onClick={() => onJump(item.targetId, item.id)}
                     aria-label={`跳转到第 ${item.displayIndex} 题`}
+                    aria-describedby={`${idPrefix}-state-${item.id}`}
                     aria-current={activeId === item.id ? "true" : undefined}
+                    data-question-state={item.answered ? "answered" : "unanswered"}
                     className={cn(
                       "flex h-10 items-center justify-center rounded-md border font-mono text-base tabular-nums transition-colors",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",

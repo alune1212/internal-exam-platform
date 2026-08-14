@@ -9,7 +9,7 @@ import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageShell, PageState } from "@/components/page";
+import { PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -40,14 +40,11 @@ export function PracticePage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [searchParams] = useSearchParams();
 
-  const {
-    data = [],
-    isError,
-    isLoading,
-  } = useQuery({
+  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["candidate", candidate?.id ?? "anonymous", "practice-questions"],
     queryFn: getPracticeQuestions,
     enabled: Boolean(candidate),
+    retry: false,
   });
 
   const mutation = useMutation({
@@ -57,9 +54,17 @@ export function PracticePage() {
     },
   });
 
-  const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data), [data]);
+  const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data ?? []), [data]);
   const total = sortedData.length;
-  const hasLoadError = isError && total === 0;
+  const hasLoadError = isError && !data;
+  const hasStaleError = isError && Boolean(data);
+  const staleNotice = hasStaleError ? (
+    <PageStaleNotice
+      lastSuccessfulAt={dataUpdatedAt}
+      onRetry={() => refetch()}
+      retrying={isFetching}
+    />
+  ) : null;
   const activeQuestion: PracticeQuestion | undefined = sortedData[activeIndex];
   const activeResult = activeQuestion ? results[activeQuestion.id] : undefined;
   const answeredCount = useMemo(
@@ -182,6 +187,7 @@ export function PracticePage() {
           eyebrow={candidatePageCopy.error}
           title={candidatePageText.practice.errorTitle}
           description={candidatePageText.practice.errorDescription}
+          onRetry={() => void refetch()}
         />
       </PageShell>
     );
@@ -190,6 +196,7 @@ export function PracticePage() {
   if (total === 0 || !activeQuestion) {
     return (
       <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+        {staleNotice}
         <PageState
           state="empty"
           eyebrow={candidatePageCopy.empty}
@@ -297,6 +304,8 @@ export function PracticePage() {
         </div>
       </div>
 
+      {staleNotice}
+
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
         <div id="practice-question-focus" className="flex flex-col gap-4">
           <ExamFocusMode
@@ -305,6 +314,7 @@ export function PracticePage() {
             stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
             options={options}
             selectionType={questionType}
+            questionHeadingId="practice-question-heading-desktop"
             onSelectOption={handleSelectOption}
             nav={{
               onPrev: goPrev,
@@ -335,6 +345,7 @@ export function PracticePage() {
             items={navItems}
             activeId={activeQuestion.id}
             desktopLayout
+            idPrefix="exam-nav-desktop"
             onJump={(_targetId, id) => jumpToQuestion(id)}
           />
         </aside>
@@ -347,6 +358,7 @@ export function PracticePage() {
           stem={{ chapterLabel: stemChapterLabel, title: activeQuestion.stem }}
           options={options}
           selectionType={questionType}
+          questionHeadingId="practice-question-heading-mobile"
           onSelectOption={handleSelectOption}
           nav={{
             onPrev: goPrev,
@@ -407,6 +419,7 @@ export function PracticePage() {
                 activeId={activeQuestion.id}
                 sheetLayout
                 desktopLayout={false}
+                idPrefix="exam-nav-mobile"
                 onJump={(_targetId, id) => {
                   jumpToQuestion(id);
                   setSheetOpen(false);

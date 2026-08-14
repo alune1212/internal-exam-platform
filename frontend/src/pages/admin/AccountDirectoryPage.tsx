@@ -7,7 +7,7 @@ import { getErrorMessage } from "@/api/client";
 import { getAdminAccounts, updateAdminAccountStatus } from "@/api/accounts";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -37,6 +37,7 @@ export function AccountDirectoryPage() {
   const accounts = useQuery({
     queryKey: ["admin", "accounts", search, status],
     queryFn: () => getAdminAccounts({ query: search, status }),
+    retry: false,
   });
   const statusMutation = useMutation({
     mutationFn: ({
@@ -165,6 +166,14 @@ export function AccountDirectoryPage() {
         </Alert>
       ) : null}
 
+      {accounts.isError && accounts.data ? (
+        <PageStaleNotice
+          lastSuccessfulAt={accounts.dataUpdatedAt}
+          onRetry={() => accounts.refetch()}
+          retrying={accounts.isFetching}
+        />
+      ) : null}
+
       <PageSection variant="table">
         {accounts.isLoading ? (
           <PageState
@@ -178,6 +187,7 @@ export function AccountDirectoryPage() {
             eyebrow="STATE · 异常状态"
             title="账户目录加载失败。"
             description="请稍后重试，或检查管理员账户接口。"
+            onRetry={() => void accounts.refetch()}
             className="border-0 bg-transparent py-10 shadow-none"
           />
         ) : (

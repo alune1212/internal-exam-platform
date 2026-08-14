@@ -67,4 +67,17 @@ describe("PageState", () => {
     expect(action).toHaveBeenCalledTimes(1);
     expect(secondaryAction).toHaveBeenCalledTimes(1);
   });
+
+  it("exposes a user-triggered retry action for recoverable errors", () => {
+    const retry = vi.fn();
+
+    render(
+      <PageState state="error" title="加载失败" description="网络暂时不可用。" onRetry={retry} />,
+    );
+
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    expect(retry).not.toHaveBeenCalled();
+    screen.getByRole("button", { name: "重试" }).click();
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
 });

@@ -39,6 +39,7 @@ import {
   formatExamStatus,
   importCopy,
 } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 import type { ExamCandidateRow, ExamRosterPayload } from "@/types/exam";
 import type { ImportFailure } from "@/types/imports";
 
@@ -230,6 +231,10 @@ export function ExamCandidatesPage() {
   const hasExamLoadError = exams.isError && !exams.data;
   const hasCandidateLoadError = candidates.isError && !candidates.data;
 
+  const invalidateWorkspace = () => {
+    void queryClient.invalidateQueries({ queryKey: adminKeys.examWorkspace(examId) });
+  };
+
   useEffect(() => {
     if (!pollingInvitations) return;
     const timer = window.setTimeout(() => {
@@ -284,6 +289,7 @@ export function ExamCandidatesPage() {
     setEditing(null);
     void queryClient.invalidateQueries({ queryKey: candidatesKey });
     void queryClient.invalidateQueries({ queryKey: ["admin", "absent-candidates"] });
+    invalidateWorkspace();
   };
 
   const importMutation = useMutation({
@@ -297,6 +303,7 @@ export function ExamCandidatesPage() {
     onSuccess: () => {
       setNotice({ tone: "success", message: "补考授权已创建。" });
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
+      invalidateWorkspace();
     },
     onError: (error) =>
       setNotice({ tone: "error", message: getErrorMessage(error, "补考授权失败") }),
@@ -338,6 +345,7 @@ export function ExamCandidatesPage() {
       setPollingInvitations(true);
       void queryClient.invalidateQueries({ queryKey: candidatesKey });
       void queryClient.invalidateQueries({ queryKey: ["admin", "exam-invitations", examId] });
+      invalidateWorkspace();
     },
     onError: (error) =>
       setNotice({ tone: "error", message: getErrorMessage(error, "邀请发送操作失败") }),
@@ -531,7 +539,7 @@ export function ExamCandidatesPage() {
         description="管理冻结的应考人员名单、账户状态与邀请投递结果。发布后名单身份和组织字段不可编辑。"
         actions={
           canSendInvitations ? (
-            <div className="flex flex-wrap gap-2">
+            <div id="invitation-actions" className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"

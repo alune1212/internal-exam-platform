@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models import (
     Candidate,
     Exam,
@@ -28,6 +29,10 @@ from app.services.exam_service import (
     ExamNotActiveError,
     ExamNotAvailableError,
     ExamNotFoundError,
+)
+from app.services.operational_lock_service import (
+    WriterFenceActiveError,
+    acquire_writer_fence,
 )
 from app.tests.conftest import (
     create_candidate,
@@ -448,6 +453,36 @@ def test_start_exam_returns_existing_in_progress_attempt(db: Session) -> None:
     second = exam_service.start_exam(db, exam.id, candidate.id)
 
     assert second.attempt_id == first.attempt_id
+
+
+def test_start_exam_resumes_in_progress_attempt_during_writer_fence(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Read-only resume remains available while new starts are fenced."""
+
+    monkeypatch.setattr(settings, "environment", "internal")
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    second_candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    add_exam_candidate_scope(db, exam.id, second_candidate.id)
+    create_question_with_options(db)
+
+    first = exam_service.start_exam(db, exam.id, candidate.id)
+    acquire_writer_fence(
+        db,
+        dataset_id="sqlite-resume-dataset",
+        host_id="sqlite-resume-host",
+        writer_generation=1,
+        reason="resume-read",
+    )
+    db.commit()
+
+    resumed = exam_service.start_exam(db, exam.id, candidate.id)
+    assert resumed.attempt_id == first.attempt_id
+
+    with pytest.raises(WriterFenceActiveError):
+        exam_service.start_exam(db, exam.id, second_candidate.id)
 
 
 def test_start_exam_rejects_after_submit_without_retake_grant(db: Session) -> None:

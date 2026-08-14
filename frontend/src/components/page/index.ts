@@ -12,3 +12,9 @@ export type { PageShellDensity, PageShellProps, PageShellWidth } from "./PageShe
 
 export { PageState } from "./PageState";
 export type { PageStateKind, PageStateProps } from "./PageState";
+
+export { PageStaleNotice } from "./PageStaleNotice";
+export type { PageStaleNoticeProps } from "./PageStaleNotice";
+
+export { RouteErrorBoundary, RouteErrorPage, RouteErrorState } from "./RouteErrorPage";
+export type { RouteErrorPageProps } from "./RouteErrorPage";

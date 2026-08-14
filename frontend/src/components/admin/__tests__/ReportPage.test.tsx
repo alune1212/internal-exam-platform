@@ -157,6 +157,27 @@ describe("ReportPage", () => {
     expect(screen.queryByText("暂无数据")).not.toBeInTheDocument();
   });
 
+  it("recovers from a first-load error after an explicit retry", async () => {
+    const retryableQuery = vi
+      .fn<() => Promise<Row[]>>()
+      .mockRejectedValueOnce(new Error("temporary outage"))
+      .mockResolvedValueOnce([{ id: 3, label: "recovered row" }]);
+
+    renderWithClient(
+      <ReportPage
+        title="成绩册"
+        queryKey="score-report-retry"
+        queryFn={retryableQuery}
+        columns={columns}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "报表加载失败。" })).toBeInTheDocument();
+    screen.getByRole("button", { name: "重试" }).click();
+    expect(await screen.findByText("recovered row")).toBeInTheDocument();
+    expect(retryableQuery).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps stale table data visible when a background refetch fails", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(["score-report-stale"], [{ id: 1, label: "cached row" }]);
@@ -176,5 +197,10 @@ describe("ReportPage", () => {
 
     expect(await screen.findByText("cached row")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "报表加载失败。" })).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("page-stale-warning")).toHaveTextContent(
+        "当前显示上一次成功的数据。",
+      ),
+    );
   });
 });

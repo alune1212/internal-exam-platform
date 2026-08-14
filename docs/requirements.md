@@ -9,6 +9,7 @@
 - 用户：通过规范化邮箱申请六位邮件验证码；首次验证后在独立步骤填写显示名称即可创建账号。active 用户可学习、练习和复习错题，四小时 session 不提供“记住我”。
 - 应考人员：只有被加入并冻结到某场考试的 per-exam roster 才能发现、开始、恢复或读取该场正式考试；平台显示名称编辑不会改写冻结名单或历史报表。
 - 主操作员：在当前 macOS 正式宿主本地导入题库/名单、配置与发布考试、处理事件、查看报表、备份和关闭会话。
+- 管理端可通过 `GET /api/admin/exams/{exam_id}/workspace` 查看单场考试的聚合运营工作区（发布就绪、名单/邀请/出席/attempt/incident 摘要和一个 advisory next action）；工作区不返回名单 PII，next action 不是授权依据。
 - 备份操作员：与主操作员权限相同，账号默认禁用，仅在主操作员不可用时接管；两人不得同时操作。
 - 操作员可以作废异常 attempt，并通过“预览 + 精确确认”批量发放补考；不得删除快照或审计证据。
 
@@ -27,7 +28,7 @@
 - 当前正式主机使用 Apple Silicon macOS + Docker Desktop + Docker Compose，单机 24×7 best-effort 运行，不建设高可用；严重主机故障允许暂停或改期。未来 Windows Docker Desktop + WSL2 只作为迁移目标，必须完成真实 Windows staging/UAT 后才能接管。
 - Docker Desktop 由登记的 designated host account 运行；可以复用现有受管账号，不强制新建账号。正式根目录必须在工作树外、owner-only（目录 0700、环境文件 0600）。
 - Docker Desktop 必须启用登录后启动、关闭 Resource Saver，资源固定为 8 CPU/8 GiB。Docker Desktop 当前没有按 Compose project 排除 Resource Saver 的正式合同；不得以不存在的 “formal exclusion” 代替关闭设置。正式 MacBook 考试期间必须接入 AC，电池不作为正式电源方案。
-- 正式应考人员入口地址固定为 `192.168.2.34/24`，并要求 DHCP reservation；pf/受管防火墙只允许 `192.168.2.0/24` 到 `192.168.2.34:8080`，操作员入口严格只绑定 `127.0.0.1:8081`。
+- 正式应考人员入口使用网络管理员批准并完成 DHCP reservation 的 `<FORMAL_LAN_IP>/24`；pf/受管防火墙只允许已批准的局域网 CIDR 到 `<FORMAL_LAN_IP>:8080`，操作员入口严格只绑定 `127.0.0.1:8081`。`<FORMAL_LAN_IP>` 是唯一规范占位符；历史或 synthetic UAT 中出现的具体地址不得复制到正式配置。
 - 应考人员入口在现有办公局域网使用 HTTP 8080，并记录为明确接受的第一阶段安全例外；不得把该入口描述成传输安全。
 - 普通办公设备、应考人员电脑和手机共用现有局域网，不假设独立路由器、专用 Wi-Fi 或受管终端。不得把 HTTP 描述为传输安全。
 - 正式 admin/candidate token 有效期固定 4 小时；单场考试最长 2 小时；考后全局关闭会话。
@@ -86,7 +87,7 @@
 - 管理员授权补考后，应考人员可重新进入该考试并生成新的等价试卷 attempt。
 - 邮箱登录不受旧的 30 分钟名单登录窗口限制；新开考仍在 `available_from` 前拒绝，开考后 15 分钟停止新建 attempt，宽限内开始仍获得完整时长。
 - 同一 attempt 只允许一个活动设备会话；新鲜 OTP 接管后旧设备保存必须失败。
-- 网络中断时允许 session-scoped 本地临时草稿，恢复后按修订号同步；草稿不暂停倒计时。
+- 网络中断时允许 session-scoped 本地临时草稿，恢复后按修订号同步；草稿不暂停倒计时。答案草稿和短时凭据只在当前浏览器标签页的 `sessionStorage` 中保留，同一标签页 reload 可恢复；关闭标签页/窗口、换标签页、换设备或跨宿主迁移不保证恢复，需重新 OTP 登录或既有 takeover 流程。
 
 ## 生命周期与运维
 

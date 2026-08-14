@@ -26,6 +26,7 @@ import {
   formatAdminExamEditTitle,
   formatExamStatus,
 } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: formatExamStatus("draft") },
@@ -143,6 +144,9 @@ export function ExamEditPage() {
     onSuccess: () => {
       setNotice({ tone: "success", message: "考试配置已保存。" });
       void queryClient.invalidateQueries({ queryKey: ["admin", "exams"] });
+      if (examId) {
+        void queryClient.invalidateQueries({ queryKey: adminKeys.examWorkspace(examId) });
+      }
     },
     onError: (error) => {
       setNotice({ tone: "error", message: getErrorMessage(error, "保存考试失败") });
@@ -172,6 +176,9 @@ export function ExamEditPage() {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "exams", examId, "publication-readiness"],
       });
+      if (examId) {
+        void queryClient.invalidateQueries({ queryKey: adminKeys.examWorkspace(examId) });
+      }
     },
     onError: (error) => {
       setNotice({ tone: "error", message: getErrorMessage(error, "发布考试失败") });
@@ -189,6 +196,9 @@ export function ExamEditPage() {
       setReleaseConfirmation("");
       setNotice({ tone: "success", message: "答案与解析已一次性发布。" });
       void queryClient.invalidateQueries({ queryKey: ["admin", "exams"] });
+      if (examId) {
+        void queryClient.invalidateQueries({ queryKey: adminKeys.examWorkspace(examId) });
+      }
     },
     onError: (error) => {
       setNotice({ tone: "error", message: getErrorMessage(error, "发布答案解析失败") });
@@ -284,7 +294,7 @@ export function ExamEditPage() {
         }
       />
 
-      <PageSection variant="card" className="grid gap-6 lg:grid-cols-2 lg:p-8">
+      <PageSection id="archive" variant="card" className="grid gap-6 lg:grid-cols-2 lg:p-8">
         {notice ? (
           <Alert
             variant={notice.tone === "success" ? "success" : "error"}
@@ -385,6 +395,7 @@ export function ExamEditPage() {
 
       {isDraft ? (
         <PageSection
+          id="publish"
           variant="card"
           aria-labelledby="publication-readiness-title"
           className="grid gap-5 lg:p-8"
@@ -502,6 +513,7 @@ export function ExamEditPage() {
 
       {!isDraft ? (
         <PageSection
+          id="result-release"
           variant="card"
           aria-labelledby="result-release-title"
           className="grid gap-5 lg:p-8"

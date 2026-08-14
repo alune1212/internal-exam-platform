@@ -5,7 +5,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import { getLearningVideos } from "@/api/learning";
 import { StatusPill } from "@/components/editorial/StatusPill";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { candidateKeys } from "@/lib/queryKeys";
 import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
@@ -74,16 +74,15 @@ function LearningVideoCard({ video }: { video: CandidateLearningVideo }) {
 
 export function LearningListPage() {
   const { candidate } = useOutletContext<CandidateSessionContext>();
-  const {
-    data = [],
-    isError,
-    isLoading,
-  } = useQuery({
+  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: candidateKeys.learningVideos(),
     queryFn: getLearningVideos,
     enabled: Boolean(candidate),
+    retry: false,
   });
-  const hasLoadError = isError && data.length === 0;
+  const hasLoadError = isError && !data;
+  const hasStaleError = isError && Boolean(data);
+  const videos = data ?? [];
 
   return (
     <PageShell density="calm" stagger data-testid="candidate-learning-list-shell">
@@ -93,6 +92,14 @@ export function LearningListPage() {
         description={candidatePageText.learning.description}
       />
 
+      {hasStaleError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={dataUpdatedAt}
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
+      ) : null}
+
       {isLoading ? (
         <PageState state="loading" rows={3} />
       ) : hasLoadError ? (
@@ -101,10 +108,11 @@ export function LearningListPage() {
           eyebrow={candidatePageCopy.error}
           title={candidatePageText.learning.errorTitle}
           description={candidatePageText.learning.errorDescription}
+          onRetry={() => void refetch()}
         />
-      ) : data.length ? (
+      ) : videos.length ? (
         <div className="grid gap-5 md:grid-cols-2">
-          {data.map((video) => (
+          {videos.map((video) => (
             <LearningVideoCard key={video.id} video={video} />
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { List, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
@@ -34,10 +34,16 @@ type Option = {
   disabled: boolean;
 };
 
+export type NavigationWarning = {
+  onStay: () => void;
+  onLeave: () => void;
+};
+
 export function ExamTakingWorkspace({
   activeIndex,
   total,
   answeredCount,
+  activeQuestionAnswered = false,
   remainingSeconds,
   stemChapterLabel,
   stemTitle,
@@ -47,6 +53,7 @@ export function ExamTakingWorkspace({
   activeQuestionId,
   isLastQuestion,
   saveStatus,
+  hasUnsynchronizedWork = saveStatus !== "saved",
   submitPending,
   submitErrorVisible,
   onSelectOption,
@@ -57,10 +64,13 @@ export function ExamTakingWorkspace({
   onSubmit,
   onRetrySave,
   onResolveConflict,
+  navigationWarning,
+  liveAnnouncement,
 }: {
   activeIndex: number;
   total: number;
   answeredCount: number;
+  activeQuestionAnswered?: boolean;
   remainingSeconds: number;
   stemChapterLabel: string;
   stemTitle: string;
@@ -70,6 +80,7 @@ export function ExamTakingWorkspace({
   activeQuestionId: number;
   isLastQuestion: boolean;
   saveStatus: SaveStatus;
+  hasUnsynchronizedWork?: boolean;
   submitPending: boolean;
   submitErrorVisible: boolean;
   onSelectOption: (label: string) => void;
@@ -80,23 +91,48 @@ export function ExamTakingWorkspace({
   onSubmit: () => void;
   onRetrySave: () => void;
   onResolveConflict: () => void;
+  navigationWarning?: NavigationWarning | null;
+  liveAnnouncement?: string;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
+  const previousSaveStatusRef = useRef(saveStatus);
+  const [saveAnnouncement, setSaveAnnouncement] = useState("");
   const nextQuestionLabel = isLastQuestion
     ? submitPending
       ? candidateActionCopy.submittingExam
       : candidateActionCopy.submitExam
     : "下一题";
   const saveNeedsAction =
-    saveStatus === "error" || saveStatus === "offline" || saveStatus === "conflict";
+    hasUnsynchronizedWork &&
+    (saveStatus === "error" || saveStatus === "offline" || saveStatus === "conflict");
+
+  useEffect(() => {
+    if (previousSaveStatusRef.current === saveStatus) return;
+    previousSaveStatusRef.current = saveStatus;
+    const messages: Record<SaveStatus, string> = {
+      pending: "答案已记录，等待同步。",
+      saving: "正在保存答案。",
+      saved: "答案已保存。",
+      offline: "当前离线，答案已保留在本页，待恢复网络后同步。",
+      conflict: "答案版本冲突，请重新接管考试。",
+      error: "答案保存失败，请重试。",
+    };
+    setSaveAnnouncement(messages[saveStatus]);
+  }, [saveStatus]);
+
+  const announcement = liveAnnouncement ?? saveAnnouncement;
 
   return (
-    <PageShell density="focus" width="full" stagger className="relative min-h-[calc(100vh-10rem)]">
-      <div
-        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas px-4 py-3 text-body-sm shadow-card"
-        aria-live="polite"
-      >
+    <PageShell
+      density="focus"
+      width="full"
+      stagger
+      data-exam-workspace
+      className="relative min-h-[calc(100vh-10rem)] min-w-0"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas px-4 py-3 text-body-sm shadow-card">
         <span
+          data-testid="exam-save-status"
           className={
             saveStatus === "error" || saveStatus === "conflict"
               ? "font-medium text-error"
@@ -127,14 +163,54 @@ export function ExamTakingWorkspace({
         </div>
       </div>
 
+      <div
+        className="sr-only"
+        data-testid="exam-live-announcement"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {announcement}
+      </div>
+
+      {navigationWarning ? (
+        <div
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="exam-unsaved-navigation-title"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning bg-surface-card px-4 py-3 text-body-sm shadow-card"
+        >
+          <div>
+            <p id="exam-unsaved-navigation-title" className="font-medium text-ink">
+              答案尚未同步
+            </p>
+            <p className="text-muted">离开考试可能丢失最近的作答。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={navigationWarning.onStay}>
+              留在考试
+            </Button>
+            <Button type="button" onClick={navigationWarning.onLeave}>
+              仍要离开
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
-        <div id="exam-question-focus">
+        <div id="exam-question-focus" className="min-w-0">
           <ExamFocusMode
-            progress={{ current: activeIndex + 1, total, answered: answeredCount }}
+            progress={{
+              current: activeIndex + 1,
+              total,
+              answered: answeredCount,
+              currentAnswered: activeQuestionAnswered,
+            }}
             remainingSeconds={remainingSeconds}
             stem={{ chapterLabel: stemChapterLabel, title: stemTitle }}
             options={options}
             selectionType={selectionType}
+            questionHeadingId="exam-question-heading-desktop"
             onSelectOption={onSelectOption}
             nav={{
               onPrev,
@@ -152,6 +228,7 @@ export function ExamTakingWorkspace({
             items={navItems}
             activeId={activeQuestionId}
             desktopLayout
+            idPrefix="exam-nav-desktop"
             onJump={(_targetId, id) => onJump(id)}
             onSubmit={onSubmit}
             submitLabel={
@@ -162,25 +239,33 @@ export function ExamTakingWorkspace({
         </aside>
       </div>
 
-      <div className="flex flex-1 flex-col pb-24 lg:hidden">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(6rem+env(safe-area-inset-bottom))] lg:hidden">
         <ExamFocusMode
-          progress={{ current: activeIndex + 1, total, answered: answeredCount }}
+          progress={{
+            current: activeIndex + 1,
+            total,
+            answered: answeredCount,
+            currentAnswered: activeQuestionAnswered,
+          }}
           remainingSeconds={remainingSeconds}
           stem={{ chapterLabel: stemChapterLabel, title: stemTitle }}
           options={options}
           selectionType={selectionType}
+          questionHeadingId="exam-question-heading-mobile"
           onSelectOption={onSelectOption}
           nav={{
             onPrev,
+            onSave,
             onNext,
             prevDisabled: activeIndex === 0,
             nextDisabled: isLastQuestion && submitPending,
             nextLabel: nextQuestionLabel,
+            saving: saveStatus === "saving",
           }}
         />
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
+          <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[env(safe-area-inset-bottom)] pt-3">
             <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
               <ProgressCapsule
                 current={activeIndex + 1}
@@ -192,7 +277,8 @@ export function ExamTakingWorkspace({
               <SheetTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-pill text-canvas"
+                  aria-label="打开题号导航"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-pill text-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas focus-visible:ring-offset-2 focus-visible:ring-offset-footer"
                 >
                   <List aria-hidden="true" />
                   <span className="sr-only">打开题号导航</span>
@@ -203,7 +289,7 @@ export function ExamTakingWorkspace({
 
           <SheetContent
             side="bottom"
-            className="flex h-[80vh] flex-col gap-4 rounded-t-lg bg-canvas p-5"
+            className="flex max-h-[85dvh] min-h-0 flex-col gap-4 rounded-t-lg bg-canvas p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           >
             <SheetHeader className="border-b border-hairline pb-3">
               <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
@@ -215,6 +301,7 @@ export function ExamTakingWorkspace({
                 activeId={activeQuestionId}
                 sheetLayout
                 desktopLayout={false}
+                idPrefix="exam-nav-mobile"
                 onJump={(_targetId, id) => {
                   onJump(id);
                   setSheetOpen(false);

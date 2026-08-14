@@ -22,6 +22,7 @@ function renderPage() {
       <MemoryRouter initialEntries={["/admin/exams"]}>
         <Routes>
           <Route path="/admin/exams" element={<AdminExamListPage />} />
+          <Route path="/admin/exams/:examId" element={<div>工作台页</div>} />
           <Route path="/admin/exams/:examId/edit" element={<div>编辑页</div>} />
         </Routes>
       </MemoryRouter>
@@ -93,5 +94,26 @@ describe("AdminExamListPage", () => {
     expect(screen.getByText("OPEN · 可进入")).toBeInTheDocument();
     expect(screen.getByText("已冻结")).toBeInTheDocument();
     expect(screen.getByText("题池 50")).toBeInTheDocument();
+  });
+
+  it("links an exam title to the exam workspace", async () => {
+    examApi.getAdminExams.mockResolvedValue([
+      {
+        id: 1,
+        title: "正式考试",
+        description: null,
+        duration_minutes: 60,
+        question_rule: {},
+        status: "draft",
+        show_answer_after_submit: true,
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "正式考试" })).toHaveAttribute(
+      "href",
+      "/admin/exams/1",
+    );
   });
 });

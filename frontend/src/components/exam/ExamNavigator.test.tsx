@@ -35,5 +35,30 @@ describe("ExamNavigator", () => {
     const activeButton = screen.getByRole("button", { name: "跳转到第 1 题" });
     expect(activeButton).toHaveClass("outline", "outline-2", "outline-offset-[-3px]");
     expect(activeButton).not.toHaveClass("ring-2");
+    expect(activeButton).toHaveAttribute("aria-current", "true");
+    expect(activeButton).toHaveAttribute("aria-describedby", "exam-nav-state-1");
+    expect(screen.getByText("已作答")).toBeInTheDocument();
+  });
+
+  it("scopes status IDs to each navigator instance", () => {
+    const items = buildItems(2);
+
+    render(
+      <>
+        <ExamNavigator items={items} idPrefix="exam-nav-desktop" onJump={vi.fn()} />
+        <ExamNavigator items={items} idPrefix="exam-nav-mobile" onJump={vi.fn()} />
+      </>,
+    );
+
+    expect(screen.getAllByRole("button", { name: "跳转到第 1 题" })[0]).toHaveAttribute(
+      "aria-describedby",
+      "exam-nav-desktop-state-1",
+    );
+    expect(screen.getAllByRole("button", { name: "跳转到第 1 题" })[1]).toHaveAttribute(
+      "aria-describedby",
+      "exam-nav-mobile-state-1",
+    );
+    expect(document.querySelectorAll("#exam-nav-desktop-state-1")).toHaveLength(1);
+    expect(document.querySelectorAll("#exam-nav-mobile-state-1")).toHaveLength(1);
   });
 });

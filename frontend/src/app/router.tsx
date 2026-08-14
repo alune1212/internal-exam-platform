@@ -4,6 +4,7 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { CandidateLayout } from "@/components/layout/CandidateLayout";
+import { RouteErrorPage } from "@/components/page";
 
 function lazyNamed<T extends ComponentType<object>>(
   loader: () => Promise<Record<string, T>>,
@@ -55,6 +56,10 @@ const AdminExamListPage = lazyNamed(
   () => import("@/pages/admin/ExamListPage"),
   "AdminExamListPage",
 );
+const AdminExamWorkspacePage = lazyNamed(
+  () => import("@/pages/admin/ExamWorkspacePage"),
+  "ExamWorkspacePage",
+);
 const ExamEditPage = lazyNamed(() => import("@/pages/admin/ExamEditPage"), "ExamEditPage");
 const ExamCandidatesPage = lazyNamed(
   () => import("@/pages/admin/ExamCandidatesPage"),
@@ -87,6 +92,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <CandidateLayout />,
+    errorElement: <RouteErrorPage safePath="/login" />,
     children: [
       { index: true, element: <Navigate to="/login" replace /> },
       { path: "login", element: routeElement(LoginPage) },
@@ -102,10 +108,15 @@ export const router = createBrowserRouter([
       { path: "exams/:examId/result", element: routeElement(ExamResultPage) },
     ],
   },
-  { path: "/admin/login", element: routeElement(AdminLoginPage) },
+  {
+    path: "/admin/login",
+    element: routeElement(AdminLoginPage),
+    errorElement: <RouteErrorPage safePath="/admin/login" />,
+  },
   {
     path: "/admin",
     element: <AdminLayout />,
+    errorElement: <RouteErrorPage safePath="/admin/dashboard" />,
     children: [
       { index: true, element: <Navigate to="/admin/dashboard" replace /> },
       { path: "dashboard", element: routeElement(AdminDashboardPage) },
@@ -113,6 +124,7 @@ export const router = createBrowserRouter([
       { path: "questions", element: routeElement(QuestionListPage) },
       { path: "questions/import", element: routeElement(QuestionImportPage) },
       { path: "exams", element: routeElement(AdminExamListPage) },
+      { path: "exams/:examId", element: routeElement(AdminExamWorkspacePage) },
       { path: "exams/:examId/edit", element: routeElement(ExamEditPage) },
       { path: "exams/:examId/candidates", element: routeElement(ExamCandidatesPage) },
       { path: "learning", element: routeElement(AdminLearningVideoPage) },

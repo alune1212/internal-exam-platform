@@ -6,6 +6,7 @@ import type {
   BulkRetakePreview,
   Exam,
   ExamCandidateRow,
+  ExamWorkspaceRead,
   PublicationReadiness,
   ResultDetailsRelease,
 } from "@/types/exam";
@@ -18,6 +19,15 @@ export function getActiveExams() {
 export function getAdminExams() {
   return apiRequest<Exam[]>("/api/admin/exams");
 }
+
+/** Fetch the privacy-bounded aggregate workspace for one exam. */
+export function getExamWorkspace(examId: string | number) {
+  return apiRequest<ExamWorkspaceRead>(`/api/admin/exams/${examId}/workspace`);
+}
+
+// Keep an explicit admin-prefixed alias for page-level callers and external
+// consumers that name all administrative exam operations consistently.
+export const getAdminExamWorkspace = getExamWorkspace;
 
 export function createAdminExam() {
   return apiRequest<Exam>("/api/admin/exams", {

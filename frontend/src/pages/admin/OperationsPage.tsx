@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { getOperationsSnapshot } from "@/api/operations";
-import { PageHeader, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { cn } from "@/lib/utils";
 import type { OperationalSignal, OperationalSignalStatus } from "@/types/operations";
 
@@ -64,6 +64,7 @@ export function OperationsPage() {
     queryKey: ["admin", "operations", "snapshot"],
     queryFn: getOperationsSnapshot,
     refetchInterval: 30_000,
+    retry: false,
   });
 
   return (
@@ -73,12 +74,20 @@ export function OperationsPage() {
         title="正式主机状态"
         description="每 30 秒刷新；每个信号独立显示当前、降级、陈旧、跳过或失败。"
       />
+      {query.isError && query.data ? (
+        <PageStaleNotice
+          lastSuccessfulAt={query.dataUpdatedAt}
+          onRetry={() => query.refetch()}
+          retrying={query.isFetching}
+        />
+      ) : null}
       {query.isLoading ? <PageState state="loading" rows={4} /> : null}
       {query.isError && !query.data ? (
         <PageState
           state="error"
           title="运维状态加载失败。"
           description="请检查本机操作员入口和后端服务。"
+          onRetry={() => void query.refetch()}
         />
       ) : null}
       {query.data ? (

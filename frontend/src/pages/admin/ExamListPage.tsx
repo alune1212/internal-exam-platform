@@ -48,7 +48,7 @@ const columns: ColumnDef<Exam>[] = [
     header: adminTableCopy.title,
     cell: ({ row }) => (
       <Link
-        to={`/admin/exams/${row.original.id}/edit`}
+        to={`/admin/exams/${row.original.id}`}
         className="font-medium text-ink underline-offset-4 hover:underline"
       >
         {row.original.title}

@@ -86,6 +86,74 @@ export type PublicationReadiness = {
   fingerprint: string;
 };
 
+/**
+ * The single advisory operation an administrator can take from the exam
+ * workspace.  This is guidance only; every linked mutation remains
+ * authoritative on the server.
+ */
+export type ExamWorkspaceNextAction =
+  | "manage_roster"
+  | "fix_readiness"
+  | "publish"
+  | "wait_invitation_delivery"
+  | "send_invitations"
+  | "resend_failed_invitations"
+  | "wait_for_open"
+  | "monitor_exam"
+  | "review_incidents"
+  | "release_result_details"
+  | "archive_exam"
+  | "complete";
+
+export type ExamWorkspaceRosterSummary = {
+  total_count: number;
+  active_count: number;
+  pending_count: number;
+  inactive_count: number;
+};
+
+export type ExamWorkspaceInvitationSummary = {
+  not_sent_count: number;
+  sent_count: number;
+  failed_count: number;
+  in_flight_count: number;
+};
+
+export type ExamWorkspaceAttendanceSummary = {
+  not_started_count: number;
+  in_progress_count: number;
+  submitted_count: number;
+};
+
+export type ExamWorkspaceAttemptSummary = {
+  in_progress_count: number;
+  submitted_count: number;
+  auto_submitted_count: number;
+  voided_count: number;
+};
+
+export type ExamWorkspaceIncidentSummary = {
+  voided_count: number;
+  unused_retake_count: number;
+};
+
+/**
+ * Privacy-bounded, exam-scoped aggregate state for the admin workspace.  It
+ * intentionally contains no roster rows or candidate identity fields.
+ */
+export type ExamWorkspaceRead = {
+  observed_at: string;
+  exam: Exam;
+  readiness: PublicationReadiness | null;
+  roster_summary: ExamWorkspaceRosterSummary;
+  invitation_summary: ExamWorkspaceInvitationSummary;
+  attendance_summary: ExamWorkspaceAttendanceSummary;
+  attempt_summary: ExamWorkspaceAttemptSummary;
+  incident_summary: ExamWorkspaceIncidentSummary;
+  next_action: ExamWorkspaceNextAction;
+  next_action_reason: string;
+};
+
 export type ResultDetailsRelease = {
   exam_id: number;
   released_at: string;

@@ -23,6 +23,9 @@ export interface PageStateProps extends React.HTMLAttributes<HTMLDivElement> {
   description?: string;
   action?: EmptyStateAction;
   secondaryAction?: EmptyStateAction;
+  /** Convenience action for recoverable first-load failures. */
+  onRetry?: () => void;
+  retryLabel?: string;
   rows?: number;
   skeletonVariant?: "default" | "page" | "table" | "card";
   showLoadingCaption?: boolean;
@@ -44,6 +47,8 @@ export function PageState({
   description = state === "error" ? "请稍后重试。" : "这里还没有可显示的数据。",
   action,
   secondaryAction,
+  onRetry,
+  retryLabel = "重试",
   rows = 4,
   skeletonVariant = "page",
   showLoadingCaption = true,
@@ -66,12 +71,14 @@ export function PageState({
     });
   }
 
+  const resolvedAction = action ?? (onRetry ? { label: retryLabel, onClick: onRetry } : undefined);
+
   return (
     <EmptyState
       chapter={eyebrow}
       title={title}
       description={description}
-      action={action}
+      action={resolvedAction}
       secondaryAction={secondaryAction}
       tone={stateTone[state]}
       className={className}

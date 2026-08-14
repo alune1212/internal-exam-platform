@@ -139,6 +139,7 @@ from app.services.exam_results import (
 from app.services.exam_results import (
     void_attempt as void_attempt,
 )
+from app.services.exam_workspace import get_exam_workspace as get_exam_workspace
 from app.services.operational_lock_service import assert_admin_mutation_allowed
 
 

@@ -284,6 +284,10 @@ def _is_attempt_expired(attempt: ExamAttempt, now: datetime | None = None) -> bo
 
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
+    # Keep the existing-attempt recovery branch read-only so it remains
+    # available while a backup freeze or writer fence blocks writes.  New
+    # attempt creation acquires the shared transaction mutex below and then
+    # reloads/locks the exam before making the final active-status decision.
     exam = db.execute(select(Exam).where(Exam.id == exam_id)).scalar_one_or_none()
     if exam is None:
         raise ExamNotFoundError(exam_id)
@@ -319,7 +323,22 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     if in_progress is not None:
         return _build_exam_start_response_from_attempt(in_progress)
 
+    # A new attempt is a write and therefore must honor the backup and
+    # writer-fence checks.  This also acquires the shared transaction mutex
+    # used by archive/status mutations.  Reload the exam under a row lock so
+    # archive-first and start-first orderings are deterministic.
     assert_backup_write_allowed(db)
+    exam = (
+        db.query(Exam)
+        .filter(Exam.id == exam_id)
+        .with_for_update()
+        .populate_existing()
+        .one_or_none()
+    )
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    if exam.status != "active":
+        raise ExamNotActiveError(exam_id)
 
     next_attempt_no = (
         db.query(func.coalesce(func.max(ExamAttempt.attempt_no), 0))

@@ -5,7 +5,7 @@ import { Link, useOutletContext } from "react-router-dom";
 
 import { getWrongPracticeQuestions } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageShell, PageState } from "@/components/page";
+import { PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 
 type MasteryFilter = "all" | "mastered" | "learning";
@@ -20,15 +20,15 @@ export function WrongQuestionReviewPage() {
     category_2: category2.trim() || undefined,
     mastered: mastery === "all" ? undefined : mastery === "mastered",
   };
-  const {
-    data = [],
-    isError,
-    isLoading,
-  } = useQuery({
+  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["candidate", candidate?.id ?? "anonymous", "practice-wrong", filters],
     queryFn: () => getWrongPracticeQuestions(filters),
     enabled: Boolean(candidate),
+    retry: false,
   });
+  const questions = data ?? [];
+  const hasLoadError = isError && !data;
+  const hasStaleError = isError && Boolean(data);
 
   if (!candidate) {
     return (
@@ -90,11 +90,23 @@ export function WrongQuestionReviewPage() {
         </div>
       </header>
 
-      {isLoading ? <PageState state="loading" rows={3} /> : null}
-      {isError ? (
-        <PageState state="error" title="错题记录加载失败。" description="请稍后重试。" />
+      {hasStaleError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={dataUpdatedAt}
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
       ) : null}
-      {!isLoading && !isError && data.length === 0 ? (
+      {isLoading ? <PageState state="loading" rows={3} /> : null}
+      {hasLoadError ? (
+        <PageState
+          state="error"
+          title="错题记录加载失败。"
+          description="请稍后重试。"
+          onRetry={() => void refetch()}
+        />
+      ) : null}
+      {!isLoading && !hasLoadError && questions.length === 0 ? (
         <PageState
           state="empty"
           title="当前筛选下没有错题"
@@ -102,7 +114,7 @@ export function WrongQuestionReviewPage() {
         />
       ) : null}
       <div className="flex flex-col gap-5">
-        {data.map((item) => (
+        {questions.map((item) => (
           <article
             key={item.question_id}
             className="rounded-lg border border-hairline bg-surface-card p-5 shadow-card"

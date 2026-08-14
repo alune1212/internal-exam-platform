@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { getAttemptResult } from "@/api/attempts";
 import { ChapterNumber } from "@/components/editorial/ChapterNumber";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentCandidate } from "@/lib/candidateSession";
@@ -19,12 +19,16 @@ export function ExamResultPage() {
 
   const {
     data: result,
+    dataUpdatedAt,
     isError,
     isLoading,
+    isFetching,
+    refetch,
   } = useQuery({
     queryKey: ["candidate", candidateId, "attempt-result", attemptId],
     queryFn: () => getAttemptResult(attemptId ?? ""),
     enabled: Boolean(attemptId),
+    retry: false,
   });
 
   const hasLoadError = isError && !result;
@@ -70,6 +74,7 @@ export function ExamResultPage() {
             eyebrow={candidatePageCopy.error}
             title={candidatePageText.result.errorTitle}
             description={candidatePageText.result.errorDescription}
+            onRetry={() => void refetch()}
           />
         </PageSection>
       </PageShell>
@@ -108,6 +113,13 @@ export function ExamResultPage() {
 
   return (
     <PageShell density="workbench" width="full" stagger>
+      {isError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={dataUpdatedAt}
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
+      ) : null}
       <PageHeader
         eyebrow={candidatePageCopy.result}
         title={candidatePageText.result.title}

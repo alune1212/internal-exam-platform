@@ -7,7 +7,7 @@ import { getErrorMessage } from "@/api/client";
 import { getLearningVideo, updateLearningProgress } from "@/api/learning";
 import { StatusPill } from "@/components/editorial/StatusPill";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
@@ -31,10 +31,11 @@ export function LearningVideoPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progressOverride, setProgressOverride] = useState<LearningVideoProgress | null>(null);
 
-  const { data, isError, isLoading } = useQuery({
+  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: candidateKeys.learningVideo(numericVideoId),
     queryFn: () => getLearningVideo(String(numericVideoId)),
     enabled: Boolean(candidate) && Number.isFinite(numericVideoId),
+    retry: false,
   });
 
   useEffect(() => {
@@ -87,7 +88,7 @@ export function LearningVideoPage() {
     );
   }
 
-  if (isError || !data || !progress) {
+  if (!data || !progress) {
     return (
       <PageShell density="focus" width="wide" className="py-6">
         <PageState
@@ -95,7 +96,8 @@ export function LearningVideoPage() {
           eyebrow={candidatePageCopy.error}
           title={candidatePageText.learning.detailErrorTitle}
           description={candidatePageText.learning.detailErrorDescription}
-          action={{ label: "返回学习列表", onClick: () => navigate("/learning") }}
+          onRetry={() => void refetch()}
+          secondaryAction={{ label: "返回学习列表", onClick: () => navigate("/learning") }}
         />
       </PageShell>
     );
@@ -105,6 +107,13 @@ export function LearningVideoPage() {
 
   return (
     <PageShell density="focus" width="wide" className="py-6" data-testid="learning-video-shell">
+      {isError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={dataUpdatedAt}
+          onRetry={() => refetch()}
+          retrying={isFetching}
+        />
+      ) : null}
       <PageHeader
         eyebrow={candidatePageCopy.learning}
         title={data.title}

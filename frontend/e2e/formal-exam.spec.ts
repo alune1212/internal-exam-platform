@@ -5,9 +5,13 @@ const OPERATOR_URL = process.env.E2E_OPERATOR_URL ?? "http://127.0.0.1:18081";
 const SMTP_CAPTURE_URL = process.env.E2E_SMTP_CAPTURE_URL ?? "http://127.0.0.1:18025";
 const UPCOMING_EXAM_TITLE = "E2E 邀请考试（即将开放）";
 const INVITATION_STATUS_EXAM_TITLE = "E2E 邀请投递状态";
+const WORKSPACE_EXAM_TITLE = "E2E 工作台发布流程";
+const FORMAL_EXAM_TITLE = "E2E 正式考试流程";
 const PENDING_EMAIL = "e2e.pending@example.com";
 const SCOPED_EMAIL = "e2e.scoped@example.com";
 const INACTIVE_EMAIL = "e2e.inactive@example.com";
+const FORMAL_EMAIL = "e2e.formal@example.com";
+const CONFLICT_EMAIL = "e2e.conflict@example.com";
 const CANDIDATE_STORAGE_KEY = "internal-exam-candidate";
 const ADMIN_STORAGE_KEY = "internal-exam-admin-token";
 const ALLOWED_RUNTIME_HOSTS = new Set(
@@ -23,6 +27,32 @@ type InvitationStatus = {
   not_sent_count: number;
   sent_count: number;
   failed_count: number;
+};
+type WorkspaceSummary = {
+  observed_at: string;
+  exam: Exam & { status: string };
+  readiness: { ready: boolean; blockers: Array<{ code: string; message: string }> } | null;
+  roster_summary: { total_count: number };
+  invitation_summary: {
+    not_sent_count: number;
+    sent_count: number;
+    failed_count: number;
+    in_flight_count: number;
+  };
+  attendance_summary: {
+    not_started_count: number;
+    in_progress_count: number;
+    submitted_count: number;
+  };
+  attempt_summary: {
+    in_progress_count: number;
+    submitted_count: number;
+    auto_submitted_count: number;
+    voided_count: number;
+  };
+  incident_summary: { voided_count: number; unused_retake_count: number };
+  next_action: string;
+  next_action_reason: string;
 };
 
 function watchRuntime(page: Page, failures: string[]) {
@@ -123,6 +153,14 @@ async function getInvitationStatus(page: Page, token: string, examId: number) {
   });
   expect(response.ok()).toBe(true);
   return ((await response.json()) as ApiEnvelope<InvitationStatus>).data;
+}
+
+async function getWorkspace(page: Page, token: string, examId: number) {
+  const response = await page.request.get(`${OPERATOR_URL}/api/admin/exams/${examId}/workspace`, {
+    headers: { "X-Admin-Token": token },
+  });
+  expect(response.ok()).toBe(true);
+  return ((await response.json()) as ApiEnvelope<WorkspaceSummary>).data;
 }
 
 test("email registration preserves invitation return and enforces the opening boundary", async ({
@@ -322,5 +360,198 @@ test("inactive verification and account deactivation clear candidate sessions", 
   expect(failures).toEqual([]);
   await scopedContext.close();
   await inactiveContext.close();
+  await operatorContext.close();
+});
+
+test("admin workspace keeps publication and invitation guidance visible", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  const operatorContext = await browser.newContext();
+  const operatorPage = await operatorContext.newPage();
+  watchRuntime(operatorPage, failures);
+  const adminToken = await loginOperator(operatorPage);
+  const exams = await getAdminExams(operatorPage, adminToken);
+  const workspaceExam = exams.find((exam) => exam.title === WORKSPACE_EXAM_TITLE);
+  expect(workspaceExam).toBeTruthy();
+
+  const initialWorkspace = await getWorkspace(operatorPage, adminToken, workspaceExam!.id);
+  expect(initialWorkspace.exam.status).toBe("draft");
+  expect(initialWorkspace.next_action).toBe("publish");
+  expect(initialWorkspace.readiness?.ready).toBe(true);
+  expect(initialWorkspace.roster_summary.total_count).toBe(1);
+  expect(JSON.stringify(initialWorkspace)).not.toContain("e2e.workspace@example.com");
+
+  await operatorPage.goto(`${OPERATOR_URL}/admin/exams/${workspaceExam!.id}`);
+  await expect(
+    operatorPage.getByRole("heading", { name: `考试工作台 · ${WORKSPACE_EXAM_TITLE}` }),
+  ).toBeVisible();
+  await expect(operatorPage.getByRole("heading", { name: "下一步建议" })).toBeVisible();
+  await expect(operatorPage.getByText("发布考试：", { exact: false })).toBeVisible();
+  await expect(operatorPage.getByText("数据观测时间")).toBeVisible();
+  await expect(operatorPage.locator("time[data-observed-at]")).toBeVisible();
+  await expect(operatorPage.getByRole("link", { name: "发布 / 编排" })).toHaveAttribute(
+    "href",
+    `/admin/exams/${workspaceExam!.id}/edit#publish`,
+  );
+  await expect(operatorPage.getByRole("link", { name: "邀请投递" })).toHaveAttribute(
+    "href",
+    `/admin/exams/${workspaceExam!.id}/candidates#invitation-actions`,
+  );
+
+  const publishResponse = await operatorPage.request.post(
+    `${OPERATOR_URL}/api/admin/exams/${workspaceExam!.id}/publish`,
+    {
+      headers: { "X-Admin-Token": adminToken },
+      data: { confirmation_title: WORKSPACE_EXAM_TITLE },
+    },
+  );
+  expect(publishResponse.ok()).toBe(true);
+  const invitationResponse = await operatorPage.request.post(
+    `${OPERATOR_URL}/api/admin/exams/${workspaceExam!.id}/invitations/send`,
+    { headers: { "X-Admin-Token": adminToken } },
+  );
+  expect(invitationResponse.ok()).toBe(true);
+  await expect
+    .poll(
+      async () =>
+        (await getInvitationStatus(operatorPage, adminToken, workspaceExam!.id)).sent_count,
+      { timeout: 30_000 },
+    )
+    .toBe(1);
+  await expect
+    .poll(
+      async () => (await getWorkspace(operatorPage, adminToken, workspaceExam!.id)).next_action,
+      { timeout: 30_000 },
+    )
+    .toBe("monitor_exam");
+
+  await operatorPage.reload();
+  await expect(
+    operatorPage.getByRole("heading", { name: `考试工作台 · ${WORKSPACE_EXAM_TITLE}` }),
+  ).toBeVisible();
+  await expect(operatorPage.getByRole("heading", { name: "下一步建议" })).toBeVisible();
+  await expect(operatorPage.getByText("监控考试：", { exact: false })).toBeVisible();
+  await expect(operatorPage.getByText("已发送邀请")).toBeVisible();
+  await expect(operatorPage.locator("time[data-observed-at]")).toBeVisible();
+  expect(failures).toEqual([]);
+  await operatorContext.close();
+});
+
+test("candidate completes an open exam after autosave and same-tab resume", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  const operatorContext = await browser.newContext();
+  const operatorPage = await operatorContext.newPage();
+  watchRuntime(operatorPage, failures);
+  const adminToken = await loginOperator(operatorPage);
+  const exams = await getAdminExams(operatorPage, adminToken);
+  const formalExam = exams.find((exam) => exam.title === FORMAL_EXAM_TITLE);
+  expect(formalExam).toBeTruthy();
+
+  const candidateContext = await browser.newContext();
+  const candidatePage = await candidateContext.newPage();
+  watchRuntime(candidatePage, failures);
+  await loginOrCompleteRegistration(candidatePage, FORMAL_EMAIL, `/exams/${formalExam!.id}/start`);
+  await expect(candidatePage).toHaveURL(new RegExp(`/exams/${formalExam!.id}/start$`));
+  await expect(candidatePage.getByRole("button", { name: "开始考试" })).toBeEnabled();
+  await candidatePage.getByRole("button", { name: "开始考试" }).click();
+  await expect(candidatePage).toHaveURL(
+    new RegExp(`/exams/${formalExam!.id}/taking\\?attemptId=\\d+$`),
+  );
+  const questionHeading = candidatePage.getByRole("heading", { name: /受控局域网正式考试/ });
+  await expect(questionHeading).toBeVisible();
+  await expect(questionHeading).toBeFocused();
+
+  const saveResponsePromise = candidatePage.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url().endsWith("/answers/save"),
+  );
+  const firstOption = candidatePage.getByRole("radio").first();
+  await firstOption.click();
+  const saveResponse = await saveResponsePromise;
+  expect(saveResponse.ok()).toBe(true);
+  await expect(candidatePage.getByText("已保存", { exact: true })).toBeVisible();
+
+  // A same-tab reload must retain the active attempt session and the saved answer.
+  await candidatePage.reload();
+  await expect(candidatePage.getByRole("heading", { name: /受控局域网正式考试/ })).toBeVisible();
+  await expect(candidatePage.getByRole("radio").first()).toHaveAttribute("aria-checked", "true");
+  await expect(candidatePage.getByText("已保存", { exact: true })).toBeVisible();
+
+  await candidatePage.getByRole("button", { name: "交卷" }).first().click();
+  await expect(candidatePage).toHaveURL(
+    new RegExp(`/exams/${formalExam!.id}/result\\?attemptId=\\d+$`),
+  );
+  await expect(candidatePage.getByText("考试已交卷。", { exact: true })).toBeVisible();
+  expect(failures).toEqual([]);
+  await candidateContext.close();
+  await operatorContext.close();
+});
+
+test("candidate sees a recoverable revision conflict after another tab takes over", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const failures: string[] = [];
+  const operatorContext = await browser.newContext();
+  const operatorPage = await operatorContext.newPage();
+  watchRuntime(operatorPage, failures);
+  const adminToken = await loginOperator(operatorPage);
+  const exams = await getAdminExams(operatorPage, adminToken);
+  const formalExam = exams.find((exam) => exam.title === FORMAL_EXAM_TITLE);
+  expect(formalExam).toBeTruthy();
+
+  const firstContext = await browser.newContext();
+  const firstPage = await firstContext.newPage();
+  watchRuntime(firstPage, failures);
+  const firstSession = await loginOrCompleteRegistration(
+    firstPage,
+    CONFLICT_EMAIL,
+    `/exams/${formalExam!.id}/start`,
+  );
+  await firstPage.getByRole("button", { name: "开始考试" }).click();
+  await expect(firstPage).toHaveURL(
+    new RegExp(`/exams/${formalExam!.id}/taking\\?attemptId=\\d+$`),
+  );
+  const attemptId = Number(new URL(firstPage.url()).searchParams.get("attemptId"));
+  expect(Number.isInteger(attemptId)).toBe(true);
+  expect(attemptId).toBeGreaterThan(0);
+  const firstOption = firstPage.getByRole("radio").first();
+  const initialSave = firstPage.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url().endsWith("/answers/save"),
+  );
+  await firstOption.click();
+  expect((await initialSave).ok()).toBe(true);
+  await expect(firstPage.getByText("已保存", { exact: true })).toBeVisible();
+
+  // The just-issued OTP session is still inside the fresh-auth window.  Use it
+  // from another browser context to rotate the attempt device session without
+  // violating the intentional one-minute OTP resend cooldown.
+  const takeoverContext = await browser.newContext();
+  const takeoverResponse = await takeoverContext.request.post(
+    `${CANDIDATE_URL}/api/attempts/${attemptId}/takeover`,
+    { headers: { "X-Candidate-Token": firstSession.token } },
+  );
+  expect(takeoverResponse.ok()).toBe(true);
+
+  // The first tab remains visible and can explain the conflict instead of losing its draft.
+  const conflictSave = firstPage.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url().endsWith("/answers/save"),
+  );
+  await firstOption.click();
+  expect((await conflictSave).status()).toBe(409);
+  await expect(firstPage.getByText("答案版本冲突，请重新接管", { exact: true })).toBeVisible();
+  await expect(firstPage.getByRole("button", { name: "重新登录并接管" })).toBeVisible();
+
+  // Chromium logs an expected failed-resource line for the deliberate 409; no other
+  // console/page/server failures are allowed in this journey.
+  for (let index = failures.length - 1; index >= 0; index -= 1) {
+    if (failures[index].includes("status of 409 (Conflict)")) failures.splice(index, 1);
+  }
+  expect(failures).toEqual([]);
+  await takeoverContext.close();
+  await firstContext.close();
   await operatorContext.close();
 });

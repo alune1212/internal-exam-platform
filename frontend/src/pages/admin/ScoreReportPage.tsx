@@ -90,6 +90,7 @@ export function ScoreReportPage() {
       ]}
       queryEnabled={!examsPending}
       isLoading={examsPending}
+      onRetry={() => exams.refetch()}
       queryFn={async () => {
         if (examsLoadError) {
           throw new Error("考试列表加载失败");

@@ -116,6 +116,29 @@ describe("ScoreReportPage", () => {
     expect(getScoreReport).not.toHaveBeenCalled();
   });
 
+  it("retries the prerequisite exam query before retrying the report", async () => {
+    const exam = {
+      id: 7,
+      title: "正式考试",
+      description: null,
+      duration_minutes: 60,
+      question_rule: {},
+      status: "active" as const,
+      show_answer_after_submit: true,
+    };
+    vi.mocked(getAdminExams)
+      .mockRejectedValueOnce(new Error("exam list unavailable"))
+      .mockResolvedValueOnce([exam]);
+
+    renderReportPage();
+
+    expect(await screen.findByRole("heading", { name: "报表加载失败。" })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "重试" }));
+
+    await waitFor(() => expect(getAdminExams).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(getScoreReport).toHaveBeenCalledWith("7"));
+  });
+
   it.each([
     ["题目表现", <QuestionAccuracyPage />, getQuestionAccuracy],
     ["错题回看", <WrongQuestionPage />, getWrongQuestions],

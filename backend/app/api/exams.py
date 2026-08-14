@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id, require_admin
+from app.models import Exam
 from app.schemas.attempt import AttemptIncidentRead, AttemptVoidRequest
 from app.schemas.common import ApiResponse
 from app.schemas.exam import (
@@ -18,6 +19,7 @@ from app.schemas.exam import (
     ExamRead,
     ExamStartResponse,
     ExamUpdate,
+    ExamWorkspaceRead,
     FormalExamEvidenceRead,
     FormalExamEvidenceRequest,
     InvitationScheduleRead,
@@ -63,11 +65,45 @@ def list_admin_exams(db: Session = Depends(get_db)) -> ApiResponse[list[ExamRead
     return ApiResponse(data=exam_service.list_admin_exams(db))
 
 
+@admin_router.get("/{exam_id}/workspace", response_model=ApiResponse[ExamWorkspaceRead])
+def get_exam_workspace(
+    exam_id: int, db: Session = Depends(get_db)
+) -> ApiResponse[ExamWorkspaceRead]:
+    return ApiResponse(data=exam_service.get_exam_workspace(db, exam_id))
+
+
 @admin_router.put("/{exam_id}", response_model=ApiResponse[ExamRead])
 def update_exam(
-    exam_id: int, payload: ExamUpdate, db: Session = Depends(get_db)
+    exam_id: int,
+    payload: ExamUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    operator_subject: str = Depends(require_admin),
 ) -> ApiResponse[ExamRead]:
-    return ApiResponse(data=exam_service.update_exam(db, exam_id, payload))
+    current = db.get(Exam, exam_id)
+    from_status = current.status if current is not None else None
+    try:
+        exam = exam_service.update_exam(db, exam_id, payload, commit=False)
+        metadata: dict[str, str | int] = {
+            "exam_id": exam_id,
+            "to_status": exam.status,
+        }
+        if from_status is not None:
+            metadata["from_status"] = from_status
+        record_admin_event(
+            db,
+            operator_subject=operator_subject,
+            action="exam_updated",
+            target_type="exam",
+            target_id=exam_id,
+            metadata=metadata,
+            request=request,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return ApiResponse(data=exam)
 
 
 @admin_router.get(

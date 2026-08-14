@@ -23,11 +23,13 @@ from app.models import (
     QuestionOption,
 )
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
-from app.services import exam_service
+from app.schemas.exam import ExamUpdate
+from app.services import exam_attempts, exam_configuration, exam_service
 from app.services.exam_errors import (
     AttemptResultNotReadyError,
     AttemptRevisionConflictError,
     AttemptSessionConflictError,
+    ExamNotActiveError,
 )
 from app.services.operational_lock_service import (
     FormalAttemptWriteGateError,
@@ -231,6 +233,135 @@ def test_pg_different_candidates_start_same_exam_concurrently(
             .count()
         )
     assert count == 2
+
+
+def test_pg_archive_first_then_start_observes_archived_exam(
+    pg_session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An archive holding the lifecycle mutex must win over a waiting start."""
+
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    archive_mutex_acquired = threading.Event()
+    release_archive = threading.Event()
+    original_guard = exam_configuration.assert_admin_mutation_allowed
+
+    def hold_archive_mutex(db: Session) -> None:
+        original_guard(db)
+        archive_mutex_acquired.set()
+        assert release_archive.wait(timeout=10)
+
+    monkeypatch.setattr(
+        exam_configuration, "assert_admin_mutation_allowed", hold_archive_mutex
+    )
+
+    def archive() -> str:
+        with pg_session_factory() as db:
+            exam_service.update_exam(db, exam_id, ExamUpdate(status="archived"))
+            return "archived"
+
+    def start() -> str:
+        with pg_session_factory() as db:
+            try:
+                exam_service.start_exam(db, exam_id, candidate_id)
+            except ExamNotActiveError:
+                db.rollback()
+                return "rejected"
+            return "started"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        archive_future = executor.submit(archive)
+        assert archive_mutex_acquired.wait(timeout=10)
+        start_future = executor.submit(start)
+        release_archive.set()
+        assert archive_future.result(timeout=10) == "archived"
+        assert start_future.result(timeout=10) == "rejected"
+
+    with pg_session_factory() as db:
+        exam = db.get(Exam, exam_id)
+        assert exam is not None
+        assert exam.status == "archived"
+        assert db.query(ExamAttempt).filter_by(exam_id=exam_id).count() == 0
+
+
+def test_pg_start_first_then_archive_observes_in_progress_attempt(
+    pg_session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A start holding the lifecycle mutex must make archive fail its gate."""
+
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    start_mutex_acquired = threading.Event()
+    release_start = threading.Event()
+    original_guard = exam_attempts.assert_backup_write_allowed
+
+    def hold_start_mutex(db: Session) -> None:
+        original_guard(db)
+        start_mutex_acquired.set()
+        assert release_start.wait(timeout=10)
+
+    monkeypatch.setattr(exam_attempts, "assert_backup_write_allowed", hold_start_mutex)
+
+    def start() -> str:
+        with pg_session_factory() as db:
+            result = exam_service.start_exam(db, exam_id, candidate_id)
+            return str(result.attempt_id)
+
+    def archive() -> str:
+        with pg_session_factory() as db:
+            try:
+                exam_service.update_exam(db, exam_id, ExamUpdate(status="archived"))
+            except FormalAttemptWriteGateError:
+                db.rollback()
+                return "rejected"
+            return "archived"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        start_future = executor.submit(start)
+        assert start_mutex_acquired.wait(timeout=10)
+        archive_future = executor.submit(archive)
+        release_start.set()
+        assert start_future.result(timeout=10).isdigit()
+        assert archive_future.result(timeout=10) == "rejected"
+
+    with pg_session_factory() as db:
+        exam = db.get(Exam, exam_id)
+        assert exam is not None
+        assert exam.status == "active"
+        assert (
+            db.query(ExamAttempt)
+            .filter_by(exam_id=exam_id, status="in_progress")
+            .count()
+            == 1
+        )
+
+
+def test_pg_start_resumes_existing_attempt_during_writer_fence(
+    pg_session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Existing attempts remain readable while new writes are fenced."""
+
+    exam_id, (candidate_id,) = _seed_exam(pg_session_factory, candidate_count=1)
+    with pg_session_factory() as db:
+        first = exam_service.start_exam(db, exam_id, candidate_id)
+
+    with pg_session_factory() as db:
+        monkeypatch.setattr(settings, "environment", "internal")
+        acquire_writer_fence(
+            db,
+            dataset_id="pg-resume-dataset",
+            host_id="pg-resume-host",
+            writer_generation=1,
+            reason="resume-read",
+            ttl_seconds=60,
+        )
+        db.commit()
+
+    with pg_session_factory() as db:
+        resumed = exam_service.start_exam(db, exam_id, candidate_id)
+
+    assert resumed.attempt_id == first.attempt_id
 
 
 def test_pg_auto_submit_skips_locked_attempt_being_saved(

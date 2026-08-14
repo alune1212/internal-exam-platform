@@ -27,6 +27,18 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}),
       },
+      // The stateful formal journey is intentionally desktop-only. Mobile
+      // coverage below uses isolated API fixtures so it cannot replay or
+      // contaminate the formal exam data set.
+      testMatch: /formal-exam\.spec\.ts/,
+    },
+    {
+      name: "chromium-mobile",
+      use: {
+        ...devices["Pixel 5"],
+        ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}),
+      },
+      testMatch: /formal-exam-mobile\.spec\.ts/,
     },
   ],
   outputDir,

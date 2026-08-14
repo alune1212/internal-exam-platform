@@ -713,6 +713,71 @@ def test_publish_rolls_back_exam_when_audit_write_fails(
     assert db.query(ExamQuestionPool).filter_by(exam_id=exam.id).count() == 0
 
 
+def test_exam_update_and_audit_commit_together() -> None:
+    client, db = _build_client()
+    exam = create_exam(db, title="更新前", status="draft")
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    response = client.put(
+        f"/api/admin/exams/{exam.id}",
+        headers={"X-Admin-Token": token},
+        json={"title": "更新后"},
+    )
+
+    assert response.status_code == 200
+    db.expire_all()
+    persisted_exam = db.get(Exam, exam.id)
+    assert persisted_exam is not None
+    assert persisted_exam.title == "更新后"
+    event = (
+        db.query(AdminAuditEvent)
+        .filter_by(action="exam_updated", target_id=str(exam.id))
+        .one()
+    )
+    assert event.operator_subject == "admin"
+    assert event.metadata_json == {
+        "exam_id": exam.id,
+        "from_status": "draft",
+        "to_status": "draft",
+    }
+
+
+def test_exam_update_rolls_back_when_audit_write_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    exam = create_exam(db, title="审计失败前", status="draft")
+    token = client.post(
+        "/api/admin/login",
+        json={"username": "admin", "password": settings.admin_password},
+    ).json()["data"]["token"]
+
+    def fail_audit(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr("app.api.exams.record_admin_event", fail_audit)
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        client.put(
+            f"/api/admin/exams/{exam.id}",
+            headers={"X-Admin-Token": token},
+            json={"title": "不应保留"},
+        )
+
+    db.expire_all()
+    persisted_exam = db.get(Exam, exam.id)
+    assert persisted_exam is not None
+    assert persisted_exam.title == "审计失败前"
+    assert (
+        db.query(AdminAuditEvent)
+        .filter_by(action="exam_updated", target_id=str(exam.id))
+        .count()
+        == 0
+    )
+
+
 def test_question_import_rolls_back_questions_when_audit_write_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

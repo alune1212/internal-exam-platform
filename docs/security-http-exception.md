@@ -2,18 +2,19 @@
 
 ## 已接受的例外
 
-当前第一阶段正式宿主是 Apple Silicon macOS + Docker Desktop。没有公司子域名和可用证书，也无法准备独立路由器、专用 Wi-Fi 或考试专用终端。应考人员可能使用办公电脑、个人电脑或手机，与普通办公设备共用现有局域网，因此应考人员入口固定为 `http://192.168.2.34:8080`。该地址必须有 DHCP reservation 和 `/24` 租约；没有 reservation 不得开考。该模式没有传输加密、服务器身份认证或抗中间人保护，不能称为“安全 HTTP”“内网 HTTPS”或“等同 HTTPS”。本例外不设置固定到期复审日期。
+当前第一阶段正式宿主是 Apple Silicon macOS + Docker Desktop。没有公司子域名和可用证书，也无法准备独立路由器、专用 Wi-Fi 或考试专用终端。应考人员可能使用办公电脑、个人电脑或手机，与普通办公设备共用现有局域网，因此应考人员入口使用网络管理员批准的 `http://<FORMAL_LAN_IP>:8080`。该地址必须有 DHCP reservation 和 `/24` 租约；没有 reservation 不得开考。`<FORMAL_LAN_IP>` 是规范占位符，历史或 synthetic UAT 地址不属于正式配置。该模式没有传输加密、服务器身份认证或抗中间人保护，不能称为“安全 HTTP”“内网 HTTPS”或“等同 HTTPS”。本例外不设置固定到期复审日期。
 
 HTTP 上可观察或被篡改的数据包括：用户 bearer token、显示名称/邮箱/部门等页面数据、邀请目标、考试列表、题干与选项、作答请求、成绩和已发布解析、练习记录、学习内容与进度。SMTP 邮件本身仍按 SMTP TLS 配置传输，但用户输入验证码后的 Web session 位于 HTTP。能控制或监听办公网、网关、恶意接入点或已感染终端的攻击者可能窃取 token、冒用会话、读取题目或修改请求。
 
 ## 补偿控制
 
 - 操作员只在正式 Mac 本地通过 `127.0.0.1:8081` 操作；管理员密码和 token 不经过办公局域网。designated host account 可以复用现有受管账号，但不因此放宽本地入口边界。
-- macOS pf/受管防火墙只允许 `192.168.2.0/24` 到 `192.168.2.34:8080`；`8081` 严格只允许 loopback，数据库、前端直连、管理入口和 OpenAPI 不向局域网开放。
+- macOS pf/受管防火墙只允许已批准的局域网 CIDR 到 `<FORMAL_LAN_IP>:8080`；`8081` 严格只允许 loopback，数据库、前端直连、管理入口和 OpenAPI 不向局域网开放。
 - 正式 MacBook 必须接入 AC；电池电量不是正式电源方案。Docker Desktop 使用登录后启动、关闭 Resource Saver 以及 8 CPU/8 GiB 的固定资源设置。
 - admin/candidate token 固定 4 小时；单场正式考试最长 2 小时。全部交卷后执行全局关闭会话并轮换签名密钥。
 - 登录使用六位、十分钟、单次邮箱 OTP；每邮箱、每来源和全局窗口均限流，SMTP 故障 fail closed，不提供共享验证码、人工 token 或管理员登录后门。新邮箱必须完成显示名称步骤，inactive 账号不能借 OTP 创建替代身份。
 - 四小时 candidate token 只存于 session-scoped 浏览器状态，不提供 remember-me；邀请 URL 只保留同源回跳路径，不携带 token、OTP、邀请码或 scope 授权。
+- 正式答题草稿沿用当前标签页的 `sessionStorage`：同一标签页 reload 可恢复并按 answer revision 同步；关闭标签页/窗口、换标签页、换设备或跨宿主时不保证恢复，必须重新 OTP 登录或显式 takeover。该边界不提供 durable offline credentials。
 - 正式 attempt 只允许一个活动设备会话；新设备必须以新鲜 OTP 显式接管，旧设备保存立即失败。
 - 开考前预检防火墙、路由隔离、时间、SMTP、备份和服务健康；开考后管理写操作冻结。
 - 正式项目 24×7 best-effort；考试窗口内停止开发/staging 项目，禁止第二个项目或未来 Windows 项目成为并行 writer。LaunchAgent 只恢复已选 release，恢复不等于批准开考。

@@ -7,7 +7,7 @@ import { getActiveExams, startExam } from "@/api/exams";
 import { ApiError } from "@/api/client";
 import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { candidatePageCopy, candidatePageText, productTerms } from "@/lib/pageCopy";
 import { setAttemptSession } from "@/lib/attemptSession";
@@ -31,6 +31,7 @@ export function ExamStartPage() {
     queryKey: ["candidate", candidate?.id ?? "anonymous", "active-exams"],
     queryFn: getActiveExams,
     enabled: Boolean(candidate),
+    retry: false,
   });
   const exam = examQuery.data?.find((item) => String(item.id) === examId);
   const [now, setNow] = useState(() => Date.now());
@@ -78,7 +79,10 @@ export function ExamStartPage() {
   if (candidate && examQuery.isLoading) {
     return <PageState state="loading" rows={2} />;
   }
-  if (candidate && (examQuery.isError || !exam)) {
+  const hasLoadError = examQuery.isError && !examQuery.data;
+  const hasStaleError = examQuery.isError && Boolean(examQuery.data);
+
+  if (candidate && (hasLoadError || !exam)) {
     return (
       <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
         <PageState
@@ -87,6 +91,9 @@ export function ExamStartPage() {
           title="考试说明加载失败。"
           description="受邀考试暂不可用，请返回受邀考试列表重试。"
           action={{ label: "返回受邀考试", onClick: () => navigate("/exams") }}
+          secondaryAction={
+            hasLoadError ? { label: "重试", onClick: () => void examQuery.refetch() } : undefined
+          }
         />
       </PageShell>
     );
@@ -94,6 +101,13 @@ export function ExamStartPage() {
 
   return (
     <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
+      {hasStaleError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={examQuery.dataUpdatedAt}
+          onRetry={() => examQuery.refetch()}
+          retrying={examQuery.isFetching}
+        />
+      ) : null}
       <PageHeader
         eyebrow={candidatePageCopy.examRules}
         title={candidatePageText.examRules.title}

@@ -11,6 +11,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Keep the deterministic frontend gate within the stable worker budget.
+    maxWorkers: 4,
     setupFiles: ["./src/test/setup.ts"],
   },
 });

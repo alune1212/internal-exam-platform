@@ -8,6 +8,12 @@ export const adminKeys = {
   all: ["admin"] as const,
   exams: () => [...adminKeys.all, "exams"] as const,
   exam: (id: number) => [...adminKeys.exams(), id] as const,
+  /** Stable exam-scoped key shared by the workspace and mutation invalidation. */
+  examWorkspace: (id: number | string) => {
+    const numericId = Number(id);
+    const scopedId = Number.isInteger(numericId) && numericId > 0 ? numericId : String(id);
+    return [...adminKeys.exams(), scopedId, "workspace"] as const;
+  },
   examCandidates: (id: number) => [...adminKeys.exam(id), "candidates"] as const,
   examRetake: (id: number) => [...adminKeys.exam(id), "retake"] as const,
   questions: () => [...adminKeys.all, "questions"] as const,

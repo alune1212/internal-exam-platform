@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { adminPageCopy } from "@/lib/pageCopy";
 
 interface ReportPageProps<TData> {
@@ -14,6 +14,8 @@ interface ReportPageProps<TData> {
   queryFn: () => Promise<TData[]>;
   queryEnabled?: boolean;
   isLoading?: boolean;
+  /** Refresh prerequisite data before retrying the report query itself. */
+  onRetry?: () => void | Promise<unknown>;
   columns: ColumnDef<TData>[];
   actions?: ReactNode;
   chapterLabel?: string;
@@ -29,6 +31,7 @@ export function ReportPage<TData>({
   queryFn,
   queryEnabled = true,
   isLoading = false,
+  onRetry,
   columns,
   actions,
   chapterLabel = adminPageCopy.reports,
@@ -38,9 +41,20 @@ export function ReportPage<TData>({
   className,
 }: ReportPageProps<TData>) {
   const resolvedQueryKey = Array.isArray(queryKey) ? queryKey : [queryKey];
-  const query = useQuery({ queryKey: resolvedQueryKey, queryFn, enabled: queryEnabled });
+  const query = useQuery({
+    queryKey: resolvedQueryKey,
+    queryFn,
+    enabled: queryEnabled,
+    retry: false,
+  });
   const showLoading = isLoading || query.isLoading;
   const hasLoadError = query.isError && !query.data;
+  const hasStaleError = query.isError && Boolean(query.data);
+
+  const retryQuery = async () => {
+    await onRetry?.();
+    await query.refetch();
+  };
 
   return (
     <PageShell
@@ -58,6 +72,14 @@ export function ReportPage<TData>({
         className="items-start"
       />
 
+      {hasStaleError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={query.dataUpdatedAt}
+          onRetry={retryQuery}
+          retrying={query.isFetching}
+        />
+      ) : null}
+
       {showLoading ? (
         <PageSection variant="table" data-testid="report-page-table-section">
           <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
@@ -69,6 +91,7 @@ export function ReportPage<TData>({
             eyebrow={adminPageCopy.error}
             title="报表加载失败。"
             description="请稍后重试，或确认后台服务与筛选条件是否可用。"
+            onRetry={() => void retryQuery()}
             className="border-0 bg-transparent py-10 shadow-none"
           />
         </PageSection>

@@ -18,12 +18,18 @@ function classifySaveFailure(error: unknown): SaveStatus {
   return "offline";
 }
 
+function isBrowserOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 export function useAttemptDraftQueue(attempt: Attempt | undefined, session: AttemptSession | null) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [saveStatus, setSaveStatusState] = useState<SaveStatus>("saved");
+  const [hasUnsynchronizedWork, setHasUnsynchronizedWorkState] = useState(false);
   const answersRef = useRef<AnswerMap>({});
   const sessionRef = useRef<AttemptSession | null>(session);
   const saveStatusRef = useRef<SaveStatus>("saved");
+  const hasUnsynchronizedWorkRef = useRef(false);
   const changeVersionRef = useRef(0);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const saveDebounceRef = useRef<number | null>(null);
@@ -31,6 +37,11 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
   const setSaveStatus = useCallback((status: SaveStatus) => {
     saveStatusRef.current = status;
     setSaveStatusState(status);
+  }, []);
+
+  const setHasUnsynchronizedWork = useCallback((value: boolean) => {
+    hasUnsynchronizedWorkRef.current = value;
+    setHasUnsynchronizedWorkState(value);
   }, []);
 
   useEffect(() => {
@@ -58,6 +69,11 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
     const activeSession = sessionRef.current;
     if (!attempt || !activeSession) return;
     const savedChangeVersion = changeVersionRef.current;
+    setHasUnsynchronizedWork(true);
+    if (isBrowserOffline()) {
+      setSaveStatus("offline");
+      throw new Error("offline");
+    }
     setSaveStatus("saving");
     try {
       const result = await saveAttemptAnswers(
@@ -70,16 +86,18 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
       sessionRef.current = updatedSession;
       if (changeVersionRef.current === savedChangeVersion) {
         clearAttemptDraft(activeSession.candidateId, activeSession.attemptId);
+        setHasUnsynchronizedWork(false);
         setSaveStatus("saved");
       } else {
         writeAttemptDraft(updatedSession, answersRef.current);
+        setHasUnsynchronizedWork(true);
         setSaveStatus("pending");
       }
     } catch (error) {
       setSaveStatus(classifySaveFailure(error));
       throw error;
     }
-  }, [attempt, buildAnswerItems, setSaveStatus]);
+  }, [attempt, buildAnswerItems, setHasUnsynchronizedWork, setSaveStatus]);
 
   const performFullSave = useCallback(
     async ({ throwOnError = false }: { throwOnError?: boolean } = {}) => {
@@ -96,13 +114,15 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
 
   const scheduleFullSave = useCallback(() => {
     if (!attempt || !sessionRef.current) return;
-    setSaveStatus("pending");
+    setHasUnsynchronizedWork(true);
+    setSaveStatus(isBrowserOffline() ? "offline" : "pending");
     cancelPendingSave();
+    if (isBrowserOffline()) return;
     saveDebounceRef.current = window.setTimeout(() => {
       saveDebounceRef.current = null;
       void performFullSave();
     }, SAVE_DEBOUNCE_MS);
-  }, [attempt, cancelPendingSave, performFullSave, setSaveStatus]);
+  }, [attempt, cancelPendingSave, performFullSave, setHasUnsynchronizedWork, setSaveStatus]);
 
   const updateAnswers = useCallback(
     (nextAnswers: AnswerMap) => {
@@ -133,14 +153,17 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
     const initialAnswers = draft ? { ...serverAnswers, ...draft.answers } : serverAnswers;
     answersRef.current = initialAnswers;
     setAnswers(initialAnswers);
-    setSaveStatus(draft ? "pending" : "saved");
+    setHasUnsynchronizedWork(Boolean(draft));
+    setSaveStatus(draft ? (isBrowserOffline() ? "offline" : "pending") : "saved");
     if (draft) {
       changeVersionRef.current += 1;
       cancelPendingSave();
-      saveDebounceRef.current = window.setTimeout(() => {
-        saveDebounceRef.current = null;
-        void performFullSave();
-      }, SAVE_DEBOUNCE_MS);
+      if (!isBrowserOffline()) {
+        saveDebounceRef.current = window.setTimeout(() => {
+          saveDebounceRef.current = null;
+          void performFullSave();
+        }, SAVE_DEBOUNCE_MS);
+      }
       return cancelPendingSave;
     }
   }, [
@@ -151,18 +174,65 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
     cancelPendingSave,
     performFullSave,
     session,
+    setHasUnsynchronizedWork,
     setSaveStatus,
   ]);
 
-  useEffect(() => {
-    function retryPendingDraft() {
-      if (saveStatusRef.current === "offline" || saveStatusRef.current === "pending") {
-        void performFullSave();
-      }
+  const persistDraftForLifecycle = useCallback(() => {
+    const activeSession = sessionRef.current;
+    if (!activeSession || !hasUnsynchronizedWorkRef.current) return;
+    writeAttemptDraft(activeSession, answersRef.current);
+  }, []);
+
+  const retryPendingDraft = useCallback(() => {
+    if (!hasUnsynchronizedWorkRef.current) return;
+    if (
+      saveStatusRef.current === "offline" ||
+      saveStatusRef.current === "pending" ||
+      saveStatusRef.current === "error"
+    ) {
+      void performFullSave();
     }
-    window.addEventListener("online", retryPendingDraft);
-    return () => window.removeEventListener("online", retryPendingDraft);
   }, [performFullSave]);
+
+  useEffect(() => {
+    function handleOnline() {
+      retryPendingDraft();
+      if (!hasUnsynchronizedWorkRef.current) setSaveStatus("saved");
+    }
+
+    function handleOffline() {
+      if (!attempt || !sessionRef.current) return;
+      if (saveStatusRef.current !== "conflict") setSaveStatus("offline");
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        persistDraftForLifecycle();
+        // Best effort only: browsers may stop in-flight work after hiding.
+        if (hasUnsynchronizedWorkRef.current) void performFullSave();
+        return;
+      }
+      retryPendingDraft();
+    }
+
+    function handlePageHide() {
+      persistDraftForLifecycle();
+      // Keep this an ordinary revisioned request; do not weaken it to beacon.
+      if (hasUnsynchronizedWorkRef.current) void performFullSave();
+    }
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [attempt, performFullSave, persistDraftForLifecycle, retryPendingDraft, setSaveStatus]);
 
   const clearDraft = useCallback(() => {
     const activeSession = sessionRef.current;
@@ -170,12 +240,16 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
     if (activeSession) {
       clearAttemptDraft(activeSession.candidateId, activeSession.attemptId);
     }
-  }, [cancelPendingSave]);
+    setHasUnsynchronizedWork(false);
+    setSaveStatus("saved");
+  }, [cancelPendingSave, setHasUnsynchronizedWork, setSaveStatus]);
 
   return {
     answers,
     answersRef,
     saveStatus,
+    hasUnsynchronizedWork,
+    isUnsynchronized: hasUnsynchronizedWork,
     updateAnswers,
     performFullSave,
     cancelPendingSave,

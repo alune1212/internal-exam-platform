@@ -36,11 +36,15 @@ Windows target 必须在真实 Docker Desktop + WSL2、native AMD64 环境中从
 
 1. 使用独立 staging project/volume restore paired backup，运行 migration 到 head，核对表计数、媒体数量、代表性媒体读取、release commit 和 writer generation。
 2. 在 staging 完成 split ingress、真实 SMTP、服务/worker 重启恢复、诊断脱敏、浏览器 E2E、100-client 容量和安全门禁。
-3. 配置 Windows 固定私网地址、loopback operator 入口、防火墙、电源和 Docker Desktop/WSL2 资源；重新取得桌面/手机 UAT。Mac 的 `192.168.2.34/24` 租约和 pf 证据不自动迁移到 Windows。
+3. 配置 Windows 固定私网地址、loopback operator 入口、防火墙、电源和 Docker Desktop/WSL2 资源；重新取得桌面/手机 UAT。Mac 的 `<FORMAL_LAN_IP>/24` 租约和 pf 证据不自动迁移到 Windows。
 4. 仅在 staging evidence、preflight、paired backup 和人工批准均通过后，把应考人员入口切换到 Windows。记录 target writer generation、target release/commit、target host OS/architecture 和 source stopped 证据。
 5. 切换后关闭旧 Mac 的 LaunchAgent/Compose recovery，并保持旧 Mac 断开应考人员入口；只允许 Windows writer。
 
 Windows -> Mac 反向迁移完全相同：Windows 必须先无进行中 attempt、停止整个 Windows formal Compose project（candidate/operator gateway、frontend、backend、worker、database）、生成新的 verified paired backup；Mac 用 native ARM64 release inputs 做 staging/恢复，再切换到 Mac。不得把早先的 Mac backup 或停机 Windows state 当作最新回滚点。
+
+## 工作区与 session-scoped 恢复
+
+宿主切换前后，管理员可通过 `GET /api/admin/exams/{exam_id}/workspace` 查看不含 roster PII 的单场聚合摘要和 `observed_at`；其中 advisory next action 不是跨宿主切换或开考授权。应考人员答题草稿及短时凭据只在当前浏览器标签页的 `sessionStorage` 中保留，同一标签页 reload 可恢复，关闭标签页/窗口、换标签页、换设备或跨宿主不保证恢复，需重新 OTP 登录或 takeover。受控 mobile Chromium action-area 测试只是工程门禁，不替代真实 Mac Safari/手机 UAT，也不替代 Windows native AMD64 Docker Desktop + WSL2 acceptance。
 
 ## 回滚语义
 

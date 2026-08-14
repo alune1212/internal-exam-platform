@@ -8,7 +8,7 @@ import { z } from "zod";
 
 import { getCandidateProfile, updateCandidateProfile } from "@/api/auth";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageSection, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +30,7 @@ export function ProfilePage() {
     queryKey: ["candidate", candidate?.id ?? "anonymous", "profile"],
     queryFn: getCandidateProfile,
     enabled: Boolean(candidate),
+    retry: false,
   });
   const form = useForm<ProfileForm>({
     resolver: zodResolver(schema),
@@ -62,17 +63,20 @@ export function ProfilePage() {
     return <Navigate to="/login?returnTo=%2Fprofile" replace />;
   }
 
+  const hasLoadError = query.isError && !query.data;
+  const hasStaleError = query.isError && Boolean(query.data);
+
   if (query.isLoading) {
     return <PageState state="loading" rows={2} />;
   }
-  if (query.isError || !query.data) {
+  if (hasLoadError || !query.data) {
     return (
       <PageState
         state="error"
         eyebrow={candidatePageCopy.error}
         title="账号资料加载失败。"
         description="请稍后重试，或重新登录后再试。"
-        action={{ label: "重试", onClick: () => query.refetch() }}
+        onRetry={() => void query.refetch()}
       />
     );
   }
@@ -83,6 +87,13 @@ export function ProfilePage() {
 
   return (
     <PageSection variant="plain" data-stagger className="w-full max-w-2xl gap-6">
+      {hasStaleError ? (
+        <PageStaleNotice
+          lastSuccessfulAt={query.dataUpdatedAt}
+          onRetry={() => query.refetch()}
+          retrying={query.isFetching}
+        />
+      ) : null}
       <PageHeader
         eyebrow={candidatePageCopy.login}
         title={candidatePageText.login.profileTitle}
