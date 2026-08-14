@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Post-commit reminder: surfaces a /simplify review hint after each commit.
+#
+# This hook is pure notification — it never blocks, never auto-applies changes,
+# and never spawns Claude. The user runs the review manually when they want it.
+#
+# Guards:
+#   - Skips merge commits (their attributed diff is misleading).
+#   - Skips commits whose subject indicates a simplify / refactor pass, so the
+#     hook does not nudge for changes that are themselves simplify output.
+#   - Stores notified commit SHAs in .git/simplify-notified-shas so re-firing on
+#     the same SHA (e.g. via rebase or amend replay) does not double-print.
+
+set -euo pipefail
+
+# Bail if we are not really on a fresh commit (covers edge cases on hook tests).
+if ! git rev-parse HEAD >/dev/null 2>&1; then
+  exit 0
+fi
+
+new_sha="$(git rev-parse HEAD)"
+short_sha="$(git rev-parse --short HEAD)"
+
+# Skip merge commits — MERGE_HEAD is set during a merge in progress.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+  exit 0
+fi
+
+subject="$(git log -1 --pretty='%s' HEAD)"
+
+# Loop guard: avoid reminding for commits that themselves look like simplify output.
+case "$subject" in
+  *simplify* | *Simplify* | refactor:* | "refactor("*": "*)
+    exit 0
+    ;;
+esac
+
+# Idempotency: only print once per commit SHA.
+git_dir="$(git rev-parse --git-dir)"
+state_file="$git_dir/simplify-notified-shas"
+if [[ -f "$state_file" ]] && grep -qx "$new_sha" "$state_file"; then
+  exit 0
+fi
+printf '%s\n' "$new_sha" >> "$state_file"
+
+parent_sha="$(git rev-parse HEAD~1 2>/dev/null || true)"
+if [[ -n "$parent_sha" ]]; then
+  range="$parent_sha..HEAD"
+else
+  range="HEAD"
+fi
+
+cat <<EOF
+
+💡 post-commit: 新提交 ${short_sha} "${subject}" 已创建。
+   若想让 Claude 复审本次改动，可在终端运行：
+     claude /simplify ${range}
+
+EOF
