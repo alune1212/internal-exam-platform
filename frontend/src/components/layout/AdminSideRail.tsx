@@ -109,7 +109,11 @@ function SidebarList({
   return (
     <nav aria-label="管理后台导航" className="flex flex-col gap-5">
       {ADMIN_NAVIGATION_GROUPS.map((group) => {
-        const groupIsActive = group.items.some((item) => itemIsActive(item, pathname));
+        const itemsWithActive = group.items.map((item) => ({
+          item,
+          active: itemIsActive(item, pathname),
+        }));
+        const groupIsActive = itemsWithActive.some(({ active }) => active);
         const groupTitleId = `admin-nav-group-${group.id}`;
 
         return (
@@ -130,22 +134,22 @@ function SidebarList({
               {groupIsActive ? <span className="sr-only"> · 当前分组</span> : null}
             </p>
             <div className="flex flex-col gap-1">
-              {group.items.map((item) => (
+              {itemsWithActive.map(({ item, active }) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
                   end={item.end}
                   onClick={onNavigate}
                   className={({ isActive }) => {
-                    const active = isActive || itemIsActive(item, pathname);
+                    const resolvedActive = isActive || active;
 
                     return cn(
                       "flex h-12 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
                       tone === "dark"
-                        ? active
+                        ? resolvedActive
                           ? "bg-canvas text-ink"
                           : "text-footer-soft hover:bg-white/10 hover:text-canvas"
-                        : active
+                        : resolvedActive
                           ? "bg-surface-card text-ink"
                           : "text-muted hover:bg-surface-card hover:text-ink",
                     );

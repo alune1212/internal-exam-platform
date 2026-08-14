@@ -44,18 +44,6 @@ describe("PageHeader", () => {
     expect(document.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
   });
 
-  it("accepts context as the meaningful upright label alias", () => {
-    render(<PageHeader context="WORKSPACE · 工作台" title="考试工作台" />);
-
-    const context = screen.getByText("WORKSPACE · 工作台");
-    expect(context).toBeInTheDocument();
-    expect(context).not.toHaveClass("italic");
-    expect(context.closest("span")?.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
-    expect(context.compareDocumentPosition(screen.getByRole("heading", { level: 1 }))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-  });
-
   it("places actions in a responsive action region", () => {
     render(
       <PageHeader

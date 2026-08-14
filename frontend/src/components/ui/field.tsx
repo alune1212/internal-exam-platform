@@ -293,7 +293,7 @@ export const FieldLabel = React.forwardRef<HTMLLabelElement, FieldLabelProps>(
         ref={ref}
         id={labelId}
         htmlFor={htmlFor ?? context?.controlId}
-        className={cn("text-caption font-medium uppercase tracking-[0.16em] text-muted", className)}
+        className={cn("text-caption font-medium uppercase tracking-caption text-muted", className)}
         {...props}
       />
     );

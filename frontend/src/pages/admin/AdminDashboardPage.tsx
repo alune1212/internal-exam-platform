@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import * as React from "react";
 
 import { getAdminExams } from "@/api/exams";
 import { getAdminQuestions } from "@/api/questions";
@@ -112,29 +113,40 @@ export function AdminDashboardPage() {
 
   const retryActivity = () => Promise.all([scores.refetch(), absent.refetch()]);
 
-  const activity: ActivityItem[] = [
-    ...(scores.data ?? []).slice(0, 5).map((score) => ({
-      id: `score-${score.roster_name}-${score.exam_title}`,
-      title: `${score.roster_name} 已交卷：${score.exam_title}`,
-      caption: `得分 ${score.score} / ${score.total_score}`,
-      when: score.submitted_at ?? "-",
-      tone: "success" as const,
-    })),
-    ...(absent.data ?? []).slice(0, 5).map((candidate) => ({
-      id: `absent-${candidate.candidate_id}-${candidate.exam_group ?? ""}`,
-      title: `${candidate.roster_name} 尚未开始考试`,
-      caption: candidate.exam_group ?? candidate.department ?? "-",
-      when: "未到",
-      tone: "warning" as const,
-    })),
-  ];
+  const activity = React.useMemo<ActivityItem[]>(
+    () => [
+      ...(scores.data ?? []).slice(0, 5).map((score) => ({
+        id: `score-${score.roster_name}-${score.exam_title}`,
+        title: `${score.roster_name} 已交卷：${score.exam_title}`,
+        caption: `得分 ${score.score} / ${score.total_score}`,
+        when: score.submitted_at ?? "-",
+        tone: "success" as const,
+      })),
+      ...(absent.data ?? []).slice(0, 5).map((candidate) => ({
+        id: `absent-${candidate.candidate_id}-${candidate.exam_group ?? ""}`,
+        title: `${candidate.roster_name} 尚未开始考试`,
+        caption: candidate.exam_group ?? candidate.department ?? "-",
+        when: "未到",
+        tone: "warning" as const,
+      })),
+    ],
+    [scores.data, absent.data],
+  );
+
+  const lastRefreshedLabel = React.useMemo(() => {
+    // Intl format only needs to refresh alongside the queries, not on every render.
+    const lastUpdate = Math.max(
+      questions.dataUpdatedAt,
+      exams.dataUpdatedAt,
+      scores.dataUpdatedAt,
+      absent.dataUpdatedAt,
+    );
+    return new Date(lastUpdate).toLocaleString("zh-CN");
+  }, [questions.dataUpdatedAt, exams.dataUpdatedAt, scores.dataUpdatedAt, absent.dataUpdatedAt]);
 
   return (
     <PageShell data-testid="admin-dashboard-shell" density="workbench" width="full" stagger>
-      <PageHeader
-        title="仪表盘"
-        description={`最近一次刷新 · ${new Date().toLocaleString("zh-CN")}`}
-      >
+      <PageHeader title="仪表盘" description={`最近一次刷新 · ${lastRefreshedLabel}`}>
         <p className="text-body-sm text-muted" role="status">
           {hasMetricError ? "部分数据暂不可用，详见下方提示。" : "关键数据已就绪。"}
         </p>

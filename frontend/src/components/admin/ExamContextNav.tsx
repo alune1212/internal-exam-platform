@@ -1,3 +1,4 @@
+import * as React from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { cn } from "@/lib/utils";
@@ -68,7 +69,7 @@ export interface ExamContextNavProps {
 
 export function ExamContextNav({ examId, examTitle }: ExamContextNavProps) {
   const { hash, pathname } = useLocation();
-  const destinations = getExamContextDestinations(examId);
+  const destinations = React.useMemo(() => getExamContextDestinations(examId), [examId]);
   const identity = examTitle?.trim() || `考试 #${examId}`;
 
   return (
