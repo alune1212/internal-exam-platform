@@ -12,15 +12,26 @@ describe("PageShell", () => {
   });
 
   it("supports workbench density for admin pages", () => {
-    render(<PageShell density="workbench">管理页</PageShell>);
+    render(
+      <PageShell density="workbench" stagger>
+        管理页
+      </PageShell>,
+    );
 
     expect(screen.getByText("管理页")).toHaveClass("gap-6");
+    expect(screen.getByText("管理页")).toHaveAttribute("data-density", "workbench");
+    expect(screen.getByText("管理页")).not.toHaveAttribute("data-stagger");
   });
 
   it("supports focus density for exam and practice pages", () => {
-    render(<PageShell density="focus">作答页</PageShell>);
+    render(
+      <PageShell density="focus" stagger>
+        作答页
+      </PageShell>,
+    );
 
     expect(screen.getByText("作答页")).toHaveClass("gap-6");
+    expect(screen.getByText("作答页")).not.toHaveAttribute("data-stagger");
   });
 
   it("can opt into stagger entrance", () => {

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
 import { TopNav } from "@/components/layout/TopNav";
+import { breakpointQueries } from "@/lib/breakpoints";
 import type { Candidate } from "@/types/candidate";
 
 const candidate: Candidate = {
@@ -18,7 +19,7 @@ function mockDesktopMediaQuery() {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({
-      matches: query === "(min-width: 1024px)",
+      matches: query === breakpointQueries.lg,
       media: query,
       onchange: null,
       addEventListener: () => {},

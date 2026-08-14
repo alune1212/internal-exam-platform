@@ -9,13 +9,42 @@ import { buttonVariants } from "./button-variants";
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  /** Prevents a mutation action while preserving a visible busy state. */
+  pending?: boolean;
+  /** Marks a completed action with an explicit semantic state. */
+  success?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  (
+    {
+      className,
+      variant,
+      size,
+      asChild = false,
+      pending = false,
+      success = false,
+      disabled,
+      "aria-busy": ariaBusy,
+      "aria-disabled": ariaDisabled,
+      ...props
+    },
+    ref,
+  ) => {
     const Comp = asChild ? Slot : "button";
+    const resolvedDisabled = disabled || pending;
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        disabled={resolvedDisabled}
+        aria-busy={ariaBusy ?? (pending ? true : undefined)}
+        aria-disabled={ariaDisabled ?? (resolvedDisabled ? true : undefined)}
+        data-pending={pending || undefined}
+        data-success={success || undefined}
+        data-state={pending ? "pending" : success ? "success" : undefined}
+        {...props}
+      />
     );
   },
 );

@@ -5,7 +5,7 @@ import { Link, useOutletContext } from "react-router-dom";
 import { getLearningVideos } from "@/api/learning";
 import { StatusPill } from "@/components/editorial/StatusPill";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageShell, PageStaleNotice, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { candidateKeys } from "@/lib/queryKeys";
 import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
@@ -30,10 +30,10 @@ function LearningVideoCard({ video }: { video: CandidateLearningVideo }) {
     <article className="flex flex-col gap-5 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <p className="font-body text-caption font-medium uppercase italic tracking-[0.18em] text-muted">
-            LEARNING VIDEO
+          <p className="font-body text-caption font-medium tracking-[0.12em] text-muted">
+            学习视频
           </p>
-          <h2 className="font-display text-display-sm font-semibold text-ink lg:text-display-md">
+          <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink lg:text-display-md">
             {video.title}
           </h2>
         </div>
@@ -87,7 +87,6 @@ export function LearningListPage() {
   return (
     <PageShell density="calm" stagger data-testid="candidate-learning-list-shell">
       <PageHeader
-        eyebrow={candidatePageCopy.learning}
         title={candidatePageText.learning.title}
         description={candidatePageText.learning.description}
       />
@@ -101,28 +100,38 @@ export function LearningListPage() {
       ) : null}
 
       {isLoading ? (
-        <PageState state="loading" rows={3} />
+        <PageSection variant="plain">
+          <PageState state="loading" rows={3} surface="inherit" />
+        </PageSection>
       ) : hasLoadError ? (
-        <PageState
-          state="error"
-          eyebrow={candidatePageCopy.error}
-          title={candidatePageText.learning.errorTitle}
-          description={candidatePageText.learning.errorDescription}
-          onRetry={() => void refetch()}
-        />
+        <PageSection variant="plain">
+          <PageState
+            state="error"
+            surface="inherit"
+            eyebrow={candidatePageCopy.error}
+            title={candidatePageText.learning.errorTitle}
+            description={candidatePageText.learning.errorDescription}
+            onRetry={() => void refetch()}
+          />
+        </PageSection>
       ) : videos.length ? (
-        <div className="grid gap-5 md:grid-cols-2">
-          {videos.map((video) => (
-            <LearningVideoCard key={video.id} video={video} />
-          ))}
-        </div>
+        <PageSection variant="plain" aria-label="学习视频列表">
+          <div className="grid gap-5 md:grid-cols-2">
+            {videos.map((video) => (
+              <LearningVideoCard key={video.id} video={video} />
+            ))}
+          </div>
+        </PageSection>
       ) : (
-        <PageState
-          state="empty"
-          eyebrow={candidatePageCopy.empty}
-          title={candidatePageText.learning.emptyTitle}
-          description={candidatePageText.learning.emptyDescription}
-        />
+        <PageSection variant="plain">
+          <PageState
+            state="empty"
+            surface="inherit"
+            eyebrow={candidatePageCopy.empty}
+            title={candidatePageText.learning.emptyTitle}
+            description={candidatePageText.learning.emptyDescription}
+          />
+        </PageSection>
       )}
     </PageShell>
   );

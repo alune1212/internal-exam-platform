@@ -23,6 +23,12 @@ const columns: ColumnDef<Row>[] = [
   },
 ];
 
+const wideColumns: ColumnDef<Row>[] = Array.from({ length: 8 }, (_, index) => ({
+  id: `column-${index}`,
+  header: `COLUMN-${index + 1}`,
+  cell: ({ row }) => `${row.original.name}-${index + 1}`,
+}));
+
 const rows: Row[] = [
   { id: 1, name: "Ada", score: 98 },
   { id: 2, name: "Linus", score: 72 },
@@ -33,7 +39,7 @@ const setMatchMedia = (matches: boolean) => {
     writable: true,
     value: (query: string) => ({
       get matches() {
-        return query.includes("768") ? matches : true;
+        return query.includes("1024") ? matches : true;
       },
       media: query,
       onchange: null,
@@ -58,6 +64,13 @@ describe("SimpleDataTable", () => {
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByText("NAME")).toBeInTheDocument();
     expect(screen.getByText("Ada")).toBeInTheDocument();
+  });
+
+  it("renders wide tables as cards even on desktop", () => {
+    render(<SimpleDataTable columns={wideColumns} data={rows} />);
+
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getAllByTestId("mobile-row-card")).toHaveLength(2);
   });
 
   it("renders the empty state when data is empty", () => {
@@ -101,5 +114,13 @@ describe("SimpleDataTable", () => {
     render(<SimpleDataTable columns={columns} data={[]} emptyText="空空如也" />);
 
     expect(screen.getByText("空空如也")).toBeInTheDocument();
+  });
+
+  it("inherits the enclosing table surface for a mobile empty state", () => {
+    setMatchMedia(false);
+    render(<SimpleDataTable columns={columns} data={[]} />);
+
+    expect(screen.getByText("暂无数据")).toHaveAttribute("data-table-empty");
+    expect(screen.getByText("暂无数据")).not.toHaveClass("border", "bg-canvas", "rounded-md");
   });
 });

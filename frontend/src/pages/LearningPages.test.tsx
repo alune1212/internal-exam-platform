@@ -146,6 +146,15 @@ describe("Learning pages", () => {
     renderLearningPage("learning", <LearningListPage />, "/learning");
 
     expect(await screen.findByRole("heading", { name: "安全培训" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "视频学习" }).closest("[data-density]"),
+    ).toHaveAttribute("data-density", "calm");
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen
+        .getByRole("heading", { level: 1, name: "视频学习" })
+        .compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "安全培训" })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByText("已完成")).toBeInTheDocument();
     expect(screen.getByText("90%")).toBeInTheDocument();
   });
@@ -196,6 +205,7 @@ describe("Learning pages", () => {
     const player = (await screen.findByTestId("learning-video-shell")).querySelector(
       "video",
     ) as HTMLVideoElement;
+    expect(screen.getByTestId("learning-video-shell")).toHaveAttribute("data-density", "calm");
     Object.defineProperty(player, "currentTime", { configurable: true, value: 0 });
     fireEvent.play(player);
     Object.defineProperty(player, "currentTime", { configurable: true, value: 10 });

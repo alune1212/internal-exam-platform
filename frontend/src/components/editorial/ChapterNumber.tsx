@@ -10,13 +10,16 @@ export function ChapterNumber({ children, className, ...props }: ChapterNumberPr
   return (
     <span
       className={cn(
-        "inline-flex items-center text-caption uppercase italic tracking-[0.18em] text-muted",
+        "inline-flex min-w-0 max-w-full items-center text-caption font-medium uppercase tracking-[0.18em] text-muted",
         className,
       )}
       {...props}
     >
-      <span aria-hidden="true" className="mr-3 inline-block h-px w-6 bg-current opacity-70" />
-      <span>{children}</span>
+      <span
+        aria-hidden="true"
+        className="mr-3 inline-block h-px w-6 shrink-0 bg-current opacity-70"
+      />
+      <span className="min-w-0 break-words">{children}</span>
     </span>
   );
 }

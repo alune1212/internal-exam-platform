@@ -10,6 +10,7 @@ describe("Card", () => {
     expect(el.className).toContain("rounded-lg");
     expect(el.className).toContain("border-hairline");
     expect(el.className).toContain("shadow-card");
+    expect(el).toHaveAttribute("data-surface-owner", "card");
   });
 
   it("CardHeader applies chapter-style layout (chapter + title + description)", () => {
@@ -24,6 +25,7 @@ describe("Card", () => {
     expect(header.className).toContain("border-b");
     expect(header.className).toContain("border-hairline-soft");
     expect(chapter.className).toMatch(/uppercase|tracking-/);
+    expect(screen.getByRole("heading", { level: 3, name: "开始考试" })).toHaveClass("break-words");
   });
 
   it("CardContent has p-5 lg:p-8 padding", () => {

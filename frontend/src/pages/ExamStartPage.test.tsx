@@ -122,6 +122,10 @@ describe("ExamStartPage", () => {
     );
     expect(screen.getByTestId("page-stale-warning")).toHaveTextContent("上次成功更新于");
     expect(screen.getByRole("heading", { name: "阅读规则，开始作答" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "阅读规则，开始作答" }).closest("[data-density]"),
+    ).toHaveAttribute("data-density", "calm");
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByText("考试中答案会自动保存，但倒计时不会暂停。")).toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "重试" }));

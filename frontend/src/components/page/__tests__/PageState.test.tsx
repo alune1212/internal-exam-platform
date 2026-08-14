@@ -18,6 +18,15 @@ describe("PageState", () => {
     expect(loading).toHaveAttribute("aria-label", "正在加载");
   });
 
+  it("inherits an enclosing section surface without creating another card", () => {
+    render(<PageState state="loading" surface="inherit" />);
+
+    const loading = screen.getByRole("status");
+    expect(loading).toHaveAttribute("data-state-surface", "inherit");
+    expect(loading).toHaveClass("bg-transparent");
+    expect(loading).not.toHaveClass("border", "shadow-card", "rounded-lg");
+  });
+
   it("renders empty state through EmptyState", () => {
     render(
       <PageState
@@ -31,6 +40,21 @@ describe("PageState", () => {
     expect(screen.getByText("STATE · 空状态")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "暂无内容" })).toBeInTheDocument();
     expect(screen.getByText("这里还没有可显示的数据。")).toBeInTheDocument();
+  });
+
+  it("marks a non-loading inherited state without adding a nested surface", () => {
+    render(
+      <PageState
+        state="empty"
+        surface="inherit"
+        title="暂无内容"
+        description="这里还没有可显示的数据。"
+      />,
+    );
+
+    const state = screen.getByRole("heading", { level: 2, name: "暂无内容" }).parentElement;
+    expect(state).toHaveAttribute("data-state-surface", "inherit");
+    expect(state).not.toHaveClass("border", "shadow-card", "rounded-lg");
   });
 
   it("renders error state with error tone", () => {

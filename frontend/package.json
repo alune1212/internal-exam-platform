@@ -13,6 +13,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\"",
     "check:offline": "node scripts/check-offline-assets.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:visual": "playwright test --project=chromium-visual-system e2e/visual-system.spec.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { candidateActionCopy } from "@/lib/pageCopy";
 import { cn } from "@/lib/utils";
 
+import { ChapterNumber } from "../editorial/ChapterNumber";
+
 import { OptionCard } from "./OptionCard";
 import { ProgressCapsule } from "./ProgressCapsule";
 import { Timer } from "./Timer";
@@ -78,20 +80,17 @@ export function ExamFocusMode({
       </div>
 
       <article className="flex min-w-0 flex-col gap-6 rounded-lg border border-hairline bg-surface-card p-4 shadow-card sm:p-6 md:p-8">
-        <header className="flex flex-col gap-2 border-b border-hairline pb-4">
-          <span
-            id={`${questionHeadingId}-eyebrow`}
-            className="font-display text-caption uppercase italic tracking-[0.18em] text-muted"
-          >
+        <header className="flex min-w-0 flex-col gap-2 border-b border-hairline pb-4">
+          <ChapterNumber id={`${questionHeadingId}-eyebrow`} className="font-display">
             {stem.chapterLabel}
-          </span>
+          </ChapterNumber>
           <h2
             id={questionHeadingId}
             ref={headingRef}
             tabIndex={-1}
             data-testid="exam-question-heading"
             aria-describedby={`${questionHeadingId}-eyebrow ${questionHeadingId}-state`}
-            className="break-words font-display text-display-md font-semibold leading-snug text-ink focus-visible:outline-none"
+            className="min-w-0 break-words font-display text-display-md font-semibold leading-snug text-ink focus-visible:outline-none"
           >
             {stem.title}
           </h2>

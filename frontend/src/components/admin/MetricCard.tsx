@@ -18,9 +18,14 @@ const TONE_CLASS: Record<MetricTone, string> = {
 
 export function MetricCard({ label, value, unit, tone = "default", caption }: MetricCardProps) {
   return (
-    <div className="rounded-lg border border-hairline bg-canvas p-5 shadow-card">
-      <p className="text-caption font-medium uppercase tracking-[0.16em] text-muted">{label}</p>
-      <p className="mt-3 flex items-baseline gap-1 font-display text-display-md font-semibold leading-none lg:text-display-lg">
+    <div
+      data-surface-owner="metric-card"
+      className="min-w-0 rounded-lg border border-hairline bg-canvas p-5 shadow-card"
+    >
+      <p className="break-words text-caption font-medium uppercase tracking-[0.16em] text-muted">
+        {label}
+      </p>
+      <p className="mt-3 flex min-w-0 flex-wrap items-baseline gap-1 break-words font-display text-display-md font-semibold leading-none lg:text-display-lg">
         <span className={cn(TONE_CLASS[tone])}>{value}</span>
         {unit ? <span className="text-body-sm text-muted">{unit}</span> : null}
       </p>

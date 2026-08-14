@@ -835,7 +835,10 @@ describe("P0 pages", () => {
     );
 
     expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
-    expect(screen.getByText("SCORE · 得分")).toBeInTheDocument();
+    expect(screen.getAllByText("得分", { exact: true }).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("heading", { name: "本次答卷" }).closest("[data-density]"),
+    ).toHaveAttribute("data-density", "calm");
     expect(screen.getByRole("button", { name: /只看错题/ })).toBeInTheDocument();
   });
 
@@ -895,7 +898,7 @@ describe("P0 pages", () => {
 
     expect(await screen.findByRole("heading", { name: "答卷加载失败。" })).toBeInTheDocument();
     expect(screen.queryByText("考试已交卷。")).not.toBeInTheDocument();
-    expect(screen.queryByText("SCORE · 得分")).not.toBeInTheDocument();
+    expect(screen.queryByText("得分", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText("暂无结果，请先完成考试。")).not.toBeInTheDocument();
   });
 
@@ -911,7 +914,7 @@ describe("P0 pages", () => {
 
     expect(await screen.findByRole("status")).toBeInTheDocument();
     expect(screen.queryByText("考试已交卷。")).not.toBeInTheDocument();
-    expect(screen.queryByText("SCORE · 得分")).not.toBeInTheDocument();
+    expect(screen.queryByText("得分", { exact: true })).not.toBeInTheDocument();
   });
 
   it("hides correct answer and analysis when the exam disables review", async () => {
@@ -946,8 +949,11 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByText("日常练习")).toBeInTheDocument();
-    expect(screen.getByText("PRACTICE · 练习")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "查看错题复习" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "查看错题复习" }).closest("[data-density]"),
+    ).toHaveAttribute("data-density", "focus");
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "提交本题" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：选项 A/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("region", { name: "题号导航" })[0].parentElement).toHaveClass(
@@ -1042,7 +1048,9 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(await screen.findByRole("heading", { name: "错题复习" })).toBeInTheDocument();
+    const wrongReviewHeading = await screen.findByRole("heading", { name: "错题复习" });
+    expect(wrongReviewHeading).toBeInTheDocument();
+    expect(wrongReviewHeading.closest("[data-density]")).toHaveAttribute("data-density", "calm");
     expect(await screen.findByText("错 1 次 · 共练习 2 次")).toBeInTheDocument();
     expect(screen.getAllByText("已掌握").length).toBeGreaterThan(1);
     expect(screen.getByRole("link", { name: /再次练习/ })).toHaveAttribute(
@@ -1080,8 +1088,10 @@ describe("P0 pages", () => {
     renderPage("exams", <ExamListPage />);
 
     expect(await screen.findByTestId("candidate-exam-list-shell")).toHaveClass("gap-8");
+    expect(screen.getByTestId("candidate-exam-list-shell")).toHaveAttribute("data-density", "calm");
     expect(await screen.findByText("受邀考试")).toBeInTheDocument();
-    expect(screen.getByText("EXAMS · 受邀考试")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("受邀考试");
     expect(screen.getByRole("heading", { name: "内部考试" })).not.toHaveClass("tracking-[-0.04em]");
     const questionCounts = screen.getAllByText("50");
     expect(questionCounts.length).toBeGreaterThan(0);

@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 
-import { useMediaQuery } from "@/lib/use-media-query";
+import { MD, useMediaQuery } from "@/lib/use-media-query";
 
 describe("useMediaQuery", () => {
   let listeners: Array<(event: MediaQueryListEvent) => void>;
@@ -32,25 +32,25 @@ describe("useMediaQuery", () => {
 
   it("returns the initial matches value from matchMedia", () => {
     matchesValue = true;
-    const { result } = renderHook(() => useMediaQuery("(min-width: 1024px)"));
+    const { result } = renderHook(() => useMediaQuery(MD.lg));
     expect(result.current).toBe(true);
   });
 
   it("returns false initially when matchMedia reports no match", () => {
     matchesValue = false;
-    const { result } = renderHook(() => useMediaQuery("(min-width: 1024px)"));
+    const { result } = renderHook(() => useMediaQuery(MD.lg));
     expect(result.current).toBe(false);
   });
 
   it("updates when matchMedia emits a change event", () => {
     matchesValue = false;
-    const { result } = renderHook(() => useMediaQuery("(min-width: 1024px)"));
+    const { result } = renderHook(() => useMediaQuery(MD.lg));
     expect(result.current).toBe(false);
 
     act(() => {
       matchesValue = true;
       for (const listener of listeners) {
-        listener({ matches: true, media: "(min-width: 1024px)" } as MediaQueryListEvent);
+        listener({ matches: true, media: MD.lg } as MediaQueryListEvent);
       }
     });
 
@@ -58,7 +58,7 @@ describe("useMediaQuery", () => {
   });
 
   it("removes the listener on unmount", () => {
-    const { unmount } = renderHook(() => useMediaQuery("(min-width: 1024px)"));
+    const { unmount } = renderHook(() => useMediaQuery(MD.lg));
     expect(listeners).toHaveLength(1);
     unmount();
     expect(listeners).toHaveLength(0);
@@ -70,7 +70,7 @@ describe("useMediaQuery", () => {
     try {
       delete (globalThis as { window?: Window }).window;
       function Probe() {
-        return createElement("span", null, String(useMediaQuery("(min-width: 1024px)")));
+        return createElement("span", null, String(useMediaQuery(MD.lg)));
       }
 
       expect(renderToString(createElement(Probe))).toContain(">false<");

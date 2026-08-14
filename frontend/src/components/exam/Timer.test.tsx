@@ -31,7 +31,9 @@ describe("Timer", () => {
     render(<Timer remainingSeconds={300} />);
     const time = screen.getByText("05:00");
     const wrapper = time.parentElement;
-    expect(wrapper?.className).toContain("animate-pulse");
+    expect(wrapper?.className).toContain("motion-safe:animate-pulse");
+    expect(wrapper?.className).toContain("duration-pulse");
+    expect(wrapper).not.toHaveAttribute("style");
   });
 
   it("does not apply animate-pulse when remaining is > 5 minutes", () => {

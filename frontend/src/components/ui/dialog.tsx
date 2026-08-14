@@ -16,7 +16,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-overlay backdrop-blur-[2px]",
+      "fixed inset-0 z-overlay bg-overlay backdrop-blur-[2px] duration-normal ease-standard",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
@@ -35,7 +35,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        `fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-hairline bg-surface-elev p-6 shadow-pop duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95`,
+        "fixed left-1/2 top-1/2 z-modal grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-hairline bg-surface-elev p-6 shadow-pop duration-normal ease-standard data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className,
       )}
       {...props}
@@ -69,7 +69,7 @@ const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
   ({ className, chapter, children, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col gap-2 text-left", className)} {...props}>
       {chapter ? (
-        <span className="text-caption font-medium uppercase tracking-[0.16em] text-muted">
+        <span className="min-w-0 break-words text-caption font-medium uppercase tracking-[0.16em] text-muted">
           {chapter}
         </span>
       ) : null}
@@ -97,7 +97,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "font-display text-display-sm font-semibold leading-tight tracking-[-0.02em] text-ink lg:text-display-md",
+      "min-w-0 break-words font-display text-display-sm font-semibold leading-tight tracking-[-0.02em] text-ink lg:text-display-md",
       className,
     )}
     {...props}

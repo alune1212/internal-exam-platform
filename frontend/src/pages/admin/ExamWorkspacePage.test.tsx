@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -113,8 +113,14 @@ describe("ExamWorkspacePage", () => {
     expect(await screen.findByText("名单总数")).toBeInTheDocument();
     await queryClient.refetchQueries({ queryKey: adminKeys.examWorkspace("1") });
 
-    expect(await screen.findByRole("heading", { name: "工作台刷新失败" })).toBeInTheDocument();
+    expect(await screen.findByText("工作台刷新失败", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("名单总数")).toBeInTheDocument();
+    expect(screen.getByTestId("exam-workspace-shell").querySelector("time")).toHaveAttribute(
+      "data-observed-at",
+      workspace.observed_at,
+    );
+    expect(screen.getByText(/发送邀请：/)).toBeInTheDocument();
+    expect(screen.getByTestId("page-stale-warning")).toHaveTextContent("temporary refresh failure");
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
     expect(screen.getByTestId("page-stale-warning")).toHaveTextContent("上次成功更新于");
   });
@@ -125,12 +131,20 @@ describe("ExamWorkspacePage", () => {
     expect(
       await screen.findByRole("heading", { name: /考试工作台 · 安全知识竞赛/ }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("exam-workspace-shell")).toHaveAttribute("data-density", "workbench");
+    expect(
+      screen
+        .getByRole("heading", { level: 1, name: /考试工作台 · 安全知识竞赛/ })
+        .compareDocumentPosition(
+          screen.getByRole("heading", { level: 2, name: "发布预检与生命周期" }),
+        ),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByText("数据观测时间：")).toBeInTheDocument();
     expect(screen.getByTestId("exam-workspace-shell").querySelector("time")).toHaveAttribute(
       "data-observed-at",
       workspace.observed_at,
     );
-    expect(screen.getByRole("heading", { name: "下一步建议" })).toBeInTheDocument();
+    expect(screen.getByText("下一步建议")).toBeInTheDocument();
     expect(screen.getByText(/发送邀请：/)).toBeInTheDocument();
     expect(screen.getByText(/仍有 1 条邀请未发送/)).toBeInTheDocument();
     expect(screen.getByText("名单总数")).toBeInTheDocument();
@@ -157,9 +171,26 @@ describe("ExamWorkspacePage", () => {
       "href",
       "/admin/exams/1/candidates",
     );
-    expect(screen.getByRole("link", { name: "邀请投递" })).toHaveAttribute(
+    expect(screen.getAllByRole("link", { name: "邀请投递" })).not.toHaveLength(0);
+    screen.getAllByRole("link", { name: "邀请投递" }).forEach((link) => {
+      expect(link).toHaveAttribute("href", "/admin/exams/1/candidates#invitation-actions");
+    });
+    const contextNav = screen.getByTestId("exam-context-nav");
+    expect(within(contextNav).getByRole("link", { name: "考试工作台" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(contextNav).getByRole("link", { name: "考试编排" })).toHaveAttribute(
       "href",
-      "/admin/exams/1/candidates#invitation-actions",
+      "/admin/exams/1/edit",
+    );
+    expect(within(contextNav).getByRole("link", { name: "名单与授权" })).toHaveAttribute(
+      "href",
+      "/admin/exams/1/candidates",
+    );
+    expect(within(contextNav).getByRole("link", { name: "成绩册" })).toHaveAttribute(
+      "href",
+      "/admin/reports/scores?exam_id=1",
     );
     expect(screen.getByRole("link", { name: "事故记录" })).toHaveAttribute(
       "href",

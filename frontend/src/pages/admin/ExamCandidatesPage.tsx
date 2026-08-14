@@ -21,6 +21,7 @@ import {
   sendExamInvitations,
   updateExamRosterRow,
 } from "@/api/invitations";
+import { ExamContextNav } from "@/components/admin/ExamContextNav";
 import { ImportPanel } from "@/components/admin/ImportPanel";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
@@ -37,6 +38,7 @@ import {
   formatAttemptKind,
   formatAttemptStatus,
   formatExamStatus,
+  formatInvitationErrorClass,
   importCopy,
 } from "@/lib/pageCopy";
 import { adminKeys } from "@/lib/queryKeys";
@@ -107,7 +109,10 @@ function RosterForm({
           <p className="text-caption uppercase tracking-[0.16em] text-muted">
             ROSTER EDIT · 名单编辑
           </p>
-          <h2 id="roster-form-title" className="font-display text-display-sm text-ink">
+          <h2
+            id="roster-form-title"
+            className="min-w-0 break-words font-display text-display-sm text-ink"
+          >
             {value.candidateId ? "编辑应考人员" : "新增应考人员"}
           </h2>
           <p className="mt-1 text-body-sm text-muted">
@@ -425,7 +430,9 @@ export function ExamCandidatesPage() {
                 : (invitationStatusLabels[row.original.invitation_status] ?? "未知状态")}
             </StatusPill>
             {row.original.invitation_status === "failed" && row.original.invitation_error_class ? (
-              <span className="text-caption text-error">{row.original.invitation_error_class}</span>
+              <span className="text-caption text-error">
+                {formatInvitationErrorClass(row.original.invitation_error_class)}
+              </span>
             ) : null}
           </div>
         ),
@@ -575,6 +582,8 @@ export function ExamCandidatesPage() {
         }
       />
 
+      <ExamContextNav examId={examId} examTitle={currentExam?.title} />
+
       {notice ? (
         <Alert
           variant={
@@ -685,18 +694,15 @@ export function ExamCandidatesPage() {
 
       <PageSection variant="table">
         {exams.isLoading ? (
-          <PageState
-            state="loading"
-            rows={3}
-            className="border-0 bg-transparent py-10 shadow-none"
-          />
+          <PageState state="loading" rows={3} surface="inherit" className="py-10" />
         ) : hasExamLoadError ? (
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
             title="考试状态加载失败。"
             description="应考名单依赖考试状态，暂不能展示或维护。"
-            className="border-0 bg-transparent py-10 shadow-none"
+            surface="inherit"
+            className="py-10"
           />
         ) : !currentExam ? (
           <PageState
@@ -704,21 +710,19 @@ export function ExamCandidatesPage() {
             eyebrow={adminPageCopy.error}
             title="未找到考试。"
             description="请返回考试列表确认考试是否仍然存在。"
-            className="border-0 bg-transparent py-10 shadow-none"
+            surface="inherit"
+            className="py-10"
           />
         ) : candidates.isLoading ? (
-          <PageState
-            state="loading"
-            rows={3}
-            className="border-0 bg-transparent py-10 shadow-none"
-          />
+          <PageState state="loading" rows={3} surface="inherit" className="py-10" />
         ) : hasCandidateLoadError ? (
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
             title={adminPageText.roster.errorTitle}
             description="请稍后重试，或检查应考名单接口。"
-            className="border-0 bg-transparent py-10 shadow-none"
+            surface="inherit"
+            className="py-10"
           />
         ) : (
           <SimpleDataTable
@@ -735,7 +739,10 @@ export function ExamCandidatesPage() {
           <span className="text-caption uppercase tracking-[0.16em] text-muted">
             INCIDENTS · 事故记录
           </span>
-          <h2 id="incident-title" className="font-display text-display-sm text-ink">
+          <h2
+            id="incident-title"
+            className="min-w-0 break-words font-display text-display-sm text-ink"
+          >
             作废与补考结果
           </h2>
           <p className="text-body-sm text-muted">
@@ -743,11 +750,7 @@ export function ExamCandidatesPage() {
           </p>
         </div>
         {incidents.isLoading ? (
-          <PageState
-            state="loading"
-            rows={2}
-            className="border-0 bg-transparent py-4 shadow-none"
-          />
+          <PageState state="loading" rows={2} surface="inherit" className="py-4" />
         ) : incidents.isError ? (
           <Alert variant="error">
             <AlertDescription>事故记录加载失败，请稍后刷新。</AlertDescription>

@@ -19,11 +19,12 @@ describe("ChapterNumber", () => {
     expect(screen.queryByText("———")).not.toBeInTheDocument();
   });
 
-  it("applies italic, caption size, tracking, and muted color classes", () => {
+  it("applies upright caption size, tracking, and muted color classes", () => {
     render(<ChapterNumber data-testid="cn">CHAPTER 02 · EXAM</ChapterNumber>);
 
     const el = screen.getByTestId("cn");
-    expect(el.className).toMatch(/italic/);
+    expect(el).not.toHaveClass("italic");
+    expect(el).toHaveClass("font-medium");
     expect(el.className).toMatch(/text-caption|text-\[11px\]/);
     expect(el.className).toMatch(/tracking-\[0\.18em\]/);
     expect(el.className).toMatch(/text-muted/);

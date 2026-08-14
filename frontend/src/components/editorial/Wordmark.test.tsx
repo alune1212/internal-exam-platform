@@ -18,11 +18,11 @@ describe("Wordmark", () => {
     expect(mark?.querySelector("svg")).toHaveAttribute("viewBox", "0 0 64 64");
   });
 
-  it("renders optional subtitle in italic caption", () => {
+  it("renders optional subtitle in an upright caption", () => {
     render(<Wordmark subtitle="internal exam platform" />);
 
     const sub = screen.getByText("internal exam platform");
-    expect(sub.className).toMatch(/italic/);
+    expect(sub).not.toHaveClass("italic");
     expect(sub.className).toMatch(/text-caption|text-\[11px\]/);
   });
 

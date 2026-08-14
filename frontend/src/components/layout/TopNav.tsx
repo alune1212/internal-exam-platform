@@ -84,7 +84,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
   return (
     <header
       data-scrolled={scrolled}
-      className="sticky top-0 z-40 h-16 border-b border-hairline-soft bg-canvas"
+      className="sticky top-0 z-overlay h-16 border-b border-hairline-soft bg-canvas"
     >
       <div className="mx-auto grid h-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-8">
         <Link

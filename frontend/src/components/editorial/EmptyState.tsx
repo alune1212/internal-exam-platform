@@ -3,7 +3,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { ChapterNumber } from "./ChapterNumber";
+import { ContextLabel } from "./ContextLabel";
 
 export type EmptyStateTone = "default" | "error" | "muted";
 
@@ -41,8 +41,8 @@ export function EmptyState({
       )}
       {...props}
     >
-      <ChapterNumber className={chapterClassName}>{chapter}</ChapterNumber>
-      <h2 className="font-display text-display-md text-ink">{title}</h2>
+      <ContextLabel className={chapterClassName}>{chapter}</ContextLabel>
+      <h2 className="min-w-0 break-words font-display text-display-md text-ink">{title}</h2>
       <p className="text-body text-muted">{description}</p>
       {action || secondaryAction ? (
         <div className="flex flex-wrap justify-center gap-3">

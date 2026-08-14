@@ -15,15 +15,15 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { SaveStatus } from "@/features/exam/useAttemptDraftQueue";
-import { candidateActionCopy } from "@/lib/pageCopy";
+import { candidateActionCopy, candidateSaveAnnouncementCopy } from "@/lib/pageCopy";
 import type { QuestionNavItem } from "@/lib/questionNavigation";
 
 const SAVE_STATUS_LABEL: Record<SaveStatus, string> = {
   pending: candidateActionCopy.savePending,
   saving: candidateActionCopy.savingAnswer,
   saved: candidateActionCopy.savedAnswer,
-  offline: "网络中断，答案待同步",
-  conflict: "答案版本冲突，请重新接管",
+  offline: candidateActionCopy.saveOffline,
+  conflict: candidateActionCopy.saveConflict,
   error: candidateActionCopy.saveFailed,
 };
 
@@ -109,15 +109,7 @@ export function ExamTakingWorkspace({
   useEffect(() => {
     if (previousSaveStatusRef.current === saveStatus) return;
     previousSaveStatusRef.current = saveStatus;
-    const messages: Record<SaveStatus, string> = {
-      pending: "答案已记录，等待同步。",
-      saving: "正在保存答案。",
-      saved: "答案已保存。",
-      offline: "当前离线，答案已保留在本页，待恢复网络后同步。",
-      conflict: "答案版本冲突，请重新接管考试。",
-      error: "答案保存失败，请重试。",
-    };
-    setSaveAnnouncement(messages[saveStatus]);
+    setSaveAnnouncement(candidateSaveAnnouncementCopy[saveStatus]);
   }, [saveStatus]);
 
   const announcement = liveAnnouncement ?? saveAnnouncement;
@@ -157,7 +149,9 @@ export function ExamTakingWorkspace({
               onClick={saveStatus === "conflict" ? onResolveConflict : onRetrySave}
               disabled={submitPending}
             >
-              {saveStatus === "conflict" ? "重新登录并接管" : candidateActionCopy.retrySave}
+              {saveStatus === "conflict"
+                ? candidateActionCopy.resolveSaveConflict
+                : candidateActionCopy.retrySave}
             </Button>
           ) : null}
         </div>
@@ -223,7 +217,7 @@ export function ExamTakingWorkspace({
             }}
           />
         </div>
-        <aside className="self-start lg:sticky lg:top-24 lg:z-30 lg:w-60">
+        <aside className="self-start lg:sticky lg:top-24 lg:z-sticky lg:w-60">
           <ExamNavigator
             items={navItems}
             activeId={activeQuestionId}
@@ -265,14 +259,14 @@ export function ExamTakingWorkspace({
         />
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[env(safe-area-inset-bottom)] pt-3">
+          <div className="fixed inset-x-0 bottom-0 z-overlay flex justify-center px-3 pb-[max(var(--space-inline),env(safe-area-inset-bottom))] pt-3">
             <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
               <ProgressCapsule
                 current={activeIndex + 1}
                 total={total}
                 answered={answeredCount}
                 variant="dark"
-                className="flex-1"
+                className="min-w-0 flex-1"
               />
               <SheetTrigger asChild>
                 <button

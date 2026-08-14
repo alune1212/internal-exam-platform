@@ -17,6 +17,7 @@ describe("Alert", () => {
     expect(alert.className).toContain("border-success");
     expect(alert.className).toContain("text-success");
     expect(screen.getByText("保存成功").className).toContain("tracking-[0.16em]");
+    expect(screen.queryByRole("heading", { name: "保存成功" })).not.toBeInTheDocument();
   });
 
   it("renders an error alert as role alert", () => {

@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import type { AccountStatus, AdminAccount } from "@/types/account";
 
 type AccountFilter = AccountStatus | "all";
@@ -140,10 +141,9 @@ export function AccountDirectoryPage() {
           </Field>
           <Field className="md:w-48">
             <FieldLabel htmlFor="account-status-filter">账户状态</FieldLabel>
-            <select
+            <Select
               id="account-status-filter"
               aria-label="账户状态"
-              className="h-11 rounded-md border border-hairline bg-canvas px-3 text-body text-ink"
               value={status}
               onChange={(event) => setStatus(event.target.value as AccountFilter)}
             >
@@ -151,7 +151,7 @@ export function AccountDirectoryPage() {
               <option value="pending">待完成注册</option>
               <option value="active">已启用</option>
               <option value="inactive">已停用</option>
-            </select>
+            </Select>
           </Field>
           <Button type="submit" className="md:mb-0">
             <Search data-icon="inline-start" />
@@ -176,11 +176,7 @@ export function AccountDirectoryPage() {
 
       <PageSection variant="table">
         {accounts.isLoading ? (
-          <PageState
-            state="loading"
-            rows={4}
-            className="border-0 bg-transparent py-10 shadow-none"
-          />
+          <PageState state="loading" rows={4} surface="inherit" className="py-10" />
         ) : accounts.isError && !accounts.data ? (
           <PageState
             state="error"
@@ -188,7 +184,8 @@ export function AccountDirectoryPage() {
             title="账户目录加载失败。"
             description="请稍后重试，或检查管理员账户接口。"
             onRetry={() => void accounts.refetch()}
-            className="border-0 bg-transparent py-10 shadow-none"
+            surface="inherit"
+            className="py-10"
           />
         ) : (
           <SimpleDataTable

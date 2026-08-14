@@ -11,6 +11,7 @@ describe("EmptyState", () => {
     expect(screen.getByText("CHAPTER 00")).toBeInTheDocument();
     expect(screen.getByText("暂无内容")).toBeInTheDocument();
     expect(screen.getByText("还没有任何数据。")).toBeInTheDocument();
+    expect(document.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
   });
 
   it("renders an action button when action is provided", () => {

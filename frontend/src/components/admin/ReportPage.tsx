@@ -4,7 +4,6 @@ import type { QueryKey } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
-import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { adminPageCopy } from "@/lib/pageCopy";
 
@@ -82,17 +81,24 @@ export function ReportPage<TData>({
 
       {showLoading ? (
         <PageSection variant="table" data-testid="report-page-table-section">
-          <ContentSkeleton rows={3} showCaption variant="table" className="p-0" />
+          <PageState
+            state="loading"
+            surface="inherit"
+            rows={3}
+            skeletonVariant="table"
+            className="p-0"
+          />
         </PageSection>
       ) : hasLoadError ? (
         <PageSection variant="table" data-testid="report-page-table-section">
           <PageState
             state="error"
+            surface="inherit"
             eyebrow={adminPageCopy.error}
             title="报表加载失败。"
             description="请稍后重试，或确认后台服务与筛选条件是否可用。"
             onRetry={() => void retryQuery()}
-            className="border-0 bg-transparent py-10 shadow-none"
+            className="py-10"
           />
         </PageSection>
       ) : (

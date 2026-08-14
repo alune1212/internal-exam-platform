@@ -8,8 +8,6 @@ export type TimerProps = {
   className?: string;
 };
 
-const PULSE_DURATION_MS = 1000;
-
 function formatMmSs(totalSeconds: number): string {
   if (!Number.isFinite(totalSeconds)) {
     return "--:--";
@@ -40,10 +38,7 @@ export function Timer({ remainingSeconds, criticalThresholdSeconds = 300, classN
       <span className="text-caption uppercase tracking-[0.16em] text-muted">
         REMAINING · 剩余时间
       </span>
-      <span
-        className={cn(isCritical && "animate-pulse")}
-        style={isCritical ? { animationDuration: `${PULSE_DURATION_MS}ms` } : undefined}
-      >
+      <span className={cn(isCritical && "duration-pulse motion-safe:animate-pulse")}>
         <span
           aria-label={`剩余时间 ${display}`}
           className={cn(

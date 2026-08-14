@@ -29,7 +29,7 @@ export function NamePlate({
   const avatarBg = pickPastel(displayName);
 
   return (
-    <div className={cn("inline-flex items-center gap-2", className)} {...props}>
+    <div className={cn("inline-flex min-w-0 items-center gap-2", className)} {...props}>
       <span
         aria-hidden="true"
         className="inline-flex shrink-0 items-center justify-center rounded-full font-display text-caption font-semibold text-ink"
@@ -41,10 +41,12 @@ export function NamePlate({
       >
         {initial}
       </span>
-      <span className="flex flex-col leading-tight">
-        <span className="font-display text-body-sm font-semibold text-ink">{displayName}</span>
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="break-words font-display text-body-sm font-semibold text-ink">
+          {displayName}
+        </span>
         {displaySubtitle ? (
-          <span className="text-caption italic text-muted">{displaySubtitle}</span>
+          <span className="break-words text-caption text-muted">{displaySubtitle}</span>
         ) : null}
       </span>
     </div>

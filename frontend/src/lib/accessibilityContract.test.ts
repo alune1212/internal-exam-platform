@@ -28,7 +28,8 @@ describe("representative accessibility contract", () => {
     const practice = readFileSync(resolve(process.cwd(), "src/pages/PracticePage.tsx"), "utf8");
     expect(index).toContain('name="viewport" content="width=device-width, initial-scale=1.0"');
     expect(index).not.toMatch(/maximum-scale|user-scalable\s*=\s*no/i);
-    expect(practice).toContain("pb-24");
-    expect(practice).toContain("fixed inset-x-0 bottom-3");
+    expect(practice).toContain("pb-[calc(6rem+env(safe-area-inset-bottom))]");
+    expect(practice).toContain("fixed inset-x-0 bottom-0");
+    expect(practice).toContain("pb-[max(var(--space-inline),env(safe-area-inset-bottom))]");
   });
 });

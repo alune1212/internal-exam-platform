@@ -44,6 +44,12 @@ describe("Sheet", () => {
     await user.click(screen.getByText("唤起"));
     const content = await screen.findByTestId("sc");
     expect(content.className).toContain("slide-in-from-bottom");
+    expect(content).toHaveClass("z-modal", "duration-normal", "ease-standard");
+    expect(document.querySelector(".z-overlay")).toHaveClass(
+      "z-overlay",
+      "duration-normal",
+      "ease-standard",
+    );
   });
 
   it("SheetContent side=right has slide-in-from-right class", async () => {

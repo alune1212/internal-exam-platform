@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "../PageHeader";
 
 describe("PageHeader", () => {
-  it("renders the shared eyebrow, title, and description", () => {
+  it("renders a meaningful eyebrow above the title and description", () => {
     render(
       <PageHeader
         eyebrow="EXAMS · 考试"
@@ -16,14 +16,43 @@ describe("PageHeader", () => {
     );
 
     expect(screen.getByText("EXAMS · 考试")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "待完成的考试" })).toHaveClass(
-      "font-display",
-      "text-display-lg",
-      "font-semibold",
-      "text-ink",
+    const heading = screen.getByRole("heading", { level: 1, name: "待完成的考试" });
+    expect(heading).toHaveClass("font-display", "text-display-lg", "font-semibold", "text-ink");
+    expect(screen.getByText("EXAMS · 考试").compareDocumentPosition(heading)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.getByText("EXAMS · 考试").closest("span")?.parentElement).not.toContainHTML(
+      'aria-hidden="true"',
     );
     expect(screen.getByText("开放中的考试会显示在这里，开始前请确认规则。")).toHaveClass(
       "text-body-lg",
+    );
+  });
+
+  it("omits the context marker when no eyebrow is provided", () => {
+    render(<PageHeader title="待完成的考试" />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "待完成的考试" })).toBeInTheDocument();
+    expect(screen.queryByText("EXAMS · 考试")).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it("omits an empty eyebrow while retaining the title", () => {
+    render(<PageHeader eyebrow="  " title="题库档案" />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "题库档案" })).toBeInTheDocument();
+    expect(document.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it("accepts context as the meaningful upright label alias", () => {
+    render(<PageHeader context="WORKSPACE · 工作台" title="考试工作台" />);
+
+    const context = screen.getByText("WORKSPACE · 工作台");
+    expect(context).toBeInTheDocument();
+    expect(context).not.toHaveClass("italic");
+    expect(context.closest("span")?.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+    expect(context.compareDocumentPosition(screen.getByRole("heading", { level: 1 }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
 

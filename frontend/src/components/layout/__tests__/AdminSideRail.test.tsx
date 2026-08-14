@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { vi } from "vitest";
 
 import { AdminSideRail } from "@/components/layout/AdminSideRail";
 
@@ -29,7 +30,9 @@ function renderSideRail(initialPath: string, matches = true) {
 }
 
 describe("AdminSideRail", () => {
-  it("renders all seven admin nav items", () => {
+  const primaryLabels = ["仪表盘", "用户账户", "考试", "题库", "题库导入", "学习", "报表", "运维"];
+
+  it("renders every primary admin destination exactly once", () => {
     renderSideRail("/admin/dashboard");
     expect(screen.getByRole("link", { name: "仪表盘" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "用户账户" })).toBeInTheDocument();
@@ -38,21 +41,39 @@ describe("AdminSideRail", () => {
     expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "学习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "报表" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "运维" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
+
+    const renderedLabels = screen
+      .getAllByRole("link")
+      .map((link) => link.textContent)
+      .filter((label): label is string => Boolean(label && primaryLabels.includes(label)));
+    expect(renderedLabels).toHaveLength(primaryLabels.length);
   });
 
-  it("orders nav items to match the admin chapter sequence", () => {
+  it("orders grouped destinations in the canonical operational sequence", () => {
     renderSideRail("/admin/dashboard");
     const navNames = screen
       .getAllByRole("link")
       .map((link) => link.textContent)
-      .filter((name): name is string =>
-        Boolean(
-          name && ["仪表盘", "用户账户", "考试", "题库", "题库导入", "学习", "报表"].includes(name),
-        ),
-      );
+      .filter((name): name is string => Boolean(name && primaryLabels.includes(name)));
 
-    expect(navNames).toEqual(["仪表盘", "用户账户", "考试", "题库", "题库导入", "学习", "报表"]);
+    expect(navNames).toEqual([
+      "仪表盘",
+      "题库",
+      "题库导入",
+      "学习",
+      "考试",
+      "报表",
+      "用户账户",
+      "运维",
+    ]);
+    expect(
+      screen
+        .getAllByText(/^(概览|内容|考试|复盘|系统)/)
+        .filter((label) => label.tagName === "P")
+        .map((label) => label.textContent?.replace(" · 当前分组", "")),
+    ).toEqual(["概览", "内容", "考试", "复盘", "系统"]);
   });
 
   it("renders the dark wordmark with the admin subtitle", () => {
@@ -67,6 +88,15 @@ describe("AdminSideRail", () => {
     const activeLink = screen.getByRole("link", { name: "仪表盘" });
     expect(activeLink).toHaveClass("bg-canvas");
     expect(activeLink).toHaveClass("text-ink");
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(document.getElementById("admin-nav-group-overview")?.closest("section")).toHaveAttribute(
+      "data-active-group",
+      "true",
+    );
+    expect(document.getElementById("admin-nav-group-content")?.closest("section")).toHaveAttribute(
+      "data-active-group",
+      "false",
+    );
   });
 
   it("only highlights import on the question import route", () => {
@@ -112,6 +142,24 @@ describe("AdminSideRail", () => {
     expect(screen.getByRole("button", { name: "退出登录" })).toHaveClass("w-full");
   });
 
+  it("keeps logout keyboard reachable and invokes the existing callback", async () => {
+    const user = userEvent.setup();
+    const onLogout = vi.fn();
+    mockMediaQuery(true);
+
+    render(
+      <MemoryRouter initialEntries={["/admin/dashboard"]}>
+        <AdminSideRail onLogout={onLogout} />
+      </MemoryRouter>,
+    );
+
+    const logout = screen.getByRole("button", { name: "退出登录" });
+    logout.focus();
+    expect(document.activeElement).toBe(logout);
+    await user.keyboard("{Enter}");
+    expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the mobile sheet when the menu button is triggered", async () => {
     const user = userEvent.setup();
     renderSideRail("/admin/dashboard", false);
@@ -120,6 +168,32 @@ describe("AdminSideRail", () => {
 
     expect(await screen.findByText("导航")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "退出登录" })).toBeInTheDocument();
+  });
+
+  it("keeps the grouped order and active item in the mobile sheet", async () => {
+    const user = userEvent.setup();
+    renderSideRail("/admin/exams/1/edit", false);
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+
+    const navNames = (await screen.findAllByRole("link"))
+      .map((link) => link.textContent)
+      .filter((label): label is string => Boolean(label && primaryLabels.includes(label)));
+    expect(navNames).toEqual([
+      "仪表盘",
+      "题库",
+      "题库导入",
+      "学习",
+      "考试",
+      "报表",
+      "用户账户",
+      "运维",
+    ]);
+    expect(screen.getByRole("link", { name: "考试" })).toHaveAttribute("aria-current", "page");
+    expect(document.getElementById("admin-nav-group-exams")?.closest("section")).toHaveAttribute(
+      "data-active-group",
+      "true",
+    );
   });
 
   it("uses high-contrast light link colors inside the mobile sheet", async () => {

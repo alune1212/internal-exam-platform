@@ -91,10 +91,7 @@ export function AdminLoginPage() {
       <aside
         aria-hidden="true"
         className="relative hidden bg-footer lg:block"
-        style={{
-          backgroundImage: "radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
+        data-admin-login-pattern
       >
         <div className="absolute inset-0 flex flex-col items-start justify-end gap-3 p-16 text-footer-soft">
           <p className="text-caption uppercase tracking-[0.18em]">ADMIN CONSOLE</p>

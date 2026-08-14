@@ -14,11 +14,13 @@ import {
   releaseResultDetails,
   updateAdminExam,
 } from "@/api/exams";
+import { ExamContextNav } from "@/components/admin/ExamContextNav";
 import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminPageCopy,
@@ -223,12 +225,9 @@ export function ExamEditPage() {
     return (
       <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
         <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
+        {examId ? <ExamContextNav examId={examId} /> : null}
         <PageSection variant="card">
-          <PageState
-            state="loading"
-            rows={4}
-            className="border-0 bg-transparent py-8 shadow-none"
-          />
+          <PageState state="loading" rows={4} surface="inherit" className="py-8" />
         </PageSection>
       </PageShell>
     );
@@ -238,13 +237,15 @@ export function ExamEditPage() {
     return (
       <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
         <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
+        {examId ? <ExamContextNav examId={examId} /> : null}
         <PageSection variant="card">
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
             title={adminPageText.exams.errorTitle}
             description="请稍后重试，或确认后台服务是否可用。"
-            className="border-0 bg-transparent py-8 shadow-none"
+            surface="inherit"
+            className="py-8"
           />
         </PageSection>
       </PageShell>
@@ -255,13 +256,15 @@ export function ExamEditPage() {
     return (
       <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
         <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
+        {examId ? <ExamContextNav examId={examId} /> : null}
         <PageSection variant="card">
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
             title="未找到考试。"
             description="请返回考试列表确认考试是否仍然存在。"
-            className="border-0 bg-transparent py-8 shadow-none"
+            surface="inherit"
+            className="py-8"
           />
         </PageSection>
       </PageShell>
@@ -294,6 +297,8 @@ export function ExamEditPage() {
         }
       />
 
+      <ExamContextNav examId={examId ?? String(currentExam.id)} examTitle={currentExam.title} />
+
       <PageSection id="archive" variant="card" className="grid gap-6 lg:grid-cols-2 lg:p-8">
         {notice ? (
           <Alert
@@ -320,11 +325,7 @@ export function ExamEditPage() {
           </Field>
           <Field>
             <FieldLabel htmlFor="status">状态 · Status</FieldLabel>
-            <select
-              id="status"
-              className="h-11 w-full rounded-md border border-hairline bg-canvas px-3.5 text-body text-ink outline-none transition-colors duration-150 ease-out focus-visible:border-ink focus-visible:ring-1 focus-visible:ring-ink"
-              {...form.register("status")}
-            >
+            <Select id="status" {...form.register("status")}>
               {STATUS_OPTIONS.filter((option) => {
                 if (currentExam.status === "draft") return option.value === "draft";
                 if (currentExam.status === "active") return option.value !== "draft";
@@ -334,7 +335,7 @@ export function ExamEditPage() {
                   {option.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field>
             <FieldLabel htmlFor="available_from">开放开始时间 · Available From</FieldLabel>
@@ -380,7 +381,7 @@ export function ExamEditPage() {
             ) : null}
           </Field>
         </FieldGroup>
-        <div className="flex flex-col gap-3 rounded-md bg-surface-card p-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
+        <div className="flex flex-col gap-3 border-t border-hairline pt-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
           <div className="flex flex-col gap-1">
             <span className="text-caption uppercase tracking-[0.16em] text-muted">
               {adminPageCopy.roster}
@@ -407,7 +408,7 @@ export function ExamEditPage() {
               </span>
               <h2
                 id="publication-readiness-title"
-                className="font-display text-display-sm text-ink"
+                className="min-w-0 break-words font-display text-display-sm text-ink"
               >
                 发布预检
               </h2>
@@ -428,11 +429,7 @@ export function ExamEditPage() {
           </div>
 
           {readiness.isLoading ? (
-            <PageState
-              state="loading"
-              rows={2}
-              className="border-0 bg-transparent py-4 shadow-none"
-            />
+            <PageState state="loading" rows={2} surface="inherit" className="py-4" />
           ) : readiness.isError ? (
             <Alert variant="error">
               <AlertDescription>发布预检读取失败；当前禁止发布，请刷新后重试。</AlertDescription>
@@ -448,7 +445,7 @@ export function ExamEditPage() {
               </Alert>
               {readiness.data.blockers.length ? (
                 <div aria-label="发布阻断项" className="rounded-md border border-error p-4">
-                  <h3 className="text-caption font-semibold uppercase tracking-[0.14em] text-error">
+                  <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-error">
                     BLOCKERS · 阻断项
                   </h3>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
@@ -460,7 +457,7 @@ export function ExamEditPage() {
               ) : null}
               {readiness.data.warnings.length ? (
                 <div aria-label="发布警告" className="rounded-md border border-warning p-4">
-                  <h3 className="text-caption font-semibold uppercase tracking-[0.14em] text-warning">
+                  <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-warning">
                     WARNINGS · 警告
                   </h3>
                   <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
@@ -522,7 +519,10 @@ export function ExamEditPage() {
             <span className="text-caption uppercase tracking-[0.16em] text-muted">
               RESULT RELEASE · 结果发布
             </span>
-            <h2 id="result-release-title" className="font-display text-display-sm text-ink">
+            <h2
+              id="result-release-title"
+              className="min-w-0 break-words font-display text-display-sm text-ink"
+            >
               答案与解析
             </h2>
             <p className="text-body-sm text-muted">

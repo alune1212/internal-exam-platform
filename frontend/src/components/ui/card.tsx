@@ -11,6 +11,7 @@ export const Card = React.forwardRef<HTMLDivElement, DivProps>(({ className, ...
     ref={ref}
     className={cn("rounded-lg border border-hairline bg-canvas text-ink shadow-card", className)}
     {...props}
+    data-surface-owner="card"
   />
 ));
 Card.displayName = "Card";
@@ -29,7 +30,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, CardHeaderProps>(
       {chapter ? (
         <span
           data-slot="card-chapter"
-          className="text-caption font-medium uppercase tracking-[0.16em] text-muted"
+          className="min-w-0 break-words text-caption font-medium uppercase tracking-caption text-muted"
         >
           {chapter}
         </span>
@@ -45,7 +46,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, HeadingProps>(
     <h3
       ref={ref}
       className={cn(
-        "font-display text-[22px] font-semibold leading-tight tracking-[-0.02em] text-ink lg:text-display-sm",
+        "min-w-0 break-words font-display text-[22px] font-semibold leading-tight tracking-display-tight text-ink lg:text-display-sm",
         className,
       )}
       {...props}

@@ -41,7 +41,9 @@ function SignalCard({ label, signal }: { label: string; signal: OperationalSigna
   return (
     <article className="flex min-h-44 flex-col gap-4 rounded-lg border border-hairline bg-surface-card p-5 shadow-card">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="font-display text-display-sm font-semibold text-ink">{label}</h2>
+        <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink">
+          {label}
+        </h2>
         <span
           className={cn(
             "rounded-pill border px-2.5 py-1 text-caption font-medium",

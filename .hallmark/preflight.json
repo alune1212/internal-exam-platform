@@ -1,0 +1,23 @@
+{
+  "scanned_at": "2026-08-14",
+  "scope": "frontend multi-page application",
+  "framework": "React 19 + Vite + Tailwind CSS 3",
+  "design_system": "frontend/DESIGN.md (Academic Editorial)",
+  "font_source": "frontend/src/index.css system font stacks",
+  "palette_source": "frontend/src/index.css CSS custom properties",
+  "motion_stance": "motion-cut; no motion library",
+  "spacing_source": "Tailwind utilities plus planned semantic CSS tokens",
+  "preserve": [
+    "Academic Editorial identity",
+    "candidate top navigation",
+    "admin side rail",
+    "specialized exam focus workspace",
+    "existing routes and business behavior"
+  ],
+  "introduce": [
+    "canonical token ownership",
+    "upright semantic hierarchy",
+    "single-layer surface containment",
+    "complete state and responsive verification"
+  ]
+}

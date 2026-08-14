@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { ApiError, getErrorMessage } from "@/api/client";
 import { getExamWorkspace } from "@/api/exams";
+import { ExamContextNav } from "@/components/admin/ExamContextNav";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
@@ -85,7 +86,10 @@ function SummaryGroup({ title, items }: { title: string; items: SummaryItem[] })
   return (
     <PageSection variant="plain" className="gap-3" aria-labelledby={`${title}-summary-title`}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id={`${title}-summary-title`} className="font-display text-display-sm text-ink">
+        <h2
+          id={`${title}-summary-title`}
+          className="min-w-0 break-words font-display text-display-sm text-ink"
+        >
           {title}
         </h2>
       </div>
@@ -102,11 +106,13 @@ function WorkspaceState({
   state,
   title,
   description,
+  examId,
   onRetry,
 }: {
   state: "loading" | "error";
   title: string;
   description: string;
+  examId?: string;
   onRetry?: () => void;
 }) {
   const navigate = useNavigate();
@@ -114,6 +120,7 @@ function WorkspaceState({
   return (
     <PageShell data-testid="exam-workspace-shell" density="workbench" width="full" stagger>
       <PageHeader eyebrow="EXAM WORKSPACE · 考试工作台" title="考试工作台" />
+      {examId ? <ExamContextNav examId={examId} /> : null}
       <PageSection variant="card">
         <PageState
           state={state}
@@ -126,7 +133,8 @@ function WorkspaceState({
               ? { label: "返回考试列表", onClick: () => navigate("/admin/exams") }
               : undefined
           }
-          className="border-0 bg-transparent py-8 shadow-none"
+          surface="inherit"
+          className="py-8"
         />
       </PageSection>
     </PageShell>
@@ -166,6 +174,7 @@ export function ExamWorkspacePage() {
     return (
       <WorkspaceState
         state="loading"
+        examId={examId}
         title="正在读取考试工作台。"
         description="正在汇总发布、名单、邀请与作答状态。"
       />
@@ -177,6 +186,7 @@ export function ExamWorkspacePage() {
     return (
       <WorkspaceState
         state="error"
+        examId={examId}
         title={missing ? "未找到考试。" : "考试工作台加载失败。"}
         description={
           missing
@@ -229,6 +239,8 @@ export function ExamWorkspacePage() {
         </div>
       </PageHeader>
 
+      <ExamContextNav examId={examId} examTitle={data.exam.title} />
+
       {workspace.isError ? (
         <PageStaleNotice
           lastSuccessfulAt={data.observed_at}
@@ -253,14 +265,17 @@ export function ExamWorkspacePage() {
           <span className="text-caption uppercase tracking-[0.16em] text-muted">
             PUBLICATION · 发布状态
           </span>
-          <h2 id="workspace-readiness-title" className="font-display text-display-sm text-ink">
+          <h2
+            id="workspace-readiness-title"
+            className="min-w-0 break-words font-display text-display-sm text-ink"
+          >
             发布预检与生命周期
           </h2>
           <p className="text-body-sm text-muted">{readinessText(data)}</p>
         </div>
         {data.readiness?.blockers.length ? (
           <div aria-label="发布阻断项" className="rounded-md border border-error p-4">
-            <h3 className="text-caption font-semibold uppercase tracking-[0.14em] text-error">
+            <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-error">
               BLOCKERS · 阻断项
             </h3>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
@@ -272,7 +287,7 @@ export function ExamWorkspacePage() {
         ) : null}
         {data.readiness?.warnings.length ? (
           <div aria-label="发布警告" className="rounded-md border border-warning p-4">
-            <h3 className="text-caption font-semibold uppercase tracking-[0.14em] text-warning">
+            <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-warning">
               WARNINGS · 警告
             </h3>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
@@ -334,12 +349,15 @@ export function ExamWorkspacePage() {
         ]}
       />
 
-      <PageSection variant="card" aria-labelledby="workspace-incidents-title">
+      <PageSection variant="plain" aria-labelledby="workspace-incidents-title">
         <div className="flex flex-col gap-2">
           <span className="text-caption uppercase tracking-[0.16em] text-muted">
             INCIDENTS · 事故
           </span>
-          <h2 id="workspace-incidents-title" className="font-display text-display-sm text-ink">
+          <h2
+            id="workspace-incidents-title"
+            className="min-w-0 break-words font-display text-display-sm text-ink"
+          >
             事故与补考
           </h2>
         </div>
@@ -358,7 +376,10 @@ export function ExamWorkspacePage() {
           <span className="text-caption uppercase tracking-[0.16em] text-muted">
             SURFACES · 现有页面
           </span>
-          <h2 id="workspace-actions-title" className="font-display text-display-sm text-ink">
+          <h2
+            id="workspace-actions-title"
+            className="min-w-0 break-words font-display text-display-sm text-ink"
+          >
             打开相关操作
           </h2>
           <p className="text-body-sm text-muted">

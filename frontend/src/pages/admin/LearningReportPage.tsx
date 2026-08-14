@@ -13,6 +13,8 @@ import { ReportPage } from "@/components/admin/ReportPage";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import {
   adminPageCopy,
   adminPageText,
@@ -73,11 +75,11 @@ function LearningReportFilters({
 }) {
   return (
     <>
-      <label className="flex min-w-56 flex-col gap-2 text-caption uppercase tracking-[0.16em] text-muted">
-        视频
-        <select
+      <Field className="min-w-56">
+        <FieldLabel htmlFor="learning-report-video">视频</FieldLabel>
+        <Select
+          id="learning-report-video"
           aria-label="视频"
-          className="h-10 rounded-md border border-hairline bg-canvas px-3 text-body normal-case tracking-normal text-ink"
           value={videoId ?? "all"}
           onChange={(event) =>
             onVideoChange(event.target.value === "all" ? null : event.target.value)
@@ -89,13 +91,13 @@ function LearningReportFilters({
               {video.title}
             </option>
           ))}
-        </select>
-      </label>
-      <label className="flex min-w-48 flex-col gap-2 text-caption uppercase tracking-[0.16em] text-muted">
-        完成状态
-        <select
+        </Select>
+      </Field>
+      <Field className="min-w-48">
+        <FieldLabel htmlFor="learning-report-status">完成状态</FieldLabel>
+        <Select
+          id="learning-report-status"
           aria-label="完成状态"
-          className="h-10 rounded-md border border-hairline bg-canvas px-3 text-body normal-case tracking-normal text-ink"
           value={status}
           onChange={(event) => onStatusChange(event.target.value as CompletionFilter)}
         >
@@ -103,8 +105,8 @@ function LearningReportFilters({
           <option value="not_started">未开始</option>
           <option value="in_progress">学习中</option>
           <option value="completed">已完成</option>
-        </select>
-      </label>
+        </Select>
+      </Field>
     </>
   );
 }

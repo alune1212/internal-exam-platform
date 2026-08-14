@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest";
 import { MetricCard } from "../MetricCard";
 
 describe("MetricCard", () => {
-  it("renders the italic-caps label and value", () => {
+  it("renders an upright caps label and value", () => {
     render(<MetricCard label="QUESTION BANK · 题库" value={42} />);
 
     expect(screen.getByText("QUESTION BANK · 题库")).toBeInTheDocument();
+    expect(screen.getByText("QUESTION BANK · 题库")).not.toHaveClass("italic");
     expect(screen.getByText("42")).toBeInTheDocument();
+    expect(
+      screen.getByText("42").closest('[data-surface-owner="metric-card"]'),
+    ).toBeInTheDocument();
   });
 
   it("renders an optional unit next to the value", () => {

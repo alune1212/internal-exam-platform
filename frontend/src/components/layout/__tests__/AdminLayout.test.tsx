@@ -51,4 +51,17 @@ describe("AdminLayout", () => {
     expect(screen.getByRole("navigation")).toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
+
+  it("locks Admin Workbench to admin navigation without candidate or focus chrome", () => {
+    renderAdminShell();
+
+    expect(screen.getByRole("link", { name: "仪表盘" })).toHaveAttribute(
+      "href",
+      "/admin/dashboard",
+    );
+    expect(screen.getByRole("link", { name: "考试" })).toHaveAttribute("href", "/admin/exams");
+    expect(screen.queryByRole("link", { name: "返回考试列表首页" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "学习" })).not.toHaveAttribute("href", "/learning");
+    expect(screen.queryByRole("region", { name: "题号导航" })).not.toBeInTheDocument();
+  });
 });

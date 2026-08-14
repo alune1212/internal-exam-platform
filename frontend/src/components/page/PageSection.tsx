@@ -22,7 +22,11 @@ export function PageSection({
   ...props
 }: PageSectionProps) {
   return (
-    <section className={cn(variantClassName[variant], className)} {...props}>
+    <section
+      {...props}
+      data-surface-owner={variant === "plain" ? undefined : variant}
+      className={cn(variantClassName[variant], className)}
+    >
       {children}
     </section>
   );

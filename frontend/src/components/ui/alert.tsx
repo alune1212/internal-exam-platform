@@ -7,7 +7,7 @@ export type AlertVariant = "default" | "success" | "warning" | "error";
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: AlertVariant;
 }
-export type AlertTitleProps = React.HTMLAttributes<HTMLHeadingElement>;
+export type AlertTitleProps = React.HTMLAttributes<HTMLDivElement>;
 export type AlertDescriptionProps = React.HTMLAttributes<HTMLParagraphElement>;
 
 const variantClasses: Record<AlertVariant, string> = {
@@ -33,11 +33,14 @@ export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
 );
 Alert.displayName = "Alert";
 
-export const AlertTitle = React.forwardRef<HTMLHeadingElement, AlertTitleProps>(
+export const AlertTitle = React.forwardRef<HTMLDivElement, AlertTitleProps>(
   ({ className, ...props }, ref) => (
-    <h3
+    <div
       ref={ref}
-      className={cn("text-caption font-medium uppercase tracking-[0.16em]", className)}
+      className={cn(
+        "min-w-0 break-words text-caption font-medium uppercase tracking-[0.16em]",
+        className,
+      )}
       {...props}
     />
   ),

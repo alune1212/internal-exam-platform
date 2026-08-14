@@ -24,7 +24,7 @@ const renderWithClient = (ui: ReactNode) => {
 };
 
 describe("ReportPage", () => {
-  it("renders the chapter header, italic h1, and description", () => {
+  it("renders the context label, upright h1, and description", () => {
     renderWithClient(
       <ReportPage
         title="成绩册"
@@ -37,7 +37,7 @@ describe("ReportPage", () => {
     );
 
     expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "成绩册" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "成绩册" })).not.toHaveClass("italic");
     expect(screen.getByText("每次考试的提交结果")).toBeInTheDocument();
   });
 
@@ -58,7 +58,8 @@ describe("ReportPage", () => {
       "text-display-lg",
     );
     expect(screen.getByTestId("report-page-shell")).toHaveClass("gap-6");
-    expect(screen.getByTestId("report-page-shell")).toHaveAttribute("data-stagger");
+    expect(screen.getByTestId("report-page-shell")).toHaveAttribute("data-density", "workbench");
+    expect(screen.getByTestId("report-page-shell")).not.toHaveAttribute("data-stagger");
     expect(screen.getByTestId("report-page-table-section")).toHaveClass(
       "rounded-lg",
       "shadow-card",

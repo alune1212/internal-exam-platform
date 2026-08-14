@@ -15,23 +15,87 @@ import { cn } from "@/lib/utils";
 import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
 
-type NavItem = {
+export type AdminNavigationItem = {
+  id: string;
   to: string;
   label: string;
   end?: boolean;
   activePattern?: RegExp;
 };
 
-const navItems: NavItem[] = [
-  { to: "/admin/dashboard", label: "仪表盘", end: true },
-  { to: "/admin/accounts", label: "用户账户", activePattern: /^\/admin\/accounts(?:\/|$)/ },
-  { to: "/admin/exams", label: "考试", activePattern: /^\/admin\/exams(?:\/|$)/ },
-  { to: "/admin/questions", label: "题库", end: true },
-  { to: "/admin/questions/import", label: "题库导入", end: true },
-  { to: "/admin/learning", label: "学习", activePattern: /^\/admin\/learning(?:\/|$)/ },
-  { to: "/admin/reports/scores", label: "报表", activePattern: /^\/admin\/reports(?:\/|$)/ },
-  { to: "/admin/operations", label: "运维", end: true },
+export type AdminNavigationGroup = {
+  id: string;
+  label: "概览" | "内容" | "考试" | "复盘" | "系统";
+  items: readonly AdminNavigationItem[];
+};
+
+/**
+ * The single source for primary admin destinations. Keep this model ordered:
+ * the same data renders in the desktop rail and the mobile sheet.
+ */
+const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
+  {
+    id: "overview",
+    label: "概览",
+    items: [{ id: "dashboard", to: "/admin/dashboard", label: "仪表盘", end: true }],
+  },
+  {
+    id: "content",
+    label: "内容",
+    items: [
+      { id: "questions", to: "/admin/questions", label: "题库", end: true },
+      { id: "question-import", to: "/admin/questions/import", label: "题库导入", end: true },
+      {
+        id: "learning",
+        to: "/admin/learning",
+        label: "学习",
+        activePattern: /^\/admin\/learning(?:\/|$)/,
+      },
+    ],
+  },
+  {
+    id: "exams",
+    label: "考试",
+    items: [
+      {
+        id: "exams",
+        to: "/admin/exams",
+        label: "考试",
+        activePattern: /^\/admin\/exams(?:\/|$)/,
+      },
+    ],
+  },
+  {
+    id: "review",
+    label: "复盘",
+    items: [
+      {
+        id: "reports",
+        to: "/admin/reports/scores",
+        label: "报表",
+        activePattern: /^\/admin\/reports(?:\/|$)/,
+      },
+    ],
+  },
+  {
+    id: "system",
+    label: "系统",
+    items: [
+      {
+        id: "accounts",
+        to: "/admin/accounts",
+        label: "用户账户",
+        activePattern: /^\/admin\/accounts(?:\/|$)/,
+      },
+      { id: "operations", to: "/admin/operations", label: "运维", end: true },
+    ],
+  },
 ];
+
+function itemIsActive(item: AdminNavigationItem, pathname: string) {
+  if (item.activePattern?.test(pathname)) return true;
+  return item.end ? pathname === item.to : pathname.startsWith(`${item.to}/`);
+}
 
 function SidebarList({
   onNavigate,
@@ -43,31 +107,57 @@ function SidebarList({
   const { pathname } = useLocation();
 
   return (
-    <nav className="flex flex-col gap-1">
-      {navItems.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          className={({ isActive }) => {
-            const active = isActive || Boolean(item.activePattern?.test(pathname));
+    <nav aria-label="管理后台导航" className="flex flex-col gap-5">
+      {ADMIN_NAVIGATION_GROUPS.map((group) => {
+        const groupIsActive = group.items.some((item) => itemIsActive(item, pathname));
+        const groupTitleId = `admin-nav-group-${group.id}`;
 
-            return cn(
-              "flex h-12 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
-              tone === "dark"
-                ? active
-                  ? "bg-canvas text-ink"
-                  : "text-footer-soft hover:bg-white/10 hover:text-canvas"
-                : active
-                  ? "bg-surface-card text-ink"
-                  : "text-muted hover:bg-surface-card hover:text-ink",
-            );
-          }}
-        >
-          {item.label}
-        </NavLink>
-      ))}
+        return (
+          <section
+            key={group.id}
+            aria-labelledby={groupTitleId}
+            data-active-group={groupIsActive ? "true" : "false"}
+            className="flex flex-col gap-1"
+          >
+            <p
+              id={groupTitleId}
+              className={cn(
+                "px-3 text-caption font-semibold uppercase tracking-[0.14em]",
+                tone === "dark" ? "text-footer-soft" : "text-muted",
+              )}
+            >
+              {group.label}
+              {groupIsActive ? <span className="sr-only"> · 当前分组</span> : null}
+            </p>
+            <div className="flex flex-col gap-1">
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  onClick={onNavigate}
+                  className={({ isActive }) => {
+                    const active = isActive || itemIsActive(item, pathname);
+
+                    return cn(
+                      "flex h-12 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
+                      tone === "dark"
+                        ? active
+                          ? "bg-canvas text-ink"
+                          : "text-footer-soft hover:bg-white/10 hover:text-canvas"
+                        : active
+                          ? "bg-surface-card text-ink"
+                          : "text-muted hover:bg-surface-card hover:text-ink",
+                    );
+                  }}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </nav>
   );
 }
@@ -124,7 +214,7 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
   return (
     <div
       data-scrolled={scrolled}
-      className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-4"
+      className="sticky top-0 z-overlay flex h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-4"
     >
       <Link
         to="/admin/dashboard"

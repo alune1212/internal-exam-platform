@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminPageCopy,
@@ -312,16 +313,15 @@ export function QuestionListPage() {
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="question_type">题型</Label>
-              <select
+              <Select
                 id="question_type"
-                className="h-11 rounded-md border border-hairline bg-canvas px-3"
                 value={form.question_type}
                 onChange={(event) => setForm({ ...form, question_type: event.target.value })}
               >
                 <option value="single">{formatQuestionTypeLabel("single")}</option>
                 <option value="multiple">{formatQuestionTypeLabel("multiple")}</option>
                 <option value="judge">{formatQuestionTypeLabel("judge")}</option>
-              </select>
+              </Select>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="score">分值</Label>
@@ -346,9 +346,8 @@ export function QuestionListPage() {
             ))}
             <div className="flex flex-col gap-2">
               <Label htmlFor="status">题目状态</Label>
-              <select
+              <Select
                 id="status"
-                className="h-11 rounded-md border border-hairline bg-canvas px-3"
                 value={form.status}
                 onChange={(event) => setForm({ ...form, status: event.target.value })}
               >
@@ -357,7 +356,7 @@ export function QuestionListPage() {
                     {formatQuestionStatus(status)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div className="flex flex-col gap-2 md:col-span-2">
               <Label htmlFor="analysis">解析</Label>

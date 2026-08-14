@@ -357,14 +357,15 @@ export function AdminLearningVideoPage() {
 
       <PageSection variant="table">
         {videos.isLoading ? (
-          <PageState state="loading" rows={3} />
+          <PageState state="loading" surface="inherit" rows={3} />
         ) : videos.isError && !videos.data ? (
           <PageState
             state="error"
+            surface="inherit"
             eyebrow={adminPageCopy.error}
             title="视频列表加载失败。"
             description="请稍后重试，或确认后台服务是否可用。"
-            className="border-0 bg-transparent py-10 shadow-none"
+            className="py-10"
           />
         ) : (
           <SimpleDataTable columns={columns} data={videos.data ?? []} emptyText="暂无学习视频" />

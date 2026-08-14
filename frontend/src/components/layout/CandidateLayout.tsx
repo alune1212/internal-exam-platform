@@ -42,6 +42,7 @@ export function CandidateLayout() {
         <div className="w-full max-w-xl rounded-lg border border-error bg-canvas p-8 shadow-pop">
           <PageState
             state="error"
+            surface="inherit"
             eyebrow="DEVICE · 浏览器不受支持"
             title="请更换受支持的系统浏览器。"
             description={browserSupport.reason}

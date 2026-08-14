@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -128,6 +128,38 @@ describe("ExamCandidatesPage", () => {
       "text-display-lg",
     );
     expect(screen.getByTestId("exam-candidates-shell")).toHaveClass("gap-6");
+    expect(screen.getByTestId("exam-candidates-shell")).toHaveAttribute(
+      "data-density",
+      "workbench",
+    );
+    expect(
+      screen
+        .getByRole("heading", { level: 1, name: "名单与授权" })
+        .compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "作废与补考结果" })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("exposes the current exam context and keeps the roster destination active", async () => {
+    renderPage();
+
+    const contextNav = await screen.findByTestId("exam-context-nav");
+    await waitFor(() =>
+      expect(within(contextNav).getByTestId("exam-context-identity")).toHaveTextContent(
+        "安全知识竞赛",
+      ),
+    );
+    expect(within(contextNav).getByRole("link", { name: "名单与授权" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(contextNav).getByRole("link", { name: "邀请投递" })).toHaveAttribute(
+      "href",
+      "/admin/exams/1/candidates#invitation-actions",
+    );
+    expect(within(contextNav).getByRole("link", { name: "错题回看" })).toHaveAttribute(
+      "href",
+      "/admin/reports/wrong?exam_id=1",
+    );
   });
 
   it("blocks candidate mutations while the exam state is unresolved", async () => {
@@ -279,7 +311,7 @@ describe("ExamCandidatesPage", () => {
         roster_name: "张三",
         account_status: "active",
         invitation_status: "failed",
-        invitation_error_class: "smtp_transient",
+        invitation_error_class: "transient",
         latest_attempt_status: "submitted",
         latest_score: 88,
         latest_total_score: 100,
@@ -301,6 +333,8 @@ describe("ExamCandidatesPage", () => {
     ]);
     renderPage();
 
+    expect(await screen.findByText("邮件服务暂时不可用")).toBeInTheDocument();
+    expect(screen.queryByText("transient")).not.toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "仅重发失败项" }));
     await waitFor(() => expect(resendFailedExamInvitations).toHaveBeenCalledWith("1"));
     expect(await screen.findByText(/失败重发已接受 1 条/)).toBeInTheDocument();

@@ -1,4 +1,10 @@
-/** Editorial pastel palette for avatar / chip accents. */
+/**
+ * Data-derived avatar/chip accents only.
+ *
+ * This is the one intentional visual-color exception: values are selected
+ * from a stable identity seed and are not a general UI, status, or surface
+ * palette. Product surfaces and states must use the CSS tokens in index.css.
+ */
 export const PASTEL_COLORS = ["#fef3c7", "#dbeafe", "#dcfce7", "#fce7f3", "#e0e7ff"] as const;
 
 export type PastelColor = (typeof PASTEL_COLORS)[number];

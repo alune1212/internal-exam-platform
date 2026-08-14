@@ -31,9 +31,12 @@ export function PageShell({
   children,
   ...props
 }: PageShellProps) {
+  const allowsOrientationMotion = density === "calm";
+
   return (
     <div
-      data-stagger={stagger ? "" : undefined}
+      data-density={density}
+      data-stagger={stagger && allowsOrientationMotion ? "" : undefined}
       className={cn("flex flex-col", densityClassName[density], widthClassName[width], className)}
       {...props}
     >

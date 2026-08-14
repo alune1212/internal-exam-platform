@@ -1,4 +1,4 @@
-// Barrel export for the 9 academic-editorial UI primitives.
+// Barrel export for the academic-editorial UI primitives.
 // Keep this list in sync with every component in this directory.
 
 export { Button, type ButtonProps } from "./button";
@@ -12,7 +12,8 @@ export {
   CardFooter,
   type CardHeaderProps,
 } from "./card";
-export { Input } from "./input";
+export { Input, type InputProps } from "./input";
+export { Select, type SelectProps } from "./select";
 export { Label } from "./label";
 export {
   Field,
@@ -25,6 +26,7 @@ export {
   type FieldLabelProps,
   type FieldDescriptionProps,
   type FieldErrorProps,
+  type FieldState,
 } from "./field";
 export {
   Alert,

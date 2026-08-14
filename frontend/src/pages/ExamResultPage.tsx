@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { getAttemptResult } from "@/api/attempts";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,9 +34,8 @@ export function ExamResultPage() {
 
   if (isLoading) {
     return (
-      <PageShell density="workbench" width="full" stagger>
+      <PageShell density="calm" width="full" stagger>
         <PageHeader
-          eyebrow={candidatePageCopy.result}
           title={candidatePageText.result.title}
           description={candidatePageText.result.description}
           actions={
@@ -45,10 +43,9 @@ export function ExamResultPage() {
               <Link to="/exams">返回考试列表</Link>
             </Button>
           }
-          className="border-b border-hairline pb-4"
         />
         <PageSection variant="plain">
-          <PageState state="loading" rows={4} />
+          <PageState state="loading" rows={4} surface="inherit" />
         </PageSection>
       </PageShell>
     );
@@ -56,9 +53,8 @@ export function ExamResultPage() {
 
   if (hasLoadError) {
     return (
-      <PageShell density="workbench" width="full" stagger>
+      <PageShell density="calm" width="full" stagger>
         <PageHeader
-          eyebrow={candidatePageCopy.result}
           title={candidatePageText.result.title}
           description={candidatePageText.result.description}
           actions={
@@ -66,11 +62,11 @@ export function ExamResultPage() {
               <Link to="/exams">返回考试列表</Link>
             </Button>
           }
-          className="border-b border-hairline pb-4"
         />
         <PageSection variant="plain">
           <PageState
             state="error"
+            surface="inherit"
             eyebrow={candidatePageCopy.error}
             title={candidatePageText.result.errorTitle}
             description={candidatePageText.result.errorDescription}
@@ -83,9 +79,8 @@ export function ExamResultPage() {
 
   if (!result) {
     return (
-      <PageShell density="workbench" width="full" stagger>
+      <PageShell density="calm" width="full" stagger>
         <PageHeader
-          eyebrow={candidatePageCopy.result}
           title={candidatePageText.result.title}
           description={candidatePageText.result.description}
           actions={
@@ -93,11 +88,11 @@ export function ExamResultPage() {
               <Link to="/exams">返回考试列表</Link>
             </Button>
           }
-          className="border-b border-hairline pb-4"
         />
         <PageSection variant="plain">
           <PageState
             state="empty"
+            surface="inherit"
             eyebrow={candidatePageCopy.empty}
             title={candidatePageText.result.emptyTitle}
             description={candidatePageText.result.emptyDescription}
@@ -112,7 +107,7 @@ export function ExamResultPage() {
   );
 
   return (
-    <PageShell density="workbench" width="full" stagger>
+    <PageShell density="calm" width="full" stagger>
       {isError ? (
         <PageStaleNotice
           lastSuccessfulAt={dataUpdatedAt}
@@ -121,7 +116,6 @@ export function ExamResultPage() {
         />
       ) : null}
       <PageHeader
-        eyebrow={candidatePageCopy.result}
         title={candidatePageText.result.title}
         description={candidatePageText.result.description}
         actions={
@@ -129,21 +123,17 @@ export function ExamResultPage() {
             <Link to="/exams">返回考试列表</Link>
           </Button>
         }
-        className="border-b border-hairline pb-4"
       />
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <Card className="border-0 bg-footer text-canvas shadow-pop">
           <CardContent className="flex flex-col gap-6 p-6 md:p-8">
-            <ChapterNumber className="text-footer-soft">{candidatePageCopy.result}</ChapterNumber>
-            <h2 className="font-display text-display-xl font-semibold leading-[1.08] text-canvas">
+            <h2 className="min-w-0 break-words font-display text-display-xl font-semibold leading-[1.08] text-canvas">
               考试已交卷。
             </h2>
 
             <div className="flex flex-col gap-2 border-t border-footer-soft pt-6">
-              <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
-                SCORE · 得分
-              </span>
+              <span className="text-caption tracking-[0.12em] text-footer-soft">得分</span>
               <p className="font-display text-display-xl font-semibold tabular-nums leading-none text-canvas md:text-display-2xl">
                 {result ? `${result.score}` : "—"}
                 <span className="ml-2 text-body-lg text-footer-soft">
@@ -158,7 +148,7 @@ export function ExamResultPage() {
                       result.is_passed ? "text-success-on-dark" : "text-error-on-dark",
                     )}
                   >
-                    {result.is_passed ? "PASSED · 已通过" : "FAILED · 未通过"}
+                    {result.is_passed ? "已通过" : "未通过"}
                   </span>
                   <span className="text-footer-soft">及格线 {result.pass_score} 分</span>
                 </div>
@@ -167,17 +157,13 @@ export function ExamResultPage() {
 
             <div className="flex flex-wrap items-center gap-6 border-t border-footer-soft pt-6 text-body">
               <div className="flex flex-col gap-1">
-                <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
-                  正确
-                </span>
+                <span className="text-caption tracking-[0.12em] text-footer-soft">正确</span>
                 <span className="font-display text-display-md font-semibold tabular-nums text-success-on-dark">
                   {result?.correct_count ?? "—"}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-caption uppercase tracking-[0.16em] text-footer-soft">
-                  错误
-                </span>
+                <span className="text-caption tracking-[0.12em] text-footer-soft">错误</span>
                 <span className="font-display text-display-md font-semibold tabular-nums text-error-on-dark">
                   {result?.wrong_count ?? "—"}
                 </span>
@@ -190,45 +176,47 @@ export function ExamResultPage() {
           {!result.show_answer_after_submit ? (
             <PageState
               state="empty"
-              eyebrow="DETAILS · 解析发布"
+              surface="inherit"
+              eyebrow="解析发布"
               title="答案与解析尚未发布。"
               description="当前仅显示分数和通过状态。管理员会在全部考试记录结束后一次性发布答案与解析。"
-              className="border border-hairline bg-canvas py-10 shadow-card"
+              className="border-y border-hairline py-10"
             />
           ) : (
             <>
               <header className="flex flex-wrap items-end justify-between gap-3 border-b border-hairline pb-3">
                 <div className="flex flex-col gap-1">
-                  <span className="font-display text-caption uppercase italic tracking-[0.18em] text-muted">
-                    {candidatePageCopy.review}
-                  </span>
-                  <h2 className="font-display text-display-md font-semibold text-ink">
-                    答案与解析
+                  <h2 className="min-w-0 break-words font-display text-display-md font-semibold text-ink">
+                    答题回顾
                   </h2>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-pill border border-hairline bg-canvas p-1 text-body-sm">
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
                     aria-pressed={filter === "all"}
                     onClick={() => setFilter("all")}
                     className={cn(
-                      "rounded-pill px-4 py-1",
-                      filter === "all" ? "bg-ink text-canvas" : "text-muted",
+                      "rounded-pill",
+                      filter === "all" ? "bg-ink text-canvas hover:bg-ink" : "text-muted",
                     )}
                   >
                     全部 ({result?.questions.length ?? 0})
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
                     aria-pressed={filter === "wrong"}
                     onClick={() => setFilter("wrong")}
                     className={cn(
-                      "rounded-pill px-4 py-1",
-                      filter === "wrong" ? "bg-ink text-canvas" : "text-muted",
+                      "rounded-pill",
+                      filter === "wrong" ? "bg-ink text-canvas hover:bg-ink" : "text-muted",
                     )}
                   >
                     只看错题 ({result?.wrong_count ?? 0})
-                  </button>
+                  </Button>
                 </div>
               </header>
 
@@ -241,7 +229,7 @@ export function ExamResultPage() {
                     >
                       <header className="flex items-baseline justify-between gap-3">
                         <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
-                          Q {String(index + 1).padStart(2, "0")}
+                          第 {String(index + 1).padStart(2, "0")} 题
                         </span>
                         <span
                           className={cn(
@@ -249,7 +237,7 @@ export function ExamResultPage() {
                             question.is_correct ? "text-success" : "text-error",
                           )}
                         >
-                          {question.is_correct ? "CORRECT · 正确" : "WRONG · 错误"}
+                          {question.is_correct ? "正确" : "错误"}
                         </span>
                       </header>
                       <p className="text-body text-ink">{question.stem_snapshot}</p>
@@ -279,22 +267,21 @@ export function ExamResultPage() {
                       </dl>
                       {result?.show_answer_after_submit && question.analysis_snapshot ? (
                         <p className="text-body-sm text-muted">
-                          <span className="text-caption uppercase tracking-[0.16em]">解析 · </span>
+                          <span className="text-caption tracking-[0.12em]">解析 · </span>
                           {question.analysis_snapshot}
                         </p>
                       ) : null}
                     </article>
                   ))
                 ) : (
-                  <div className="rounded-lg border border-hairline bg-canvas">
-                    <PageState
-                      state="empty"
-                      eyebrow={candidatePageCopy.empty}
-                      title="暂无匹配题目。"
-                      description="切换筛选条件后可查看全部答题结果。"
-                      className="py-10"
-                    />
-                  </div>
+                  <PageState
+                    state="empty"
+                    surface="inherit"
+                    eyebrow={candidatePageCopy.empty}
+                    title="暂无匹配题目。"
+                    description="切换筛选条件后可查看全部答题结果。"
+                    className="border-y border-hairline py-10"
+                  />
                 )}
               </div>
             </>

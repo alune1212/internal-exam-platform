@@ -21,9 +21,11 @@ describe("ExamFocusMode accessibility", () => {
     const group = screen.getByRole("radiogroup");
     expect(heading).toHaveAttribute("id", "question-heading-test");
     expect(heading).toHaveAttribute("tabindex", "-1");
+    expect(heading).toHaveClass("min-w-0", "break-words");
     expect(group).toHaveAttribute("aria-labelledby", "question-heading-test");
     expect(group).toHaveAttribute("aria-describedby", "question-heading-test-state");
     expect(document.activeElement).toBe(heading);
+    expect(screen.getByText("QUESTION 02 · 单选 · 2 分").parentElement).not.toHaveClass("italic");
     expect(screen.getByText("第 2 题，已作答。")).toBeInTheDocument();
   });
 });

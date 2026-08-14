@@ -4,11 +4,13 @@ export const buttonVariants = cva(
   `
     inline-flex items-center justify-center gap-2 whitespace-nowrap
     rounded-pill font-medium
-    transition-colors duration-150 ease-out
+    transition-[background-color,border-color,box-shadow,color,opacity] duration-fast ease-standard
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink
     focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
-    active:duration-75 disabled:pointer-events-none
+    active:duration-instant disabled:pointer-events-none
     disabled:opacity-50
+    data-[pending]:pointer-events-none data-[pending]:cursor-wait data-[success]:border-success
+    data-[success]:text-success data-[pending]:opacity-70
     [&_[data-icon="inline-end"]]:-mr-0.5
     [&_[data-icon="inline-start"]]:-ml-0.5
     [&_[data-icon]]:size-4

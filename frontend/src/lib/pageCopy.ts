@@ -161,12 +161,37 @@ export const candidateActionCopy = {
   savingAnswer: "正在保存",
   savePending: "待保存",
   savedAnswer: "已保存",
+  saveOffline: "网络中断，答案待同步",
+  saveConflict: "答案版本冲突，请重新接管",
   saveFailed: "保存失败",
   retrySave: "重试保存",
+  resolveSaveConflict: "重新登录并接管",
   submitExam: "交卷",
   submittingExam: "正在交卷",
   submitFailed: "交卷失败",
 } as const;
+
+export const candidateSaveAnnouncementCopy = {
+  pending: "答案已记录，等待同步。",
+  saving: "正在保存答案。",
+  saved: "答案已保存。",
+  offline: "当前离线，答案已保留在本页，待恢复网络后同步。",
+  conflict: "答案版本冲突，请重新接管考试。",
+  error: "答案保存失败，请重试。",
+} as const;
+
+const invitationErrorClassCopy: Record<string, string> = {
+  transient: "邮件服务暂时不可用",
+  permanent: "邮件地址或投递策略拒绝发送",
+  smtp: "邮件服务连接失败",
+  delivery_error: "邀请邮件投递失败",
+};
+
+export function formatInvitationErrorClass(errorClass?: string | null) {
+  return errorClass
+    ? (invitationErrorClassCopy[errorClass] ?? "邀请邮件投递失败")
+    : "邀请邮件投递失败";
+}
 
 export const importCopy = {
   selectExcelFile: "选择 Excel 文件",

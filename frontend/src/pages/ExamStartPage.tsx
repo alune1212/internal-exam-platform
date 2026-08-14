@@ -7,7 +7,14 @@ import { getActiveExams, startExam } from "@/api/exams";
 import { ApiError } from "@/api/client";
 import { NamePlate } from "@/components/editorial/NamePlate";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
+import {
+  PageActions,
+  PageHeader,
+  PageSection,
+  PageShell,
+  PageStaleNotice,
+  PageState,
+} from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { candidatePageCopy, candidatePageText, productTerms } from "@/lib/pageCopy";
 import { setAttemptSession } from "@/lib/attemptSession";
@@ -77,7 +84,17 @@ export function ExamStartPage() {
       : null;
 
   if (candidate && examQuery.isLoading) {
-    return <PageState state="loading" rows={2} />;
+    return (
+      <PageShell density="calm" width="full" className="mx-auto max-w-3xl">
+        <PageHeader
+          title={candidatePageText.examRules.title}
+          description={candidatePageText.examRules.description}
+        />
+        <PageSection variant="plain">
+          <PageState state="loading" rows={2} surface="inherit" />
+        </PageSection>
+      </PageShell>
+    );
   }
   const hasLoadError = examQuery.isError && !examQuery.data;
   const hasStaleError = examQuery.isError && Boolean(examQuery.data);
@@ -85,16 +102,23 @@ export function ExamStartPage() {
   if (candidate && (hasLoadError || !exam)) {
     return (
       <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
-        <PageState
-          state="error"
-          eyebrow={candidatePageCopy.error}
-          title="考试说明加载失败。"
-          description="受邀考试暂不可用，请返回受邀考试列表重试。"
-          action={{ label: "返回受邀考试", onClick: () => navigate("/exams") }}
-          secondaryAction={
-            hasLoadError ? { label: "重试", onClick: () => void examQuery.refetch() } : undefined
-          }
+        <PageHeader
+          title={candidatePageText.examRules.title}
+          description={candidatePageText.examRules.description}
         />
+        <PageSection variant="plain">
+          <PageState
+            state="error"
+            surface="inherit"
+            eyebrow={candidatePageCopy.error}
+            title="考试说明加载失败。"
+            description="受邀考试暂不可用，请返回受邀考试列表重试。"
+            action={{ label: "返回受邀考试", onClick: () => navigate("/exams") }}
+            secondaryAction={
+              hasLoadError ? { label: "重试", onClick: () => void examQuery.refetch() } : undefined
+            }
+          />
+        </PageSection>
       </PageShell>
     );
   }
@@ -109,13 +133,12 @@ export function ExamStartPage() {
         />
       ) : null}
       <PageHeader
-        eyebrow={candidatePageCopy.examRules}
         title={candidatePageText.examRules.title}
         description={candidatePageText.examRules.description}
       />
 
-      <PageSection variant="panel" className="p-6 lg:p-8">
-        <ol className="flex flex-col gap-3 text-body italic text-ink">
+      <PageSection variant="plain">
+        <ol className="flex flex-col gap-3 border-y border-hairline py-5 text-body text-ink lg:py-6">
           {RULES.map((rule, index) => (
             <li key={rule.text} className="flex gap-3">
               <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
@@ -128,41 +151,40 @@ export function ExamStartPage() {
       </PageSection>
 
       {candidate ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-hairline bg-canvas p-5">
-          <p className="text-caption uppercase tracking-[0.16em] text-muted">
-            当前{productTerms.examTaker}
-          </p>
+        <PageSection variant="card" className="gap-3 p-5">
+          <p className="text-caption tracking-[0.12em] text-muted">当前{productTerms.examTaker}</p>
           <NamePlate name={candidateDisplayName(candidate)} subtitle="应考人员" />
-        </div>
+        </PageSection>
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        {candidate ? (
-          <Button
-            type="button"
-            size="lg"
-            disabled={mutation.isPending || !canStart}
-            onClick={() => mutation.mutate()}
-            className="self-start"
-          >
-            <ClipboardCheck data-icon="inline-start" />
-            {mutation.isPending
-              ? "正在开始"
-              : beforeOpen
-                ? "尚未开放"
-                : afterClose
-                  ? "开放已结束"
-                  : "开始考试"}
-            <ArrowRight data-icon="inline-end" />
-          </Button>
-        ) : (
-          <Button asChild size="lg" className="self-start">
-            <Link to={`/login?returnTo=${encodeURIComponent(`/exams/${examId}/start`)}`}>
-              先登录
+      <PageSection variant="plain" className="gap-3">
+        <PageActions aria-label="考试操作">
+          {candidate ? (
+            <Button
+              type="button"
+              size="lg"
+              disabled={mutation.isPending || !canStart}
+              onClick={() => mutation.mutate()}
+            >
+              <ClipboardCheck data-icon="inline-start" />
+              {mutation.isPending
+                ? "正在开始"
+                : beforeOpen
+                  ? "尚未开放"
+                  : afterClose
+                    ? "开放已结束"
+                    : "开始考试"}
               <ArrowRight data-icon="inline-end" />
-            </Link>
-          </Button>
-        )}
+            </Button>
+          ) : (
+            <Button asChild size="lg">
+              <Link to={`/login?returnTo=${encodeURIComponent(`/exams/${examId}/start`)}`}>
+                先登录
+                <ArrowRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          )}
+        </PageActions>
         {candidate && beforeOpen ? (
           <p className="text-body-sm text-muted" role="status">
             应考人员可在{" "}
@@ -173,6 +195,7 @@ export function ExamStartPage() {
         {mutation.isError ? (
           <PageState
             state="error"
+            surface="inherit"
             eyebrow={candidatePageCopy.error}
             title="开始考试失败。"
             description={errorMessage}
@@ -196,7 +219,7 @@ export function ExamStartPage() {
             role="alert"
           />
         ) : null}
-      </div>
+      </PageSection>
     </PageShell>
   );
 }

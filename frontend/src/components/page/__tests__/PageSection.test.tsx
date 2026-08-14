@@ -22,17 +22,30 @@ describe("PageSection", () => {
       "bg-canvas",
       "shadow-card",
     );
+    expect(screen.getByText("展示卡片")).toHaveAttribute("data-surface-owner", "card");
   });
 
   it("renders a panel section for dense forms", () => {
     render(<PageSection variant="panel">表单面板</PageSection>);
 
     expect(screen.getByText("表单面板")).toHaveClass("rounded-md", "bg-surface-card");
+    expect(screen.getByText("表单面板")).toHaveAttribute("data-surface-owner", "panel");
   });
 
   it("renders a table section for admin data tables", () => {
     render(<PageSection variant="table">表格区块</PageSection>);
 
     expect(screen.getByText("表格区块")).toHaveClass("overflow-hidden", "rounded-lg");
+    expect(screen.getByText("表格区块")).toHaveAttribute("data-surface-owner", "table");
+  });
+
+  it("keeps the variant as the authoritative surface owner", () => {
+    render(
+      <PageSection variant="panel" data-surface-owner="card">
+        受控表面
+      </PageSection>,
+    );
+
+    expect(screen.getByText("受控表面")).toHaveAttribute("data-surface-owner", "panel");
   });
 });

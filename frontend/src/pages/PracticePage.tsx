@@ -7,9 +7,8 @@ import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
-import { ChapterNumber } from "@/components/editorial/ChapterNumber";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageShell, PageStaleNotice, PageState } from "@/components/page";
+import { PageActions, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -156,6 +155,7 @@ export function PracticePage() {
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="notLoggedIn"
+            surface="inherit"
             eyebrow={candidatePageCopy.notLoggedIn}
             title={candidatePageText.practice.loginTitle}
             description={candidatePageText.practice.loginDescription}
@@ -174,7 +174,7 @@ export function PracticePage() {
   if (isLoading) {
     return (
       <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <PageState state="loading" rows={4} className="bg-surface-card p-8" />
+        <PageState state="loading" rows={4} />
       </PageShell>
     );
   }
@@ -289,20 +289,11 @@ export function PracticePage() {
 
   return (
     <PageShell density="focus" width="full" stagger className="relative">
-      <div className="flex flex-col gap-3 border-b border-hairline pb-4">
-        <ChapterNumber>{candidatePageCopy.practice}</ChapterNumber>
-        <h1 className="font-display text-display-lg font-semibold text-ink lg:text-display-xl">
-          {candidatePageText.practice.title}
-        </h1>
-        <p className="max-w-2xl text-body-lg text-muted">
-          {candidatePageText.practice.description}
-        </p>
-        <div>
-          <Button asChild variant="outline">
-            <Link to="/practice/wrong-questions">查看错题复习</Link>
-          </Button>
-        </div>
-      </div>
+      <PageActions aria-label="练习辅助操作" className="justify-end">
+        <Button asChild variant="outline" size="sm">
+          <Link to="/practice/wrong-questions">查看错题复习</Link>
+        </Button>
+      </PageActions>
 
       {staleNotice}
 
@@ -340,7 +331,7 @@ export function PracticePage() {
           </ExamFocusMode>
         </div>
 
-        <aside className="self-start lg:sticky lg:top-24 lg:z-30 lg:w-60">
+        <aside className="self-start lg:sticky lg:top-24 lg:z-sticky lg:w-60">
           <ExamNavigator
             items={navItems}
             activeId={activeQuestion.id}
@@ -351,7 +342,7 @@ export function PracticePage() {
         </aside>
       </div>
 
-      <div className="flex flex-1 flex-col pb-24 lg:hidden">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(6rem+env(safe-area-inset-bottom))] lg:hidden">
         <ExamFocusMode
           progress={{ current: activeIndex + 1, total, answered: answeredCount }}
           remainingSeconds={Number.POSITIVE_INFINITY}
@@ -384,14 +375,14 @@ export function PracticePage() {
         </ExamFocusMode>
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <div className="fixed inset-x-0 bottom-3 z-40 flex justify-center px-3">
+          <div className="fixed inset-x-0 bottom-0 z-overlay flex justify-center px-3 pb-[max(var(--space-inline),env(safe-area-inset-bottom))] pt-3">
             <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
               <ProgressCapsule
                 current={activeIndex + 1}
                 total={total}
                 answered={answeredCount}
                 variant="dark"
-                className="flex-1"
+                className="min-w-0 flex-1"
               />
               <SheetTrigger asChild>
                 <button
@@ -407,7 +398,7 @@ export function PracticePage() {
 
           <SheetContent
             side="bottom"
-            className="flex h-[80vh] flex-col gap-4 rounded-t-lg bg-canvas p-5"
+            className="flex max-h-[85dvh] min-h-0 flex-col gap-4 rounded-t-lg bg-canvas p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           >
             <SheetHeader className="border-b border-hairline pb-3">
               <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>

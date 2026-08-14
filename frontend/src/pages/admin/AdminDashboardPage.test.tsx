@@ -41,12 +41,22 @@ describe("AdminDashboardPage", () => {
 
     renderDashboard();
 
-    expect(screen.getByText("DASHBOARD · 仪表盘")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "一切就绪。" })).toHaveClass(
+    expect(screen.queryByText("DASHBOARD · 仪表盘")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "仪表盘" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
+    expect(screen.getByText("关键数据已就绪。")).toHaveAttribute("role", "status");
     expect(screen.getByTestId("admin-dashboard-shell")).toHaveClass("gap-6");
+    expect(screen.getByTestId("admin-dashboard-shell")).toHaveAttribute(
+      "data-density",
+      "workbench",
+    );
+    expect(
+      screen
+        .getByRole("heading", { level: 1, name: "仪表盘" })
+        .compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "最近活动" })),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(await screen.findByText("STATE · 空状态")).toBeInTheDocument();
   });
 
@@ -58,9 +68,7 @@ describe("AdminDashboardPage", () => {
 
     renderDashboard();
 
-    expect(screen.getByRole("heading", { name: "交卷与未开始" })).not.toHaveClass(
-      "tracking-[-0.04em]",
-    );
+    expect(screen.getByRole("heading", { name: "最近活动" })).not.toHaveClass("tracking-[-0.04em]");
   });
 
   it("does not collapse failed activity and metrics into empty or zero states", async () => {
@@ -72,7 +80,8 @@ describe("AdminDashboardPage", () => {
     renderDashboard();
 
     expect(await screen.findByRole("heading", { name: "最近活动加载失败。" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "部分数据暂不可用。" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "仪表盘" })).toBeInTheDocument();
+    expect(screen.getByText(/部分数据暂不可用/)).toHaveAttribute("role", "status");
     expect(screen.getByRole("alert")).toHaveTextContent("部分仪表盘指标加载失败");
     expect(screen.queryByText("暂无活动记录。")).not.toBeInTheDocument();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
@@ -86,7 +95,8 @@ describe("AdminDashboardPage", () => {
 
     renderDashboard();
 
-    expect(await screen.findByRole("heading", { name: "部分数据暂不可用。" })).toBeInTheDocument();
+    expect(await screen.findByText(/部分数据暂不可用/)).toHaveAttribute("role", "status");
+    expect(screen.getByRole("heading", { level: 1, name: "仪表盘" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("部分仪表盘指标加载失败");
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
   });

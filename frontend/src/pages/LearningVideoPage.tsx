@@ -82,23 +82,36 @@ export function LearningVideoPage() {
 
   if (isLoading) {
     return (
-      <PageShell density="focus" width="wide" className="py-6">
-        <PageState state="loading" rows={4} />
+      <PageShell density="calm" width="wide" className="py-6">
+        <PageHeader
+          title={candidatePageText.learning.title}
+          description={candidatePageText.learning.description}
+        />
+        <PageSection variant="plain">
+          <PageState state="loading" rows={4} surface="inherit" />
+        </PageSection>
       </PageShell>
     );
   }
 
   if (!data || !progress) {
     return (
-      <PageShell density="focus" width="wide" className="py-6">
-        <PageState
-          state="error"
-          eyebrow={candidatePageCopy.error}
-          title={candidatePageText.learning.detailErrorTitle}
-          description={candidatePageText.learning.detailErrorDescription}
-          onRetry={() => void refetch()}
-          secondaryAction={{ label: "返回学习列表", onClick: () => navigate("/learning") }}
+      <PageShell density="calm" width="wide" className="py-6">
+        <PageHeader
+          title={candidatePageText.learning.title}
+          description={candidatePageText.learning.description}
         />
+        <PageSection variant="plain">
+          <PageState
+            state="error"
+            surface="inherit"
+            eyebrow={candidatePageCopy.error}
+            title={candidatePageText.learning.detailErrorTitle}
+            description={candidatePageText.learning.detailErrorDescription}
+            onRetry={() => void refetch()}
+            secondaryAction={{ label: "返回学习列表", onClick: () => navigate("/learning") }}
+          />
+        </PageSection>
       </PageShell>
     );
   }
@@ -106,7 +119,7 @@ export function LearningVideoPage() {
   const completed = Boolean(progress.completed_at);
 
   return (
-    <PageShell density="focus" width="wide" className="py-6" data-testid="learning-video-shell">
+    <PageShell density="calm" width="wide" className="py-6" data-testid="learning-video-shell">
       {isError ? (
         <PageStaleNotice
           lastSuccessfulAt={dataUpdatedAt}
@@ -115,7 +128,6 @@ export function LearningVideoPage() {
         />
       ) : null}
       <PageHeader
-        eyebrow={candidatePageCopy.learning}
         title={data.title}
         description={data.description ?? "完成度达到 90% 后，系统会标记为已完成。"}
         actions={

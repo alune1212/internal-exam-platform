@@ -40,6 +40,12 @@ describe("ExamNavigator", () => {
     expect(screen.getByText("已作答")).toBeInTheDocument();
   });
 
+  it("keeps question type labels upright", () => {
+    render(<ExamNavigator items={buildItems(1)} onJump={vi.fn()} />);
+
+    expect(screen.getByText("单选")).not.toHaveClass("italic");
+  });
+
   it("scopes status IDs to each navigator instance", () => {
     const items = buildItems(2);
 

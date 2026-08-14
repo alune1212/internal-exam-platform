@@ -3,7 +3,7 @@ import { ArrowUpRight, Clock, FileText, Hash } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { getActiveExams } from "@/api/exams";
-import { PageHeader, PageShell, PageStaleNotice, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { getCurrentCandidate } from "@/lib/candidateSession";
 import {
@@ -95,12 +95,12 @@ function ExamCard({ exam }: { exam: Exam }) {
 
   return (
     <article className="flex flex-col gap-5 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
-      <p className="font-body text-caption font-medium uppercase italic tracking-[0.18em] text-muted">
+      <p className="font-body text-caption font-medium tracking-[0.12em] text-muted">
         {isInvited
           ? candidatePageText.exams.invited
           : formatExamStatus(isLive ? "active" : exam.status)}
       </p>
-      <h2 className="font-display text-display-sm font-semibold text-ink lg:text-display-md">
+      <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink lg:text-display-md">
         {exam.title}
       </h2>
       <dl className="grid grid-cols-3 gap-3 border-y border-hairline-soft py-3 text-caption text-muted">
@@ -124,7 +124,7 @@ function ExamCard({ exam }: { exam: Exam }) {
         </div>
       </dl>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-caption italic text-muted">
+        <p className="text-caption text-muted">
           {availability.detail
             ? `${availability.detailLabel} · ${availability.detail}`
             : availability.fallbackDetail}
@@ -150,7 +150,7 @@ function ExamCard({ exam }: { exam: Exam }) {
           </Button>
         )}
       </div>
-      <p className="text-caption uppercase tracking-[0.16em] text-muted">
+      <p className="text-caption tracking-[0.12em] text-muted">
         {availability.status === "not_started"
           ? candidatePageText.exams.upcoming
           : availability.canEnter
@@ -176,7 +176,6 @@ export function ExamListPage() {
   return (
     <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
       <PageHeader
-        eyebrow={candidatePageCopy.exams}
         title={candidatePageText.exams.title}
         description={candidatePageText.exams.description}
       />
@@ -190,28 +189,38 @@ export function ExamListPage() {
       ) : null}
 
       {isLoading ? (
-        <PageState state="loading" rows={3} />
+        <PageSection variant="plain">
+          <PageState state="loading" rows={3} surface="inherit" />
+        </PageSection>
       ) : hasLoadError ? (
-        <PageState
-          state="error"
-          eyebrow={candidatePageCopy.error}
-          title={candidatePageText.exams.errorTitle}
-          description={candidatePageText.exams.errorDescription}
-          onRetry={() => void refetch()}
-        />
+        <PageSection variant="plain">
+          <PageState
+            state="error"
+            surface="inherit"
+            eyebrow={candidatePageCopy.error}
+            title={candidatePageText.exams.errorTitle}
+            description={candidatePageText.exams.errorDescription}
+            onRetry={() => void refetch()}
+          />
+        </PageSection>
       ) : data?.length ? (
-        <div className="grid gap-5 md:grid-cols-2">
-          {data.map((exam) => (
-            <ExamCard key={exam.id} exam={exam} />
-          ))}
-        </div>
+        <PageSection variant="plain" aria-label="受邀考试列表">
+          <div className="grid gap-5 md:grid-cols-2">
+            {data.map((exam) => (
+              <ExamCard key={exam.id} exam={exam} />
+            ))}
+          </div>
+        </PageSection>
       ) : (
-        <PageState
-          state="empty"
-          eyebrow={candidatePageCopy.empty}
-          title={candidatePageText.exams.emptyTitle}
-          description={candidatePageText.exams.emptyDescription}
-        />
+        <PageSection variant="plain">
+          <PageState
+            state="empty"
+            surface="inherit"
+            eyebrow={candidatePageCopy.empty}
+            title={candidatePageText.exams.emptyTitle}
+            description={candidatePageText.exams.emptyDescription}
+          />
+        </PageSection>
       )}
     </PageShell>
   );

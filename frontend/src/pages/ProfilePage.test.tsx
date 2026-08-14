@@ -87,6 +87,10 @@ describe("ProfilePage", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "重试" }));
 
     expect(await screen.findByRole("heading", { name: "账号资料" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "账号资料" }).closest("[data-density]"),
+    ).toHaveAttribute("data-density", "calm");
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByDisplayValue(profile.email)).toBeInTheDocument();
     await waitFor(() => expect(getCandidateProfile).toHaveBeenCalledTimes(2));
   });

@@ -196,7 +196,9 @@ test("email registration preserves invitation return and enforces the opening bo
   expect(startResponse.ok()).toBe(false);
 
   await candidatePage.goto(`${CANDIDATE_URL}/practice`);
-  await expect(candidatePage.getByRole("heading", { name: "日常练习" })).toBeVisible();
+  await expect(
+    candidatePage.locator('[data-testid="exam-question-heading"]:visible'),
+  ).toBeVisible();
   await candidatePage.getByRole("radio").first().click();
   await candidatePage.getByRole("button", { name: "提交本题" }).click();
   await expect(
@@ -385,7 +387,7 @@ test("admin workspace keeps publication and invitation guidance visible", async 
   await expect(
     operatorPage.getByRole("heading", { name: `考试工作台 · ${WORKSPACE_EXAM_TITLE}` }),
   ).toBeVisible();
-  await expect(operatorPage.getByRole("heading", { name: "下一步建议" })).toBeVisible();
+  await expect(operatorPage.getByText("下一步建议", { exact: true })).toBeVisible();
   await expect(operatorPage.getByText("发布考试：", { exact: false })).toBeVisible();
   await expect(operatorPage.getByText("数据观测时间")).toBeVisible();
   await expect(operatorPage.locator("time[data-observed-at]")).toBeVisible();
@@ -393,10 +395,9 @@ test("admin workspace keeps publication and invitation guidance visible", async 
     "href",
     `/admin/exams/${workspaceExam!.id}/edit#publish`,
   );
-  await expect(operatorPage.getByRole("link", { name: "邀请投递" })).toHaveAttribute(
-    "href",
-    `/admin/exams/${workspaceExam!.id}/candidates#invitation-actions`,
-  );
+  await expect(
+    operatorPage.getByLabel("考试操作页面").getByRole("link", { name: "邀请投递" }),
+  ).toHaveAttribute("href", `/admin/exams/${workspaceExam!.id}/candidates#invitation-actions`);
 
   const publishResponse = await operatorPage.request.post(
     `${OPERATOR_URL}/api/admin/exams/${workspaceExam!.id}/publish`,
@@ -429,7 +430,7 @@ test("admin workspace keeps publication and invitation guidance visible", async 
   await expect(
     operatorPage.getByRole("heading", { name: `考试工作台 · ${WORKSPACE_EXAM_TITLE}` }),
   ).toBeVisible();
-  await expect(operatorPage.getByRole("heading", { name: "下一步建议" })).toBeVisible();
+  await expect(operatorPage.getByText("下一步建议", { exact: true })).toBeVisible();
   await expect(operatorPage.getByText("监控考试：", { exact: false })).toBeVisible();
   await expect(operatorPage.getByText("已发送邀请")).toBeVisible();
   await expect(operatorPage.locator("time[data-observed-at]")).toBeVisible();

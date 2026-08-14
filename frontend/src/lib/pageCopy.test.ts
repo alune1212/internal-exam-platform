@@ -12,6 +12,7 @@ import {
   formatAttemptStatus,
   formatExamAvailability,
   formatExamStatus,
+  formatInvitationErrorClass,
   formatQuestionEyebrow,
   formatQuestionStatus,
   formatQuestionTypeLabel,
@@ -82,12 +83,17 @@ describe("pageCopy", () => {
     expect(formatAttemptKind("retake")).toBe("RETAKE · 补考");
     expect(formatQuestionTypeLabel("multiple")).toBe("MULTIPLE · 多选");
     expect(formatQuestionStatus("inactive")).toBe("INACTIVE · 停用");
+    expect(formatInvitationErrorClass("transient")).toBe("邮件服务暂时不可用");
+    expect(formatInvitationErrorClass("internal_code")).toBe("邀请邮件投递失败");
   });
 
   it("keeps candidate critical action copy distinct", () => {
     expect(candidateActionCopy).toMatchObject({
       returnExamList: "返回考试列表",
       saveAnswer: "保存答案",
+      saveOffline: "网络中断，答案待同步",
+      saveConflict: "答案版本冲突，请重新接管",
+      resolveSaveConflict: "重新登录并接管",
       submitExam: "交卷",
     });
   });

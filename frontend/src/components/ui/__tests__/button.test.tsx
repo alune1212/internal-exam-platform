@@ -41,4 +41,13 @@ describe("Button", () => {
     const link = screen.getByRole("link", { name: "链接" });
     expect(link.className).toContain("rounded-pill");
   });
+
+  it("guards pending actions and exposes busy state", () => {
+    render(<Button pending>保存</Button>);
+    const button = screen.getByRole("button", { name: "保存" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button).toHaveAttribute("data-pending");
+    expect(button).toHaveAttribute("data-state", "pending");
+  });
 });

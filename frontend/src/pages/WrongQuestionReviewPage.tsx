@@ -5,8 +5,11 @@ import { Link, useOutletContext } from "react-router-dom";
 
 import { getWrongPracticeQuestions } from "@/api/questions";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageShell, PageStaleNotice, PageState } from "@/components/page";
+import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 type MasteryFilter = "all" | "mastered" | "learning";
 
@@ -32,7 +35,7 @@ export function WrongQuestionReviewPage() {
 
   if (!candidate) {
     return (
-      <PageShell className="mx-auto max-w-3xl py-12">
+      <PageShell density="calm" className="mx-auto max-w-3xl py-12">
         <PageState
           state="notLoggedIn"
           title="请先登录。"
@@ -43,52 +46,58 @@ export function WrongQuestionReviewPage() {
   }
 
   return (
-    <PageShell stagger className="max-w-4xl">
-      <header className="flex flex-col gap-4 border-b border-hairline pb-5">
-        <Button asChild variant="ghost" className="self-start">
-          <Link to="/practice">
-            <ArrowLeft data-icon="inline-start" />
-            返回练习
-          </Link>
-        </Button>
-        <div>
-          <p className="text-caption uppercase tracking-[0.18em] text-muted">WRONG · 错题复习</p>
-          <h1 className="mt-2 font-display text-display-lg font-semibold text-ink">错题复习</h1>
-          <p className="mt-2 text-body text-muted">
-            历史错误不会删除；最后一次答对后标记为已掌握。
-          </p>
-        </div>
+    <PageShell density="calm" stagger className="max-w-4xl" data-testid="wrong-review-shell">
+      <PageHeader
+        title="错题复习"
+        description="历史错误不会删除；最后一次答对后标记为已掌握。"
+        actions={
+          <Button asChild variant="ghost">
+            <Link to="/practice">
+              <ArrowLeft data-icon="inline-start" />
+              返回练习
+            </Link>
+          </Button>
+        }
+      />
+
+      <PageSection variant="panel" aria-labelledby="wrong-review-filters-title">
+        <h2
+          id="wrong-review-filters-title"
+          className="min-w-0 break-words font-display text-display-sm font-semibold text-ink"
+        >
+          筛选错题
+        </h2>
         <div className="grid gap-3 sm:grid-cols-3" aria-label="错题筛选">
-          <label className="flex flex-col gap-1 text-body-sm text-muted">
-            一级分类
-            <input
-              className="rounded-md border border-hairline bg-canvas px-3 py-2 text-ink"
+          <Field>
+            <FieldLabel htmlFor="wrong-category-1">一级分类</FieldLabel>
+            <Input
+              id="wrong-category-1"
               value={category1}
               onChange={(event) => setCategory1(event.target.value)}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-body-sm text-muted">
-            二级分类
-            <input
-              className="rounded-md border border-hairline bg-canvas px-3 py-2 text-ink"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="wrong-category-2">二级分类</FieldLabel>
+            <Input
+              id="wrong-category-2"
               value={category2}
               onChange={(event) => setCategory2(event.target.value)}
             />
-          </label>
-          <label className="flex flex-col gap-1 text-body-sm text-muted">
-            掌握状态
-            <select
-              className="rounded-md border border-hairline bg-canvas px-3 py-2 text-ink"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="wrong-mastery">掌握状态</FieldLabel>
+            <Select
+              id="wrong-mastery"
               value={mastery}
               onChange={(event) => setMastery(event.target.value as MasteryFilter)}
             >
               <option value="all">全部</option>
               <option value="learning">待巩固</option>
               <option value="mastered">已掌握</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
         </div>
-      </header>
+      </PageSection>
 
       {hasStaleError ? (
         <PageStaleNotice
@@ -113,7 +122,7 @@ export function WrongQuestionReviewPage() {
           description="完成练习后，答错的题目会出现在这里。"
         />
       ) : null}
-      <div className="flex flex-col gap-5">
+      <PageSection variant="plain" aria-label="错题列表">
         {questions.map((item) => (
           <article
             key={item.question_id}
@@ -127,7 +136,7 @@ export function WrongQuestionReviewPage() {
                 错 {item.incorrect_count} 次 · 共练习 {item.total_attempts} 次
               </span>
             </div>
-            <h2 className="mt-3 font-display text-display-sm font-semibold text-ink">
+            <h2 className="mt-3 min-w-0 break-words font-display text-display-sm font-semibold text-ink">
               {item.stem}
             </h2>
             <p className="mt-3 text-body text-ink">正确答案：{item.correct_answer}</p>
@@ -154,7 +163,7 @@ export function WrongQuestionReviewPage() {
             </div>
           </article>
         ))}
-      </div>
+      </PageSection>
     </PageShell>
   );
 }

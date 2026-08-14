@@ -1,5 +1,8 @@
 import type { Exam } from "@/types/exam";
 
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
+
 type ExamReportFilterProps = {
   exams: Exam[];
   value: string | null;
@@ -8,10 +11,10 @@ type ExamReportFilterProps = {
 
 export function ExamReportFilter({ exams, value, onChange }: ExamReportFilterProps) {
   return (
-    <label className="flex min-w-56 flex-col gap-2 text-caption uppercase tracking-[0.16em] text-muted">
-      考试
-      <select
-        className="h-10 rounded-md border border-hairline bg-canvas px-3 text-body normal-case tracking-normal text-ink"
+    <Field className="min-w-56">
+      <FieldLabel htmlFor="exam-report-filter">考试</FieldLabel>
+      <Select
+        id="exam-report-filter"
         value={value ?? "all"}
         onChange={(event) => onChange(event.target.value === "all" ? null : event.target.value)}
       >
@@ -21,7 +24,7 @@ export function ExamReportFilter({ exams, value, onChange }: ExamReportFilterPro
             {exam.title}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+    </Field>
   );
 }

@@ -39,6 +39,10 @@ type SimpleDataTableProps<TData> = {
   renderMobileRow?: (row: Row<TData>) => ReactNode;
 };
 
+// Dense tables remain readable up to seven columns; wider datasets use the
+// card renderer even on desktop so an admin rail cannot force page overflow.
+const TABLE_COLUMN_LIMIT = 7;
+
 function defaultMobileCardClassName(): string {
   return "rounded-md border border-hairline bg-canvas p-4 shadow-card";
 }
@@ -64,8 +68,10 @@ function defaultMobileRow<TData>(row: Row<TData>): ReactNode {
               priority === "primary" && "font-display text-lg font-semibold",
             )}
           >
-            <span className="text-caption uppercase tracking-[0.16em] text-muted">{label}</span>
-            <span className="text-right">{value}</span>
+            <span className="min-w-0 break-words text-caption uppercase tracking-[0.16em] text-muted">
+              {label}
+            </span>
+            <span className="min-w-0 break-words text-right">{value}</span>
           </div>
         );
       })}
@@ -82,7 +88,10 @@ export function SimpleDataTable<TData>({
   mobileRowClassName,
   renderMobileRow,
 }: SimpleDataTableProps<TData>) {
-  const isDesktop = useMediaQuery(MD.md);
+  // Keep the dense table for wide workbench layouts only. At tablet widths the
+  // surrounding admin rail and page gutters leave too little room for the
+  // action-heavy columns, so the same records use the compact card renderer.
+  const isDesktop = useMediaQuery(MD.lg);
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
@@ -92,6 +101,8 @@ export function SimpleDataTable<TData>({
       rowKey ? String(rowKey(row)) : String((row as { id?: number | string }).id ?? index),
   });
 
+  const isWideTable = table.getAllLeafColumns().length > TABLE_COLUMN_LIMIT;
+  const shouldRenderTable = isDesktop && !isWideTable;
   const tableRows = table.getRowModel().rows;
   const isEmpty = tableRows.length === 0;
   const renderRow = renderMobileRow ?? defaultMobileRow;
@@ -112,7 +123,7 @@ export function SimpleDataTable<TData>({
   );
 
   if (isEmpty) {
-    if (isDesktop) {
+    if (shouldRenderTable) {
       return (
         <Table>
           <TableBody>
@@ -127,13 +138,13 @@ export function SimpleDataTable<TData>({
     }
 
     return (
-      <div className="rounded-md border border-hairline bg-canvas p-6 text-center text-muted">
+      <div data-table-empty className="p-6 text-center text-muted">
         {emptyText}
       </div>
     );
   }
 
-  if (!isDesktop) {
+  if (!shouldRenderTable) {
     return <div className="flex flex-col gap-3">{mobileNodes}</div>;
   }
 

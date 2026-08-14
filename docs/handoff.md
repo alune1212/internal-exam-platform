@@ -307,6 +307,50 @@ This is historical local operating evidence for a temporary LAN address, not nor
 
 The user confirmed that the resent invitation arrived and contained the expected local link, completing task `12.5`. The change was then archived at `85/88` with explicit authorization to bypass the remaining `12.4`, `12.6`, and `12.8` gates. Its canonical archived path is `openspec/changes/archive/2026-08-12-open-email-registration-with-invited-exams/`; the unchecked tasks remain visible there and are treated as waived or deferred, not passed.
 
+## Frontend Visual System Implementation Verification (2026-08-14)
+
+The active OpenSpec change `unify-frontend-visual-system` was implemented as a
+frontend-only visual-system hardening pass. It retains the Academic Editorial
+direction while defining Candidate Calm, Admin Workbench, Exam Focus, and
+chrome-free Auth Canvas compositions. `frontend/DESIGN.md` is now the canonical
+human-readable contract for the live CSS tokens, offline-safe font stacks,
+surface ownership, state language, navigation, motion, accessibility, and
+responsive acceptance rules.
+
+Observed final engineering gates:
+
+- `npm run format:check`, `npm run lint`, `npm run build`, and
+  `npm run check:offline` passed from `frontend/`; the offline check reported
+  `external_runtime_references=0`.
+- Vitest passed `80/80` files and `430/430` tests.
+- `sh ops/e2e/run-browser-gate.sh` passed `161/161` Playwright tests: six
+  formal desktop flows, one formal mobile flow, and 154 deterministic visual
+  system cases in the `chromium-visual-system` project.
+- The rendered matrix covered 320x844, 375x812, 414x896, 430x932, 768x1024,
+  and 1280x900, plus 844x390 and 896x414 landscape checks, reduced motion, and
+  a 200-percent zoom spot check. It exercised candidate/auth/admin/focus
+  layouts, grouped navigation, mobile Sheets, heading order, visible focus,
+  action reachability, stale data, and saved/saving/offline/conflict/submitted
+  states with root clipping disabled during overflow assertions.
+- The rendered gate exposed and verified fixes for a 768px roster-table
+  overflow and a wide learning-report overflow. `SimpleDataTable` now uses
+  cards below the wide-layout breakpoint and keeps tables with more than seven
+  columns in the card renderer instead of hiding overflow.
+- Static scans found the only raw `<select>` in the shared native Select
+  primitive; no production italic class, legacy HSL token, independent
+  768/1024 media literal, or numeric z-index utility remains. Raw visual colors
+  are limited to the canonical `index.css` tokens and the documented
+  data-derived avatar palette exception. Admin `stagger` call-site props remain
+  inert because `PageShell` only emits `data-stagger` for its governed calm
+  orientation density.
+
+The browser artifacts under `.runtime/e2e/browser-output/` are disposable
+Chromium engineering evidence and are not committed. They do not constitute
+formal Mac/Windows host acceptance, Safari/iOS/Android acceptance, real-device
+UAT, or a production promotion decision. This change did not modify backend
+endpoints, API payloads, route definitions, authentication, exam snapshots,
+scoring, deadlines, retake, polling, or auto-submit semantics.
+
 ## Known Gaps
 
 - The local real-SMTP UAT is complete, but real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, the formal-host SMTP rerun, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.

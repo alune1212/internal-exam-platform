@@ -1,6 +1,9 @@
 export { ChapterNumber } from "./ChapterNumber";
 export type { ChapterNumberProps } from "./ChapterNumber";
 
+export { ContextLabel } from "./ContextLabel";
+export type { ContextLabelProps } from "./ContextLabel";
+
 export { NamePlate } from "./NamePlate";
 export type { NamePlateCandidate, NamePlateProps } from "./NamePlate";
 

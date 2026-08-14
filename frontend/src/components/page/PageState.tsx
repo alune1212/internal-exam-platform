@@ -29,6 +29,11 @@ export interface PageStateProps extends React.HTMLAttributes<HTMLDivElement> {
   rows?: number;
   skeletonVariant?: "default" | "page" | "table" | "card";
   showLoadingCaption?: boolean;
+  /**
+   * Use `inherit` when the state is already contained by a PageSection. This
+   * keeps the parent as the only border/background/shadow owner.
+   */
+  surface?: "standalone" | "inherit";
 }
 
 const stateTone: Record<PageStateKind, EmptyStateTone> = {
@@ -52,6 +57,7 @@ export function PageState({
   rows = 4,
   skeletonVariant = "page",
   showLoadingCaption = true,
+  surface = "standalone",
   className,
   ...props
 }: PageStateProps) {
@@ -60,11 +66,17 @@ export function PageState({
       rows,
       variant: skeletonVariant,
       showCaption: showLoadingCaption,
-      className: cn("rounded-lg border border-hairline bg-canvas shadow-card", className),
+      className: cn(
+        surface === "standalone"
+          ? "rounded-lg border border-hairline bg-canvas shadow-card"
+          : "bg-transparent",
+        className,
+      ),
     });
 
     return React.cloneElement(skeleton, {
       ...props,
+      "data-state-surface": surface,
       role: "status",
       "aria-live": "polite",
       "aria-busy": true,
@@ -81,7 +93,8 @@ export function PageState({
       action={resolvedAction}
       secondaryAction={secondaryAction}
       tone={stateTone[state]}
-      className={className}
+      className={cn(surface === "inherit" && "bg-transparent", className)}
+      data-state-surface={surface}
       {...props}
     />
   );

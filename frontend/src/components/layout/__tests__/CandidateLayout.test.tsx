@@ -24,6 +24,20 @@ const mockCandidate = {
 const supportedUserAgent =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36";
 
+function mockMediaQuery(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
+
 function renderCandidateShell(initialEntry: string) {
   const router = createMemoryRouter(
     [
@@ -32,6 +46,7 @@ function renderCandidateShell(initialEntry: string) {
         element: <CandidateLayout />,
         children: [
           { path: "login", element: <LoginPage /> },
+          { path: "register", element: <div>注册页</div> },
           { path: "exams", element: <div>考试列表</div> },
         ],
       },
@@ -96,9 +111,18 @@ describe("CandidateLayout", () => {
     renderCandidateShell("/login");
 
     expect(screen.getByRole("heading", { name: "邮箱登录" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "学习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "练习" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "考试" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+
+  it("keeps the registration route in the same chrome-free auth canvas", () => {
+    renderCandidateShell("/register");
+
+    expect(screen.getByText("注册页")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
   });
 
@@ -108,6 +132,19 @@ describe("CandidateLayout", () => {
 
     expect(screen.getByText("考试列表")).toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+  });
+
+  it("locks Candidate Calm to candidate navigation without admin or focus chrome", () => {
+    mockMediaQuery(true);
+    setCurrentCandidate(mockCandidate);
+    renderCandidateShell("/exams");
+
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("href", "/learning");
+    expect(screen.getByRole("link", { name: "练习" })).toHaveAttribute("href", "/practice");
+    expect(screen.getByRole("link", { name: "考试" })).toHaveAttribute("href", "/exams");
+    expect(screen.queryByRole("link", { name: "仪表盘" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "题号导航" })).not.toBeInTheDocument();
   });
 
   it("returns to login when a candidate session is cleared after unauthorized API response", async () => {

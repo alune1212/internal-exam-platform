@@ -67,15 +67,17 @@ export function ExamNavigator({
     <section
       aria-label="题号导航"
       className={cn(
-        "flex flex-col gap-4",
+        "flex min-w-0 flex-col gap-4",
         desktopLayout &&
           "max-h-[calc(100vh-7rem)] rounded-lg border border-hairline bg-surface-card p-5 shadow-card",
         sheetLayout && "bg-canvas p-5",
         className,
       )}
     >
-      <header className="flex items-baseline justify-between border-b border-hairline pb-3">
-        <h3 className="font-display text-display-sm font-semibold text-ink">题号导航</h3>
+      <header className="flex min-w-0 items-baseline justify-between gap-3 border-b border-hairline pb-3">
+        <h3 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink">
+          题号导航
+        </h3>
         <span className="text-caption uppercase tracking-[0.16em] text-muted">
           共 {items.length} 题
         </span>
@@ -86,9 +88,9 @@ export function ExamNavigator({
         className="flex min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain p-1"
       >
         {groups.map((group) => (
-          <div key={group.type} className="flex flex-col gap-2">
+          <div key={group.type} className="flex min-w-0 flex-col gap-2">
             <div className="flex items-baseline justify-between">
-              <span className="font-display text-caption italic tracking-[0.18em] text-muted">
+              <span className="break-words font-display text-caption tracking-[0.18em] text-muted">
                 {getQuestionTypeLabel(group.type)}
               </span>
               <span className="text-body-sm text-muted">{group.items.length} 题</span>

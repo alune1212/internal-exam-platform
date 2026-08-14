@@ -255,6 +255,7 @@ export function ExamTakingPage() {
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="notStarted"
+            surface="inherit"
             eyebrow={candidatePageCopy.notStarted}
             title="未开始考试。"
             description="请从考试列表进入并阅读规则。"
@@ -280,10 +281,11 @@ export function ExamTakingPage() {
       <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           {takeoverPending ? (
-            <PageState state="loading" rows={3} className="py-0" />
+            <PageState state="loading" surface="inherit" rows={3} className="py-0" />
           ) : (
             <PageState
               state="error"
+              surface="inherit"
               eyebrow="DEVICE SESSION · 设备会话"
               title="需要重新核验并接管考试。"
               description={takeoverMessage}
@@ -305,7 +307,7 @@ export function ExamTakingPage() {
   if (isLoading) {
     return (
       <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <PageState state="loading" rows={4} className="bg-surface-card p-8" />
+        <PageState state="loading" rows={4} />
       </PageShell>
     );
   }
@@ -320,6 +322,7 @@ export function ExamTakingPage() {
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="error"
+            surface="inherit"
             eyebrow={candidatePageCopy.error}
             title={isDeviceConflict ? "考试设备会话已失效。" : "考试加载失败。"}
             description={getErrorMessage(attemptError, "请确认考试仍在开放时间内，并稍后重试。")}
@@ -360,6 +363,7 @@ export function ExamTakingPage() {
         <div className="rounded-lg border border-hairline bg-surface-card p-8">
           <PageState
             state="submitted"
+            surface="inherit"
             eyebrow={candidatePageCopy.submitted}
             title="考试已交卷。"
             description="你可以前往结果页查看本次交卷记录。"

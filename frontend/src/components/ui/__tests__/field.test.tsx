@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "../field";
@@ -34,5 +34,60 @@ describe("Field", () => {
     const field = screen.getByText("已发布").closest("[data-slot='field']");
     expect(field?.className).toContain("md:flex-row");
     expect(field).toHaveAttribute("data-disabled");
+  });
+
+  it("associates generated descriptions and errors with its control", async () => {
+    render(
+      <Field invalid>
+        <FieldLabel>考试名称</FieldLabel>
+        <Input />
+        <FieldDescription>用于考生端展示。</FieldDescription>
+        <FieldError>请输入考试名称</FieldError>
+      </Field>,
+    );
+
+    const input = screen.getByRole("textbox", { name: "考试名称" });
+    const description = screen.getByText("用于考生端展示。");
+    const error = screen.getByRole("alert");
+
+    expect(screen.getByText("考试名称")).toHaveAttribute("for", input.id);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() =>
+      expect(input).toHaveAttribute(
+        "aria-describedby",
+        expect.stringContaining(description.getAttribute("id") ?? ""),
+      ),
+    );
+    expect(input).toHaveAttribute(
+      "aria-describedby",
+      expect.stringContaining(error.getAttribute("id") ?? ""),
+    );
+    expect(screen.getByText("考试名称").closest("[data-slot='field']")).toHaveAttribute(
+      "data-invalid",
+    );
+  });
+
+  it("propagates pending and success state semantics to native controls", () => {
+    const { rerender } = render(
+      <Field state="pending">
+        <FieldLabel>状态</FieldLabel>
+        <Input />
+      </Field>,
+    );
+
+    const pendingInput = screen.getByRole("textbox", { name: "状态" });
+    expect(pendingInput).toBeDisabled();
+    expect(pendingInput).toHaveAttribute("aria-busy", "true");
+    expect(pendingInput).toHaveAttribute("data-state", "pending");
+
+    rerender(
+      <Field state="success">
+        <FieldLabel>状态</FieldLabel>
+        <Input />
+      </Field>,
+    );
+
+    expect(screen.getByRole("textbox", { name: "状态" })).toHaveAttribute("data-state", "success");
+    expect(screen.getByRole("textbox", { name: "状态" })).toHaveAttribute("data-success");
   });
 });

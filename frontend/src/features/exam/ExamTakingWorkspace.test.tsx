@@ -16,7 +16,11 @@ const navItems: QuestionNavItem[] = [
   },
 ];
 
-function renderWorkspace(saveStatus: SaveStatus = "saved", liveAnnouncement?: string) {
+function renderWorkspace(
+  saveStatus: SaveStatus = "saved",
+  liveAnnouncement?: string,
+  options: { submitPending?: boolean; submitErrorVisible?: boolean } = {},
+) {
   return render(
     <ExamTakingWorkspace
       activeIndex={0}
@@ -33,8 +37,8 @@ function renderWorkspace(saveStatus: SaveStatus = "saved", liveAnnouncement?: st
       isLastQuestion
       saveStatus={saveStatus}
       hasUnsynchronizedWork={saveStatus !== "saved"}
-      submitPending={false}
-      submitErrorVisible={false}
+      submitPending={options.submitPending ?? false}
+      submitErrorVisible={options.submitErrorVisible ?? false}
       onSelectOption={vi.fn()}
       onPrev={vi.fn()}
       onSave={vi.fn()}
@@ -49,6 +53,41 @@ function renderWorkspace(saveStatus: SaveStatus = "saved", liveAnnouncement?: st
 }
 
 describe("ExamTakingWorkspace live persistence status", () => {
+  it("keeps each persistence state visible and actionable", () => {
+    const expectedLabels: Array<[SaveStatus, string]> = [
+      ["pending", "待保存"],
+      ["saving", "正在保存"],
+      ["saved", "已保存"],
+      ["offline", "网络中断，答案待同步"],
+      ["conflict", "答案版本冲突，请重新接管"],
+      ["error", "保存失败"],
+    ];
+
+    for (const [status, label] of expectedLabels) {
+      const view = renderWorkspace(status);
+      expect(screen.getByTestId("exam-save-status")).toHaveTextContent(label);
+      if (status === "conflict") {
+        expect(screen.getByRole("button", { name: "重新登录并接管" })).toBeInTheDocument();
+      }
+      if (status === "offline" || status === "error") {
+        expect(screen.getByRole("button", { name: "重试保存" })).toBeInTheDocument();
+      }
+      view.unmount();
+    }
+
+    const pendingSubmit = renderWorkspace("saved", undefined, { submitPending: true });
+    const pendingSubmitButtons = screen.getAllByRole("button", { name: "正在交卷" });
+    expect(pendingSubmitButtons.length).toBeGreaterThanOrEqual(2);
+    pendingSubmitButtons.forEach((button) => {
+      expect(button).toBeDisabled();
+    });
+    pendingSubmit.unmount();
+
+    renderWorkspace("saved", undefined, { submitErrorVisible: true });
+    expect(screen.getAllByText(/交卷失败，请先确认答案已同步并重试/)).not.toHaveLength(0);
+    expect(screen.getByRole("alert")).toHaveTextContent(/交卷失败/);
+  });
+
   it("announces save, offline, conflict, and automatic-submit transitions concisely", async () => {
     const view = renderWorkspace();
 

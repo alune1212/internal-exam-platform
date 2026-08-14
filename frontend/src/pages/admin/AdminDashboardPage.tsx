@@ -4,7 +4,6 @@ import { getAdminExams } from "@/api/exams";
 import { getAdminQuestions } from "@/api/questions";
 import { getAbsentCandidates, getScoreReport } from "@/api/reports";
 import { MetricCard } from "@/components/admin/MetricCard";
-import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -54,7 +53,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
       <span className={cn("size-1.5 rounded-pill", TONE_DOT[item.tone])} aria-hidden="true" />
       <div className="flex flex-1 flex-col gap-1">
         <span className="text-body font-medium text-ink">{item.title}</span>
-        <span className="text-caption italic text-muted">{item.caption}</span>
+        <span className="text-caption text-muted">{item.caption}</span>
       </div>
       {activityTime.dateTime ? (
         <time className="shrink-0 text-caption text-muted" dateTime={activityTime.dateTime}>
@@ -133,10 +132,13 @@ export function AdminDashboardPage() {
   return (
     <PageShell data-testid="admin-dashboard-shell" density="workbench" width="full" stagger>
       <PageHeader
-        eyebrow={adminPageCopy.overview}
-        title={hasMetricError ? "部分数据暂不可用。" : "一切就绪。"}
+        title="仪表盘"
         description={`最近一次刷新 · ${new Date().toLocaleString("zh-CN")}`}
-      />
+      >
+        <p className="text-body-sm text-muted" role="status">
+          {hasMetricError ? "部分数据暂不可用，详见下方提示。" : "关键数据已就绪。"}
+        </p>
+      </PageHeader>
 
       {hasStaleData ? (
         <PageStaleNotice
@@ -194,14 +196,23 @@ export function AdminDashboardPage() {
 
       <PageSection variant="card" className="gap-4">
         <header className="flex flex-col gap-1">
-          <p className="text-caption uppercase tracking-[0.16em] text-muted">ACTIVITY · 最近活动</p>
-          <h2 className="font-display text-display-sm font-semibold text-ink">交卷与未开始</h2>
+          <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink">
+            最近活动
+          </h2>
+          <p className="text-body-sm text-muted">交卷与未开始</p>
         </header>
         {scores.isLoading || absent.isLoading ? (
-          <ContentSkeleton rows={3} className="p-0" />
+          <PageState
+            state="loading"
+            surface="inherit"
+            rows={3}
+            showLoadingCaption={false}
+            className="p-0"
+          />
         ) : activityUnavailable ? (
           <PageState
             state="error"
+            surface="inherit"
             eyebrow={adminPageCopy.error}
             title="最近活动加载失败。"
             description="请稍后重试，或检查成绩与参考状态接口。"
@@ -217,6 +228,7 @@ export function AdminDashboardPage() {
         ) : (
           <PageState
             state="empty"
+            surface="inherit"
             eyebrow={adminPageCopy.empty}
             title="暂无活动记录。"
             description="当有人交卷或参考状态变化后，最近活动会显示在这里。"

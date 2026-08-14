@@ -59,5 +59,11 @@ describe("Dialog", () => {
     const content = await screen.findByTestId("dc");
     expect(content.className).toContain("rounded-lg");
     expect(content.className).toContain("shadow-pop");
+    expect(content).toHaveClass("z-modal", "duration-normal", "ease-standard");
+    expect(document.querySelector(".z-overlay")).toHaveClass(
+      "z-overlay",
+      "duration-normal",
+      "ease-standard",
+    );
   });
 });
