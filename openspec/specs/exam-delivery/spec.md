@@ -3,9 +3,7 @@
 ## Purpose
 
 Exam delivery covers exam publishing, fixed-paper generation, attempt snapshots, answer persistence, submit behavior, auto-submit, and retake grants.
-
 ## Requirements
-
 ### Requirement: Publish Freezes Exam Question Pool
 The system SHALL freeze the current active question bank into exam_question_pool when an existing draft exam becomes active, and SHALL reject direct active exam creation before persistence.
 
@@ -99,3 +97,28 @@ The system MUST make auto-submit worker health observable and SHALL safely catch
 - **GIVEN** an attempt was manually submitted or processed by another worker before recovery processing reaches it
 - **WHEN** the recovered worker evaluates that attempt
 - **THEN** it does not submit or score the completed attempt again
+
+### Requirement: Serialized Attempt Start And Archive Transition
+The system MUST serialize a candidate's attempt-start decision with an administrator's transition of the same exam from active to archived. Once the archive transition commits, no new attempt may be created for that exam, and an exam with any in-progress attempt MUST NOT be archived.
+
+#### Scenario: Archive commits before start reaches the lifecycle decision
+- **GIVEN** a candidate has observed an active exam but has not created an attempt
+- **WHEN** an administrator archives the exam before the start transaction obtains the shared lifecycle decision
+- **THEN** the start operation reloads the exam state and rejects the request
+- **AND** no attempt or attempt-question snapshot is created
+
+#### Scenario: Start commits before archive reaches the lifecycle decision
+- **WHEN** a valid start transaction obtains the shared lifecycle decision and creates an in-progress attempt before an archive request
+- **THEN** the archive operation observes the in-progress attempt and rejects the transition
+- **AND** the created attempt remains resumable under the existing snapshot and deadline rules
+
+#### Scenario: Exam has no in-progress attempts
+- **GIVEN** an active exam has no in-progress attempt
+- **WHEN** an authorized administrator archives it
+- **THEN** the transition commits under the existing admin writer gate
+- **AND** subsequent start requests are rejected as inactive
+
+#### Scenario: Concurrent starts remain idempotent
+- **WHEN** two valid start requests for the same scoped candidate race while the exam remains active
+- **THEN** at most one in-progress attempt is stored
+- **AND** both successful responses resolve to the same resumable attempt under the existing uniqueness contract
