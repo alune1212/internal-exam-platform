@@ -11,6 +11,22 @@ describe("OptionCard", () => {
     expect(screen.getByText("Beijing")).toBeInTheDocument();
   });
 
+  it("keeps long unbroken option content inside the available row width", () => {
+    render(
+      <OptionCard
+        label="A"
+        content="long-unbroken-option-content-identifier-2026"
+        selected={false}
+        onSelect={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("long-unbroken-option-content-identifier-2026")).toHaveClass(
+      "min-w-0",
+      "break-words",
+    );
+  });
+
   it("centers the option label without caption letter spacing", () => {
     render(<OptionCard label="A" content="Beijing" selected={false} onSelect={() => undefined} />);
 
@@ -54,6 +70,26 @@ describe("OptionCard", () => {
     expect(screen.getByRole("checkbox")).toHaveAttribute("aria-checked", "true");
   });
 
+  it("keeps one radio tab stop and moves selection with arrow keys", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <div role="radiogroup" aria-label="题目选项">
+        <OptionCard label="A" content="北京" selected={false} onSelect={onSelect} />
+        <OptionCard label="B" content="上海" selected={false} onSelect={onSelect} />
+        <OptionCard label="C" content="广州" selected={false} onSelect={onSelect} />
+      </div>,
+    );
+
+    const radios = screen.getAllByRole("radio");
+    expect(radios.filter((radio) => radio.tabIndex === 0)).toHaveLength(1);
+
+    radios[0].focus();
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(radios[1]);
+    expect(onSelect).toHaveBeenCalledWith("B");
+  });
+
   it("calls onSelect with the label exactly once on click", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
@@ -61,6 +97,27 @@ describe("OptionCard", () => {
     await user.click(screen.getByRole("radio"));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith("B");
+  });
+
+  it("retains checkbox semantics and keyboard toggling for multiple-choice options", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <OptionCard
+        label="C"
+        content="广州"
+        selected={false}
+        selectionRole="checkbox"
+        questionType="multiple"
+        onSelect={onSelect}
+      />,
+    );
+
+    const checkbox = screen.getByRole("checkbox");
+    checkbox.focus();
+    await user.keyboard(" ");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith("C");
   });
 
   describe("questionType visual variants", () => {

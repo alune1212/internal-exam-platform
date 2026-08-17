@@ -57,7 +57,12 @@ describe("AdminDashboardPage", () => {
         .getByRole("heading", { level: 1, name: "仪表盘" })
         .compareDocumentPosition(screen.getByRole("heading", { level: 2, name: "最近活动" })),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(await screen.findByText("STATE · 空状态")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "暂无活动记录。" })).toBeInTheDocument();
+    expect(screen.getByTestId("admin-dashboard-shell")).toHaveAttribute("data-width", "wide");
+    expect(screen.getByTestId("admin-dashboard-shell")).not.toHaveClass("lg:grid-cols-4");
+    expect(screen.getByTestId("admin-dashboard-shell")).toContainElement(
+      screen.getByTestId("admin-dashboard-shell").querySelector("[data-dashboard-activity]")!,
+    );
   });
 
   it("keeps activity heading typography within the design system tracking scale", () => {

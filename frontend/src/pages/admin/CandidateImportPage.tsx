@@ -6,7 +6,7 @@ import { useParams } from "react-router-dom";
 import { getErrorMessage } from "@/api/client";
 import { downloadImportFailureReport, importCandidates } from "@/api/imports";
 import { ImportPanel } from "@/components/admin/ImportPanel";
-import { PageHeader, PageSection, PageShell } from "@/components/page";
+import { PageActions, PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -39,7 +39,7 @@ export function CandidateImportPage() {
   };
 
   return (
-    <PageShell data-testid="candidate-import-shell" density="workbench" width="default" stagger>
+    <PageShell data-testid="candidate-import-shell" density="workbench" width="standard">
       <PageHeader
         eyebrow={adminPageCopy.roster}
         title={adminPageText.roster.importTitle}
@@ -65,22 +65,23 @@ export function CandidateImportPage() {
       ) : null}
 
       {mutation.data ? (
-        <PageSection variant="card" className="gap-3 p-6">
+        <PageSection variant="summary" className="gap-3">
           <p className="text-body text-ink">
             成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
             <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
           </p>
           {mutation.data.failed_count > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => void handleDownloadFailureReport(mutation.data.batch_id)}
-            >
-              <Download data-icon="inline-start" />
-              下载失败明细
-            </Button>
+            <PageActions placement="card" aria-label="失败明细操作">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleDownloadFailureReport(mutation.data.batch_id)}
+              >
+                <Download data-icon="inline-start" />
+                下载失败明细
+              </Button>
+            </PageActions>
           ) : null}
           {mutation.data.failures.length ? (
             <>

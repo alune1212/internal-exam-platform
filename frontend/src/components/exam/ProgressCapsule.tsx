@@ -26,7 +26,7 @@ export function ProgressCapsule({
       role="status"
       aria-label={`进度：第 ${current} 题，共 ${total} 题，已答 ${answered} 题`}
       className={cn(
-        "inline-flex items-center gap-3 rounded-pill border px-4 py-2 font-mono text-caption uppercase tabular-nums",
+        "inline-flex items-center gap-3 rounded-pill border px-4 py-2 font-mono text-status font-status tabular-nums",
         isDark ? "border-footer bg-footer text-canvas" : "border-hairline bg-canvas text-ink",
         className,
       )}

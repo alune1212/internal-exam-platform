@@ -163,6 +163,43 @@ describe("design token ownership", () => {
       "z-overlay",
       "z-modal",
       "z-toast",
+      "type-page-title-size",
+      "type-page-title-leading",
+      "type-page-title-weight",
+      "type-page-title-tracking",
+      "type-section-title-size",
+      "type-section-title-leading",
+      "type-subsection-title-size",
+      "type-nav-size",
+      "type-action-size",
+      "type-status-size",
+      "type-metric-size",
+      "type-question-size",
+      "type-table-label-size",
+      "page-frame-reading",
+      "page-frame-standard",
+      "page-frame-wide",
+      "page-frame-full",
+      "action-height",
+      "action-min-inline",
+      "exam-focus-touch-target",
+      "exam-focus-touch-target-min",
+      "control-surface",
+      "control-border",
+      "control-border-focus",
+      "control-border-invalid",
+      "control-border-success",
+      "overlay-viewport-height",
+      "overlay-viewport-max-height",
+      "overlay-viewport-padding-bottom",
+      "elevation-card",
+      "elevation-popover",
+      "elevation-focus",
+      "elevation-overlay",
+      "success-action-surface",
+      "success-action-surface-hover",
+      "success-action-foreground",
+      "success-action-foreground-on-dark",
     ];
 
     for (const tokenName of requiredTokenNames) {
@@ -173,6 +210,12 @@ describe("design token ownership", () => {
     expect(tailwindSource).toContain('"page-inline": "var(--space-page-inline)"');
     expect(tailwindSource).toContain('"var(--motion-duration-shimmer)"');
     expect(tailwindSource).toContain('content: "var(--z-content)"');
+    expect(tailwindSource).toContain('"page-reading": "var(--page-frame-reading)"');
+    expect(tailwindSource).toContain('"exam-focus-target": "var(--exam-focus-touch-target-min)"');
+    expect(tailwindSource).toContain('"var(--type-page-title-size)"');
+    expect(tailwindSource).toContain('"var(--overlay-viewport-max-height)"');
+    expect(tailwindSource).toContain('"var(--elevation-focus)"');
+    expect(tailwindSource).toContain('"success-action": "var(--success-action-surface)"');
   });
 
   it("keeps breakpoint consumers on the single typed map", () => {
@@ -192,6 +235,58 @@ describe("design token ownership", () => {
     expect(contrastRatio(cssColor("success"), cssColor("canvas"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(cssColor("error"), cssColor("canvas"))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(cssColor("canvas"), cssColor("footer"))).toBeGreaterThanOrEqual(15);
+  });
+
+  it("keeps status foreground, border, and success treatments readable on light and dark surfaces", () => {
+    const lightSurface = cssColor("status-success-surface");
+    const warningSurface = cssColor("status-warning-surface");
+    const errorSurface = cssColor("status-error-surface");
+    const darkSurface = cssColor("footer");
+
+    expect(
+      contrastRatio(cssColor("status-success-foreground"), lightSurface),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(cssColor("status-warning-foreground"), warningSurface),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(cssColor("status-error-foreground"), errorSurface)).toBeGreaterThanOrEqual(
+      4.5,
+    );
+    expect(
+      contrastRatio(cssColor("status-success-foreground-on-dark"), darkSurface),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(cssColor("status-warning-foreground-on-dark"), darkSurface),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(cssColor("status-error-foreground-on-dark"), darkSurface),
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(cssColor("status-success-border"), lightSurface)).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(contrastRatio(cssColor("status-warning-border"), warningSurface)).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(contrastRatio(cssColor("status-error-border"), errorSurface)).toBeGreaterThanOrEqual(3);
+    expect(
+      contrastRatio(cssColor("status-success-border-on-dark"), darkSurface),
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      contrastRatio(cssColor("status-warning-border-on-dark"), darkSurface),
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      contrastRatio(cssColor("status-error-border-on-dark"), darkSurface),
+    ).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(cssColor("canvas"), cssColor("success"))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(cssColor("success-on-dark"), darkSurface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("keeps status borders deterministic instead of relying on alpha modifiers", () => {
+    expect(tailwindSource).toContain('"var(--status-success-border)"');
+    expect(tailwindSource).toContain('"var(--status-error-border)"');
+    expect(tailwindSource).not.toMatch(/border-(?:success|error|warning)\/\d+/);
+    expect(cssSource).toContain("--status-success-border: #166534;");
+    expect(cssSource).toContain("--status-error-border: #b91c1c;");
   });
 
   it("keeps decorative assets and fonts offline-safe", () => {

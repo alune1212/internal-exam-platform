@@ -10,6 +10,7 @@ import type { CandidateSessionContext } from "@/components/layout/CandidateLayou
 import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
 import { candidateKeys } from "@/lib/queryKeys";
 import type { LearningProgressPayload, LearningVideoProgress } from "@/types/learning";
@@ -82,7 +83,7 @@ export function LearningVideoPage() {
 
   if (isLoading) {
     return (
-      <PageShell density="calm" width="wide" className="py-6">
+      <PageShell density="calm" width="wide">
         <PageHeader
           title={candidatePageText.learning.title}
           description={candidatePageText.learning.description}
@@ -96,7 +97,7 @@ export function LearningVideoPage() {
 
   if (!data || !progress) {
     return (
-      <PageShell density="calm" width="wide" className="py-6">
+      <PageShell density="calm" width="wide">
         <PageHeader
           title={candidatePageText.learning.title}
           description={candidatePageText.learning.description}
@@ -119,7 +120,7 @@ export function LearningVideoPage() {
   const completed = Boolean(progress.completed_at);
 
   return (
-    <PageShell density="calm" width="wide" className="py-6" data-testid="learning-video-shell">
+    <PageShell density="calm" width="wide" data-testid="learning-video-shell">
       {isError ? (
         <PageStaleNotice
           lastSuccessfulAt={dataUpdatedAt}
@@ -140,77 +141,97 @@ export function LearningVideoPage() {
         }
       />
 
-      <PageSection variant="card" className="gap-5">
-        <video
-          ref={videoRef}
-          className="aspect-video w-full rounded-md bg-black"
-          src={data.playback_url}
-          controls
-          preload="metadata"
-          playsInline
-          onLoadedMetadata={(event) => {
-            const element = event.currentTarget;
-            if (progress.last_position_seconds > 0 && element.currentTime === 0) {
-              element.currentTime = Math.min(progress.last_position_seconds, data.duration_seconds);
-            }
-          }}
-          onPlay={(event) => {
-            setIsPlaying(true);
-            watchedStartRef.current = Math.floor(event.currentTarget.currentTime);
-          }}
-          onSeeking={() => {
-            watchedStartRef.current = null;
-          }}
-          onSeeked={(event) => {
-            watchedStartRef.current = Math.floor(event.currentTarget.currentTime);
-          }}
-          onPause={() => {
-            setIsPlaying(false);
-            sendHeartbeat();
-          }}
-          onEnded={() => {
-            setIsPlaying(false);
-            sendHeartbeat();
-          }}
-        />
+      <PageSection variant="plain" aria-label="视频播放">
+        <Card surface="focus" className="flex min-w-0 flex-col gap-5 p-5 lg:p-7">
+          <video
+            ref={videoRef}
+            className="aspect-video w-full rounded-md bg-black"
+            src={data.playback_url}
+            controls
+            preload="metadata"
+            playsInline
+            onLoadedMetadata={(event) => {
+              const element = event.currentTarget;
+              if (progress.last_position_seconds > 0 && element.currentTime === 0) {
+                element.currentTime = Math.min(
+                  progress.last_position_seconds,
+                  data.duration_seconds,
+                );
+              }
+            }}
+            onPlay={(event) => {
+              setIsPlaying(true);
+              watchedStartRef.current = Math.floor(event.currentTarget.currentTime);
+            }}
+            onSeeking={() => {
+              watchedStartRef.current = null;
+            }}
+            onSeeked={(event) => {
+              watchedStartRef.current = Math.floor(event.currentTarget.currentTime);
+            }}
+            onPause={() => {
+              setIsPlaying(false);
+              sendHeartbeat();
+            }}
+            onEnded={() => {
+              setIsPlaying(false);
+              sendHeartbeat();
+            }}
+          />
 
-        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <StatusPill variant={completed ? "success" : "warning"}>
-                {completed
-                  ? candidatePageText.learning.completed
-                  : candidatePageText.learning.inProgress}
-              </StatusPill>
-              <span className="font-mono text-body-sm text-muted">
-                {progress.completion_percent}% / 90%
-              </span>
-              <span className="text-body-sm text-muted">
-                时长 {formatDuration(data.duration_seconds)}
-              </span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-pill bg-surface-card">
+          <div
+            className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center"
+            aria-busy={mutation.isPending}
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <StatusPill variant={completed ? "success" : "warning"}>
+                  {completed
+                    ? candidatePageText.learning.completed
+                    : candidatePageText.learning.inProgress}
+                </StatusPill>
+                <span className="font-mono text-body-sm text-muted">
+                  {progress.completion_percent}% / 90%
+                </span>
+                <span className="text-body-sm text-muted">
+                  时长 {formatDuration(data.duration_seconds)}
+                </span>
+                {mutation.isPending ? (
+                  <span role="status" aria-live="polite" className="text-body-sm text-muted">
+                    正在保存进度
+                  </span>
+                ) : null}
+              </div>
               <div
-                className="h-full rounded-pill bg-success"
-                style={{ width: `${Math.min(100, progress.completion_percent)}%` }}
-              />
+                className="h-2 overflow-hidden rounded-pill bg-surface-card"
+                role="progressbar"
+                aria-label={`${data.title} 完成度`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.min(100, progress.completion_percent)}
+              >
+                <div
+                  className="h-full rounded-pill bg-success"
+                  style={{ width: `${Math.min(100, progress.completion_percent)}%` }}
+                />
+              </div>
             </div>
+            {completed ? (
+              <span className="inline-flex items-center gap-2 text-body text-success">
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                已达到完成标准
+              </span>
+            ) : null}
           </div>
-          {completed ? (
-            <span className="inline-flex items-center gap-2 text-body text-success">
-              <CheckCircle2 className="size-4" aria-hidden="true" />
-              已达到完成标准
-            </span>
-          ) : null}
-        </div>
 
-        {mutation.isError ? (
-          <Alert variant="error">
-            <AlertDescription>
-              {getErrorMessage(mutation.error, "学习进度保存失败，请稍后重试。")}
-            </AlertDescription>
-          </Alert>
-        ) : null}
+          {mutation.isError ? (
+            <Alert variant="error">
+              <AlertDescription>
+                {getErrorMessage(mutation.error, "学习进度保存失败，请稍后重试。")}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </Card>
       </PageSection>
     </PageShell>
   );

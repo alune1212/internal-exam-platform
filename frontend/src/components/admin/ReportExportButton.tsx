@@ -10,12 +10,12 @@ export function ReportExportButton({ examId }: { examId?: string | null }) {
   const mutation = useMutation({ mutationFn: () => downloadReportExport(examId) });
 
   return (
-    <div className="flex flex-col items-start gap-2">
+    <div data-report-export="" className="flex min-w-0 flex-col items-stretch gap-2 sm:items-start">
       <Button
         type="button"
         size="sm"
         variant="outline"
-        disabled={mutation.isPending}
+        pending={mutation.isPending}
         onClick={() => mutation.mutate()}
       >
         <Download data-icon="inline-start" />

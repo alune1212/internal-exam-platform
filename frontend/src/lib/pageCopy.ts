@@ -1,23 +1,23 @@
 export const candidatePageCopy = {
-  login: "USER · 邮箱登录",
-  learning: "LEARNING · 学习",
-  practice: "PRACTICE · 练习",
-  exams: "EXAMS · 受邀考试",
-  examRules: "EXAM RULES · 考试说明",
-  result: "EXAM RESULT · 考试结果",
-  review: "REVIEW · 答题回顾",
-  notLoggedIn: "STATE · 未登录",
-  notStarted: "STATE · 未开始",
-  submitted: "STATE · 已交卷",
-  empty: "STATE · 空状态",
-  error: "STATE · 异常状态",
+  login: "邮箱登录",
+  learning: "学习",
+  practice: "练习",
+  exams: "受邀考试",
+  examRules: "考试说明",
+  result: "考试结果",
+  review: "答题回顾",
+  notLoggedIn: "未登录",
+  notStarted: "未开始",
+  submitted: "已交卷",
+  empty: "空状态",
+  error: "异常状态",
 } as const;
 
 export const candidatePageText = {
   login: {
     title: "邮箱登录",
     description: "输入邮箱获取验证码。首次登录时，验证邮箱并填写姓名即可创建账号。",
-    permissionNote: "登录后可进行学习、练习和错题复习；正式考试仅对受邀用户开放。",
+    permissionNote: "登录后可进行学习、练习和错题复习；正式考试仅对受邀的应考人员开放。",
     error: "请求失败，请稍后重试。如问题持续，请联系管理员。",
     otpSent: (maskedEmail: string, validityMinutes = 10) =>
       `验证码已发送至 ${maskedEmail}，${validityMinutes} 分钟内有效。请查看收件箱和垃圾邮件；倒计时结束后可重新发送。`,
@@ -32,10 +32,10 @@ export const candidatePageText = {
     title: "受邀考试",
     description: "已发布且受邀的考试会立即显示；开始前请确认开放时间和规则。",
     emptyTitle: "暂无受邀考试。",
-    emptyDescription: "正式考试仅对受邀用户开放；学习、练习和错题复习可随时使用。",
+    emptyDescription: "正式考试仅对受邀的应考人员开放；学习、练习和错题复习可随时使用。",
     errorTitle: "考试列表加载失败。",
     errorDescription: "请稍后重试，或联系管理员确认受邀考试状态。",
-    invited: "应考人员 · 已受邀",
+    invited: "已受邀",
     upcoming: "尚未开放",
     unavailable: "暂不可进入",
     available: "可以开始",
@@ -78,17 +78,17 @@ export const candidatePageText = {
 } as const;
 
 export const adminPageCopy = {
-  login: "ADMIN · 登录",
-  overview: "DASHBOARD · 仪表盘",
-  exams: "EXAMS · 考试",
-  participants: "PARTICIPANTS · 应考人员",
-  roster: "ROSTER · 应考名单",
-  library: "QUESTION BANK · 题库",
-  questionImport: "QUESTION IMPORT · 题库导入",
-  reports: "REPORTS · 报表",
-  learning: "LEARNING · 视频学习",
-  empty: "STATE · 空状态",
-  error: "STATE · 异常状态",
+  login: "登录",
+  overview: "仪表盘",
+  exams: "考试",
+  participants: "应考人员",
+  roster: "应考名单",
+  library: "题库",
+  questionImport: "题库导入",
+  reports: "报表",
+  learning: "视频学习",
+  empty: "空状态",
+  error: "异常状态",
 } as const;
 
 export const adminPageText = {
@@ -136,19 +136,41 @@ export const adminPageText = {
   },
   learning: {
     title: "视频学习",
-    description: "上传学习视频并查看考试人的观看完成情况。",
+    description: "上传学习视频并查看用户的观看完成情况。",
     reportTitle: "学习报表",
     reportDescription: "按视频和完成状态查看学习进度。",
   },
 } as const;
 
-export const productTerms = {
+/**
+ * Canonical product vocabulary used by visible copy and contract tests.
+ * `用户` names the authenticated person in general learning/practice flows;
+ * `应考人员` names an exam-scoped roster or authorization record.
+ */
+export const productGlossary = {
   user: "用户",
   examTaker: "应考人员",
   participant: "应考人员",
   roster: "应考名单",
   questionBank: "题库",
   questionBankImport: "题库导入",
+  saveAnswer: "保存答案",
+  submitExam: "交卷",
+  stayInExam: "留在考试",
+  leaveExam: "离开考试",
+  returnExamList: "返回考试列表",
+} as const;
+
+// Keep the established export name as a compatibility alias for consumers.
+export const productTerms = productGlossary;
+
+/**
+ * The only English terms permitted in ordinary visible product copy.
+ * Product names may remain bilingual; operational terms must add meaning.
+ */
+export const englishAllowlist = {
+  productNames: ["Internal Exam Platform"] as const,
+  operationalTerms: ["Excel", "ID", "OTP"] as const,
 } as const;
 
 export function formatAdminExamEditTitle(examId?: string | null) {
@@ -158,9 +180,9 @@ export function formatAdminExamEditTitle(examId?: string | null) {
 export const candidateActionCopy = {
   returnExamList: "返回考试列表",
   saveAnswer: "保存答案",
-  savingAnswer: "正在保存",
+  savingAnswer: "正在保存答案",
   savePending: "待保存",
-  savedAnswer: "已保存",
+  savedAnswer: "答案已保存",
   saveOffline: "网络中断，答案待同步",
   saveConflict: "答案版本冲突，请重新接管",
   saveFailed: "保存失败",
@@ -169,6 +191,10 @@ export const candidateActionCopy = {
   submitExam: "交卷",
   submittingExam: "正在交卷",
   submitFailed: "交卷失败",
+  stayInExam: "留在考试",
+  leaveExam: "离开考试",
+  leaveExamWarning: "离开考试可能丢失最近的作答。",
+  confirmLeaveExam: "仍要离开",
 } as const;
 
 export const candidateSaveAnnouncementCopy = {
@@ -211,117 +237,110 @@ export const importCopy = {
 } as const;
 
 export const adminTableCopy = {
-  id: "ID",
-  candidateId: "CID · 人员ID",
-  questionId: "QID · 题目ID",
-  title: "TITLE · 名称",
-  name: "NAME · 姓名",
-  employeeNo: "EMP NO · 工号",
-  department: "DEPT · 部门",
-  exam: "EXAM · 考试",
-  duration: "DURATION · 时长",
-  status: "STATUS · 状态",
-  video: "VIDEO · 视频",
-  videoStatus: "VIDEO STATUS · 视频状态",
-  progress: "PROGRESS · 完成度",
-  completedAt: "COMPLETED · 完成时间",
-  lastSeen: "LAST SEEN · 最近学习",
-  openWindow: "WINDOW · 开放时间",
-  questionPool: "POOL · 题池",
-  questionType: "TYPE · 题型",
-  stem: "STEM · 题干",
-  score: "SCORE · 得分",
-  totalScore: "TOTAL · 总分",
-  totalCount: "TOTAL · 总数",
-  correct: "CORRECT · 正确",
-  wrong: "WRONG · 错误",
-  rate: "RATE · 正确率",
-  category1: "CAT 1 · 一级分类",
-  category2: "CAT 2 · 二级分类",
-  group: "GROUP · 分组",
-  attempt: "ATTEMPT · 作答",
-  action: "ACTION · 操作",
+  id: "编号",
+  candidateId: "人员编号",
+  questionId: "题目编号",
+  title: "名称",
+  name: "姓名",
+  employeeNo: "工号",
+  department: "部门",
+  exam: "考试",
+  duration: "时长",
+  status: "状态",
+  video: "视频",
+  videoStatus: "视频状态",
+  progress: "完成度",
+  completedAt: "完成时间",
+  lastSeen: "最近学习",
+  openWindow: "开放时间",
+  questionPool: "题池",
+  questionType: "题型",
+  stem: "题干",
+  score: "得分",
+  totalScore: "总分",
+  totalCount: "总数",
+  correct: "正确",
+  wrong: "错误",
+  rate: "正确率",
+  category1: "一级分类",
+  category2: "二级分类",
+  group: "分组",
+  attempt: "作答",
+  action: "操作",
 } as const;
 
 const examStatusCopy: Record<string, string> = {
-  draft: "DRAFT · 草稿",
-  active: "PUBLISHED · 已发布",
-  live: "PUBLISHED · 已发布",
-  published: "PUBLISHED · 已发布",
-  archived: "ENDED · 已结束",
-  ended: "ENDED · 已结束",
+  draft: "草稿",
+  active: "已发布",
+  live: "已发布",
+  published: "已发布",
+  archived: "已结束",
+  ended: "已结束",
 };
 
 const examAvailabilityCopy: Record<string, string> = {
-  not_started: "NOT OPEN · 未开放",
-  open: "OPEN · 可进入",
-  ended: "ENDED · 已结束",
+  not_started: "未开放",
+  open: "可进入",
+  ended: "已结束",
 };
 
 const attemptStatusCopy: Record<string, string> = {
-  not_started: "NOT STARTED · 未开始",
-  in_progress: "IN PROGRESS · 进行中",
-  submitted: "SUBMITTED · 已交卷",
-  auto_submitted: "AUTO SUBMITTED · 自动交卷",
+  not_started: "未开始",
+  in_progress: "进行中",
+  submitted: "已交卷",
+  auto_submitted: "自动交卷",
 };
 
 const attemptKindCopy: Record<string, string> = {
-  initial: "INITIAL · 首次考试",
-  retake: "RETAKE · 补考",
+  initial: "首次考试",
+  retake: "补考",
 };
 
 const questionTypeCopy: Record<string, { label: string; shortLabel: string }> = {
-  single: { label: "SINGLE · 单选", shortLabel: "单选" },
-  multiple: { label: "MULTIPLE · 多选", shortLabel: "多选" },
-  judge: { label: "JUDGE · 判断", shortLabel: "判断" },
+  single: { label: "单选", shortLabel: "单选" },
+  multiple: { label: "多选", shortLabel: "多选" },
+  judge: { label: "判断", shortLabel: "判断" },
 };
 
 const questionStatusCopy: Record<string, string> = {
-  active: "ACTIVE · 启用",
-  inactive: "INACTIVE · 停用",
+  active: "启用",
+  inactive: "停用",
 };
 
 const learningVideoStatusCopy: Record<string, string> = {
-  draft: "DRAFT · 草稿",
-  published: "PUBLISHED · 已发布",
-  archived: "ARCHIVED · 已归档",
+  draft: "草稿",
+  published: "已发布",
+  archived: "已归档",
 };
 
 const learningCompletionCopy: Record<string, string> = {
-  not_started: "NOT STARTED · 未开始",
-  in_progress: "IN PROGRESS · 学习中",
-  completed: "COMPLETED · 已完成",
+  not_started: "未开始",
+  in_progress: "学习中",
+  completed: "已完成",
 };
 
 export function formatExamStatus(status?: string | null) {
-  return status ? (examStatusCopy[status] ?? "UNKNOWN · 未知状态") : "UNKNOWN · 未知状态";
+  return status ? (examStatusCopy[status] ?? "未知状态") : "未知状态";
 }
 
 export function formatExamAvailability(status?: string | null) {
-  return status
-    ? (examAvailabilityCopy[status] ?? "UNKNOWN · 未知开放状态")
-    : "UNKNOWN · 未知开放状态";
+  return status ? (examAvailabilityCopy[status] ?? "未知开放状态") : "未知开放状态";
 }
 
 export function formatAttemptStatus(status?: string | null) {
-  return status
-    ? (attemptStatusCopy[status] ?? "UNKNOWN · 未知作答状态")
-    : attemptStatusCopy.not_started;
+  return status ? (attemptStatusCopy[status] ?? "未知作答状态") : attemptStatusCopy.not_started;
 }
 
 export function formatAttemptStatusShort(status?: string | null) {
-  const label = formatAttemptStatus(status);
-  return label.includes(" · ") ? label.split(" · ")[1] : label;
+  return formatAttemptStatus(status);
 }
 
 export function formatAttemptKind(kind?: string | null) {
-  return kind ? (attemptKindCopy[kind] ?? "UNKNOWN · 未知考试类型") : "UNKNOWN · 未知考试类型";
+  return kind ? (attemptKindCopy[kind] ?? "未知考试类型") : "未知考试类型";
 }
 
 export function formatQuestionTypeLabel(questionType?: string | null) {
-  return questionType
-    ? (questionTypeCopy[questionType]?.label ?? "UNKNOWN · 未知题型")
-    : "UNKNOWN · 未知题型";
+  return questionType ? (questionTypeCopy[questionType]?.label ?? "未知题型") : "未知题型";
 }
 
 export function formatQuestionTypeShortLabel(questionType?: string | null) {
@@ -329,21 +348,19 @@ export function formatQuestionTypeShortLabel(questionType?: string | null) {
 }
 
 export function formatQuestionStatus(status?: string | null) {
-  return status ? (questionStatusCopy[status] ?? "UNKNOWN · 未知状态") : "UNKNOWN · 未知状态";
+  return status ? (questionStatusCopy[status] ?? "未知状态") : "未知状态";
 }
 
 export function formatLearningVideoStatus(status?: string | null) {
-  return status
-    ? (learningVideoStatusCopy[status] ?? "UNKNOWN · 未知视频状态")
-    : "UNKNOWN · 未知视频状态";
+  return status ? (learningVideoStatusCopy[status] ?? "未知视频状态") : "未知视频状态";
 }
 
 export function formatLearningCompletion(status?: string | null) {
   return status
-    ? (learningCompletionCopy[status] ?? "UNKNOWN · 未知学习状态")
+    ? (learningCompletionCopy[status] ?? "未知学习状态")
     : learningCompletionCopy.not_started;
 }
 
 export function formatQuestionEyebrow(index: number, typeLabel: string, score: number) {
-  return `QUESTION ${String(index).padStart(2, "0")} · ${typeLabel} · ${score} 分`;
+  return `第 ${String(index).padStart(2, "0")} 题 · ${typeLabel} · ${score} 分`;
 }

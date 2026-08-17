@@ -35,14 +35,12 @@ export function Timer({ remainingSeconds, criticalThresholdSeconds = 300, classN
 
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <span className="text-caption uppercase tracking-[0.16em] text-muted">
-        REMAINING · 剩余时间
-      </span>
+      <span className="text-status font-status text-muted">剩余时间</span>
       <span className={cn(isCritical && "duration-pulse motion-safe:animate-pulse")}>
         <span
           aria-label={`剩余时间 ${display}`}
           className={cn(
-            "font-display text-display-md font-semibold tabular-nums leading-none text-ink",
+            "font-display text-metric font-metric tabular-nums leading-none text-ink",
             isCritical && "text-error",
           )}
         >

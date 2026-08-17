@@ -8,10 +8,9 @@ import { z } from "zod";
 
 import { completeCandidateRegistration } from "@/api/auth";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageSection } from "@/components/page";
+import { PageActions, PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -87,66 +86,75 @@ export function RegistrationPage() {
   }
 
   return (
-    <PageSection variant="plain" data-stagger className="w-full max-w-md gap-6">
+    <PageShell
+      data-auth-canvas="candidate"
+      density="calm"
+      width="reading"
+      stagger
+      data-testid="candidate-registration-shell"
+      className="landscape:grid landscape:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] landscape:items-start landscape:gap-6"
+    >
       <PageHeader
-        eyebrow={candidatePageCopy.login}
+        context={candidatePageCopy.login}
         title={candidatePageText.login.registrationTitle}
         description={candidatePageText.login.registrationDescription}
       />
-      <Card className="bg-canvas shadow-pop">
-        <CardContent className="p-6 md:p-8">
-          <form
-            className="flex flex-col gap-5"
-            onSubmit={form.handleSubmit(handleSubmit)}
-            noValidate
-          >
-            <FieldGroup>
-              <Field data-invalid={form.formState.errors.display_name ? "" : undefined}>
-                <FieldLabel htmlFor="display_name">姓名</FieldLabel>
-                <Input
-                  id="display_name"
-                  autoComplete="name"
-                  autoFocus
-                  aria-invalid={Boolean(form.formState.errors.display_name)}
-                  {...form.register("display_name")}
-                />
-                {suggestion ? (
-                  <FieldDescription>
-                    应考名单中的姓名仅作建议；确认或修改后才会创建用户账号，不会改写正式考试名单。
-                  </FieldDescription>
-                ) : null}
-                {form.formState.errors.display_name ? (
-                  <FieldError>{form.formState.errors.display_name.message}</FieldError>
+      <PageSection variant="panel" data-testid="candidate-registration-form-section">
+        <form
+          className="flex flex-col gap-5"
+          aria-busy={mutation.isPending}
+          onSubmit={form.handleSubmit(handleSubmit)}
+          noValidate
+        >
+          <FieldGroup>
+            <Field
+              pending={mutation.isPending}
+              data-invalid={form.formState.errors.display_name ? "" : undefined}
+            >
+              <FieldLabel htmlFor="display_name">姓名</FieldLabel>
+              <Input
+                id="display_name"
+                autoComplete="name"
+                autoFocus
+                aria-invalid={Boolean(form.formState.errors.display_name)}
+                {...form.register("display_name")}
+              />
+              {suggestion ? (
+                <FieldDescription>
+                  应考名单中的姓名仅作建议；确认或修改后才会创建用户账号，不会改写正式考试名单。
+                </FieldDescription>
+              ) : null}
+              {form.formState.errors.display_name ? (
+                <FieldError>{form.formState.errors.display_name.message}</FieldError>
+              ) : null}
+            </Field>
+            {suggestion ? (
+              <Field
+                orientation="horizontal"
+                pending={mutation.isPending}
+                data-invalid={form.formState.errors.confirm_suggested_name ? "" : undefined}
+              >
+                <FieldLabel htmlFor="confirm_suggested_name">
+                  <span className="inline-flex items-center gap-2">
+                    <Input
+                      id="confirm_suggested_name"
+                      type="checkbox"
+                      className="size-4"
+                      aria-invalid={Boolean(form.formState.errors.confirm_suggested_name)}
+                      {...form.register("confirm_suggested_name")}
+                    />
+                    确认此姓名用于用户账号
+                  </span>
+                </FieldLabel>
+                {form.formState.errors.confirm_suggested_name ? (
+                  <FieldError>{form.formState.errors.confirm_suggested_name.message}</FieldError>
                 ) : null}
               </Field>
-              {suggestion ? (
-                <Field
-                  orientation="horizontal"
-                  data-invalid={form.formState.errors.confirm_suggested_name ? "" : undefined}
-                >
-                  <FieldLabel
-                    htmlFor="confirm_suggested_name"
-                    className="normal-case tracking-normal"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Input
-                        id="confirm_suggested_name"
-                        type="checkbox"
-                        className="size-4"
-                        aria-invalid={Boolean(form.formState.errors.confirm_suggested_name)}
-                        {...form.register("confirm_suggested_name")}
-                      />
-                      确认此姓名用于用户账号
-                    </span>
-                  </FieldLabel>
-                  {form.formState.errors.confirm_suggested_name ? (
-                    <FieldError>{form.formState.errors.confirm_suggested_name.message}</FieldError>
-                  ) : null}
-                </Field>
-              ) : null}
-            </FieldGroup>
+            ) : null}
+          </FieldGroup>
 
-            <Button type="submit" size="lg" className="h-12 w-full" disabled={mutation.isPending}>
+          <PageActions placement="auth" aria-label="注册操作">
+            <Button type="submit" size="lg" pending={mutation.isPending} className="w-full">
               {mutation.isPending ? (
                 <Spinner data-icon="inline-start" aria-label="正在创建账号" />
               ) : (
@@ -155,14 +163,14 @@ export function RegistrationPage() {
               创建账号并继续
               <ArrowRight data-icon="inline-end" aria-hidden="true" />
             </Button>
-            {mutation.isError ? (
-              <Alert variant="error">
-                <AlertDescription>注册信息暂不可用，请重新验证邮箱后再试。</AlertDescription>
-              </Alert>
-            ) : null}
-          </form>
-        </CardContent>
-      </Card>
-    </PageSection>
+          </PageActions>
+          {mutation.isError ? (
+            <Alert variant="error">
+              <AlertDescription>注册信息暂不可用，请重新验证邮箱后再试。</AlertDescription>
+            </Alert>
+          ) : null}
+        </form>
+      </PageSection>
+    </PageShell>
   );
 }

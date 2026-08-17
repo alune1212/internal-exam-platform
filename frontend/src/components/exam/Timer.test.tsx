@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { Timer } from "./Timer";
 
 describe("Timer", () => {
-  it("renders the REMAINING caption label", () => {
+  it("renders the Chinese remaining-time label", () => {
     render(<Timer remainingSeconds={1200} />);
-    expect(screen.getByText(/REMAINING/i)).toBeInTheDocument();
+    expect(screen.getByText("剩余时间")).toBeInTheDocument();
   });
 
   it("renders padded mm:ss for > 5 minutes (green/no-pulse state)", () => {

@@ -83,7 +83,7 @@ describe("ExamEditPage", () => {
   it("renders semantic exams copy", async () => {
     renderExamEditPage();
 
-    expect(await screen.findByText("EXAMS · 考试")).toBeInTheDocument();
+    expect(await screen.findByText("考试", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "编排考试 #1" })).toHaveClass(
       "font-display",
       "text-display-lg",
@@ -121,7 +121,7 @@ describe("ExamEditPage", () => {
 
     renderExamEditPage();
 
-    expect(await screen.findByText(/LOADING · 加载中/i)).toBeInTheDocument();
+    expect(await screen.findByText("加载中...", { exact: true })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /保存配置/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/考试名称/)).not.toBeInTheDocument();
   });

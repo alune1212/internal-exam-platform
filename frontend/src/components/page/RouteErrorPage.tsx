@@ -32,10 +32,10 @@ export function RouteErrorPage({ onReload, safePath = "/" }: RouteErrorPageProps
   const navigate = useNavigate();
 
   return (
-    <PageShell density="calm" className="mx-auto max-w-3xl py-12" data-testid="route-error-page">
+    <PageShell density="calm" width="reading" data-testid="route-error-page">
       <PageState
         state="error"
-        eyebrow="ROUTE · 资源加载"
+        eyebrow="资源加载"
         title="页面暂时无法打开。"
         description={errorDescription(routeError)}
         onRetry={onReload ?? (() => window.location.reload())}

@@ -8,6 +8,8 @@ describe("PageState", () => {
     render(<PageState state="loading" />);
 
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveAttribute("data-page-state", "loading");
+    expect(screen.getByRole("status")).toHaveAttribute("data-color-independent", "true");
   });
 
   it("forwards native props to the loading status element", () => {
@@ -40,6 +42,13 @@ describe("PageState", () => {
     expect(screen.getByText("STATE · 空状态")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "暂无内容" })).toBeInTheDocument();
     expect(screen.getByText("这里还没有可显示的数据。")).toBeInTheDocument();
+  });
+
+  it("does not force a decorative context label for ordinary states", () => {
+    render(<PageState state="empty" />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "暂无内容" })).toBeInTheDocument();
+    expect(screen.queryByText(/STATE/)).not.toBeInTheDocument();
   });
 
   it("marks a non-loading inherited state without adding a nested surface", () => {

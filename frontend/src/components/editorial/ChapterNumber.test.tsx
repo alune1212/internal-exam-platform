@@ -26,7 +26,7 @@ describe("ChapterNumber", () => {
     expect(el).not.toHaveClass("italic");
     expect(el).toHaveClass("font-medium");
     expect(el.className).toMatch(/text-caption|text-\[11px\]/);
-    expect(el.className).toMatch(/tracking-\[0\.18em\]/);
+    expect(el.className).toMatch(/tracking-caption/);
     expect(el.className).toMatch(/text-muted/);
   });
 

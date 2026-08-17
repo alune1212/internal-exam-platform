@@ -122,7 +122,7 @@ describe("ExamCandidatesPage", () => {
   it("renders semantic roster copy", async () => {
     renderPage();
 
-    expect(await screen.findByText("ROSTER · 应考名单")).toBeInTheDocument();
+    expect(await screen.findByText("应考名单", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "名单与授权" })).toHaveClass(
       "font-display",
       "text-display-lg",
@@ -203,7 +203,7 @@ describe("ExamCandidatesPage", () => {
 
     expect(await screen.findByText("张三")).toBeInTheDocument();
     expect(screen.getByText("88 / 100")).toBeInTheDocument();
-    expect(screen.getByText("#1 · INITIAL · 首次考试")).toBeInTheDocument();
+    expect(screen.getByText("#1 · 首次考试", { exact: true })).toBeInTheDocument();
     expect(screen.queryByText("#1 initial")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "授权补考" }));
@@ -387,5 +387,29 @@ describe("ExamCandidatesPage", () => {
     await user.click(screen.getByRole("button", { name: "刷新邀请状态" }));
     expect(await screen.findByText("已发送")).toBeInTheDocument();
     expect(getExamInvitationStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps a long roster name instead of widening the data region", async () => {
+    const longName = "张三张三张三张三张三张三张三张三张三张三";
+    vi.mocked(getExamCandidates).mockResolvedValueOnce([
+      {
+        candidate_id: 1,
+        roster_email: "zhangsan@example.com",
+        roster_name: longName,
+        department: "安全部",
+        account_status: "active",
+        invitation_status: "not_sent",
+        latest_attempt_status: "submitted",
+        latest_score: 88,
+        latest_total_score: 100,
+        attempt_no: 1,
+        attempt_kind: "initial",
+        has_unused_retake_grant: false,
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText(longName)).toHaveClass("min-w-0", "break-words");
   });
 });

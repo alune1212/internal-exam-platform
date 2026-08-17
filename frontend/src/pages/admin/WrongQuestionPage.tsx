@@ -7,6 +7,7 @@ import { getWrongQuestions } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { ReportToolbar } from "@/components/admin/ReportToolbar";
 import { adminPageCopy, adminPageText, adminTableCopy } from "@/lib/pageCopy";
 import type { WrongQuestionRow } from "@/types/report";
 
@@ -20,7 +21,9 @@ const columns: ColumnDef<WrongQuestionRow>[] = [
   {
     accessorKey: "stem",
     header: adminTableCopy.stem,
-    cell: ({ row }) => <span className="line-clamp-1 max-w-md">{row.original.stem}</span>,
+    cell: ({ row }) => (
+      <span className="line-clamp-2 min-w-0 break-words">{row.original.stem}</span>
+    ),
     meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.stem },
   },
   {
@@ -79,16 +82,18 @@ export function WrongQuestionPage() {
         return getWrongQuestions(selectedExamId ?? null);
       }}
       columns={columns}
-      actions={
+      toolbar={
         examsLoadError || examsPending ? null : (
-          <>
-            <ExamReportFilter
-              exams={exams.data ?? []}
-              value={selectedExamId ?? null}
-              onChange={setSelectedExamId}
-            />
-            <ReportExportButton examId={selectedExamId ?? null} />
-          </>
+          <ReportToolbar
+            filters={
+              <ExamReportFilter
+                exams={exams.data ?? []}
+                value={selectedExamId ?? null}
+                onChange={setSelectedExamId}
+              />
+            }
+            actions={<ReportExportButton examId={selectedExamId ?? null} />}
+          />
         )
       }
     />

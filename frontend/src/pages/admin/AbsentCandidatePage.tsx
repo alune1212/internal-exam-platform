@@ -7,6 +7,8 @@ import { getAbsentCandidates, type AttendanceStatus } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { ReportToolbar } from "@/components/admin/ReportToolbar";
+import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Button } from "@/components/ui/button";
 import {
   adminPageCopy,
@@ -14,13 +16,18 @@ import {
   adminTableCopy,
   formatAttemptStatusShort,
 } from "@/lib/pageCopy";
-import { cn } from "@/lib/utils";
 import type { AbsentCandidateRow } from "@/types/report";
 
 const statusLabels: Record<AttendanceStatus, string> = {
   not_started: formatAttemptStatusShort("not_started"),
   in_progress: formatAttemptStatusShort("in_progress"),
   submitted: formatAttemptStatusShort("submitted"),
+};
+
+const statusVariants: Record<AttendanceStatus, StatusPillVariant> = {
+  not_started: "pending",
+  in_progress: "warning",
+  submitted: "success",
 };
 
 const columns: ColumnDef<AbsentCandidateRow>[] = [
@@ -32,14 +39,20 @@ const columns: ColumnDef<AbsentCandidateRow>[] = [
   },
   {
     accessorKey: "roster_name",
-    header: "ROSTER NAME · 名单姓名",
-    cell: ({ row }) => <span className="font-medium">{row.original.roster_name}</span>,
+    header: "名单姓名",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-medium">{row.original.roster_name}</span>
+    ),
     meta: { mobilePriority: "primary", mobileLabel: "名单姓名" },
   },
   {
     accessorKey: "roster_email",
-    header: "ROSTER EMAIL · 名单邮箱",
-    cell: ({ row }) => <span className="font-mono text-sm">{row.original.roster_email}</span>,
+    header: "名单邮箱",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-mono text-body-sm">
+        {row.original.roster_email}
+      </span>
+    ),
     meta: { mobileLabel: "名单邮箱" },
   },
   {
@@ -57,7 +70,11 @@ const columns: ColumnDef<AbsentCandidateRow>[] = [
   {
     accessorKey: "attendance_status",
     header: adminTableCopy.status,
-    cell: ({ row }) => statusLabels[row.original.attendance_status],
+    cell: ({ row }) => (
+      <StatusPill variant={statusVariants[row.original.attendance_status]}>
+        {statusLabels[row.original.attendance_status]}
+      </StatusPill>
+    ),
     meta: { mobileLabel: adminTableCopy.status },
   },
 ];
@@ -78,35 +95,35 @@ export function AbsentCandidatePage() {
         selectedExamId ? getAbsentCandidates(status, selectedExamId) : getAbsentCandidates(status)
       }
       columns={columns}
-      actions={
-        <>
-          {exams.data ? (
-            <ExamReportFilter
-              exams={exams.data}
-              value={selectedExamId}
-              onChange={setSelectedExamId}
-            />
-          ) : null}
-          <div className="inline-flex items-center gap-1 rounded-pill border border-hairline bg-canvas p-1">
-            {(["not_started", "in_progress", "submitted"] as AttendanceStatus[]).map((item) => (
-              <Button
-                key={item}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn(
-                  "rounded-pill",
-                  status === item ? "bg-ink text-canvas hover:bg-ink" : "text-muted",
-                )}
-                aria-pressed={status === item}
-                onClick={() => setStatus(item)}
-              >
-                {statusLabels[item]}
-              </Button>
-            ))}
-          </div>
-          <ReportExportButton examId={selectedExamId} />
-        </>
+      toolbar={
+        <ReportToolbar
+          filters={
+            exams.data ? (
+              <ExamReportFilter
+                exams={exams.data}
+                value={selectedExamId}
+                onChange={setSelectedExamId}
+              />
+            ) : null
+          }
+          segments={
+            <>
+              {(["not_started", "in_progress", "submitted"] as AttendanceStatus[]).map((item) => (
+                <Button
+                  key={item}
+                  type="button"
+                  variant={status === item ? "default" : "ghost"}
+                  size="sm"
+                  aria-pressed={status === item}
+                  onClick={() => setStatus(item)}
+                >
+                  {statusLabels[item]}
+                </Button>
+              ))}
+            </>
+          }
+          actions={<ReportExportButton examId={selectedExamId} />}
+        />
       }
     />
   );

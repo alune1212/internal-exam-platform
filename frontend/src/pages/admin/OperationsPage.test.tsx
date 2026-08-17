@@ -51,6 +51,13 @@ describe("OperationsPage", () => {
     expect(screen.getByText("已跳过")).toBeInTheDocument();
     expect(screen.getByText("失败")).toBeInTheDocument();
     expect(screen.getByText("第二存储不可用")).toBeInTheDocument();
+    expect(screen.getByTestId("operations-page-shell")).toHaveAttribute(
+      "data-density",
+      "workbench",
+    );
+    expect(screen.getByRole("heading", { name: "正式主机状态" })).toBeInTheDocument();
+    expect(screen.queryByText("OPERATIONS · 运维")).not.toBeInTheDocument();
+    expect(screen.getAllByText("当前").length).toBeGreaterThan(0);
   });
 
   it("shows an explicit page error when the snapshot cannot load", async () => {

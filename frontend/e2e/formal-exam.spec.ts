@@ -73,8 +73,8 @@ function watchRuntime(page: Page, failures: string[]) {
 
 async function loginOperator(page: Page): Promise<string> {
   await page.goto(`${OPERATOR_URL}/admin/login`);
-  await page.getByLabel("账号 · Username").fill("e2e-operator");
-  await page.getByLabel("密码 · Password").fill("e2e-operator-password-not-for-formal-use");
+  await page.getByLabel("管理员账号").fill("e2e-operator");
+  await page.getByLabel("密码").fill("e2e-operator-password-not-for-formal-use");
   await page.getByRole("button", { name: "进入管理后台" }).click();
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
   return page.evaluate((key) => sessionStorage.getItem(key) ?? "", ADMIN_STORAGE_KEY);
@@ -471,13 +471,13 @@ test("candidate completes an open exam after autosave and same-tab resume", asyn
   await firstOption.click();
   const saveResponse = await saveResponsePromise;
   expect(saveResponse.ok()).toBe(true);
-  await expect(candidatePage.getByText("已保存", { exact: true })).toBeVisible();
+  await expect(candidatePage.getByText("答案已保存", { exact: true })).toBeVisible();
 
   // A same-tab reload must retain the active attempt session and the saved answer.
   await candidatePage.reload();
   await expect(candidatePage.getByRole("heading", { name: /受控局域网正式考试/ })).toBeVisible();
   await expect(candidatePage.getByRole("radio").first()).toHaveAttribute("aria-checked", "true");
-  await expect(candidatePage.getByText("已保存", { exact: true })).toBeVisible();
+  await expect(candidatePage.getByText("答案已保存", { exact: true })).toBeVisible();
 
   await candidatePage.getByRole("button", { name: "交卷" }).first().click();
   await expect(candidatePage).toHaveURL(
@@ -524,7 +524,7 @@ test("candidate sees a recoverable revision conflict after another tab takes ove
   );
   await firstOption.click();
   expect((await initialSave).ok()).toBe(true);
-  await expect(firstPage.getByText("已保存", { exact: true })).toBeVisible();
+  await expect(firstPage.getByText("答案已保存", { exact: true })).toBeVisible();
 
   // The just-issued OTP session is still inside the fresh-auth window.  Use it
   // from another browser context to rotate the attempt device session without

@@ -43,6 +43,9 @@ export function PageStaleNotice({
       variant="warning"
       data-testid="page-stale-warning"
       data-state="stale"
+      data-alert-kind="stale"
+      aria-live="polite"
+      aria-busy={retrying || undefined}
       className={cn("items-start gap-2 sm:flex-row sm:items-center sm:justify-between", className)}
       {...props}
     >
@@ -63,7 +66,7 @@ export function PageStaleNotice({
           size="sm"
           variant="outline"
           onClick={() => void onRetry()}
-          disabled={retrying}
+          pending={retrying}
           className="shrink-0 self-start sm:self-auto"
         >
           {retrying ? "正在重试" : "重试"}

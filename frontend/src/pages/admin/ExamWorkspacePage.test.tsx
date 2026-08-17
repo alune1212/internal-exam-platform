@@ -70,7 +70,7 @@ describe("ExamWorkspacePage", () => {
 
     renderPage();
 
-    expect(await screen.findByText(/Loading · 加载中/)).toBeInTheDocument();
+    expect(await screen.findByText("加载中...", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.queryByText("安全知识竞赛")).not.toBeInTheDocument();
   });
@@ -234,5 +234,20 @@ describe("ExamWorkspacePage", () => {
     await screen.findByRole("heading", { name: /考试工作台 · 安全知识竞赛/ });
     expect(screen.getByRole("group", { name: "考试操作页面" })).toHaveClass("flex-wrap");
     expect(screen.getAllByRole("link").length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("wraps a long exam title in the workbench heading", async () => {
+    const longTitle = "安全生产专项考试安全生产专项考试安全生产专项考试安全生产专项考试";
+    vi.mocked(getExamWorkspace).mockResolvedValueOnce({
+      ...workspace,
+      exam: { ...workspace.exam, title: longTitle },
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: `考试工作台 · ${longTitle}` })).toHaveClass(
+      "min-w-0",
+      "break-words",
+    );
   });
 });

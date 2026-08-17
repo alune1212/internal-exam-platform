@@ -35,8 +35,43 @@ describe("PageActions", () => {
     );
 
     const group = screen.getByRole("group", { name: "页面操作" });
-    expect(group).toHaveClass("flex", "flex-wrap", "gap-2");
+    expect(group).toHaveClass("flex", "flex-wrap", "gap-control-gap");
+    expect(group).toHaveAttribute("data-action-group", "page");
+    expect(group).toHaveAttribute("data-action-placement", "page");
+    expect(group).toHaveAttribute("data-action-reflow", "wrap");
     expect(screen.getByRole("button", { name: "主要操作" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "次要操作" })).toBeInTheDocument();
   });
+
+  it("supports semantic placement and predictable stacked mobile reflow", () => {
+    render(
+      <PageActions placement="auth" reflow="stack">
+        <Button type="button">继续</Button>
+        <Button type="button" variant="outline">
+          返回
+        </Button>
+      </PageActions>,
+    );
+
+    const group = screen.getByRole("group", { name: "页面操作" });
+    expect(group).toHaveAttribute("data-action-group", "auth");
+    expect(group).toHaveAttribute("data-action-reflow", "stack");
+    expect(group).toHaveClass("flex-col", "sm:flex-row", "w-full");
+  });
+
+  it.each(["header", "card", "form", "report", "destructive"] as const)(
+    "exposes the %s placement contract",
+    (placement) => {
+      render(
+        <PageActions placement={placement}>
+          <Button type="button">操作</Button>
+        </PageActions>,
+      );
+
+      expect(screen.getByRole("group", { name: "页面操作" })).toHaveAttribute(
+        "data-action-group",
+        placement,
+      );
+    },
+  );
 });

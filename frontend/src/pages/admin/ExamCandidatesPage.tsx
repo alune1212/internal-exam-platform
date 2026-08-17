@@ -25,7 +25,7 @@ import { ExamContextNav } from "@/components/admin/ExamContextNav";
 import { ImportPanel } from "@/components/admin/ImportPanel";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageActions, PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -103,12 +103,10 @@ function RosterForm({
 }) {
   const update = (key: keyof RosterFormState, next: string) => onChange({ ...value, [key]: next });
   return (
-    <PageSection variant="card" aria-labelledby="roster-form-title" className="gap-5 p-6">
+    <PageSection variant="panel" aria-labelledby="roster-form-title" className="gap-5">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-caption uppercase tracking-[0.16em] text-muted">
-            ROSTER EDIT · 名单编辑
-          </p>
+        <div className="min-w-0">
+          <p className="text-caption text-muted">名单编辑</p>
           <h2
             id="roster-form-title"
             className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -183,9 +181,10 @@ function RosterForm({
           />
         </Field>
       </FieldGroup>
-      <div className="flex flex-wrap gap-3">
+      <PageActions placement="form" aria-label="名单编辑操作">
         <Button
           type="button"
+          pending={isPending}
           disabled={isPending || !value.email.trim() || !value.candidate_name.trim()}
           onClick={onSubmit}
         >
@@ -195,7 +194,7 @@ function RosterForm({
         <Button type="button" variant="outline" disabled={isPending} onClick={onCancel}>
           取消
         </Button>
-      </div>
+      </PageActions>
     </PageSection>
   );
 }
@@ -378,12 +377,14 @@ export function ExamCandidatesPage() {
     () => [
       {
         id: "roster",
-        header: "ROSTER · 名单身份",
+        header: "名单身份",
         meta: { mobilePriority: "primary", mobileLabel: "名单身份" },
         cell: ({ row }) => (
-          <div className="min-w-48">
-            <span className="block font-medium text-ink">{row.original.roster_name}</span>
-            <span className="block font-mono text-caption text-muted">
+          <div className="min-w-0">
+            <span className="block min-w-0 break-words font-medium text-ink">
+              {row.original.roster_name}
+            </span>
+            <span className="block min-w-0 break-words font-mono text-caption text-muted">
               {row.original.roster_email}
             </span>
           </div>
@@ -391,7 +392,7 @@ export function ExamCandidatesPage() {
       },
       {
         id: "organization",
-        header: "ORG · 组织信息",
+        header: "组织信息",
         meta: { mobileLabel: "组织信息" },
         cell: ({ row }) => (
           <span className="text-muted">
@@ -404,7 +405,7 @@ export function ExamCandidatesPage() {
       },
       {
         id: "account",
-        header: "ACCOUNT · 账户",
+        header: "账户",
         meta: { mobileLabel: "账户" },
         cell: ({ row }) => (
           <StatusPill variant={statusVariant(row.original.account_status)}>
@@ -414,7 +415,7 @@ export function ExamCandidatesPage() {
       },
       {
         id: "invitation",
-        header: "INVITATION · 邀请",
+        header: "邀请",
         meta: { mobileLabel: "邀请" },
         cell: ({ row }) => (
           <div className="flex flex-col gap-1">
@@ -464,10 +465,10 @@ export function ExamCandidatesPage() {
       },
       {
         id: "action",
-        header: "ACTION · 操作",
+        header: "操作",
         meta: { mobileLabel: "操作" },
         cell: ({ row }) => (
-          <div className="flex flex-wrap justify-end gap-2">
+          <PageActions placement="card" aria-label="名单操作" align="end">
             {row.original.latest_attempt_status === "submitted" ||
             row.original.latest_attempt_status === "auto_submitted" ||
             row.original.latest_attempt_status === "voided" ? (
@@ -475,6 +476,7 @@ export function ExamCandidatesPage() {
                 type="button"
                 size="sm"
                 variant={row.original.has_unused_retake_grant ? "outline" : "default"}
+                pending={retakeMutation.isPending}
                 disabled={row.original.has_unused_retake_grant || retakeMutation.isPending}
                 onClick={() => retakeMutation.mutate(row.original.candidate_id)}
               >
@@ -507,6 +509,7 @@ export function ExamCandidatesPage() {
                   type="button"
                   size="sm"
                   variant="outline"
+                  pending={removeMutation.isPending}
                   disabled={removeMutation.isPending}
                   onClick={() => removeMutation.mutate(row.original.candidate_id)}
                 >
@@ -515,7 +518,7 @@ export function ExamCandidatesPage() {
                 </Button>
               </>
             ) : null}
-          </div>
+          </PageActions>
         ),
       },
     ],
@@ -523,12 +526,12 @@ export function ExamCandidatesPage() {
   );
 
   const examStatusLabel = exams.isLoading
-    ? "LOADING · 正在确认"
+    ? "正在确认"
     : hasExamLoadError
-      ? "ERROR · 加载失败"
+      ? "加载失败"
       : currentExam
         ? formatExamStatus(currentExam.status)
-        : "MISSING · 未找到考试";
+        : "未找到考试";
 
   const rosterRows = invitationStatus.data?.rows ?? candidates.data ?? [];
   const hasNotSent = rosterRows.some(
@@ -539,19 +542,20 @@ export function ExamCandidatesPage() {
   );
 
   return (
-    <PageShell data-testid="exam-candidates-shell" density="workbench" width="full" stagger>
+    <PageShell data-testid="exam-candidates-shell" density="workbench" width="wide">
       <PageHeader
         eyebrow={adminPageCopy.roster}
         title={adminPageText.roster.title}
         description="管理冻结的应考人员名单、账户状态与邀请投递结果。发布后名单身份和组织字段不可编辑。"
         actions={
           canSendInvitations ? (
-            <div id="invitation-actions" className="flex flex-wrap gap-2">
+            <PageActions id="invitation-actions" placement="header" aria-label="邀请操作">
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
                 disabled={invitationStatus.isFetching}
+                pending={invitationStatus.isFetching}
                 onClick={() => {
                   void invitationStatus.refetch();
                   void candidates.refetch();
@@ -563,6 +567,7 @@ export function ExamCandidatesPage() {
               <Button
                 type="button"
                 size="sm"
+                pending={invitationMutation.isPending}
                 disabled={!hasNotSent || invitationMutation.isPending}
                 onClick={() => invitationMutation.mutate("send")}
               >
@@ -572,12 +577,13 @@ export function ExamCandidatesPage() {
                 type="button"
                 size="sm"
                 variant="outline"
+                pending={invitationMutation.isPending}
                 disabled={!hasFailed || invitationMutation.isPending}
                 onClick={() => invitationMutation.mutate("resend")}
               >
                 仅重发失败项
               </Button>
-            </div>
+            </PageActions>
           ) : null
         }
       />
@@ -609,9 +615,7 @@ export function ExamCandidatesPage() {
         intro={
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-caption uppercase tracking-[0.16em] text-muted">
-                IMPORT · 名单导入
-              </p>
+              <p className="text-caption text-muted">名单导入</p>
               <p className="text-body text-ink">
                 {exams.isLoading
                   ? "正在确认考试状态，暂不能修改应考名单。"
@@ -628,7 +632,7 @@ export function ExamCandidatesPage() {
           </div>
         }
         templateAction={
-          <div className="flex flex-wrap gap-2">
+          <>
             <Button
               type="button"
               variant="outline"
@@ -644,7 +648,7 @@ export function ExamCandidatesPage() {
                 新增应考人员
               </Button>
             ) : null}
-          </div>
+          </>
         }
       >
         {importMutation.data ? (
@@ -692,7 +696,7 @@ export function ExamCandidatesPage() {
         />
       ) : null}
 
-      <PageSection variant="table">
+      <PageSection variant="data">
         {exams.isLoading ? (
           <PageState state="loading" rows={3} surface="inherit" className="py-10" />
         ) : hasExamLoadError ? (
@@ -734,11 +738,9 @@ export function ExamCandidatesPage() {
         )}
       </PageSection>
 
-      <PageSection variant="card" aria-labelledby="incident-title" className="grid gap-4 lg:p-8">
+      <PageSection variant="panel" aria-labelledby="incident-title" className="grid gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-caption uppercase tracking-[0.16em] text-muted">
-            INCIDENTS · 事故记录
-          </span>
+          <span className="text-caption text-muted">事故记录</span>
           <h2
             id="incident-title"
             className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -760,7 +762,7 @@ export function ExamCandidatesPage() {
             {incidents.data.map((incident) => (
               <li
                 key={incident.attempt_id}
-                className="grid gap-2 rounded-md border border-hairline bg-canvas p-4 md:grid-cols-[1fr_auto]"
+                className="grid gap-2 border-t border-hairline-soft py-4 first:border-t-0 md:grid-cols-[1fr_auto]"
               >
                 <div>
                   <p className="font-medium text-ink">
@@ -778,9 +780,7 @@ export function ExamCandidatesPage() {
             ))}
           </ul>
         ) : (
-          <p className="rounded-md border border-hairline bg-canvas p-4 text-body-sm text-muted">
-            当前没有作废事故记录。
-          </p>
+          <p className="text-body-sm text-muted">当前没有作废事故记录。</p>
         )}
       </PageSection>
     </PageShell>

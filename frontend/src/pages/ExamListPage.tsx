@@ -3,15 +3,19 @@ import { ArrowUpRight, Clock, FileText, Hash } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { getActiveExams } from "@/api/exams";
-import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
-import { Button } from "@/components/ui/button";
-import { getCurrentCandidate } from "@/lib/candidateSession";
+import { StatusPill } from "@/components/editorial/StatusPill";
 import {
-  candidatePageCopy,
-  candidatePageText,
-  formatExamAvailability,
-  formatExamStatus,
-} from "@/lib/pageCopy";
+  PageActions,
+  PageHeader,
+  PageSection,
+  PageShell,
+  PageStaleNotice,
+  PageState,
+} from "@/components/page";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { getCurrentCandidate } from "@/lib/candidateSession";
+import { candidatePageCopy, candidatePageText, formatExamAvailability } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
 
 function resolveQuestionCount(rule: Record<string, unknown>): number | null {
@@ -81,7 +85,8 @@ function resolveAvailability(exam: Exam, now = new Date()) {
 }
 
 function ExamCard({ exam }: { exam: Exam }) {
-  const isLive = exam.status === "active" || exam.status === "live" || exam.status === "published";
+  const isPublished =
+    exam.status === "active" || exam.status === "live" || exam.status === "published";
   const hasInProgressAttempt =
     exam.latest_attempt_status === "in_progress" && exam.latest_attempt_id;
   const totalQuestions = resolveQuestionCount(exam.question_rule);
@@ -94,70 +99,78 @@ function ExamCard({ exam }: { exam: Exam }) {
     typeof exam.question_rule.total_score === "number" ? exam.question_rule.total_score : null;
 
   return (
-    <article className="flex flex-col gap-5 rounded-lg border border-hairline bg-canvas p-6 shadow-card lg:p-7">
-      <p className="font-body text-caption font-medium tracking-[0.12em] text-muted">
-        {isInvited
-          ? candidatePageText.exams.invited
-          : formatExamStatus(isLive ? "active" : exam.status)}
-      </p>
+    <Card surface="data" className="flex flex-col gap-5 p-5 lg:p-7" data-exam-id={exam.id}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <StatusPill variant="info">{isInvited ? candidatePageText.exams.invited : ""}</StatusPill>
+        <StatusPill
+          variant={
+            availability.status === "open"
+              ? "success"
+              : availability.status === "not_started"
+                ? "pending"
+                : "neutral"
+          }
+        >
+          {availability.status === "not_started"
+            ? candidatePageText.exams.upcoming
+            : availability.canEnter
+              ? candidatePageText.exams.available
+              : candidatePageText.exams.unavailable}
+        </StatusPill>
+      </div>
       <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink lg:text-display-md">
         {exam.title}
       </h2>
-      <dl className="grid grid-cols-3 gap-3 border-y border-hairline-soft py-3 text-caption text-muted">
-        <div className="flex flex-col gap-1">
-          <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
-            <Clock className="size-3" /> 时长
+      <dl className="grid grid-cols-1 gap-3 border-y border-hairline-soft py-4 text-table-label text-muted sm:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="flex items-center gap-1">
+            <Clock className="size-3" aria-hidden="true" /> 时长
           </dt>
           <dd className="font-mono text-body text-ink">{exam.duration_minutes} 分钟</dd>
         </div>
-        <div className="flex flex-col gap-1">
-          <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
-            <FileText className="size-3" /> 题数
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="flex items-center gap-1">
+            <FileText className="size-3" aria-hidden="true" /> 题数
           </dt>
-          <dd className="font-mono text-body text-ink">{totalQuestions ?? "-"}</dd>
+          <dd className="font-mono text-body text-ink">{totalQuestions ?? "—"}</dd>
         </div>
-        <div className="flex flex-col gap-1">
-          <dt className="flex items-center gap-1 uppercase tracking-[0.16em]">
-            <Hash className="size-3" /> 总分
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="flex items-center gap-1">
+            <Hash className="size-3" aria-hidden="true" /> 总分
           </dt>
-          <dd className="font-mono text-body text-ink">{totalScore ?? "-"}</dd>
+          <dd className="font-mono text-body text-ink">{totalScore ?? "—"}</dd>
         </div>
       </dl>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-caption text-muted">
+      <div className="flex flex-col gap-3 border-t border-hairline-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="min-w-0 break-words text-body-sm text-muted">
           {availability.detail
-            ? `${availability.detailLabel} · ${availability.detail}`
+            ? `${availability.detailLabel}：${availability.detail}`
             : availability.fallbackDetail}
         </p>
-        {canEnter ? (
-          <Button asChild size="sm">
-            <Link
-              to={
-                hasInProgressAttempt
-                  ? `/exams/${exam.id}/taking?attemptId=${exam.latest_attempt_id}`
-                  : `/exams/${exam.id}/start`
-              }
-            >
-              {hasInProgressAttempt ? "继续考试" : isLive ? "开始考试" : "查看说明"}
-              <ArrowUpRight data-icon="inline-end" />
-            </Link>
-          </Button>
-        ) : (
-          <Button type="button" size="sm" disabled>
-            {availability.status === "not_started"
-              ? candidatePageText.exams.upcoming
-              : candidatePageText.exams.unavailable}
-          </Button>
-        )}
+        <PageActions placement="card" aria-label="考试操作" className="shrink-0">
+          {canEnter ? (
+            <Button asChild size="sm">
+              <Link
+                to={
+                  hasInProgressAttempt
+                    ? `/exams/${exam.id}/taking?attemptId=${exam.latest_attempt_id}`
+                    : `/exams/${exam.id}/start`
+                }
+              >
+                {hasInProgressAttempt ? "继续考试" : isPublished ? "开始考试" : "查看说明"}
+                <ArrowUpRight data-icon="inline-end" aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : (
+            <Button type="button" size="sm" disabled>
+              {availability.status === "not_started"
+                ? candidatePageText.exams.upcoming
+                : candidatePageText.exams.unavailable}
+            </Button>
+          )}
+        </PageActions>
       </div>
-      <p className="text-caption tracking-[0.12em] text-muted">
-        {availability.status === "not_started"
-          ? candidatePageText.exams.upcoming
-          : availability.canEnter
-            ? candidatePageText.exams.available
-            : candidatePageText.exams.unavailable}
-      </p>
-    </article>
+    </Card>
   );
 }
 
@@ -174,7 +187,7 @@ export function ExamListPage() {
   const hasStaleError = isError && Boolean(data);
 
   return (
-    <PageShell density="calm" stagger data-testid="candidate-exam-list-shell">
+    <PageShell density="calm" width="wide" stagger data-testid="candidate-exam-list-shell">
       <PageHeader
         title={candidatePageText.exams.title}
         description={candidatePageText.exams.description}

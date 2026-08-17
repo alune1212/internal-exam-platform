@@ -1,19 +1,19 @@
 ---
-version: 1.0
-name: internal-exam-platform-academic-editorial
+version: 2.0
+name: internal-exam-platform-academic-editorial-v2
 updated: 2026-08-14
 status: canonical-contract
 description: >-
-  Canonical visual, interaction, and verification contract for the internal
-  exam platform frontend.
+  Canonical V2 visual, interaction, copy, ownership, and verification contract
+  for the internal exam platform frontend.
 ---
 
-# Frontend Design Contract
+# Frontend Design Contract V2
 
-This document is the canonical contract for the frontend in
-`frontend/src/`. It describes the live Academic Editorial foundation and the
-rules that future changes must preserve. The product is an internal
-assessment desk: quiet paper-like surfaces, black-ink typography, restrained
+This document is the canonical V2 contract for the frontend in
+`frontend/src/`. V2 converges consumers around the existing Academic Editorial
+foundation; it is not a second theme or component library. The product is an
+internal assessment desk: warm-paper surfaces, black-ink typography, restrained
 rules, compact controls, and readable density for real exam and administration
 work.
 
@@ -21,24 +21,28 @@ This is a design contract, not a test report. A command or browser check is
 only considered evidence after it has actually run; current command results,
 environment details, and remaining risks belong in `docs/handoff.md`.
 
-## Scope and boundaries
+## Scope and compatibility boundary
 
-The visual system covers three task-flow families plus one chrome-free shell exception:
+The visual system covers four intentional composition families:
 
 - **Candidate Calm** for ordinary candidate learning, exam, result, review,
   and profile journeys.
 - **Admin Workbench** for dense operational, configuration, import, and report
   work.
 - **Exam Focus** for an active formal exam or practice question.
-- **Auth Canvas** is the shell exception for candidate and administrator
-  sign-in/registration.
+- **Auth Canvas** is the chrome-free identity surface for candidate and
+  administrator sign-in/registration.
 
 The contexts share tokens and local primitives but intentionally do not share
-chrome or density. This change does not add backend endpoints, change route
-paths, alter authentication/authorization, change exam snapshots or scoring,
-or introduce a new framework, design library, font service, queue, LMS, or
-anti-cheat suite. Existing API, form, import, invitation, report, and exam
-delivery contracts remain the compatibility boundary.
+chrome or density. The following are locked compatibility boundaries: route
+paths and entry IDs, navigation destinations and order, authentication/session
+and authorization behavior, API clients and response/enum contracts, forms and
+validation, exam snapshots, answer persistence, scoring, submission, retake
+and invitation behavior, imports, reports, and return destinations. Presentation
+and copy may be rewritten only when those boundaries remain unchanged.
+
+This change does not add backend endpoints, alter persistence, or introduce a
+new framework, design library, font service, queue, LMS, or anti-cheat suite.
 
 ## Source ownership and drift control
 
@@ -56,6 +60,39 @@ flowchart LR
   DOC --> CHECKS["Parity, policy, and browser gates"]
   COMPONENTS --> CHECKS
 ```
+
+### V2 single-owner presentation graph
+
+Each presentation concern has one owner and one downstream direction. A page
+may compose these owners, but it may not silently claim a second width, surface,
+field, status, action, report, or responsive-data contract.
+
+```mermaid
+flowchart TD
+  APP["应用/会话边界\nauth · browser support · outlet context"]
+    --> FAMILY["页面族布局\nfamily chrome · density · presentation mode"]
+  FAMILY --> FRAME["页面框架\nreading · standard · wide · full/focus"]
+  FRAME --> COMPOSE["页面构成\nH1/H2/H3 · sections · task order"]
+  COMPOSE --> SURFACE["表面/容器\nplain · panel · focus/summary · data · overlay"]
+  COMPOSE --> FIELD["字段/控件\nlabel · description · validation · busy"]
+  COMPOSE --> STATUS["状态反馈\npage state · alert · pill · activity dot"]
+  COMPOSE --> ACTION["动作组\nheader · card · footer · toolbar · guarded"]
+  ACTION --> REPORT["报表控件\nfilters · segments · notices · export"]
+  SURFACE --> DATA["响应式数据\ndesktop table · mobile card · overflow"]
+```
+
+| Owner                                                                                    | Owns                                                                                                         | Explicitly does not own                                                         |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| Application/session boundary (`CandidateLayout`, `AdminLayout`, protected/browser gates) | auth/session checks, browser support, outlet context, presentation-mode selection                            | page width, local density, page copy, or surface styling                        |
+| Family chrome (`TopNav`, `AdminSideRail`, mobile sheets, Auth Canvas, `ExamFocusMode`)   | family navigation, chrome, density, and focus-vs-ordinary shell choice                                       | a second page frame, route/API behavior, or hidden duplicate navigation         |
+| Page frame (`PageShell`)                                                                 | `reading`, `standard`, `wide`, and `full/focus` intent widths, page padding, block rhythm, family density    | card borders, form fields, status semantics, or route-specific `max-w-*` values |
+| Page composition (`PageHeader`, `PageSection`, `PageState`, `PageActions`)               | one H1, ordered headings, optional meaningful context, semantic sections, task order, action reflow          | new global tokens, API fetching, or a competing surface owner                   |
+| Surfaces (`PageSection`, `Card`, data/overlay primitives)                                | plain, panel, focus/summary, data, and overlay containment: background, border, radius, padding, elevation   | async copy, action alignment, or nested duplicate containment                   |
+| Fields and controls (`Field`, `Input`, `Textarea`, native `Select`, `Button`)            | label/description/error association, values, focus, disabled, pending, invalid, and success semantics        | business validation rules, request timing, or page-specific state words         |
+| Statuses (`PageState`, `Alert`, `StatusPill`, activity/status dot)                       | loading, empty, stale, error, pending, saved, submitted, and recovery meaning                                | mutation ownership, action routing, or color-only meaning                       |
+| Actions (`PageActions`, shared `Button`, guarded action groups)                          | primary/secondary/destructive alignment, busy/pressed state, target size, and mobile reflow                  | API semantics, save-vs-submit meaning, or report filters                        |
+| Report controls (shared report toolbar)                                                  | filter/segment/notice/export order and responsive reflow                                                     | report dimensions, query parameters, or table data ownership                    |
+| Responsive data (shared table/card representation)                                       | canonical labels, density, row actions, long-content wrapping, and overflow behavior across table/card views | source data, endpoint shape, or a second visual vocabulary                      |
 
 ### Ownership rules
 
@@ -205,6 +242,26 @@ Numeric Tailwind spacing remains acceptable for local micro-layout. Shared
 page/component contracts use these semantic aliases; do not introduce new
 arbitrary spacing literals for a governed pattern.
 
+### V2 semantic presentation roles
+
+The V2 contract names the roles that shared token and component work must
+implement. Their values belong to the existing CSS root and typed breakpoint
+owners; this document does not create a parallel token registry.
+
+| Role              | Contract                                                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type and tracking | semantic display/body/caption roles and the governed heading/caption tracking roles; no page-level arbitrary type or tracking                  |
+| Page frame        | `reading`, `standard`, `wide`, and `full/focus` intent widths, with family-owned density and inline padding                                    |
+| Action            | shared primary/secondary/destructive alignment, busy/pressed state, and predictable mobile reflow                                              |
+| Exam Focus target | option, navigation, guarded-exit, save, and submit controls expose at least `44px × 44px` CSS pixels on touch layouts                          |
+| Status on surface | success, warning, error, selected, and focus use the correct on-light/on-dark treatment and never rely on color alone                          |
+| Overlay viewport  | dialogs and sheets use the available dynamic viewport (`dvh` or an equivalent governed calculation), internal scrolling, and safe-area spacing |
+| Elevation         | plain/panel/data surfaces stay restrained; focus/summary and overlay elevation use named roles only                                            |
+
+These roles are compatibility-neutral presentation contracts. They cannot alter
+answer values, request timing, navigation targets, API fields, or business
+state.
+
 ### Focus, motion, layering, and named texture
 
 | Token                        | Value                        |
@@ -253,6 +310,9 @@ Candidate and admin shells share tokens and primitives, not navigation
 placement. Exam Focus is a specialized exception: it must not receive a
 marketing hero, unrelated navigation, or an ordinary page header. Auth routes
 are chrome-free even when they are rendered under a candidate layout route.
+Auth Canvas uses one reading stack in portrait; in a short landscape viewport,
+the identity/header region and form region become two columns so the primary
+action remains reachable without introducing another page-width owner.
 
 There is no global decorative footer in any shell. A semantic local footer is
 allowed inside a result, dialog, or card only when it describes that local
@@ -275,6 +335,22 @@ Do not hand-roll another page header or add a second H1. Specialized focus
 components may use their own heading structure under the documented Exam Focus
 exception.
 
+### Page-frame width roles
+
+`PageShell` is the only ordinary-page width owner. A route selects one intent
+role; it must not add a competing page-level maximum or horizontal padding.
+
+| Role         | Intended content                                               | Family examples                 |
+| ------------ | -------------------------------------------------------------- | ------------------------------- |
+| `reading`    | prose, rules, review explanation, and other text-led content   | Candidate Calm, Auth Canvas     |
+| `standard`   | ordinary list/detail/form work with one primary task           | Candidate Calm, Admin Workbench |
+| `wide`       | tables, reports, workspaces, and multi-region operational data | Admin Workbench                 |
+| `full/focus` | active questions, timers, navigators, and dynamic overlays     | Exam Focus                      |
+
+Family layouts own the canvas and chrome. `PageShell` owns the selected role's
+padding and rhythm. A page composition owns semantic order only; it cannot
+recreate a width, radius, shadow, or typography role locally.
+
 ## Typography, hierarchy, and content voice
 
 ### Heading and context contract
@@ -289,6 +365,9 @@ exception.
 - Titles, descriptions, context labels, names, metrics, and navigation use
   `min-w-0`/safe wrapping (`break-words` or an equivalent governed utility)
   so CJK and long unbroken words reflow at 320px and under zoom.
+- One-line enforcement belongs only to compact controls, navigation items, and
+  owned action groups. Business-content links and titles remain wrappable; an
+  action group reflows before its compact label is allowed to break.
 - `ChapterNumber` is an upright context/ordinal primitive, not mandatory page
   decoration. Retain it only for a real sequence such as question position.
   `ExamNavigator` may use the mono type stack for compact question numbers.
@@ -298,15 +377,50 @@ exception.
   not allowed on headings, status, action, question, metric, navigation,
   wordmark, or name-plate labels.
 
-### Content and bilingual guidance
+### Chinese-first glossary and English allowlist
 
-Chinese is the primary task language. English may accompany a stable product
-name or operational term when it stays synchronized with the canonical
-Chinese copy; it must not be added merely as decorative metadata. Use the
-existing page/action/status copy boundary instead of interpolating API codes.
-Labels should identify the task or state directly, stay concise, and preserve
-business terminology. Question type, question position, score, save status,
-and exam lifecycle language must remain semantically accurate.
+Chinese carries the primary task meaning in headings, labels, actions, table
+headers, statuses, alerts, and supporting copy. `src/lib/pageCopy.ts` is the
+single reusable copy owner; pages do not interpolate API enum values or create
+decorative translations. The glossary below is a semantic contract, not a
+stylistic suggestion.
+
+| Canonical term | Use it for                                                                                   | Do not substitute it with                                          |
+| -------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `用户`         | the authenticated person in general learning, practice, profile, and other non-roster flows  | `应考人员` when no exam-scoped roster or authorization is involved |
+| `应考人员`     | an exam-scoped participant, invitation, roster record, or formal exam authorization          | `用户` for roster labels or participant-management actions         |
+| `应考名单`     | the roster imported or managed for one exam                                                  | generic “用户列表” in exam-scoped admin UI                         |
+| `题库`         | the active question collection and its management surface                                    | raw question API names or English module labels                    |
+| `保存答案`     | persisting the current answer; it does not finish the attempt                                | `交卷` or a generic “提交”                                         |
+| `交卷`         | submitting the whole exam attempt, manually or automatically                                 | `保存答案` or “保存试卷”                                           |
+| `留在考试`     | dismissing a guarded-exit warning and keeping the active attempt open                        | `返回` when the action does not leave the attempt                  |
+| `离开考试`     | intentionally navigating away from the active attempt, subject to the existing warning/rules | `退出登录` or an ambiguous “关闭”                                  |
+| `返回考试列表` | the existing destination after leaving or reviewing an exam                                  | a new route or a generic “返回”                                    |
+| `已保存`       | confirmed persistence only                                                                   | a request-start or pending state                                   |
+
+The save/submit distinction is behavioral: saving answers may repeat without
+ending an attempt; submitting ends the attempt and can be manual or automatic.
+The stay/leave distinction is navigational: `留在考试` keeps the current
+workspace, while `离开考试` proceeds to the existing guarded destination.
+
+English is allowed only when it adds product or operational meaning:
+
+| Allowlist                | Allowed placement                                                         | Boundary                                                    |
+| ------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `Internal Exam Platform` | the governed product wordmark/subtitle                                    | exact product name only; never a routine page eyebrow       |
+| `Excel`                  | file-format guidance and import controls                                  | do not translate API state or add a decorative English pair |
+| `ID`                     | a compact machine identifier when the identifier itself is the task       | prefer Chinese `编号` for ordinary table labels             |
+| `OTP`                    | a verification-code implementation term where users need that distinction | never expose an API field or raw error code                 |
+
+This allowlist is intentionally narrow. English may not be used for routine
+page labels, statuses, table metadata, faux chapter markers, or all-caps
+`ENGLISH · 中文` eyebrows. If a product name or stable operational term is
+shown bilingually, the Chinese label remains primary and both strings name the
+same concept.
+
+Labels identify the task or state directly, stay concise, and preserve business
+terminology. Question type, question position, score, save status, and exam
+lifecycle language must remain semantically accurate.
 
 ## Surface containment
 
@@ -338,16 +452,16 @@ readiness, and deep links while flattening containment.
 
 ## Shared component ownership
 
-| Component area     | Owner                                                                      | Contract                                                                                                  |
-| ------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Page frame         | `PageShell`                                                                | Width (`default`, `wide`, `full`), density (`calm`, `workbench`, `focus`), rhythm, orientation motion     |
-| Header             | `PageHeader`                                                               | Optional meaningful context, one H1, description, responsive actions, safe wrapping                       |
-| Sections/state     | `PageSection`, `PageState`, `PageActions`                                  | Surface ownership, inherited async state, action reflow                                                   |
-| Editorial identity | `Wordmark`, `NamePlate`, `ChapterNumber`, `StatusPill`, `EmptyState`       | Upright labels, CJK-safe identity/context presentation, no decorative italic UI                           |
-| Form controls      | `Field`, `Input`, `Textarea`, native `Select`, `Button`                    | Label/description/error association and shared default, focus, disabled, pending, invalid, success states |
-| Exam focus         | `ExamFocusMode`, `ExamNavigator`, `ProgressCapsule`, `Timer`, `OptionCard` | Question semantics, ordinal context, options, timer, save/recovery, navigation, submit                    |
-| Admin metrics/data | `MetricCard`, `SimpleDataTable`, report primitives                         | Dense scan-friendly values, one surface owner, responsive table/card behavior                             |
-| Navigation         | `TopNav`, grouped `AdminSideRail`, `ExamContextNav`                        | Family-specific chrome, active semantics, keyboard reachability, existing routes only                     |
+| Component area     | Owner                                                                      | Contract                                                                                                                |
+| ------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Page frame         | `PageShell`                                                                | Width (`reading`, `standard`, `wide`, `full/focus`), density (`calm`, `workbench`, `focus`), rhythm, orientation motion |
+| Header             | `PageHeader`                                                               | Optional meaningful context, one H1, description, responsive actions, safe wrapping                                     |
+| Sections/state     | `PageSection`, `PageState`, `PageActions`                                  | Surface ownership, inherited async state, action reflow                                                                 |
+| Editorial identity | `Wordmark`, `NamePlate`, `ChapterNumber`, `StatusPill`, `EmptyState`       | Upright labels, CJK-safe identity/context presentation, no decorative italic UI                                         |
+| Form controls      | `Field`, `Input`, `Textarea`, native `Select`, `Button`                    | Label/description/error association and shared default, focus, disabled, pending, invalid, success states               |
+| Exam focus         | `ExamFocusMode`, `ExamNavigator`, `ProgressCapsule`, `Timer`, `OptionCard` | Question semantics, ordinal context, options, timer, save/recovery, navigation, submit                                  |
+| Admin metrics/data | `MetricCard`, `SimpleDataTable`, report primitives                         | Dense scan-friendly values, one surface owner, responsive table/card behavior                                           |
+| Navigation         | `TopNav`, grouped `AdminSideRail`, `ExamContextNav`                        | Family-specific chrome, active semantics, keyboard reachability, existing routes only                                   |
 
 Pages compose these owners. A page may add domain content but should not
 reimplement their typography, controls, API fetch details, or state language.
@@ -446,6 +560,14 @@ remain valid.
 - Mobile exam navigation uses a Sheet rather than unreachable off-screen
   controls. Fixed bottom focus controls include
   `env(safe-area-inset-bottom)` and remain reachable at 200% zoom.
+- Shared Dialog content keeps a fixed inline viewport gutter, a governed local
+  maximum width, dynamic-viewport maximum height, and internal scrolling. It
+  must not depend on percentage horizontal translation that can drift at a
+  custom dialog width.
+- Formal and active-practice fixed control wrappers do not intercept the page
+  outside the visible control itself. In short landscape, the mobile navigator
+  control aligns to the trailing edge and the duplicate lower progress capsule
+  is omitted because progress remains present in the focus header.
 - Visible labels and controls must remain readable at 320px width, CJK text,
   long words, keyboard navigation, and reduced motion. No content is hidden
   solely to avoid overflow.
@@ -558,9 +680,10 @@ change.
 
 ## Changelog
 
-- **2026-08-14** — Rewrote the canonical contract around the live CSS token
-  source, offline font stacks and CJK fallbacks, typed breakpoints, three
-  task-flow families plus the Auth Canvas shell exception, grouped
-  admin/exam-context navigation, optional upright context
-  labels, one-owner surfaces, shared control states, accessibility, reduced
-  motion, safe-area/responsive evidence, and explicit verification boundaries.
+- **2026-08-14** — V2 converged the canonical contract around the live CSS token
+  source, offline font stacks and CJK fallbacks, typed breakpoints, four page
+  families, the application/session-to-responsive-data single-owner graph,
+  Chinese-first glossary and narrow English allowlist, grouped admin and
+  exam-context navigation, optional upright context labels, one-owner
+  surfaces, shared control states, accessibility, reduced motion, safe-area /
+  responsive evidence, and explicit route/API/business compatibility boundaries.

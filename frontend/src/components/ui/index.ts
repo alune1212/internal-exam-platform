@@ -16,6 +16,12 @@ export { Input, type InputProps } from "./input";
 export { Select, type SelectProps } from "./select";
 export { Label } from "./label";
 export {
+  controlBaseClasses,
+  controlClasses,
+  controlVariantClasses,
+  type ControlVariant,
+} from "./control-base";
+export {
   Field,
   FieldGroup,
   FieldLabel,

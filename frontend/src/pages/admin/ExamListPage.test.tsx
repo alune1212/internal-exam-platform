@@ -48,7 +48,7 @@ describe("AdminExamListPage", () => {
   it("renders semantic exams copy", async () => {
     renderPage();
 
-    expect(await screen.findByText("EXAMS · 考试")).toBeInTheDocument();
+    expect(await screen.findByText("考试", { exact: true })).toBeInTheDocument();
   });
 
   it("creates a draft exam before navigating to edit", async () => {
@@ -91,7 +91,7 @@ describe("AdminExamListPage", () => {
     renderPage();
 
     expect(await screen.findByText("正式考试")).toBeInTheDocument();
-    expect(screen.getByText("OPEN · 可进入")).toBeInTheDocument();
+    expect(screen.getByText("可进入", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("已冻结")).toBeInTheDocument();
     expect(screen.getByText("题池 50")).toBeInTheDocument();
   });
@@ -114,6 +114,28 @@ describe("AdminExamListPage", () => {
     expect(await screen.findByRole("link", { name: "正式考试" })).toHaveAttribute(
       "href",
       "/admin/exams/1",
+    );
+  });
+
+  it("keeps long exam titles within the responsive data contract", async () => {
+    const longTitle = "安全生产专项考试安全生产专项考试安全生产专项考试安全生产专项考试";
+    examApi.getAdminExams.mockResolvedValue([
+      {
+        id: 1,
+        title: longTitle,
+        description: null,
+        duration_minutes: 60,
+        question_rule: {},
+        status: "draft",
+        show_answer_after_submit: true,
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: longTitle })).toHaveClass(
+      "min-w-0",
+      "break-words",
     );
   });
 });

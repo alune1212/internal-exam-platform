@@ -13,10 +13,13 @@ describe("Alert", () => {
     );
 
     const alert = screen.getByRole("status");
-    expect(alert.className).toContain("bg-canvas");
-    expect(alert.className).toContain("border-success");
-    expect(alert.className).toContain("text-success");
-    expect(screen.getByText("保存成功").className).toContain("tracking-[0.16em]");
+    expect(alert.className).toContain("bg-success-surface");
+    expect(alert.className).toContain("border-success-border");
+    expect(alert.className).toContain("text-status-success");
+    expect(screen.getByText("保存成功").className).toContain("tracking-caption");
+    expect(alert).toHaveAttribute("data-alert-variant", "success");
+    expect(alert).toHaveAttribute("data-feedback-kind", "alert");
+    expect(alert).toHaveAttribute("data-color-independent", "true");
     expect(screen.queryByRole("heading", { name: "保存成功" })).not.toBeInTheDocument();
   });
 
@@ -28,7 +31,14 @@ describe("Alert", () => {
     );
 
     const alert = screen.getByRole("alert");
-    expect(alert.className).toContain("border-error");
-    expect(alert.className).toContain("text-error");
+    expect(alert.className).toContain("border-error-border");
+    expect(alert.className).toContain("text-status-error");
+  });
+
+  it("supports a tone alias without changing the alert semantics", () => {
+    render(<Alert tone="warning">请检查配置</Alert>);
+
+    const alert = screen.getByRole("status");
+    expect(alert).toHaveAttribute("data-alert-variant", "warning");
   });
 });

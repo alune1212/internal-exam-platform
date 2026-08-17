@@ -1,5 +1,12 @@
 export { PageActions } from "./PageActions";
-export type { PageActionsProps } from "./PageActions";
+export { PageActions as ActionGroup } from "./PageActions";
+export type {
+  PageActionAlign,
+  PageActionPlacement,
+  PageActionReflow,
+  PageActionsProps,
+} from "./PageActions";
+export type { PageActionsProps as ActionGroupProps } from "./PageActions";
 
 export { PageHeader } from "./PageHeader";
 export type { PageHeaderProps } from "./PageHeader";

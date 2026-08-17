@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { getOperationsSnapshot } from "@/api/operations";
+import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { PageHeader, PageShell, PageStaleNotice, PageState } from "@/components/page";
-import { cn } from "@/lib/utils";
+import { Card, CardTitle } from "@/components/ui/card";
 import type { OperationalSignal, OperationalSignalStatus } from "@/types/operations";
 
 const SIGNALS = [
@@ -28,36 +29,29 @@ const STATUS_COPY: Record<OperationalSignalStatus, string> = {
   failed: "失败",
 };
 
-const STATUS_TONE: Record<OperationalSignalStatus, string> = {
-  loading: "border-hairline text-muted",
-  current: "border-success text-success",
-  degraded: "border-warning text-warning",
-  stale: "border-warning text-warning",
-  skipped: "border-hairline text-muted",
-  failed: "border-error text-error",
+const STATUS_VARIANT: Record<OperationalSignalStatus, StatusPillVariant> = {
+  loading: "pending",
+  current: "success",
+  degraded: "warning",
+  stale: "warning",
+  skipped: "neutral",
+  failed: "error",
 };
 
 function SignalCard({ label, signal }: { label: string; signal: OperationalSignal }) {
   return (
-    <article className="flex min-h-44 flex-col gap-4 rounded-lg border border-hairline bg-surface-card p-5 shadow-card">
+    <Card surface="data" className="flex min-h-44 min-w-0 flex-col gap-4 p-5">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink">
-          {label}
-        </h2>
-        <span
-          className={cn(
-            "rounded-pill border px-2.5 py-1 text-caption font-medium",
-            STATUS_TONE[signal.status],
-          )}
-        >
+        <CardTitle as="h2">{label}</CardTitle>
+        <StatusPill className="shrink-0" variant={STATUS_VARIANT[signal.status]}>
           {STATUS_COPY[signal.status]}
-        </span>
+        </StatusPill>
       </div>
-      <p className="text-body text-ink">{signal.summary}</p>
+      <p className="min-w-0 break-words text-body text-ink">{signal.summary}</p>
       <time className="mt-auto text-caption text-muted" dateTime={signal.checked_at}>
         检查于 {new Date(signal.checked_at).toLocaleString("zh-CN")}
       </time>
-    </article>
+    </Card>
   );
 }
 
@@ -70,9 +64,9 @@ export function OperationsPage() {
   });
 
   return (
-    <PageShell density="workbench" width="full" stagger>
+    <PageShell density="workbench" width="full" data-testid="operations-page-shell">
       <PageHeader
-        eyebrow="OPERATIONS · 运维"
+        context="运维"
         title="正式主机状态"
         description="每 30 秒刷新；每个信号独立显示当前、降级、陈旧、跳过或失败。"
       />
@@ -93,7 +87,7 @@ export function OperationsPage() {
         />
       ) : null}
       {query.data ? (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="运维信号">
+        <section className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="运维信号">
           {SIGNALS.map(([key, label]) => (
             <SignalCard key={key} label={label} signal={query.data[key]} />
           ))}

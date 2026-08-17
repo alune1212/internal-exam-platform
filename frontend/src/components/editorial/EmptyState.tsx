@@ -1,11 +1,12 @@
 import * as React from "react";
 
+import { PageActions } from "@/components/page/PageActions";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { ContextLabel } from "./ContextLabel";
 
-export type EmptyStateTone = "default" | "error" | "muted";
+export type EmptyStateTone = "default" | "error" | "warning" | "success" | "muted";
 
 export interface EmptyStateAction {
   label: string;
@@ -13,7 +14,10 @@ export interface EmptyStateAction {
 }
 
 export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
-  chapter: string;
+  /** Optional meaningful context; page states no longer force an eyebrow. */
+  chapter?: React.ReactNode;
+  /** Alias for callers that use the shared context vocabulary. */
+  context?: React.ReactNode;
   title: string;
   description: string;
   action?: EmptyStateAction;
@@ -23,6 +27,7 @@ export interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function EmptyState({
   chapter,
+  context,
   title,
   description,
   action,
@@ -31,21 +36,31 @@ export function EmptyState({
   className,
   ...props
 }: EmptyStateProps) {
-  const chapterClassName = tone === "error" ? "text-error" : undefined;
+  const resolvedContext = context !== undefined ? context : chapter;
+  const chapterClassName =
+    tone === "error" ? "text-error" : tone === "warning" ? "text-warning" : undefined;
 
   return (
     <div
+      data-state-tone={tone}
       className={cn(
         "mx-auto flex max-w-md flex-col items-center gap-6 py-16 text-center",
         className,
       )}
       {...props}
     >
-      <ContextLabel className={chapterClassName}>{chapter}</ContextLabel>
+      {resolvedContext ? (
+        <ContextLabel className={chapterClassName}>{resolvedContext}</ContextLabel>
+      ) : null}
       <h2 className="min-w-0 break-words font-display text-display-md text-ink">{title}</h2>
       <p className="text-body text-muted">{description}</p>
       {action || secondaryAction ? (
-        <div className="flex flex-wrap justify-center gap-3">
+        <PageActions
+          aria-label="状态操作"
+          align="center"
+          placement="card"
+          className="justify-center"
+        >
           {action ? (
             <Button size="lg" type="button" onClick={action.onClick}>
               {action.label}
@@ -56,7 +71,7 @@ export function EmptyState({
               {secondaryAction.label}
             </Button>
           ) : null}
-        </div>
+        </PageActions>
       ) : null}
     </div>
   );

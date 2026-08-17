@@ -296,6 +296,8 @@ def test_gateways_use_same_origin_csp_and_candidate_denies_admin_routes() -> Non
         assert "font-src 'self'" in nginx_conf
         assert "object-src 'none'" in nginx_conf
         assert "media-src 'self'" in nginx_conf
+    assert "media-src 'self';" in candidate_conf
+    assert "media-src 'self' blob:;" in operator_conf
     for denied_route in (
         "location ^~ /admin",
         "location = /operations",

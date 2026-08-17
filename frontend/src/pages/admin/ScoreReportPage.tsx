@@ -7,6 +7,7 @@ import { getRanking, getScoreReport } from "@/api/reports";
 import { ExamReportFilter } from "@/components/admin/ExamReportFilter";
 import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
+import { ReportToolbar } from "@/components/admin/ReportToolbar";
 import { adminPageCopy, adminPageText, adminTableCopy } from "@/lib/pageCopy";
 import type { ScoreReportRow } from "@/types/report";
 
@@ -15,50 +16,59 @@ type ScoreReportDisplayRow = ScoreReportRow & { rank: number | null };
 const columns: ColumnDef<ScoreReportDisplayRow>[] = [
   {
     accessorKey: "rank",
-    header: "RANK · 名次",
+    header: "名次",
     cell: ({ row }) => (
-      <span className="font-mono text-sm tabular-nums">{row.original.rank ?? "-"}</span>
+      <span className="font-mono text-body-sm tabular-nums">{row.original.rank ?? "—"}</span>
     ),
-    meta: { mobilePriority: "primary", mobileLabel: "名次" },
+    meta: { mobileLabel: "名次" },
   },
   {
     accessorKey: "roster_name",
-    header: "ROSTER NAME · 名单姓名",
-    cell: ({ row }) => <span className="font-medium">{row.original.roster_name}</span>,
+    header: "名单姓名",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-medium">{row.original.roster_name}</span>
+    ),
     meta: { mobilePriority: "primary", mobileLabel: "名单姓名" },
   },
   {
     accessorKey: "roster_email",
-    header: "ROSTER EMAIL · 名单邮箱",
-    cell: ({ row }) => <span className="font-mono text-sm">{row.original.roster_email}</span>,
+    header: "名单邮箱",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-mono text-body-sm">
+        {row.original.roster_email}
+      </span>
+    ),
     meta: { mobileLabel: "名单邮箱" },
   },
   {
     accessorKey: "department",
     header: adminTableCopy.department,
-    cell: ({ row }) => row.original.department ?? "-",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words">{row.original.department ?? "—"}</span>
+    ),
     meta: { mobileLabel: adminTableCopy.department },
   },
   {
     accessorKey: "exam_title",
     header: adminTableCopy.exam,
+    cell: ({ row }) => <span className="min-w-0 break-words">{row.original.exam_title}</span>,
     meta: { mobileLabel: adminTableCopy.exam },
   },
   {
     accessorKey: "score",
     header: adminTableCopy.score,
     cell: ({ row }) => (
-      <span className="font-mono text-sm tabular-nums">
+      <span className="font-mono text-body-sm tabular-nums">
         {row.original.score} / {row.original.total_score}
       </span>
     ),
-    meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.score },
+    meta: { mobileLabel: adminTableCopy.score },
   },
   {
     accessorKey: "total_score",
     header: adminTableCopy.totalScore,
     cell: ({ row }) => (
-      <span className="font-mono text-sm tabular-nums">{row.original.total_score}</span>
+      <span className="font-mono text-body-sm tabular-nums">{row.original.total_score}</span>
     ),
     meta: { mobilePriority: false },
   },
@@ -107,16 +117,18 @@ export function ScoreReportPage() {
         }));
       }}
       columns={columns}
-      actions={
+      toolbar={
         examsLoadError || examsPending ? null : (
-          <>
-            <ExamReportFilter
-              exams={exams.data ?? []}
-              value={selectedExamId ?? null}
-              onChange={setSelectedExamId}
-            />
-            <ReportExportButton examId={selectedExamId ?? null} />
-          </>
+          <ReportToolbar
+            filters={
+              <ExamReportFilter
+                exams={exams.data ?? []}
+                value={selectedExamId ?? null}
+                onChange={setSelectedExamId}
+              />
+            }
+            actions={<ReportExportButton examId={selectedExamId ?? null} />}
+          />
         )
       }
     />

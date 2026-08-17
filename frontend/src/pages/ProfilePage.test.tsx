@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Outlet, RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getCandidateProfile } from "@/api/auth";
+import { getCandidateProfile, updateCandidateProfile } from "@/api/auth";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
 import { ProfilePage } from "@/pages/ProfilePage";
 import type { Candidate, CandidateProfile } from "@/types/candidate";
@@ -115,5 +115,66 @@ describe("ProfilePage", () => {
     expect(await screen.findByDisplayValue("李四")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByTestId("page-stale-warning")).not.toBeInTheDocument());
     expect(getCandidateProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the semantic reading frame and preserves long profile text", async () => {
+    const longName = "这是一个用于验证资料输入在窄屏下仍可保留的超长显示姓名";
+    const longProfile = { ...profile, display_name: longName };
+    vi.mocked(getCandidateProfile).mockResolvedValue(longProfile);
+
+    renderProfilePage();
+
+    expect(await screen.findByDisplayValue(longName)).toBeInTheDocument();
+    expect(screen.getByTestId("candidate-profile-shell")).toHaveAttribute("data-width", "reading");
+    expect(screen.getByTestId("candidate-profile-form-section")).toHaveAttribute(
+      "data-surface-role",
+      "panel",
+    );
+    expect(screen.getByRole("group", { name: "资料保存操作" })).toBeInTheDocument();
+  });
+
+  it("shows pending and success states while keeping the profile update payload unchanged", async () => {
+    const user = userEvent.setup();
+    let resolveUpdate: (value: CandidateProfile) => void = () => undefined;
+    const pendingUpdate = new Promise<CandidateProfile>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    vi.mocked(getCandidateProfile).mockResolvedValue(profile);
+    vi.mocked(updateCandidateProfile).mockReturnValueOnce(pendingUpdate);
+
+    renderProfilePage();
+
+    const displayName = await screen.findByLabelText("显示姓名");
+    await user.clear(displayName);
+    await user.type(displayName, "李四");
+    await user.click(screen.getByRole("button", { name: "保存显示姓名" }));
+
+    expect(vi.mocked(updateCandidateProfile).mock.calls[0]?.[0]).toEqual({ display_name: "李四" });
+    expect(screen.getByRole("button", { name: /保存显示姓名/ })).toBeDisabled();
+    expect(
+      screen.getByTestId("candidate-profile-form-section").querySelector("form"),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(displayName).toBeDisabled();
+
+    resolveUpdate({ ...profile, display_name: "李四" });
+    expect(await screen.findByText("资料已更新，正式考试名单保持不变。")).toBeInTheDocument();
+  });
+
+  it("keeps keyboard validation local and reports a recoverable save error", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getCandidateProfile).mockResolvedValue(profile);
+    vi.mocked(updateCandidateProfile).mockRejectedValueOnce(new Error("save unavailable"));
+
+    renderProfilePage();
+
+    const displayName = await screen.findByLabelText("显示姓名");
+    await user.clear(displayName);
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText("请输入姓名")).toBeInTheDocument();
+    expect(updateCandidateProfile).not.toHaveBeenCalled();
+
+    await user.type(displayName, "王五");
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent("资料保存失败，请稍后重试。");
   });
 });

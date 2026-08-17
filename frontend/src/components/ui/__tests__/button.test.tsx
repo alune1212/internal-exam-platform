@@ -43,11 +43,48 @@ describe("Button", () => {
   });
 
   it("guards pending actions and exposes busy state", () => {
-    render(<Button pending>保存</Button>);
+    render(
+      <Button pending aria-busy={false}>
+        保存
+      </Button>,
+    );
     const button = screen.getByRole("button", { name: "保存" });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("aria-busy", "true");
     expect(button).toHaveAttribute("data-pending");
     expect(button).toHaveAttribute("data-state", "pending");
+  });
+
+  it("exposes a layout-stable pressed treatment", () => {
+    render(
+      <Button type="button" aria-pressed="true">
+        已选择
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "已选择" });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(button.className).toContain("aria-[pressed=true]:shadow-inner");
+  });
+
+  it("uses the governed success treatment for dark and light action surfaces", () => {
+    render(
+      <>
+        <Button success>已完成</Button>
+        <Button success variant="outline">
+          已校验
+        </Button>
+      </>,
+    );
+
+    const primary = screen.getByRole("button", { name: "已完成" });
+    expect(primary).toHaveAttribute("data-success");
+    expect(primary.className).toContain("data-[success]:bg-success-action");
+    expect(primary.className).toContain("data-[success]:text-success-action-foreground");
+    expect(primary.className).not.toContain("data-[success]:text-success ");
+
+    const outline = screen.getByRole("button", { name: "已校验" });
+    expect(outline.className).toContain("data-[success]:bg-success-surface");
+    expect(outline.className).toContain("data-[success]:border-success-border");
+    expect(outline.className).toContain("data-[success]:text-success");
   });
 });

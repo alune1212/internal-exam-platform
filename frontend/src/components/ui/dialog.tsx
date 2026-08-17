@@ -35,7 +35,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 z-modal grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-hairline bg-surface-elev p-6 shadow-pop duration-normal ease-standard data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+        "fixed inset-x-4 top-1/2 z-modal mx-auto grid max-h-[calc(100dvh-2rem)] min-h-0 w-auto max-w-lg -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-lg border border-hairline bg-surface-elev p-6 shadow-pop duration-normal ease-standard [padding-bottom:max(1.5rem,env(safe-area-inset-bottom))] [padding-top:max(1.5rem,env(safe-area-inset-top))] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className,
       )}
       {...props}
@@ -44,7 +44,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Close
         aria-label="关闭"
         className={cn(
-          `absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-pill text-muted transition-colors hover:bg-surface-card hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink [&_[data-icon]]:size-4 [&_[data-icon]]:shrink-0`,
+          `absolute right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,env(safe-area-inset-top))] inline-flex size-8 items-center justify-center rounded-pill text-muted transition-colors hover:bg-surface-card hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink [&_[data-icon]]:size-4 [&_[data-icon]]:shrink-0`,
         )}
       >
         <X data-icon="inline-end" aria-hidden />
@@ -69,7 +69,7 @@ const DialogHeader = React.forwardRef<HTMLDivElement, DialogHeaderProps>(
   ({ className, chapter, children, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col gap-2 text-left", className)} {...props}>
       {chapter ? (
-        <span className="min-w-0 break-words text-caption font-medium uppercase tracking-[0.16em] text-muted">
+        <span className="min-w-0 break-words text-caption font-medium uppercase tracking-caption text-muted">
           {chapter}
         </span>
       ) : null}
@@ -97,7 +97,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "min-w-0 break-words font-display text-display-sm font-semibold leading-tight tracking-[-0.02em] text-ink lg:text-display-md",
+      "min-w-0 break-words font-display text-display-sm font-semibold leading-tight tracking-display-tight text-ink lg:text-display-md",
       className,
     )}
     {...props}

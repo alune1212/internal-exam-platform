@@ -41,7 +41,16 @@ describe("PageHeader", () => {
     render(<PageHeader eyebrow="  " title="题库档案" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "题库档案" })).toBeInTheDocument();
+    expect(document.querySelector("[data-page-context]")).not.toBeInTheDocument();
     expect(document.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();
+  });
+
+  it("accepts an optional context alias without forcing a decorative marker", () => {
+    render(<PageHeader context="考试安排" title="待完成的考试" />);
+
+    expect(document.querySelector("[data-page-context]")).toHaveTextContent("考试安排");
+    expect(screen.getByRole("heading", { level: 1, name: "待完成的考试" })).toBeInTheDocument();
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
   });
 
   it("places actions in a responsive action region", () => {

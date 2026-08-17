@@ -171,7 +171,8 @@ describe("ScoreReportPage", () => {
     await waitFor(() => expect(getQuestionAccuracy).toHaveBeenCalledWith("7"));
     expect(await screen.findByText("单选题干")).toBeInTheDocument();
     expect(screen.getByText("87.5%")).toBeInTheDocument();
-    expect(screen.getByText("TOTAL · 总数")).toBeInTheDocument();
+    expect(screen.getByText("总数")).toBeInTheDocument();
+    expect(screen.queryByText("TOTAL · 总数")).not.toBeInTheDocument();
     expect(screen.queryByText("TOTAL · 总分")).not.toBeInTheDocument();
 
     await user.click(await screen.findByRole("button", { name: /导出当前考试/ }));

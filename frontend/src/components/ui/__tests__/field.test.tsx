@@ -18,6 +18,9 @@ describe("Field", () => {
     );
 
     expect(screen.getByText("考试名称 · Title")).toHaveAttribute("for", "title");
+    expect(screen.getByText("考试名称 · Title").closest("[data-slot='field']")).toHaveClass(
+      "min-w-0",
+    );
     expect(screen.getByText("用于考生端展示。").className).toContain("text-muted");
     expect(screen.getByText("请输入考试名称")).toHaveAttribute("role", "alert");
     expect(screen.getByText("请输入考试名称").className).toContain("text-error");
@@ -89,5 +92,18 @@ describe("Field", () => {
 
     expect(screen.getByRole("textbox", { name: "状态" })).toHaveAttribute("data-state", "success");
     expect(screen.getByRole("textbox", { name: "状态" })).toHaveAttribute("data-success");
+  });
+
+  it("does not let an explicit false override a pending field lock", () => {
+    render(
+      <Field pending>
+        <FieldLabel>正在保存</FieldLabel>
+        <Input disabled={false} aria-busy={false} />
+      </Field>,
+    );
+
+    const input = screen.getByRole("textbox", { name: "正在保存" });
+    expect(input).toBeDisabled();
+    expect(input).toHaveAttribute("aria-busy", "true");
   });
 });

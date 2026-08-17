@@ -52,7 +52,7 @@ describe("Wordmark", () => {
 
     const mark = screen.getByTestId("wm").querySelector("[data-brand-mark]") as HTMLElement;
     expect(mark.className).toMatch(/size-7|h-7|w-7/);
-    expect(screen.getByText("知试").className).toMatch(/text-\[18px\]/);
+    expect(screen.getByText("知试").className).toMatch(/text-body-lg/);
   });
 
   it("accepts tone as a variant alias", () => {

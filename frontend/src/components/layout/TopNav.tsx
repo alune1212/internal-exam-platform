@@ -22,10 +22,26 @@ import { candidateDisplayName, type Candidate } from "@/types/candidate";
 type NavItem = {
   to: string;
   label: string;
-  mark: string;
   end?: boolean;
   activePattern?: RegExp;
 };
+
+/**
+ * Candidate navigation is intentionally one ordered model for desktop and
+ * mobile. Presentation can change between the two layouts, but destinations
+ * and their active matching must not drift.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export const CANDIDATE_NAVIGATION_ITEMS: readonly NavItem[] = [
+  { to: "/learning", label: "学习", activePattern: /^\/learning(?:\/|$)/ },
+  { to: "/practice", label: "练习", activePattern: /^\/practice(?:\/|$)/ },
+  { to: "/exams", label: "考试", end: true },
+];
+
+function candidateNavigationItemIsActive(item: NavItem, pathname: string) {
+  if (item.activePattern?.test(pathname)) return true;
+  return item.end ? pathname === item.to : pathname.startsWith(`${item.to}/`);
+}
 
 type TopNavProps = {
   candidate: Candidate | null;
@@ -33,38 +49,56 @@ type TopNavProps = {
 };
 
 function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = candidateNavigationItemIsActive(item, pathname);
+
   return (
     <NavLink
       to={item.to}
       end={item.end}
+      aria-current={active ? "page" : undefined}
+      data-active={active ? "true" : "false"}
       className={({ isActive }) =>
         cn(
-          "relative inline-flex h-10 items-center gap-1.5 px-1 text-body-sm font-medium transition-colors",
-          isActive || item.activePattern?.test(pathname) ? "text-ink" : "text-muted hover:text-ink",
+          "inline-flex min-h-10 items-center rounded-pill px-3 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
+          isActive || active
+            ? "bg-surface-card text-ink"
+            : "text-muted hover:bg-surface-card hover:text-ink",
         )
       }
     >
-      {({ isActive }) => (
-        <>
-          <span
-            aria-hidden="true"
-            className={cn(
-              "inline-block w-7 text-right font-mono text-[11px] uppercase tracking-[0.16em] transition-colors",
-              isActive || item.activePattern?.test(pathname) ? "text-ink" : "text-muted",
-            )}
-          >
-            {item.mark}
-          </span>
-          <span>{item.label}</span>
-          <span
-            aria-hidden="true"
-            className={cn(
-              "absolute inset-x-0 -bottom-px h-px transition-opacity",
-              isActive || item.activePattern?.test(pathname) ? "bg-ink opacity-100" : "opacity-0",
-            )}
-          />
-        </>
-      )}
+      <span>{item.label}</span>
+    </NavLink>
+  );
+}
+
+function MobileNavLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const active = candidateNavigationItemIsActive(item, pathname);
+
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      data-active={active ? "true" : "false"}
+      className={({ isActive }) =>
+        cn(
+          "flex min-h-12 items-center rounded-md px-3 text-body font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
+          isActive || active
+            ? "bg-ink text-canvas"
+            : "text-muted hover:bg-surface-card hover:text-ink",
+        )
+      }
+    >
+      {item.label}
     </NavLink>
   );
 }
@@ -75,39 +109,43 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
   const isDesktop = useMediaQuery(MD.lg);
   const location = useLocation();
   const isInExam = /^\/exams\/\d+\/taking/.test(location.pathname);
-  const navItems: NavItem[] = [
-    { to: "/learning", label: "学习", mark: "I.", activePattern: /^\/learning(?:\/|$)/ },
-    { to: "/practice", label: "练习", mark: "II." },
-    { to: "/exams", label: "考试", mark: "III.", end: true },
-  ];
 
   return (
     <header
       data-scrolled={scrolled}
-      className="sticky top-0 z-overlay h-16 border-b border-hairline-soft bg-canvas"
+      data-navigation-family="candidate"
+      className="sticky top-0 z-overlay border-b border-hairline-soft bg-canvas"
     >
-      <div className="mx-auto grid h-full max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 md:px-8">
+      <div className="mx-auto flex min-h-16 w-full min-w-0 items-center gap-4 px-page-inline lg:px-page-inline-lg">
         <Link
           to="/exams"
           aria-label="返回考试列表首页"
-          className="justify-self-start rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
+          className="min-w-0 shrink rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
         >
           <Wordmark size="sm" subtitle="internal exam platform" />
         </Link>
 
         {isDesktop ? (
-          <nav className="flex items-center gap-8 justify-self-center">
-            {navItems.map((item) => (
-              <NavLinkItem key={item.mark} item={item} pathname={location.pathname} />
+          <nav
+            aria-label="候选人导航"
+            data-testid="candidate-desktop-nav"
+            className="flex min-w-0 flex-1 items-center justify-center gap-1"
+          >
+            {CANDIDATE_NAVIGATION_ITEMS.map((item) => (
+              <NavLinkItem key={item.to} item={item} pathname={location.pathname} />
             ))}
           </nav>
         ) : null}
 
-        <div className="flex items-center gap-2 justify-self-end">
+        <div className={cn("flex min-w-0 shrink-0 items-center gap-2", !isDesktop && "ml-auto")}>
           {isDesktop ? (
             candidate ? (
               <>
-                <Link to="/profile" aria-label="打开账号资料">
+                <Link
+                  to="/profile"
+                  aria-label="打开账号资料"
+                  className="min-w-0 max-w-48 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
+                >
                   <NamePlate name={candidateDisplayName(candidate)} subtitle="用户" />
                 </Link>
                 {isInExam ? (
@@ -148,29 +186,27 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                   <Menu aria-hidden="true" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="rounded-t-lg">
+              <SheetContent
+                side="bottom"
+                data-testid="candidate-mobile-navigation"
+                className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-t-lg pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+              >
                 <SheetHeader>
                   <SheetTitle className="font-display text-display-sm">导航</SheetTitle>
                   <SheetDescription className="sr-only">用户导航菜单</SheetDescription>
                 </SheetHeader>
-                <nav className="flex flex-col gap-1 px-4 pb-6">
-                  {navItems.map((item) => (
-                    <NavLink
-                      key={item.mark}
-                      to={item.to}
-                      end={item.end}
-                      onClick={() => setMobileOpen(false)}
-                      className={({ isActive }) =>
-                        cn(
-                          "flex h-12 items-center rounded-md px-3 text-body font-medium transition-colors",
-                          isActive || item.activePattern?.test(location.pathname)
-                            ? "bg-surface-card text-ink"
-                            : "text-body hover:bg-surface-card hover:text-ink",
-                        )
-                      }
-                    >
-                      {item.label}
-                    </NavLink>
+                <nav
+                  aria-label="候选人导航"
+                  data-testid="candidate-mobile-nav"
+                  className="flex flex-col gap-1 px-4 pb-6"
+                >
+                  {CANDIDATE_NAVIGATION_ITEMS.map((item) => (
+                    <MobileNavLink
+                      key={item.to}
+                      item={item}
+                      pathname={location.pathname}
+                      onNavigate={() => setMobileOpen(false)}
+                    />
                   ))}
                   {candidate ? (
                     <div className="mt-4 flex flex-col gap-3 border-t border-hairline-soft pt-4">
@@ -178,6 +214,7 @@ export function TopNav({ candidate, onLogout }: TopNavProps) {
                         to="/profile"
                         onClick={() => setMobileOpen(false)}
                         aria-label="打开账号资料"
+                        className="min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2"
                       >
                         <NamePlate name={candidateDisplayName(candidate)} subtitle="用户" />
                       </Link>

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowRight, LogIn } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
@@ -13,14 +13,14 @@ import {
 } from "@/api/auth";
 import { Wordmark } from "@/components/editorial/Wordmark";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
-import { PageHeader, PageSection } from "@/components/page";
+import { PageActions, PageHeader } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
+import { candidatePageText } from "@/lib/pageCopy";
 import {
   clearRegistrationFlow,
   getSafeReturnTo,
@@ -67,7 +67,7 @@ export function LoginPage() {
       if (verification.outcome === "authenticated") {
         if (verification.account.status !== "active") {
           clearRegistrationFlow();
-          setAccountUnavailableMessage("账号暂不可用，请联系管理员重新激活后再登录。");
+          setAccountUnavailableMessage(candidatePageText.login.accountUnavailable);
           return;
         }
         clearRegistrationFlow();
@@ -138,27 +138,34 @@ export function LoginPage() {
 
   const isPending = requestMutation.isPending || verifyMutation.isPending;
   return (
-    <PageSection variant="plain" data-stagger className="w-full max-w-md gap-6">
-      <div className="flex flex-col gap-4">
-        <Wordmark size="md" subtitle="internal exam platform" />
+    <section
+      data-auth-canvas="candidate"
+      className="flex w-full max-w-reading flex-col gap-8 landscape:grid landscape:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] landscape:items-start landscape:gap-6"
+    >
+      <div className="flex flex-col gap-5 landscape:gap-4">
+        <Wordmark size="md" />
         <PageHeader
           data-testid="candidate-login-header"
-          eyebrow={candidatePageCopy.login}
+          context="用户入口"
           title={candidatePageText.login.title}
           description={candidatePageText.login.description}
           className="gap-3 md:flex-col md:items-start"
         />
       </div>
 
-      <Card className="bg-canvas shadow-pop">
+      <Card surface="panel">
         <CardContent className="p-6 md:p-8">
           <form
             className="flex flex-col gap-5"
+            aria-busy={isPending}
             onSubmit={form.handleSubmit(handleSubmit)}
             noValidate
           >
             <FieldGroup>
-              <Field data-invalid={form.formState.errors.email ? "" : undefined}>
+              <Field
+                disabled={Boolean(challenge)}
+                data-invalid={form.formState.errors.email ? "" : undefined}
+              >
                 <FieldLabel htmlFor="email">邮箱</FieldLabel>
                 <Input
                   id="email"
@@ -175,7 +182,10 @@ export function LoginPage() {
               </Field>
 
               {challenge ? (
-                <Field data-invalid={form.formState.errors.otp ? "" : undefined}>
+                <Field
+                  pending={verifyMutation.isPending}
+                  data-invalid={form.formState.errors.otp ? "" : undefined}
+                >
                   <FieldLabel htmlFor="otp">验证码</FieldLabel>
                   <Input
                     id="otp"
@@ -199,31 +209,31 @@ export function LoginPage() {
               {candidatePageText.login.permissionNote}
             </p>
 
-            <Button type="submit" size="lg" className="h-12 w-full" disabled={isPending}>
-              {isPending ? (
-                <Spinner
-                  data-icon="inline-start"
-                  aria-label={challenge ? "正在验证" : "正在发送"}
-                />
-              ) : challenge ? (
-                <ArrowRight data-icon="inline-start" aria-hidden="true" />
-              ) : (
-                <LogIn data-icon="inline-start" aria-hidden="true" />
-              )}
-              {challenge ? "验证并继续" : "发送验证码"}
-            </Button>
-
-            {challenge ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                disabled={requestMutation.isPending || resendSeconds > 0}
-                onClick={() => requestMutation.mutate({ email: challengeEmail })}
-              >
-                {resendSeconds > 0 ? `重新发送验证码（${resendSeconds}秒）` : "重新发送验证码"}
+            <PageActions placement="auth" aria-label="登录操作">
+              <Button type="submit" size="lg" pending={isPending} className="w-full">
+                {isPending ? (
+                  <Spinner
+                    data-icon="inline-start"
+                    aria-label={challenge ? "正在验证" : "正在发送"}
+                  />
+                ) : challenge ? (
+                  <ArrowRight data-icon="inline-start" aria-hidden="true" />
+                ) : null}
+                {challenge ? "验证并继续" : "发送验证码"}
               </Button>
-            ) : null}
+
+              {challenge ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  pending={requestMutation.isPending}
+                  disabled={resendSeconds > 0}
+                  onClick={() => requestMutation.mutate({ email: challengeEmail })}
+                >
+                  {resendSeconds > 0 ? `重新发送验证码（${resendSeconds}秒）` : "重新发送验证码"}
+                </Button>
+              ) : null}
+            </PageActions>
 
             {requestMutation.isError ? (
               <Alert variant="error">
@@ -238,6 +248,6 @@ export function LoginPage() {
           </form>
         </CardContent>
       </Card>
-    </PageSection>
+    </section>
   );
 }

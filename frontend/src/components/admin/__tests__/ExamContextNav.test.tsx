@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -46,6 +46,37 @@ describe("ExamContextNav", () => {
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     expect(hrefs).not.toContainEqual(expect.stringContaining("monitor"));
     expect(hrefs).not.toContainEqual(expect.stringContaining("/admin/exams/1/monitor"));
+    expect(screen.getByTestId("exam-context-links")).toHaveAttribute(
+      "aria-label",
+      "考试上下文导航",
+    );
+  });
+
+  it("keeps long exam identities contained and destination labels in keyboard order", () => {
+    render(
+      <MemoryRouter initialEntries={["/admin/exams/1"]}>
+        <ExamContextNav
+          examId="1"
+          examTitle="2026年度安全生产与应急处置综合能力考核（华东区域一线岗位）ABCDEFGHIJKLMN"
+        />
+      </MemoryRouter>,
+    );
+
+    const identity = screen.getByTestId("exam-context-identity");
+    expect(identity).toHaveClass("min-w-0");
+    expect(identity).toHaveClass("max-w-full");
+    expect(identity).toHaveClass("break-words");
+
+    const links = within(screen.getByTestId("exam-context-links")).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual([
+      "考试工作台",
+      "考试编排",
+      "名单与授权",
+      "邀请投递",
+      "成绩册",
+      "错题回看",
+    ]);
+    expect(links.every((link) => link.className.includes("whitespace-nowrap"))).toBe(true);
   });
 
   it("marks exactly one current destination and changes roster state for invitations", () => {
@@ -54,6 +85,7 @@ describe("ExamContextNav", () => {
       "aria-current",
       "page",
     );
+    expect(screen.getByRole("link", { name: "名单与授权" })).toHaveAttribute("data-active", "true");
     expect(screen.getByRole("link", { name: "邀请投递" })).not.toHaveAttribute("aria-current");
 
     unmount();

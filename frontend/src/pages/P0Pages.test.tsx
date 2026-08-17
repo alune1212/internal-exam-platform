@@ -300,7 +300,7 @@ describe("P0 pages", () => {
     });
 
     expect(screen.getByTestId("candidate-login-header")).toBeInTheDocument();
-    expect(screen.getByText("USER · 邮箱登录")).toBeInTheDocument();
+    expect(screen.getByText("用户入口")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "邮箱登录" })).toHaveClass(
       "font-display",
       "text-display-lg",
@@ -379,7 +379,7 @@ describe("P0 pages", () => {
 
     expect((await screen.findAllByText(/Q\s*01\s*\/\s*01/)).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("radio", { name: /选项 A：北京/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/QUESTION 01 · 单选 · 2 分/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("第 01 题 · 单选 · 2 分").length).toBeGreaterThan(0);
   });
 
   it("shows exam-taking loading before rendering the focus mode", async () => {
@@ -413,7 +413,7 @@ describe("P0 pages", () => {
   it("shows the not-started state when entering the taking page without an attempt", () => {
     renderPage("exams/:examId/taking", <ExamTakingPage />, undefined, "exams/1/taking");
 
-    expect(screen.getByText("STATE · 未开始")).toBeInTheDocument();
+    expect(screen.getByText("未开始")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "未开始考试。" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回考试说明" })).toHaveAttribute(
       "href",
@@ -728,7 +728,9 @@ describe("P0 pages", () => {
     expect(unsavedEvent.defaultPrevented).toBe(true);
 
     resolveSave({ saved_count: 1, saved_at: "2026-08-14T00:02:00.000Z", answer_revision: 1 });
-    await waitFor(() => expect(screen.getByTestId("exam-save-status")).toHaveTextContent("已保存"));
+    await waitFor(() =>
+      expect(screen.getByTestId("exam-save-status")).toHaveTextContent(/^答案已保存$/),
+    );
 
     const savedEvent = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(savedEvent);
@@ -995,7 +997,7 @@ describe("P0 pages", () => {
       logoutCandidate: vi.fn(),
     });
 
-    expect(screen.getByText("STATE · 未登录")).toBeInTheDocument();
+    expect(screen.getByText("未登录")).toBeInTheDocument();
     expect(getPracticeQuestions).not.toHaveBeenCalled();
   });
 
@@ -1256,7 +1258,7 @@ describe("P0 pages", () => {
     );
 
     expect(await screen.findByText("考试已交卷。")).toBeInTheDocument();
-    expect(screen.getByText("STATE · 已交卷")).toBeInTheDocument();
+    expect(screen.getByText("已交卷")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看成绩" })).toHaveAttribute(
       "href",
       "/exams/1/result?attemptId=10",

@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { TopNav } from "@/components/layout/TopNav";
+import { CANDIDATE_NAVIGATION_ITEMS, TopNav } from "@/components/layout/TopNav";
 import { breakpointQueries } from "@/lib/breakpoints";
 import type { Candidate } from "@/types/candidate";
 
@@ -15,11 +15,11 @@ const candidate: Candidate = {
   status: "active",
 };
 
-function mockDesktopMediaQuery() {
+function mockMediaQuery(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: (query: string) => ({
-      matches: query === breakpointQueries.lg,
+      matches: matches && query === breakpointQueries.lg,
       media: query,
       onchange: null,
       addEventListener: () => {},
@@ -33,8 +33,9 @@ function renderTopNav(props: {
   candidate: Candidate | null;
   onLogout: () => void;
   initialEntry?: string;
+  desktop?: boolean;
 }) {
-  mockDesktopMediaQuery();
+  mockMediaQuery(props.desktop ?? true);
 
   return render(
     <MemoryRouter initialEntries={[props.initialEntry ?? "/practice"]}>
@@ -50,53 +51,82 @@ describe("TopNav", () => {
     expect(wordmarkLink).toHaveAttribute("href", "/exams");
   });
 
-  it("renders the primary nav items", () => {
+  it("preserves the ordered desktop destinations and hrefs", () => {
     renderTopNav({ candidate, onLogout: () => {} });
-    expect(screen.getByRole("link", { name: "学习" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "练习" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
+    const nav = screen.getByTestId("candidate-desktop-nav");
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/learning", "/practice", "/exams"]);
+    expect(CANDIDATE_NAVIGATION_ITEMS.map((item) => item.to)).toEqual([
+      "/learning",
+      "/practice",
+      "/exams",
+    ]);
   });
 
-  it("marks the active nav item with an underline and text-ink class", () => {
+  it("exposes active state semantics without changing the destination", () => {
     renderTopNav({ candidate, onLogout: () => {} });
     const activeLink = screen.getByRole("link", { name: "练习" });
     expect(activeLink).toHaveClass("text-ink");
-    // The first aria-hidden span is the §N marker (text-ink),
-    // the second is the underline rule (bg-ink). Select the rule specifically.
-    const underline = activeLink.querySelectorAll("span[aria-hidden='true']")[1];
-    expect(underline).toHaveClass("bg-ink");
+    expect(activeLink).toHaveClass("bg-surface-card");
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(activeLink).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("data-active", "false");
   });
 
-  it("keeps desktop nav markers visible across route changes", () => {
-    const { rerender } = renderTopNav({
+  it("keeps active semantics for nested candidate routes", () => {
+    const { unmount } = renderTopNav({
       candidate,
       onLogout: () => {},
-      initialEntry: "/practice",
+      initialEntry: "/learning/42",
     });
 
-    const practiceMarker = screen
-      .getByRole("link", { name: "练习" })
-      .querySelector("span[aria-hidden='true']") as HTMLElement;
-    const examsMarker = screen
-      .getByRole("link", { name: "考试" })
-      .querySelector("span[aria-hidden='true']") as HTMLElement;
-    expect(practiceMarker).not.toHaveClass("opacity-0");
-    expect(examsMarker).not.toHaveClass("opacity-0");
+    expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "学习" })).toHaveAttribute("data-active", "true");
 
-    rerender(
-      <MemoryRouter initialEntries={["/exams"]}>
-        <TopNav candidate={candidate} onLogout={() => {}} />
-      </MemoryRouter>,
+    unmount();
+    renderTopNav({
+      candidate,
+      onLogout: () => {},
+      initialEntry: "/practice/wrong-questions",
+    });
+
+    expect(screen.getByRole("link", { name: "练习" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "练习" })).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps the same keyboard order in the mobile sheet", async () => {
+    const user = userEvent.setup();
+    renderTopNav({ candidate, onLogout: () => {}, desktop: false });
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+
+    const nav = await screen.findByTestId("candidate-mobile-nav");
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .slice(0, 3)
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/learning", "/practice", "/exams"]);
+    expect(within(nav).getByRole("link", { name: "打开账号资料" })).toHaveAttribute(
+      "href",
+      "/profile",
     );
+  });
 
-    const nextPracticeMarker = screen
-      .getByRole("link", { name: "练习" })
-      .querySelector("span[aria-hidden='true']") as HTMLElement;
-    const nextExamsMarker = screen
-      .getByRole("link", { name: "考试" })
-      .querySelector("span[aria-hidden='true']") as HTMLElement;
-    expect(nextPracticeMarker).not.toHaveClass("opacity-0");
-    expect(nextExamsMarker).not.toHaveClass("opacity-0");
+  it("keeps mobile navigation internally scrollable with safe-area padding", async () => {
+    const user = userEvent.setup();
+    renderTopNav({ candidate, onLogout: () => {}, desktop: false });
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+
+    const sheet = await screen.findByTestId("candidate-mobile-navigation");
+    expect(sheet).toHaveClass("max-h-[calc(100dvh-1rem)]");
+    expect(sheet).toHaveClass("overflow-y-auto");
+    expect(sheet).toHaveClass("overscroll-contain");
+    expect(sheet).toHaveClass("pb-[calc(1.5rem+env(safe-area-inset-bottom))]");
   });
 
   it("renders the candidate NamePlate when a candidate is logged in", () => {
@@ -126,6 +156,17 @@ describe("TopNav", () => {
     renderTopNav({ candidate, onLogout });
 
     await user.click(screen.getByRole("button", { name: "退出登录" }));
+
+    expect(onLogout).toHaveBeenCalledOnce();
+  });
+
+  it("invokes logout from the mobile navigation after closing it", async () => {
+    const onLogout = vi.fn();
+    const user = userEvent.setup();
+    renderTopNav({ candidate, onLogout, desktop: false });
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+    await user.click(await screen.findByRole("button", { name: "退出登录" }));
 
     expect(onLogout).toHaveBeenCalledOnce();
   });

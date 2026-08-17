@@ -121,11 +121,11 @@ export function useFieldControl({
 
   const fieldDisabled = context.disabled || context.pending;
   const resolvedInvalid = ariaInvalid ?? (context.invalid ? true : undefined);
-  const resolvedBusy = ariaBusy ?? (context.pending ? true : undefined);
+  const resolvedBusy = context.pending ? true : ariaBusy;
 
   return {
     id: controlId,
-    disabled: disabled ?? fieldDisabled,
+    disabled: disabled || fieldDisabled || undefined,
     ariaInvalid: resolvedInvalid,
     ariaDescribedBy: mergeIds(
       typeof ariaDescribedBy === "string" ? ariaDescribedBy : undefined,
@@ -263,7 +263,7 @@ export const Field = React.forwardRef<HTMLDivElement, FieldProps>(
           aria-disabled={ariaDisabled ?? (resolvedDisabled ? true : undefined)}
           aria-busy={ariaBusy ?? (resolvedPending ? true : undefined)}
           className={cn(
-            "flex flex-col gap-2",
+            "flex min-w-0 flex-col gap-2",
             orientation === "horizontal" && "md:flex-row md:items-center md:justify-between",
             "data-[invalid]:text-error data-[success]:text-success data-[disabled]:opacity-70 data-[pending]:opacity-90",
             className,
@@ -293,7 +293,7 @@ export const FieldLabel = React.forwardRef<HTMLLabelElement, FieldLabelProps>(
         ref={ref}
         id={labelId}
         htmlFor={htmlFor ?? context?.controlId}
-        className={cn("text-caption font-medium uppercase tracking-caption text-muted", className)}
+        className={cn("text-body-sm font-medium leading-snug text-ink", className)}
         {...props}
       />
     );

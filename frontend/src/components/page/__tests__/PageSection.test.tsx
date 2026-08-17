@@ -9,6 +9,7 @@ describe("PageSection", () => {
 
     const section = screen.getByText("普通区块");
     expect(section).toHaveClass("flex", "flex-col");
+    expect(section).toHaveAttribute("data-surface-role", "plain");
     expect(section).not.toHaveClass("shadow-card");
   });
 
@@ -47,5 +48,27 @@ describe("PageSection", () => {
     );
 
     expect(screen.getByText("受控表面")).toHaveAttribute("data-surface-owner", "panel");
+  });
+
+  it.each([
+    ["focus", "focus"],
+    ["focus-summary", "focus-summary"],
+    ["summary", "summary"],
+    ["data", "data"],
+    ["overlay", "overlay"],
+  ] as const)("exposes the governed %s surface owner", (variant, owner) => {
+    render(<PageSection variant={variant}>内容</PageSection>);
+
+    const section = screen.getByText("内容");
+    expect(section).toHaveAttribute("data-surface-role", variant);
+    expect(section).toHaveAttribute("data-surface-owner", owner);
+  });
+
+  it("supports the surface alias without adding a second owner", () => {
+    render(<PageSection surface="data">数据区域</PageSection>);
+
+    const section = screen.getByText("数据区域");
+    expect(section).toHaveAttribute("data-surface-owner", "data");
+    expect(section).toHaveAttribute("data-surface-role", "data");
   });
 });

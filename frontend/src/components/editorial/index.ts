@@ -16,6 +16,9 @@ export type { WordmarkProps, WordmarkSize, WordmarkVariant } from "./Wordmark";
 export { StatusPill } from "./StatusPill";
 export type { StatusPillProps, StatusPillVariant } from "./StatusPill";
 
+export { ActivityDot, StatusDot } from "./ActivityDot";
+export type { ActivityDotProps, ActivityDotStatus } from "./ActivityDot";
+
 export { EmptyState } from "./EmptyState";
 export type { EmptyStateAction, EmptyStateProps, EmptyStateTone } from "./EmptyState";
 

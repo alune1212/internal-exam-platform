@@ -1,7 +1,7 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileVideo, Pencil, UploadCloud } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getErrorMessage } from "@/api/client";
 import {
@@ -13,19 +13,25 @@ import {
 } from "@/api/learning";
 import { SimpleDataTable } from "@/components/admin/SimpleDataTable";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import {
+  PageActions,
+  PageHeader,
+  PageSection,
+  PageShell,
+  PageStaleNotice,
+  PageState,
+} from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminPageCopy,
@@ -59,7 +65,7 @@ function formatDateTime(value?: string | null) {
 function statusVariant(status: LearningVideoStatus): StatusPillVariant {
   if (status === "published") return "success";
   if (status === "archived") return "warning";
-  return "default";
+  return "neutral";
 }
 
 function statusActionPending(
@@ -82,8 +88,12 @@ export function AdminLearningVideoPage() {
   const [probeUrl, setProbeUrl] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [editingVideo, setEditingVideo] = useState<LearningVideo | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editDialogReturnFocusRef = useRef<HTMLElement | null>(null);
+  const editDialogReturnFocusIdRef = useRef<number | null>(null);
 
   const videos = useQuery({
     queryKey: adminKeys.learningVideos(),
@@ -99,6 +109,24 @@ export function AdminLearningVideoPage() {
     setProbeUrl(nextUrl);
     return () => URL.revokeObjectURL(nextUrl);
   }, [file]);
+
+  useEffect(() => {
+    if (editDialogOpen || editDialogReturnFocusIdRef.current === null) return;
+
+    const returnFocusId = editDialogReturnFocusIdRef.current;
+    const timeoutId = window.setTimeout(() => {
+      const returnFocus = editDialogReturnFocusRef.current;
+      if (returnFocus?.isConnected) {
+        returnFocus.focus();
+        return;
+      }
+      document
+        .querySelector<HTMLElement>(`[data-learning-video-edit-id="${returnFocusId}"]`)
+        ?.focus();
+    });
+
+    return () => window.clearTimeout(timeoutId);
+  }, [editDialogOpen]);
 
   const uploadMutation = useMutation({
     mutationFn: uploadLearningVideo,
@@ -133,6 +161,7 @@ export function AdminLearningVideoPage() {
         description: payload.description,
       }),
     onSuccess: () => {
+      setEditDialogOpen(false);
       setEditingVideo(null);
       setNotice({ tone: "success", message: "视频信息已保存。" });
       void queryClient.invalidateQueries({ queryKey: adminKeys.learningVideos() });
@@ -163,9 +192,15 @@ export function AdminLearningVideoPage() {
   }
 
   function openEdit(video: LearningVideo) {
+    editDialogReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    editDialogReturnFocusIdRef.current = video.id;
+    setNotice(null);
+    updateMutation.reset();
     setEditingVideo(video);
     setEditTitle(video.title);
     setEditDescription(video.description ?? "");
+    setEditDialogOpen(true);
   }
 
   const columns: ColumnDef<LearningVideo>[] = [
@@ -173,9 +208,11 @@ export function AdminLearningVideoPage() {
       accessorKey: "title",
       header: adminTableCopy.title,
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1">
-          <span className="font-medium">{row.original.title}</span>
-          <span className="text-caption text-muted">{row.original.original_filename}</span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="min-w-0 break-words font-medium">{row.original.title}</span>
+          <span className="min-w-0 break-words text-caption text-muted">
+            {row.original.original_filename}
+          </span>
         </div>
       ),
       meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.title },
@@ -184,7 +221,7 @@ export function AdminLearningVideoPage() {
       accessorKey: "duration_seconds",
       header: adminTableCopy.duration,
       cell: ({ row }) => (
-        <span className="font-mono text-sm tabular-nums">
+        <span className="font-mono text-body-sm tabular-nums">
           {formatDuration(row.original.duration_seconds)}
         </span>
       ),
@@ -192,11 +229,11 @@ export function AdminLearningVideoPage() {
     },
     {
       accessorKey: "file_size_bytes",
-      header: "SIZE · 文件",
+      header: "文件大小",
       cell: ({ row }) => (
-        <span className="font-mono text-sm">{formatBytes(row.original.file_size_bytes)}</span>
+        <span className="font-mono text-body-sm">{formatBytes(row.original.file_size_bytes)}</span>
       ),
-      meta: { mobileLabel: "SIZE · 文件" },
+      meta: { mobileLabel: "文件大小" },
     },
     {
       accessorKey: "status",
@@ -210,18 +247,24 @@ export function AdminLearningVideoPage() {
     },
     {
       accessorKey: "uploaded_at",
-      header: "UPLOADED · 上传时间",
+      header: "上传时间",
       cell: ({ row }) => (
         <span className="text-body-sm">{formatDateTime(row.original.uploaded_at)}</span>
       ),
-      meta: { mobileLabel: "UPLOADED · 上传时间" },
+      meta: { mobileLabel: "上传时间" },
     },
     {
       id: "actions",
       header: adminTableCopy.action,
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row.original)}>
+        <PageActions placement="card" aria-label="视频操作">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-learning-video-edit-id={row.original.id}
+            onClick={() => openEdit(row.original)}
+          >
             <Pencil data-icon="inline-start" />
             编辑
           </Button>
@@ -229,7 +272,7 @@ export function AdminLearningVideoPage() {
             <Button
               type="button"
               size="sm"
-              disabled={statusActionPending(statusMutation, row.original.id, "publish")}
+              pending={statusActionPending(statusMutation, row.original.id, "publish")}
               onClick={() => statusMutation.mutate({ id: row.original.id, action: "publish" })}
             >
               发布
@@ -240,76 +283,93 @@ export function AdminLearningVideoPage() {
               type="button"
               variant="outline"
               size="sm"
-              disabled={statusActionPending(statusMutation, row.original.id, "archive")}
+              pending={statusActionPending(statusMutation, row.original.id, "archive")}
               onClick={() => statusMutation.mutate({ id: row.original.id, action: "archive" })}
             >
               归档
             </Button>
           ) : null}
-        </div>
+        </PageActions>
       ),
       meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.action },
     },
   ];
 
-  const uploadDisabled =
-    uploadMutation.isPending ||
-    !file ||
-    !durationSeconds ||
-    !title.trim() ||
-    Boolean(metadataError);
+  const uploadDisabled = !file || !durationSeconds || !title.trim() || Boolean(metadataError);
 
   return (
-    <PageShell data-testid="admin-learning-video-shell" density="workbench" width="full" stagger>
+    <PageShell data-testid="admin-learning-video-shell" density="workbench" width="full">
       <PageHeader
         eyebrow={adminPageCopy.learning}
         title={adminPageText.learning.title}
         description={adminPageText.learning.description}
       />
 
-      <PageSection variant="card" className="gap-5 p-6">
+      <PageSection
+        variant="panel"
+        className="gap-section"
+        aria-busy={uploadMutation.isPending || undefined}
+      >
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="learning-video-title">视频标题</Label>
+          <Field>
+            <FieldLabel htmlFor="learning-video-title">视频标题</FieldLabel>
             <Input
               id="learning-video-title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="例如：入职安全学习"
             />
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-ink">视频文件</span>
+          </Field>
+          <Field invalid={Boolean(metadataError)} pending={uploadMutation.isPending}>
+            <FieldLabel htmlFor="learning-video-file">视频文件</FieldLabel>
             <input
+              ref={fileInputRef}
               id="learning-video-file"
               type="file"
               accept="video/mp4,video/webm"
-              className="sr-only"
+              className="hidden"
+              disabled={uploadMutation.isPending}
+              aria-label="选择视频文件"
+              aria-describedby={`learning-video-file-status${metadataError ? " learning-video-file-error" : ""}`}
+              aria-invalid={metadataError ? true : undefined}
               onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
             />
-            <div className="flex flex-wrap items-center gap-3">
-              <Button asChild type="button" variant="outline">
-                <label htmlFor="learning-video-file" className="cursor-pointer">
+            <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <PageActions placement="card" aria-label="视频文件操作">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={uploadMutation.isPending}
+                  aria-controls="learning-video-file"
+                  onClick={() => fileInputRef.current?.click()}
+                >
                   <FileVideo data-icon="inline-start" />
                   选择视频文件
-                </label>
-              </Button>
-              <span className="text-body-sm text-muted">
+                </Button>
+              </PageActions>
+              <FieldDescription
+                id="learning-video-file-status"
+                className="min-w-0 break-words"
+                aria-live="polite"
+              >
                 {file ? `${file.name} · ${formatBytes(file.size)}` : "MP4 / WebM，最大 500 MiB"}
-              </span>
+              </FieldDescription>
             </div>
-          </div>
+            {metadataError ? (
+              <FieldError id="learning-video-file-error">{metadataError}</FieldError>
+            ) : null}
+          </Field>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="learning-video-description">视频说明</Label>
+        <Field>
+          <FieldLabel htmlFor="learning-video-description">视频说明</FieldLabel>
           <Textarea
             id="learning-video-description"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="可选，用于说明学习目标或适用人群。"
           />
-        </div>
+        </Field>
 
         {probeUrl ? (
           <video
@@ -331,33 +391,43 @@ export function AdminLearningVideoPage() {
           />
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" disabled={uploadDisabled} onClick={handleUpload}>
-            <UploadCloud data-icon="inline-start" />
-            {uploadMutation.isPending ? "上传中" : "上传视频"}
-          </Button>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <PageActions placement="form" aria-label="视频上传操作">
+            <Button
+              type="button"
+              disabled={uploadDisabled}
+              pending={uploadMutation.isPending}
+              onClick={handleUpload}
+            >
+              <UploadCloud data-icon="inline-start" />
+              {uploadMutation.isPending ? "上传中" : "上传视频"}
+            </Button>
+          </PageActions>
           <span className="text-body-sm text-muted">
             {durationSeconds
               ? `已读取时长 ${formatDuration(durationSeconds)}`
               : "选择视频后自动读取时长。"}
           </span>
         </div>
-        {metadataError ? (
-          <Alert variant="error">
-            <AlertDescription>{metadataError}</AlertDescription>
-          </Alert>
-        ) : null}
       </PageSection>
 
-      {notice ? (
+      {notice && !editingVideo ? (
         <Alert variant={notice.tone === "success" ? "success" : "error"}>
           <AlertDescription>{notice.message}</AlertDescription>
         </Alert>
       ) : null}
 
-      <PageSection variant="table">
+      {videos.isError && videos.data ? (
+        <PageStaleNotice
+          lastSuccessfulAt={videos.dataUpdatedAt}
+          onRetry={() => void videos.refetch()}
+          retrying={videos.isFetching}
+        />
+      ) : null}
+
+      <PageSection variant="data">
         {videos.isLoading ? (
-          <PageState state="loading" surface="inherit" rows={3} />
+          <PageState state="loading" surface="inherit" rows={3} skeletonVariant="table" />
         ) : videos.isError && !videos.data ? (
           <PageState
             state="error"
@@ -365,7 +435,7 @@ export function AdminLearningVideoPage() {
             eyebrow={adminPageCopy.error}
             title="视频列表加载失败。"
             description="请稍后重试，或确认后台服务是否可用。"
-            className="py-10"
+            onRetry={() => void videos.refetch()}
           />
         ) : (
           <SimpleDataTable columns={columns} data={videos.data ?? []} emptyText="暂无学习视频" />
@@ -373,55 +443,81 @@ export function AdminLearningVideoPage() {
       </PageSection>
 
       <Dialog
-        open={Boolean(editingVideo)}
+        open={editDialogOpen}
         onOpenChange={(open) => {
+          setEditDialogOpen(open);
           if (!open) {
             setEditingVideo(null);
           }
         }}
       >
-        <DialogContent>
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            const returnFocus = editDialogReturnFocusRef.current;
+            if (returnFocus?.isConnected) {
+              event.preventDefault();
+              returnFocus.focus();
+            }
+          }}
+        >
           <DialogHeader chapter={adminPageCopy.learning}>
             <DialogTitle>编辑视频信息</DialogTitle>
             <DialogDescription>仅更新标题和说明，不替换已上传的视频文件。</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="learning-video-edit-title">视频标题</Label>
+          {updateMutation.isError && notice ? (
+            <Alert variant="error">
+              <AlertDescription>{notice.message}</AlertDescription>
+            </Alert>
+          ) : null}
+          <form
+            className="flex min-w-0 flex-col gap-4"
+            aria-busy={updateMutation.isPending || undefined}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!editingVideo || !editTitle.trim()) return;
+              updateMutation.mutate({
+                id: editingVideo.id,
+                title: editTitle.trim(),
+                description: editDescription.trim() || null,
+              });
+            }}
+          >
+            <Field pending={updateMutation.isPending}>
+              <FieldLabel htmlFor="learning-video-edit-title">视频标题</FieldLabel>
               <Input
                 id="learning-video-edit-title"
                 value={editTitle}
                 onChange={(event) => setEditTitle(event.target.value)}
               />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="learning-video-edit-description">视频说明</Label>
+            </Field>
+            <Field pending={updateMutation.isPending}>
+              <FieldLabel htmlFor="learning-video-edit-description">视频说明</FieldLabel>
               <Textarea
                 id="learning-video-edit-description"
                 value={editDescription}
                 onChange={(event) => setEditDescription(event.target.value)}
               />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditingVideo(null)}>
-              取消
-            </Button>
-            <Button
-              type="button"
-              disabled={updateMutation.isPending || !editingVideo || !editTitle.trim()}
-              onClick={() =>
-                editingVideo &&
-                updateMutation.mutate({
-                  id: editingVideo.id,
-                  title: editTitle.trim(),
-                  description: editDescription.trim() || null,
-                })
-              }
-            >
-              {updateMutation.isPending ? "保存中" : "保存"}
-            </Button>
-          </DialogFooter>
+            </Field>
+            <PageActions placement="form" aria-label="视频编辑操作">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setEditDialogOpen(false);
+                  setEditingVideo(null);
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                pending={updateMutation.isPending}
+                disabled={!editingVideo || !editTitle.trim()}
+              >
+                {updateMutation.isPending ? "保存中" : "保存"}
+              </Button>
+            </PageActions>
+          </form>
         </DialogContent>
       </Dialog>
     </PageShell>

@@ -16,6 +16,8 @@ interface ReportPageProps<TData> {
   /** Refresh prerequisite data before retrying the report query itself. */
   onRetry?: () => void | Promise<unknown>;
   columns: ColumnDef<TData>[];
+  /** Shared report controls rendered between the page header and data region. */
+  toolbar?: ReactNode;
   actions?: ReactNode;
   chapterLabel?: string;
   description?: string;
@@ -32,6 +34,7 @@ export function ReportPage<TData>({
   isLoading = false,
   onRetry,
   columns,
+  toolbar,
   actions,
   chapterLabel = adminPageCopy.reports,
   description,
@@ -59,17 +62,18 @@ export function ReportPage<TData>({
     <PageShell
       data-testid="report-page-shell"
       density="workbench"
-      width="full"
-      stagger
+      width="wide"
       className={className}
     >
       <PageHeader
-        eyebrow={chapterLabel}
+        context={chapterLabel}
         title={title}
         description={description}
         actions={actions}
         className="items-start"
       />
+
+      {toolbar}
 
       {hasStaleError ? (
         <PageStaleNotice
@@ -80,7 +84,7 @@ export function ReportPage<TData>({
       ) : null}
 
       {showLoading ? (
-        <PageSection variant="table" data-testid="report-page-table-section">
+        <PageSection variant="data" data-testid="report-page-table-section">
           <PageState
             state="loading"
             surface="inherit"
@@ -90,7 +94,7 @@ export function ReportPage<TData>({
           />
         </PageSection>
       ) : hasLoadError ? (
-        <PageSection variant="table" data-testid="report-page-table-section">
+        <PageSection variant="data" data-testid="report-page-table-section">
           <PageState
             state="error"
             surface="inherit"
@@ -102,7 +106,7 @@ export function ReportPage<TData>({
           />
         </PageSection>
       ) : (
-        <PageSection variant="table" data-testid="report-page-table-section">
+        <PageSection variant="data" data-testid="report-page-table-section">
           <SimpleDataTable
             columns={columns}
             data={query.data ?? []}

@@ -119,4 +119,11 @@ describe("EmptyState", () => {
       /text-ink/,
     );
   });
+
+  it("allows a state without a decorative context label", () => {
+    render(<EmptyState description="没有数据" title="暂无内容" />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "暂无内容" })).toBeInTheDocument();
+    expect(document.querySelector("[data-context-label]")).not.toBeInTheDocument();
+  });
 });

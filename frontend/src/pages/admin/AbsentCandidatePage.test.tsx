@@ -61,6 +61,10 @@ describe("AbsentCandidatePage", () => {
 
     expect(await screen.findByText("王五")).toBeInTheDocument();
     expect(getAbsentCandidates).toHaveBeenLastCalledWith("not_started");
+    expect(screen.getByRole("group", { name: "报表筛选与操作" })).toHaveAttribute(
+      "data-report-order",
+      "filters-segments-notice-actions",
+    );
     expect(screen.getByRole("button", { name: "未开始" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "进行中" })).toHaveAttribute("aria-pressed", "false");
 

@@ -10,6 +10,7 @@ import {
   getLearningReport,
 } from "@/api/learning";
 import { ReportPage } from "@/components/admin/ReportPage";
+import { ReportToolbar } from "@/components/admin/ReportToolbar";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,7 @@ function LearningReportExportButton({
         type="button"
         size="sm"
         variant="outline"
-        disabled={mutation.isPending}
+        pending={mutation.isPending}
         onClick={() => mutation.mutate()}
       >
         <Download data-icon="inline-start" />
@@ -151,19 +152,27 @@ function LearningReportExportButton({
 const columns: ColumnDef<LearningReportRow>[] = [
   {
     accessorKey: "display_name",
-    header: "ACCOUNT NAME · 用户姓名",
-    cell: ({ row }) => <span className="font-medium">{row.original.display_name || "未填写"}</span>,
+    header: "用户姓名",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-medium">
+        {row.original.display_name || "未填写"}
+      </span>
+    ),
     meta: { mobilePriority: "primary", mobileLabel: "用户姓名" },
   },
   {
     accessorKey: "account_email",
-    header: "ACCOUNT EMAIL · 用户邮箱",
-    cell: ({ row }) => <span className="font-mono text-sm">{row.original.account_email}</span>,
+    header: "用户邮箱",
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-mono text-body-sm">
+        {row.original.account_email}
+      </span>
+    ),
     meta: { mobileLabel: "用户邮箱" },
   },
   {
     accessorKey: "account_status",
-    header: "ACCOUNT STATUS · 账户状态",
+    header: "账户状态",
     cell: ({ row }) => (
       <StatusPill variant={accountStatusVariant(row.original.account_status)}>
         {accountStatusLabels[row.original.account_status] ?? "未知状态"}
@@ -174,7 +183,9 @@ const columns: ColumnDef<LearningReportRow>[] = [
   {
     accessorKey: "video_title",
     header: adminTableCopy.video,
-    cell: ({ row }) => <span className="font-medium">{row.original.video_title}</span>,
+    cell: ({ row }) => (
+      <span className="min-w-0 break-words font-medium">{row.original.video_title}</span>
+    ),
     meta: { mobilePriority: "primary", mobileLabel: adminTableCopy.video },
   },
   {
@@ -238,9 +249,13 @@ export function AdminLearningReportPage() {
       title={adminPageText.learning.reportTitle}
       chapterLabel={adminPageCopy.learning}
       description="按视频和完成状态查看用户的学习进度；身份使用平台账号邮箱、显示名与状态。"
-      queryKey={adminKeys.learningReport(selectedVideoId, selectedStatus)}
+      queryKey={[
+        ...adminKeys.learningReport(selectedVideoId, selectedStatus),
+        videosLoadError ? "videos-error" : videosPending ? "videos-loading" : "videos-ready",
+      ]}
       queryEnabled={!videosPending}
       isLoading={videosPending}
+      onRetry={() => videos.refetch()}
       queryFn={() => {
         if (videosLoadError) {
           throw new Error("视频列表加载失败");
@@ -249,18 +264,22 @@ export function AdminLearningReportPage() {
       }}
       columns={columns}
       rowKey={(row) => `${row.video_id}-${row.candidate_id}`}
-      actions={
+      toolbar={
         videosPending || videosLoadError ? null : (
-          <>
-            <LearningReportFilters
-              videos={videos.data ?? []}
-              videoId={selectedVideoId}
-              status={selectedStatus}
-              onVideoChange={setSelectedVideoId}
-              onStatusChange={setSelectedStatus}
-            />
-            <LearningReportExportButton videoId={selectedVideoId} status={selectedStatus} />
-          </>
+          <ReportToolbar
+            filters={
+              <LearningReportFilters
+                videos={videos.data ?? []}
+                videoId={selectedVideoId}
+                status={selectedStatus}
+                onVideoChange={setSelectedVideoId}
+                onStatusChange={setSelectedStatus}
+              />
+            }
+            actions={
+              <LearningReportExportButton videoId={selectedVideoId} status={selectedStatus} />
+            }
+          />
         )
       }
     />

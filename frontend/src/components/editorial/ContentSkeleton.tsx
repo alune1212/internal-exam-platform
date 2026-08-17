@@ -5,9 +5,9 @@ interface ContentSkeletonProps {
   rows?: number;
   variant?: "default" | "page" | "table" | "card";
   /**
-   * When true, renders the bilingual "Loading · 加载中" caption. Most
-   * skeletons should stay silent — only enable this when a delayed load
-   * needs an explicit affordance.
+   * When true, renders the established loading caption. Most skeletons should
+   * stay silent — only enable this when a delayed load needs an explicit
+   * affordance.
    */
   showCaption?: boolean;
   className?: string;
@@ -37,11 +37,7 @@ export function ContentSkeleton({
       {Array.from({ length: rows }).map((_, index) => (
         <Skeleton key={index} className={rowClassName(index)} />
       ))}
-      {showCaption ? (
-        <p className="mt-2 text-caption font-medium uppercase tracking-[0.16em] text-muted">
-          Loading · 加载中...
-        </p>
-      ) : null}
+      {showCaption ? <p className="mt-2 text-caption font-medium text-muted">加载中...</p> : null}
     </div>
   );
 }

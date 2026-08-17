@@ -1,4 +1,5 @@
 import { Check, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,27 @@ export type OptionCardProps = {
   questionType?: "single" | "multiple" | "judge";
 };
 
+function radioOptions(element: HTMLButtonElement) {
+  const group = element.closest<HTMLElement>('[role="radiogroup"]');
+  return group
+    ? Array.from(group.querySelectorAll<HTMLButtonElement>('[role="radio"]')).filter(
+        (option) => !option.disabled,
+      )
+    : [];
+}
+
+function syncRadioTabStops(element: HTMLButtonElement) {
+  const options = radioOptions(element);
+  if (!options.length) return;
+
+  const selected = options.find((option) => option.getAttribute("aria-checked") === "true");
+  const current = options.find((option) => option.tabIndex === 0);
+  const tabStop = selected ?? current ?? options[0];
+  options.forEach((option) => {
+    option.tabIndex = option === tabStop ? 0 : -1;
+  });
+}
+
 export function OptionCard({
   label,
   content,
@@ -22,15 +44,45 @@ export function OptionCard({
   questionType = "single",
 }: OptionCardProps) {
   const isJudge = questionType === "judge";
+  const optionRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (selectionRole === "radio" && optionRef.current) {
+      syncRadioTabStops(optionRef.current);
+    }
+  }, [content, disabled, label, selected, selectionRole]);
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (selectionRole !== "radio") return;
+    if (!(["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"] as string[]).includes(event.key)) {
+      return;
+    }
+
+    const current = event.currentTarget;
+    const options = radioOptions(current);
+    if (!options.length) return;
+
+    event.preventDefault();
+    const currentIndex = options.indexOf(current);
+    const movingBack = event.key === "ArrowUp" || event.key === "ArrowLeft";
+    const nextIndex = (currentIndex + (movingBack ? -1 : 1) + options.length) % options.length;
+    const next = options[nextIndex];
+    next.focus();
+    next.click();
+  }
 
   return (
     <button
+      ref={optionRef}
       type="button"
       role={selectionRole}
       aria-checked={selected}
+      aria-disabled={disabled || undefined}
       aria-label={`选项 ${label}：${content}`}
+      tabIndex={selectionRole === "radio" ? (selected ? 0 : undefined) : 0}
       disabled={disabled}
       onClick={() => onSelect(label)}
+      onKeyDown={handleKeyDown}
       className={cn(
         "flex w-full items-center gap-3 border px-4 py-3 text-left",
         "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
@@ -60,7 +112,7 @@ export function OptionCard({
           aria-hidden="true"
           className={cn(
             "inline-grid size-6 shrink-0 place-items-center text-center align-middle",
-            "font-mono text-[11px] font-semibold tabular-nums leading-none tracking-normal",
+            "font-mono text-action font-action tabular-nums leading-none tracking-normal",
             selectionRole === "checkbox"
               ? cn(
                   "rounded-sm",
@@ -75,7 +127,9 @@ export function OptionCard({
           {label}
         </span>
       )}
-      <span className="flex-1 text-body leading-relaxed text-ink">{content}</span>
+      <span className="min-w-0 flex-1 break-words text-body leading-relaxed text-ink">
+        {content}
+      </span>
     </button>
   );
 }

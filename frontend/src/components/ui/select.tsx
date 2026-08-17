@@ -1,14 +1,11 @@
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
 import { useFieldControl, type FieldState } from "./field";
+import { controlClasses } from "./control-base";
 
 export type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   "data-state"?: FieldState | string;
 };
-
-const selectControlClasses =
-  "flex h-11 w-full rounded-md border border-hairline bg-canvas px-3.5 text-body-sm text-ink outline-none transition-[border-color,background-color,box-shadow,color] duration-fast ease-standard hover:border-ink-soft focus-visible:border-ink focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-error data-[invalid]:border-error data-[success]:border-success data-[state=success]:border-success";
 
 /**
  * Native select control shared by filters and forms. Keeping the native
@@ -50,7 +47,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         data-pending={fieldControl.dataPending || undefined}
         data-invalid={fieldControl.dataInvalid || undefined}
         data-success={fieldControl.dataSuccess || undefined}
-        className={cn(selectControlClasses, className)}
+        className={controlClasses("select", className)}
         {...props}
       />
     );

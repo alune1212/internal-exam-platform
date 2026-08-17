@@ -8,7 +8,9 @@ import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import type { CandidateSessionContext } from "@/components/layout/CandidateLayout";
+import { useCandidatePresentationMode } from "@/components/layout/candidate-presentation-mode";
 import { PageActions, PageShell, PageStaleNotice, PageState } from "@/components/page";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -33,6 +35,7 @@ type ResultMap = Record<number, PracticeAnswerResult>;
 
 export function PracticePage() {
   const { candidate } = useOutletContext<CandidateSessionContext>();
+  const { requestPresentationMode } = useCandidatePresentationMode();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [results, setResults] = useState<ResultMap>({});
   const [activeIndex, setActiveIndex] = useState(0);
@@ -65,11 +68,19 @@ export function PracticePage() {
     />
   ) : null;
   const activeQuestion: PracticeQuestion | undefined = sortedData[activeIndex];
+  const isActivePracticeWorkspace = Boolean(
+    candidate && !isLoading && !hasLoadError && total > 0 && activeQuestion,
+  );
   const activeResult = activeQuestion ? results[activeQuestion.id] : undefined;
   const answeredCount = useMemo(
     () => sortedData.reduce((count, question) => count + (answers[question.id] ? 1 : 0), 0),
     [answers, sortedData],
   );
+
+  useEffect(() => {
+    if (!isActivePracticeWorkspace) return;
+    return requestPresentationMode("focus");
+  }, [isActivePracticeWorkspace, requestPresentationMode]);
 
   const navItems = useMemo(
     () =>
@@ -151,39 +162,38 @@ export function PracticePage() {
 
   if (!candidate) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <div className="rounded-lg border border-hairline bg-surface-card p-8">
-          <PageState
-            state="notLoggedIn"
-            surface="inherit"
-            eyebrow={candidatePageCopy.notLoggedIn}
-            title={candidatePageText.practice.loginTitle}
-            description={candidatePageText.practice.loginDescription}
-            className="py-0"
-          />
-          <div className="mt-6 flex justify-center">
-            <Button asChild>
-              <Link to="/login?returnTo=%2Fpractice">去登录</Link>
-            </Button>
-          </div>
-        </div>
+      <PageShell density="calm" width="reading">
+        <PageState
+          state="notLoggedIn"
+          surface="inherit"
+          eyebrow={candidatePageCopy.notLoggedIn}
+          title={candidatePageText.practice.loginTitle}
+          description={candidatePageText.practice.loginDescription}
+          className="py-0"
+        />
+        <PageActions placement="card" align="center" className="justify-center">
+          <Button asChild>
+            <Link to="/login?returnTo=%2Fpractice">去登录</Link>
+          </Button>
+        </PageActions>
       </PageShell>
     );
   }
 
   if (isLoading) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <PageState state="loading" rows={4} />
+      <PageShell density="calm" width="reading">
+        <PageState state="loading" rows={4} surface="inherit" />
       </PageShell>
     );
   }
 
   if (hasLoadError) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+      <PageShell density="calm" width="reading">
         <PageState
           state="error"
+          surface="inherit"
           eyebrow={candidatePageCopy.error}
           title={candidatePageText.practice.errorTitle}
           description={candidatePageText.practice.errorDescription}
@@ -195,10 +205,11 @@ export function PracticePage() {
 
   if (total === 0 || !activeQuestion) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+      <PageShell density="calm" width="reading">
         {staleNotice}
         <PageState
           state="empty"
+          surface="inherit"
           eyebrow={candidatePageCopy.empty}
           title={candidatePageText.practice.emptyTitle}
           description={candidatePageText.practice.emptyDescription}
@@ -243,24 +254,15 @@ export function PracticePage() {
   };
 
   const answerFeedback = activeResult ? (
-    <div
-      role="status"
-      className="flex w-full flex-col gap-4 rounded-md border border-hairline bg-canvas p-4"
-    >
-      <div
-        className={
-          activeResult.is_correct
-            ? "flex items-center gap-2 font-medium text-success"
-            : "flex items-center gap-2 font-medium text-error"
-        }
-      >
+    <Alert variant={activeResult.is_correct ? "success" : "error"} className="w-full gap-4 p-4">
+      <p className="flex items-center gap-2 font-medium">
         {activeResult.is_correct ? (
           <CheckCircle2 aria-hidden="true" />
         ) : (
           <XCircle aria-hidden="true" />
         )}
         {activeResult.is_correct ? "回答正确" : "回答错误"}
-      </div>
+      </p>
       <p className="text-body text-ink">正确答案：{activeResult.correct_answer}</p>
       <ul className="flex flex-col gap-2 text-body-sm">
         {activeResult.option_comparison.map((option) => (
@@ -273,7 +275,7 @@ export function PracticePage() {
         ))}
       </ul>
       <div>
-        <p className="text-caption uppercase tracking-[0.16em] text-muted">答案解析</p>
+        <p className="text-caption uppercase tracking-caption text-muted">答案解析</p>
         <p className="mt-1 whitespace-pre-wrap text-body text-ink">
           {activeResult.analysis || "本题暂无解析。"}
         </p>
@@ -282,13 +284,13 @@ export function PracticePage() {
         <RotateCcw data-icon="inline-start" />
         重新练习本题
       </Button>
-    </div>
+    </Alert>
   ) : (
     <span className="text-body-sm text-muted">提交后立即显示正确答案与解析。</span>
   );
 
   return (
-    <PageShell density="focus" width="full" stagger className="relative">
+    <PageShell density="focus" width="focus" stagger className="relative">
       <PageActions aria-label="练习辅助操作" className="justify-end">
         <Button asChild variant="outline" size="sm">
           <Link to="/practice/wrong-questions">查看错题复习</Link>
@@ -375,19 +377,19 @@ export function PracticePage() {
         </ExamFocusMode>
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <div className="fixed inset-x-0 bottom-0 z-overlay flex justify-center px-3 pb-[max(var(--space-inline),env(safe-area-inset-bottom))] pt-3">
-            <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-overlay flex justify-center px-3 pb-[max(var(--space-inline),env(safe-area-inset-bottom))] pt-3 landscape:justify-end">
+            <div className="pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate landscape:w-auto">
               <ProgressCapsule
                 current={activeIndex + 1}
                 total={total}
                 answered={answeredCount}
                 variant="dark"
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 landscape:hidden"
               />
               <SheetTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-pill text-canvas"
+                  className="inline-flex min-h-touch-target min-w-touch-target shrink-0 items-center justify-center rounded-pill text-canvas"
                 >
                   <List aria-hidden="true" />
                   <span className="sr-only">打开题号导航</span>

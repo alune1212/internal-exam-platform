@@ -44,6 +44,10 @@ describe("Sheet", () => {
     await user.click(screen.getByText("唤起"));
     const content = await screen.findByTestId("sc");
     expect(content.className).toContain("slide-in-from-bottom");
+    expect(content.className).toContain("max-h-[calc(100dvh-1rem)]");
+    expect(content.className).toContain("overflow-y-auto");
+    expect(content.className).toContain("safe-area-inset-bottom");
+    expect(screen.getByRole("button", { name: "关闭" }).className).toContain("safe-area-inset-top");
     expect(content).toHaveClass("z-modal", "duration-normal", "ease-standard");
     expect(document.querySelector(".z-overlay")).toHaveClass(
       "z-overlay",

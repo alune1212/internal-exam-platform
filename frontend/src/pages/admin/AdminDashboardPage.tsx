@@ -5,26 +5,26 @@ import { getAdminExams } from "@/api/exams";
 import { getAdminQuestions } from "@/api/questions";
 import { getAbsentCandidates, getScoreReport } from "@/api/reports";
 import { MetricCard } from "@/components/admin/MetricCard";
+import { ActivityDot, type ActivityDotStatus } from "@/components/editorial/ActivityDot";
 import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { adminPageCopy, formatAttemptStatus, formatExamStatus } from "@/lib/pageCopy";
-import { cn } from "@/lib/utils";
-
-type ActivityTone = "success" | "warning" | "error";
 
 interface ActivityItem {
   id: string;
   title: string;
   caption: string;
   when: string;
-  tone: ActivityTone;
+  tone: ActivityDotStatus;
 }
 
-const TONE_DOT: Record<ActivityTone, string> = {
-  success: "bg-success",
-  warning: "bg-warning",
-  error: "bg-error",
+const ACTIVITY_STATUS_LABEL: Record<ActivityDotStatus, string> = {
+  neutral: "一般状态",
+  success: "已交卷",
+  warning: "需要关注",
+  error: "异常",
+  info: "提示",
 };
 
 function resolveActivityTime(value: string): { label: string; dateTime?: string } {
@@ -50,11 +50,15 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   const activityTime = resolveActivityTime(item.when);
 
   return (
-    <li className="flex items-center gap-4 border-b border-hairline-soft py-3 last:border-b-0">
-      <span className={cn("size-1.5 rounded-pill", TONE_DOT[item.tone])} aria-hidden="true" />
-      <div className="flex flex-1 flex-col gap-1">
-        <span className="text-body font-medium text-ink">{item.title}</span>
-        <span className="text-caption text-muted">{item.caption}</span>
+    <li className="flex min-w-0 items-start gap-3 border-b border-hairline-soft py-3 last:border-b-0">
+      <ActivityDot
+        status={item.tone}
+        aria-label={ACTIVITY_STATUS_LABEL[item.tone]}
+        className="mt-1 shrink-0"
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="break-words text-body font-medium text-ink">{item.title}</span>
+        <span className="break-words text-caption text-muted">{item.caption}</span>
       </div>
       {activityTime.dateTime ? (
         <time className="shrink-0 text-caption text-muted" dateTime={activityTime.dateTime}>
@@ -106,7 +110,7 @@ export function AdminDashboardPage() {
     (exam) => exam.status === "active" || exam.status === "live",
   ).length;
   const hasMetricError = questionsError || examsError || scoresError || absentError;
-  const activityUnavailable = scoresError || absentError;
+  const activityUnavailable = (scores.isError && !scores.data) || (absent.isError && !absent.data);
 
   const retryDashboard = () =>
     Promise.all([questions.refetch(), exams.refetch(), scores.refetch(), absent.refetch()]);
@@ -141,11 +145,11 @@ export function AdminDashboardPage() {
       scores.dataUpdatedAt,
       absent.dataUpdatedAt,
     );
-    return new Date(lastUpdate).toLocaleString("zh-CN");
+    return lastUpdate ? new Date(lastUpdate).toLocaleString("zh-CN") : "尚未刷新";
   }, [questions.dataUpdatedAt, exams.dataUpdatedAt, scores.dataUpdatedAt, absent.dataUpdatedAt]);
 
   return (
-    <PageShell data-testid="admin-dashboard-shell" density="workbench" width="full" stagger>
+    <PageShell data-testid="admin-dashboard-shell" density="workbench" width="wide">
       <PageHeader title="仪表盘" description={`最近一次刷新 · ${lastRefreshedLabel}`}>
         <p className="text-body-sm text-muted" role="status">
           {hasMetricError ? "部分数据暂不可用，详见下方提示。" : "关键数据已就绪。"}
@@ -167,7 +171,11 @@ export function AdminDashboardPage() {
         />
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <section
+        aria-label="关键指标"
+        data-dashboard-metrics=""
+        className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4"
+      >
         <MetricCard
           label={adminPageCopy.library}
           value={questionsLoading ? "…" : questionsError ? "—" : (questions.data?.length ?? 0)}
@@ -196,7 +204,11 @@ export function AdminDashboardPage() {
         />
       </section>
       {hasMetricError ? (
-        <Alert variant="error" className="items-start gap-3 sm:flex-row sm:items-center">
+        <Alert
+          data-dashboard-alert="metrics"
+          variant="error"
+          className="items-start gap-3 sm:flex-row sm:items-center"
+        >
           <AlertDescription>
             部分仪表盘指标加载失败，当前数值已标记为不可用，请稍后重试。
           </AlertDescription>
@@ -206,14 +218,14 @@ export function AdminDashboardPage() {
         </Alert>
       ) : null}
 
-      <PageSection variant="card" className="gap-4">
+      <PageSection variant="panel" data-dashboard-activity="" className="gap-4">
         <header className="flex flex-col gap-1">
           <h2 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink">
             最近活动
           </h2>
           <p className="text-body-sm text-muted">交卷与未开始</p>
         </header>
-        {scores.isLoading || absent.isLoading ? (
+        {scoresLoading || absentLoading ? (
           <PageState
             state="loading"
             surface="inherit"
@@ -225,7 +237,6 @@ export function AdminDashboardPage() {
           <PageState
             state="error"
             surface="inherit"
-            eyebrow={adminPageCopy.error}
             title="最近活动加载失败。"
             description="请稍后重试，或检查成绩与参考状态接口。"
             onRetry={() => void retryActivity()}
@@ -241,7 +252,6 @@ export function AdminDashboardPage() {
           <PageState
             state="empty"
             surface="inherit"
-            eyebrow={adminPageCopy.empty}
             title="暂无活动记录。"
             description="当有人交卷或参考状态变化后，最近活动会显示在这里。"
             className="py-8"

@@ -4,6 +4,7 @@ import { Navigate, createBrowserRouter } from "react-router-dom";
 import { ContentSkeleton } from "@/components/editorial/ContentSkeleton";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { CandidateLayout } from "@/components/layout/CandidateLayout";
+import { CANDIDATE_PRESENTATION_HANDLE } from "@/components/layout/candidate-presentation-mode";
 import { RouteErrorPage } from "@/components/page";
 
 function lazyNamed<T extends ComponentType<object>>(
@@ -104,7 +105,11 @@ export const router = createBrowserRouter([
       { path: "practice/wrong-questions", element: routeElement(WrongQuestionReviewPage) },
       { path: "exams", element: routeElement(ExamListPage) },
       { path: "exams/:examId/start", element: routeElement(ExamStartPage) },
-      { path: "exams/:examId/taking", element: routeElement(ExamTakingPage) },
+      {
+        path: "exams/:examId/taking",
+        element: routeElement(ExamTakingPage),
+        handle: { [CANDIDATE_PRESENTATION_HANDLE]: "focus" },
+      },
       { path: "exams/:examId/result", element: routeElement(ExamResultPage) },
     ],
   },

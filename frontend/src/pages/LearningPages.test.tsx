@@ -12,7 +12,7 @@ import { LearningListPage } from "@/pages/LearningListPage";
 import { LearningVideoPage } from "@/pages/LearningVideoPage";
 import { LoginPage } from "@/pages/LoginPage";
 import type { Candidate } from "@/types/candidate";
-import type { CandidateLearningVideo } from "@/types/learning";
+import type { CandidateLearningVideo, LearningVideoProgress } from "@/types/learning";
 
 vi.mock("@/api/auth", () => ({
   loginCandidate: vi.fn(),
@@ -131,6 +131,32 @@ describe("Learning pages", () => {
     expect(vi.mocked(getLearningVideos)).not.toHaveBeenCalled();
   });
 
+  it("keeps the list loading state inside the calm wide page frame", () => {
+    vi.mocked(getLearningVideos).mockReturnValueOnce(
+      new Promise<CandidateLearningVideo[]>(() => {}),
+    );
+
+    renderLearningPage("learning", <LearningListPage />, "/learning");
+
+    expect(screen.getByTestId("candidate-learning-list-shell")).toHaveAttribute(
+      "data-width",
+      "wide",
+    );
+    expect(screen.getByRole("status")).toHaveAttribute("data-page-state", "loading");
+  });
+
+  it("renders the governed empty state when no videos are published", async () => {
+    vi.mocked(getLearningVideos).mockResolvedValueOnce([]);
+
+    renderLearningPage("learning", <LearningListPage />, "/learning");
+
+    expect(await screen.findByText("暂无学习视频。")).toBeInTheDocument();
+    expect(screen.getByTestId("candidate-learning-list-shell")).toHaveAttribute(
+      "data-density",
+      "calm",
+    );
+  });
+
   it("renders candidate learning video progress and completion state", async () => {
     vi.mocked(getLearningVideos).mockResolvedValueOnce([
       {
@@ -157,6 +183,25 @@ describe("Learning pages", () => {
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByText("已完成")).toBeInTheDocument();
     expect(screen.getByText("90%")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "安全培训 完成度" })).toHaveAttribute(
+      "aria-valuenow",
+      "90",
+    );
+    expect(screen.getByRole("group", { name: "视频操作" })).toHaveAttribute(
+      "data-action-reflow",
+      "wrap",
+    );
+  });
+
+  it("wraps long unbroken video titles without leaving the data card", async () => {
+    const longTitle = "安全培训".repeat(24);
+    vi.mocked(getLearningVideos).mockResolvedValueOnce([{ ...video, title: longTitle }]);
+
+    renderLearningPage("learning", <LearningListPage />, "/learning");
+
+    const heading = await screen.findByRole("heading", { level: 2, name: longTitle });
+    expect(heading).toHaveClass("min-w-0", "break-words");
+    expect(heading.closest("[data-video-id]")).toHaveAttribute("data-surface-role", "data");
   });
 
   it("renders learning query failures as explicit errors", async () => {
@@ -218,5 +263,57 @@ describe("Learning pages", () => {
         watched_end_seconds: 10,
       }),
     );
+  });
+
+  it("keeps video detail loading state in the same semantic page frame", () => {
+    vi.mocked(getLearningVideo).mockReturnValueOnce(new Promise<CandidateLearningVideo>(() => {}));
+
+    renderLearningPage("learning/:videoId", <LearningVideoPage />, "/learning/9");
+
+    expect(screen.getByRole("heading", { name: "视频学习" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAttribute("data-page-state", "loading");
+  });
+
+  it("renders the detail error recovery state when the video cannot load", async () => {
+    vi.mocked(getLearningVideo).mockRejectedValueOnce(new Error("video unavailable"));
+
+    renderLearningPage("learning/:videoId", <LearningVideoPage />, "/learning/9");
+
+    expect(await screen.findByText("视频加载失败。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("shows a pending progress-save state without changing heartbeat payloads", async () => {
+    vi.mocked(getLearningVideo).mockResolvedValueOnce(video);
+    vi.mocked(updateLearningProgress).mockReturnValueOnce(
+      new Promise<LearningVideoProgress>(() => {}),
+    );
+    renderLearningPage("learning/:videoId", <LearningVideoPage />, "/learning/9");
+
+    const player = (await screen.findByTestId("learning-video-shell")).querySelector(
+      "video",
+    ) as HTMLVideoElement;
+    Object.defineProperty(player, "currentTime", { configurable: true, value: 0 });
+    fireEvent.play(player);
+    Object.defineProperty(player, "currentTime", { configurable: true, value: 10 });
+    fireEvent.pause(player);
+
+    expect(await screen.findByText("正在保存进度")).toHaveAttribute("role", "status");
+    expect(updateLearningProgress).toHaveBeenCalledWith(9, {
+      current_position_seconds: 10,
+      watched_start_seconds: 0,
+      watched_end_seconds: 10,
+    });
+  });
+
+  it("keeps long detail titles readable within the wide calm frame", async () => {
+    const longTitle = "安全培训".repeat(24);
+    vi.mocked(getLearningVideo).mockResolvedValueOnce({ ...video, title: longTitle });
+
+    renderLearningPage("learning/:videoId", <LearningVideoPage />, "/learning/9");
+
+    const heading = await screen.findByRole("heading", { level: 1, name: longTitle });
+    expect(heading).toHaveClass("min-w-0", "break-words");
+    expect(screen.getByTestId("learning-video-shell")).toHaveAttribute("data-width", "wide");
   });
 });

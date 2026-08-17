@@ -1,4 +1,4 @@
-import { List, Send } from "lucide-react";
+import { ArrowLeft, List, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
@@ -6,6 +6,14 @@ import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
 import { PageShell } from "@/components/page";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -64,6 +72,7 @@ export function ExamTakingWorkspace({
   onSubmit,
   onRetrySave,
   onResolveConflict,
+  onReturnToExamList,
   navigationWarning,
   liveAnnouncement,
 }: {
@@ -91,11 +100,14 @@ export function ExamTakingWorkspace({
   onSubmit: () => void;
   onRetrySave: () => void;
   onResolveConflict: () => void;
+  onReturnToExamList?: () => void;
   navigationWarning?: NavigationWarning | null;
   liveAnnouncement?: string;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const previousSaveStatusRef = useRef(saveStatus);
+  const navigationWarningReturnFocusRef = useRef<HTMLElement | null>(null);
+  const navigationWarningWasOpenRef = useRef(false);
   const [saveAnnouncement, setSaveAnnouncement] = useState("");
   const nextQuestionLabel = isLastQuestion
     ? submitPending
@@ -118,33 +130,45 @@ export function ExamTakingWorkspace({
     <PageShell
       density="focus"
       width="full"
-      stagger
       data-exam-workspace
-      className="relative min-h-[calc(100vh-10rem)] min-w-0"
+      className="relative min-h-[100dvh] min-w-0"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-hairline bg-canvas px-4 py-3 text-body-sm shadow-card">
-        <span
-          data-testid="exam-save-status"
-          className={
-            saveStatus === "error" || saveStatus === "conflict"
-              ? "font-medium text-error"
-              : saveStatus === "saved"
-                ? "font-medium text-success"
-                : "font-medium text-muted"
-          }
-        >
-          {SAVE_STATUS_LABEL[saveStatus]}
-        </span>
-        <div className="flex flex-wrap items-center gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline pb-3">
+        {onReturnToExamList ? (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onReturnToExamList}
+            disabled={submitPending}
+            className="min-h-touch-target"
+          >
+            <ArrowLeft data-icon="inline-start" />
+            {candidateActionCopy.returnExamList}
+          </Button>
+        ) : null}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-3">
+          <span
+            data-testid="exam-save-status"
+            role="status"
+            aria-live="polite"
+            className={
+              saveStatus === "error" || saveStatus === "conflict"
+                ? "text-status font-status text-error"
+                : saveStatus === "saved"
+                  ? "text-status font-status text-success"
+                  : "text-status font-status text-muted"
+            }
+          >
+            {SAVE_STATUS_LABEL[saveStatus]}
+          </span>
           {submitErrorVisible ? (
-            <span className="text-error">
+            <span className="text-body-sm text-error">
               {candidateActionCopy.submitFailed}，请先确认答案已同步并重试。
             </span>
           ) : null}
           {saveNeedsAction ? (
             <Button
               type="button"
-              size="sm"
               variant="outline"
               onClick={saveStatus === "conflict" ? onResolveConflict : onRetrySave}
               disabled={submitPending}
@@ -155,7 +179,7 @@ export function ExamTakingWorkspace({
             </Button>
           ) : null}
         </div>
-      </div>
+      </header>
 
       <div
         className="sr-only"
@@ -167,29 +191,63 @@ export function ExamTakingWorkspace({
         {announcement}
       </div>
 
-      {navigationWarning ? (
-        <div
+      <Dialog
+        open={Boolean(navigationWarning)}
+        onOpenChange={(open) => {
+          if (!open) navigationWarning?.onStay();
+        }}
+      >
+        <DialogContent
           role="alertdialog"
-          aria-modal="false"
-          aria-labelledby="exam-unsaved-navigation-title"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning bg-surface-card px-4 py-3 text-body-sm shadow-card"
+          aria-describedby="exam-unsaved-navigation-description"
+          onOpenAutoFocus={(event) => {
+            if (!navigationWarningWasOpenRef.current) {
+              const activeElement = document.activeElement;
+              navigationWarningReturnFocusRef.current =
+                activeElement instanceof HTMLElement && activeElement !== document.body
+                  ? activeElement
+                  : null;
+              navigationWarningWasOpenRef.current = true;
+            }
+            event.preventDefault();
+            const stayButton = document.querySelector<HTMLButtonElement>(
+              '[data-exam-safe-exit="stay"]',
+            );
+            stayButton?.focus();
+          }}
+          onCloseAutoFocus={(event) => {
+            const returnFocus = navigationWarningReturnFocusRef.current;
+            if (returnFocus?.isConnected) {
+              event.preventDefault();
+              returnFocus.focus();
+            }
+            navigationWarningWasOpenRef.current = false;
+            navigationWarningReturnFocusRef.current = null;
+          }}
         >
-          <div>
-            <p id="exam-unsaved-navigation-title" className="font-medium text-ink">
-              答案尚未同步
-            </p>
-            <p className="text-muted">离开考试可能丢失最近的作答。</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={navigationWarning.onStay}>
-              留在考试
+          <DialogHeader>
+            <DialogTitle>答案尚未同步</DialogTitle>
+            <DialogDescription id="exam-unsaved-navigation-description">
+              {candidateActionCopy.leaveExamWarning}你可以{candidateActionCopy.stayInExam}
+              继续同步，或选择
+              {candidateActionCopy.confirmLeaveExam}。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              data-exam-safe-exit="stay"
+              onClick={() => navigationWarning?.onStay()}
+            >
+              {candidateActionCopy.stayInExam}
             </Button>
-            <Button type="button" onClick={navigationWarning.onLeave}>
-              仍要离开
+            <Button type="button" onClick={() => navigationWarning?.onLeave()}>
+              {candidateActionCopy.confirmLeaveExam}
             </Button>
-          </div>
-        </div>
-      ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
         <div id="exam-question-focus" className="min-w-0">
@@ -213,7 +271,7 @@ export function ExamTakingWorkspace({
               prevDisabled: activeIndex === 0,
               nextDisabled: isLastQuestion && submitPending,
               nextLabel: nextQuestionLabel,
-              saving: saveStatus === "saving",
+              saving: saveStatus === "saving" || submitPending,
             }}
           />
         </div>
@@ -254,25 +312,25 @@ export function ExamTakingWorkspace({
             prevDisabled: activeIndex === 0,
             nextDisabled: isLastQuestion && submitPending,
             nextLabel: nextQuestionLabel,
-            saving: saveStatus === "saving",
+            saving: saveStatus === "saving" || submitPending,
           }}
         />
 
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-          <div className="fixed inset-x-0 bottom-0 z-overlay flex justify-center px-3 pb-[max(var(--space-inline),env(safe-area-inset-bottom))] pt-3">
-            <div className="flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate">
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-overlay flex justify-center px-3 pb-[max(var(--space-inline),env(safe-area-inset-bottom))] pt-3 landscape:justify-end">
+            <div className="pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-pill border border-footer bg-footer p-2 shadow-elevate landscape:w-auto">
               <ProgressCapsule
                 current={activeIndex + 1}
                 total={total}
                 answered={answeredCount}
                 variant="dark"
-                className="min-w-0 flex-1"
+                className="min-w-0 flex-1 landscape:hidden"
               />
               <SheetTrigger asChild>
                 <button
                   type="button"
                   aria-label="打开题号导航"
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-pill text-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas focus-visible:ring-offset-2 focus-visible:ring-offset-footer"
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-pill text-canvas focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-canvas focus-visible:ring-offset-2 focus-visible:ring-offset-footer"
                 >
                   <List aria-hidden="true" />
                   <span className="sr-only">打开题号导航</span>
@@ -283,10 +341,12 @@ export function ExamTakingWorkspace({
 
           <SheetContent
             side="bottom"
-            className="flex max-h-[85dvh] min-h-0 flex-col gap-4 rounded-t-lg bg-canvas p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
+            className="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col gap-4 rounded-t-lg bg-canvas p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
           >
             <SheetHeader className="border-b border-hairline pb-3">
-              <SheetTitle className="font-display text-display-sm">题号导航</SheetTitle>
+              <SheetTitle className="font-display text-subsection-title font-subsection-title">
+                题号导航
+              </SheetTitle>
               <SheetDescription className="sr-only">选择题号或交卷。</SheetDescription>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto overscroll-contain">

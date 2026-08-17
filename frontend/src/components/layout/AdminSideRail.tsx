@@ -33,7 +33,8 @@ export type AdminNavigationGroup = {
  * The single source for primary admin destinations. Keep this model ordered:
  * the same data renders in the desktop rail and the mobile sheet.
  */
-const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
+// eslint-disable-next-line react-refresh/only-export-components
+export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
   {
     id: "overview",
     label: "概览",
@@ -107,7 +108,7 @@ function SidebarList({
   const { pathname } = useLocation();
 
   return (
-    <nav aria-label="管理后台导航" className="flex flex-col gap-5">
+    <nav aria-label="管理后台导航" data-navigation-tone={tone} className="flex flex-col gap-5">
       {ADMIN_NAVIGATION_GROUPS.map((group) => {
         const itemsWithActive = group.items.map((item) => ({
           item,
@@ -120,13 +121,14 @@ function SidebarList({
           <section
             key={group.id}
             aria-labelledby={groupTitleId}
+            data-nav-group-id={group.id}
             data-active-group={groupIsActive ? "true" : "false"}
             className="flex flex-col gap-1"
           >
             <p
               id={groupTitleId}
               className={cn(
-                "px-3 text-caption font-semibold uppercase tracking-[0.14em]",
+                "px-3 text-caption font-semibold uppercase tracking-caption",
                 tone === "dark" ? "text-footer-soft" : "text-muted",
               )}
             >
@@ -140,15 +142,18 @@ function SidebarList({
                   to={item.to}
                   end={item.end}
                   onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  data-active={active ? "true" : "false"}
+                  data-nav-item-id={item.id}
                   className={({ isActive }) => {
                     const resolvedActive = isActive || active;
 
                     return cn(
-                      "flex h-12 items-center rounded-md px-3 text-body-sm font-medium transition-colors",
+                      "flex min-h-12 w-full min-w-0 items-center break-words rounded-md px-3 py-3 text-left text-body-sm font-medium leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
                       tone === "dark"
                         ? resolvedActive
                           ? "bg-canvas text-ink"
-                          : "text-footer-soft hover:bg-white/10 hover:text-canvas"
+                          : "text-footer-soft hover:text-canvas"
                         : resolvedActive
                           ? "bg-surface-card text-ink"
                           : "text-muted hover:bg-surface-card hover:text-ink",
@@ -197,7 +202,11 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
 
   if (isDesktop) {
     return (
-      <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col overflow-hidden border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft">
+      <aside
+        data-testid="admin-desktop-rail"
+        data-navigation-family="admin"
+        className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col overflow-hidden border-r border-footer-soft bg-footer px-5 py-6 text-footer-soft"
+      >
         <Link
           to="/admin/dashboard"
           aria-label="返回管理后台首页"
@@ -205,10 +214,13 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
         >
           <Wordmark size="sm" tone="dark" subtitle="admin" />
         </Link>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          data-testid="admin-desktop-navigation-scroll"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
           <SidebarList />
         </div>
-        <div className="mt-4 border-t border-footer-soft pt-4">
+        <div className="mt-4 shrink-0 border-t border-footer-soft pt-4">
           <LogoutButton onLogout={onLogout} />
         </div>
       </aside>
@@ -218,7 +230,9 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
   return (
     <div
       data-scrolled={scrolled}
-      className="sticky top-0 z-overlay flex h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-4"
+      data-testid="admin-mobile-header"
+      data-navigation-family="admin"
+      className="sticky top-0 z-overlay flex min-h-16 items-center justify-between border-b border-hairline-soft bg-canvas px-page-inline"
     >
       <Link
         to="/admin/dashboard"
@@ -237,12 +251,16 @@ export function AdminSideRail({ onLogout }: { onLogout: () => void }) {
             <Menu aria-hidden="true" />
           </button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="rounded-t-lg">
+        <SheetContent
+          side="bottom"
+          data-testid="admin-mobile-navigation"
+          className="max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-t-lg pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        >
           <SheetHeader>
             <SheetTitle className="font-display text-display-sm">导航</SheetTitle>
             <SheetDescription className="sr-only">管理后台导航菜单</SheetDescription>
           </SheetHeader>
-          <div className="px-4 pb-6">
+          <div className="min-h-0 px-4 pb-6">
             <SidebarList tone="light" onNavigate={() => setMobileOpen(false)} />
             <div className="mt-4 border-t border-hairline pt-3">
               <LogoutButton

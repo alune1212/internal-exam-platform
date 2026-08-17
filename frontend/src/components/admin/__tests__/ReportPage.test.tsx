@@ -28,7 +28,7 @@ describe("ReportPage", () => {
     renderWithClient(
       <ReportPage
         title="成绩册"
-        chapterLabel="REPORTS · 报表"
+        chapterLabel="报表"
         description="每次考试的提交结果"
         queryKey="score-report"
         queryFn={queryFn}
@@ -36,7 +36,7 @@ describe("ReportPage", () => {
       />,
     );
 
-    expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
+    expect(screen.getByText("报表")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "成绩册" })).not.toHaveClass("italic");
     expect(screen.getByText("每次考试的提交结果")).toBeInTheDocument();
   });
@@ -45,14 +45,14 @@ describe("ReportPage", () => {
     renderWithClient(
       <ReportPage
         title="成绩册"
-        chapterLabel="REPORTS · 报表"
+        chapterLabel="报表"
         queryKey="score-report"
         queryFn={queryFn}
         columns={columns}
       />,
     );
 
-    expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
+    expect(screen.getByText("报表")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "成绩册" })).toHaveClass(
       "font-display",
       "text-display-lg",
@@ -60,9 +60,9 @@ describe("ReportPage", () => {
     expect(screen.getByTestId("report-page-shell")).toHaveClass("gap-6");
     expect(screen.getByTestId("report-page-shell")).toHaveAttribute("data-density", "workbench");
     expect(screen.getByTestId("report-page-shell")).not.toHaveAttribute("data-stagger");
-    expect(screen.getByTestId("report-page-table-section")).toHaveClass(
-      "rounded-lg",
-      "shadow-card",
+    expect(screen.getByTestId("report-page-table-section")).toHaveAttribute(
+      "data-surface-role",
+      "data",
     );
   });
 
@@ -76,7 +76,7 @@ describe("ReportPage", () => {
       />,
     );
 
-    expect(screen.getByText("REPORTS · 报表")).toBeInTheDocument();
+    expect(screen.getByText("报表")).toBeInTheDocument();
   });
 
   it("calls queryFn with the expected queryKey and renders the rows", async () => {
@@ -91,9 +91,9 @@ describe("ReportPage", () => {
 
     await waitFor(() => expect(screen.getByText("first")).toBeInTheDocument());
     expect(screen.getByText("second")).toBeInTheDocument();
-    expect(screen.getByTestId("report-page-table-section")).toHaveClass(
-      "rounded-lg",
-      "shadow-card",
+    expect(screen.getByTestId("report-page-table-section")).toHaveAttribute(
+      "data-surface-role",
+      "data",
     );
   });
 
@@ -121,7 +121,7 @@ describe("ReportPage", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText(/LOADING · 加载中/i)).toBeInTheDocument();
+    expect(screen.getByText("加载中...")).toBeInTheDocument();
   });
 
   it("can show prerequisite loading without starting the report query", () => {
@@ -138,7 +138,7 @@ describe("ReportPage", () => {
       />,
     );
 
-    expect(screen.getByText(/LOADING · 加载中/i)).toBeInTheDocument();
+    expect(screen.getByText("加载中...")).toBeInTheDocument();
     expect(disabledQueryFn).not.toHaveBeenCalled();
   });
 

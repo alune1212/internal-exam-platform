@@ -99,6 +99,17 @@ describe("AdminLearningReportPage", () => {
     );
   });
 
+  it("uses the shared report toolbar and Chinese-first table headers", async () => {
+    renderPage();
+
+    expect(await screen.findByText("张敏")).toBeInTheDocument();
+    const toolbar = screen.getByRole("group", { name: "报表筛选与操作" });
+    expect(toolbar).toHaveAttribute("data-report-order", "filters-segments-notice-actions");
+    expect(screen.getByText("用户姓名")).toBeInTheDocument();
+    expect(screen.getByText("用户邮箱")).toBeInTheDocument();
+    expect(screen.queryByText(/ACCOUNT NAME|ACCOUNT EMAIL|ACCOUNT STATUS/)).not.toBeInTheDocument();
+  });
+
   it("exports the current learning report filter", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -113,5 +124,19 @@ describe("AdminLearningReportPage", () => {
       videoId: "7",
       status: "completed",
     });
+  });
+
+  it("retries the prerequisite video query before retrying the report", async () => {
+    learningApi.getAdminLearningVideos
+      .mockRejectedValueOnce(new Error("video list unavailable"))
+      .mockResolvedValueOnce([video]);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "报表加载失败。" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "重试" }));
+
+    await waitFor(() => expect(learningApi.getAdminLearningVideos).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(learningApi.getLearningReport).toHaveBeenCalled());
   });
 });

@@ -15,7 +15,7 @@ describe("ContentSkeleton", () => {
   it("renders the loading label when showCaption is true", () => {
     render(<ContentSkeleton showCaption />);
 
-    expect(screen.getByText(/Loading/)).toBeInTheDocument();
+    expect(screen.getByText("加载中...")).toBeInTheDocument();
   });
 
   it("honors the rows prop", () => {

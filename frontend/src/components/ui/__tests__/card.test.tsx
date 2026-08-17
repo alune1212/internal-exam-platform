@@ -11,6 +11,7 @@ describe("Card", () => {
     expect(el.className).toContain("border-hairline");
     expect(el.className).toContain("shadow-card");
     expect(el).toHaveAttribute("data-surface-owner", "card");
+    expect(el).toHaveAttribute("data-surface-role", "card");
   });
 
   it("CardHeader applies chapter-style layout (chapter + title + description)", () => {
@@ -21,10 +22,11 @@ describe("Card", () => {
       </CardHeader>,
     );
     const header = screen.getByTestId("h");
-    const chapter = screen.getByText("CHAPTER 01 · WELCOME");
+    const chapter = screen.getByTestId("h").querySelector('[data-slot="card-context"]');
     expect(header.className).toContain("border-b");
     expect(header.className).toContain("border-hairline-soft");
-    expect(chapter.className).toMatch(/uppercase|tracking-/);
+    expect(chapter).toHaveAttribute("data-context-label");
+    expect(chapter?.className).toMatch(/tracking-/);
     expect(screen.getByRole("heading", { level: 3, name: "开始考试" })).toHaveClass("break-words");
   });
 
@@ -37,5 +39,33 @@ describe("Card", () => {
   it("exports CardFooter for footer actions", () => {
     render(<CardFooter data-testid="cf">actions</CardFooter>);
     expect(screen.getByTestId("cf")).toHaveTextContent("actions");
+  });
+
+  it("supports governed summary and overlay surfaces without a parallel Card family", () => {
+    const { rerender } = render(
+      <Card surface="summary" data-testid="surface">
+        summary
+      </Card>,
+    );
+
+    expect(screen.getByTestId("surface")).toHaveAttribute("data-surface-owner", "summary");
+    expect(screen.getByTestId("surface")).toHaveAttribute("data-surface-role", "summary");
+
+    rerender(
+      <Card surface="overlay" data-testid="surface">
+        overlay
+      </Card>,
+    );
+    expect(screen.getByTestId("surface")).toHaveClass("shadow-elevate");
+  });
+
+  it("allows a card heading to follow the surrounding document order", () => {
+    render(
+      <CardHeader>
+        <CardTitle as="h2">区域标题</CardTitle>
+      </CardHeader>,
+    );
+
+    expect(screen.getByRole("heading", { level: 2, name: "区域标题" })).toBeInTheDocument();
   });
 });

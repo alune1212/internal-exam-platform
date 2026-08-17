@@ -17,12 +17,12 @@ export interface WordmarkProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const sizeStyles: Record<WordmarkSize, { text: string; subtitle: string }> = {
   sm: {
-    text: "text-[18px]",
-    subtitle: "text-[11px]",
+    text: "text-body-lg",
+    subtitle: "text-caption",
   },
   md: {
-    text: "text-[24px]",
-    subtitle: "text-[11px]",
+    text: "text-display-sm",
+    subtitle: "text-caption",
   },
 };
 

@@ -64,6 +64,10 @@ describe("SimpleDataTable", () => {
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getByText("NAME")).toBeInTheDocument();
     expect(screen.getByText("Ada")).toBeInTheDocument();
+    expect(screen.getByRole("table").parentElement?.parentElement).toHaveAttribute(
+      "data-responsive-data",
+      "",
+    );
   });
 
   it("renders wide tables as cards even on desktop", () => {
@@ -93,6 +97,7 @@ describe("SimpleDataTable", () => {
     expect(within(adaCard).queryByText("1")).toBeNull();
     expect(within(adaCard).getByText("98")).toBeInTheDocument();
     expect(within(adaCard).getByText("Ada")).toBeInTheDocument();
+    expect(adaCard.parentElement).toHaveAttribute("data-table-mode", "cards");
   });
 
   it("lets mobile primary values inherit dark card text colour", () => {
@@ -122,5 +127,41 @@ describe("SimpleDataTable", () => {
 
     expect(screen.getByText("暂无数据")).toHaveAttribute("data-table-empty");
     expect(screen.getByText("暂无数据")).not.toHaveClass("border", "bg-canvas", "rounded-md");
+  });
+
+  it("keeps long unbroken values inside the responsive card representation", () => {
+    setMatchMedia(false);
+    render(
+      <SimpleDataTable
+        columns={columns}
+        data={[{ id: 1, name: "candidate-with-a-very-long-unbroken-identifier", score: 98 }]}
+      />,
+    );
+
+    const card = screen.getByTestId("mobile-row-card");
+    expect(card).toHaveTextContent("candidate-with-a-very-long-unbroken-identifier");
+    expect(card.querySelector("span.flex-1")).toHaveClass("break-words");
+  });
+
+  it("refreshes mobile cells when interaction state changes without replacing row data", () => {
+    setMatchMedia(false);
+    const stateColumns = (pending: boolean): ColumnDef<Row>[] => [
+      {
+        id: "state",
+        header: "状态",
+        cell: () => (pending ? "处理中" : "可操作"),
+        meta: { mobilePriority: "primary", mobileLabel: "状态" },
+      },
+    ];
+    const stableRows = [rows[0]!];
+    const { rerender } = render(
+      <SimpleDataTable columns={stateColumns(false)} data={stableRows} />,
+    );
+
+    expect(screen.getByText("可操作")).toBeInTheDocument();
+    rerender(<SimpleDataTable columns={stateColumns(true)} data={stableRows} />);
+
+    expect(screen.getByText("处理中")).toBeInTheDocument();
+    expect(screen.queryByText("可操作")).not.toBeInTheDocument();
   });
 });

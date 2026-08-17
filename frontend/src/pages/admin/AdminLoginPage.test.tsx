@@ -48,6 +48,7 @@ function renderPage() {
 describe("AdminLoginPage", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     vi.clearAllMocks();
     vi.mocked(loginAdmin).mockResolvedValue({
       token: "signed-session-token",
@@ -55,35 +56,57 @@ describe("AdminLoginPage", () => {
     });
   });
 
-  it("renders the semantic admin login eyebrow", () => {
+  it("renders a Chinese-first admin auth canvas", () => {
     renderPage();
 
-    expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
+    expect(screen.getByText("管理员登录")).toBeInTheDocument();
+    expect(screen.getByLabelText("管理员账号")).toBeInTheDocument();
+    expect(screen.getByLabelText("密码")).toBeInTheDocument();
   });
 
-  it("renders as a clean auth canvas without admin navigation or footer", () => {
+  it("keeps one heading, one governed form surface, and one primary action", () => {
     renderPage();
 
-    expect(screen.getByText("ADMIN · 登录")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-login-header")).toHaveAttribute("data-page-header");
     expect(screen.getByRole("heading", { level: 1, name: "进入管理后台" })).toHaveClass(
       "font-display",
       "text-display-lg",
     );
-    expect(screen.getByTestId("admin-login-header")).toBeInTheDocument();
-    expect(screen.getByTestId("admin-login-form-section")).toHaveClass("rounded-md");
+    expect(screen.getByTestId("admin-login-form-section")).toHaveAttribute(
+      "data-surface-owner",
+      "panel",
+    );
+    expect(screen.getByRole("group", { name: "管理后台登录操作" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "进入管理后台" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveAttribute("data-auth-canvas", "admin");
+    expect(screen.getByTestId("admin-login-canvas-content")).toHaveClass("landscape:grid");
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("contentinfo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   });
 
   it("stores the returned session token instead of the password", async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText(/Username/), "admin");
-    await user.type(screen.getByLabelText(/Password/), "change-me");
+    await user.type(screen.getByLabelText("管理员账号"), "admin");
+    await user.type(screen.getByLabelText("密码"), "change-me");
     await user.click(screen.getByRole("button", { name: /进入管理后台/ }));
 
     await waitFor(() => expect(getAdminToken()).toBe("signed-session-token"));
     expect(getAdminToken()).not.toBe("change-me");
+  });
+
+  it("exposes credential failures as an actionable alert", async () => {
+    const user = userEvent.setup();
+    vi.mocked(loginAdmin).mockRejectedValueOnce(new Error("invalid credentials"));
+    renderPage();
+
+    await user.type(screen.getByLabelText("管理员账号"), "admin");
+    await user.type(screen.getByLabelText("密码"), "wrong");
+    await user.click(screen.getByRole("button", { name: "进入管理后台" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("账号或密码不正确。");
+    expect(getAdminToken()).toBeNull();
   });
 });

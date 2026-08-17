@@ -26,7 +26,9 @@ describe("representative accessibility contract", () => {
   it("allows responsive zoom and reserves space for mobile fixed controls", () => {
     const index = readFileSync(resolve(process.cwd(), "index.html"), "utf8");
     const practice = readFileSync(resolve(process.cwd(), "src/pages/PracticePage.tsx"), "utf8");
-    expect(index).toContain('name="viewport" content="width=device-width, initial-scale=1.0"');
+    expect(index).toMatch(
+      /name="viewport"\s+content="width=device-width, initial-scale=1\.0, viewport-fit=cover"/,
+    );
     expect(index).not.toMatch(/maximum-scale|user-scalable\s*=\s*no/i);
     expect(practice).toContain("pb-[calc(6rem+env(safe-area-inset-bottom))]");
     expect(practice).toContain("fixed inset-x-0 bottom-0");

@@ -8,7 +8,9 @@ describe("PageShell", () => {
     render(<PageShell>内容</PageShell>);
 
     const shell = screen.getByText("内容");
-    expect(shell).toHaveClass("flex", "flex-col", "gap-8");
+    expect(shell).toHaveClass("flex", "flex-col", "min-w-0", "gap-8", "py-page-block");
+    expect(shell).toHaveClass("px-page-inline", "md:px-page-inline-lg");
+    expect(shell).toHaveAttribute("data-width", "standard");
   });
 
   it("supports workbench density for admin pages", () => {
@@ -32,6 +34,27 @@ describe("PageShell", () => {
 
     expect(screen.getByText("作答页")).toHaveClass("gap-6");
     expect(screen.getByText("作答页")).not.toHaveAttribute("data-stagger");
+  });
+
+  it.each([
+    ["reading", "max-w-reading"],
+    ["standard", "max-w-standard"],
+    ["wide", "max-w-wide"],
+    ["full", "max-w-full"],
+    ["focus", "max-w-full"],
+  ] as const)("assigns the %s semantic frame width", (width, maxWidth) => {
+    render(<PageShell width={width}>{width}</PageShell>);
+
+    const shell = screen.getByText(width);
+    expect(shell).toHaveAttribute("data-width", width);
+    expect(shell).toHaveClass("mx-auto", "w-full", maxWidth);
+  });
+
+  it("keeps the legacy default width as a standard-frame alias", () => {
+    render(<PageShell width="default">兼容页</PageShell>);
+
+    expect(screen.getByText("兼容页")).toHaveAttribute("data-width", "standard");
+    expect(screen.getByText("兼容页")).toHaveClass("max-w-standard");
   });
 
   it("can opt into stagger entrance", () => {

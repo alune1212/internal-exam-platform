@@ -40,6 +40,35 @@
     --success-on-dark: #4ade80;
     --error-on-dark: #fca5a5;
 
+    /*
+     * Status roles are intentionally opaque values.  Avoid alpha-modifier
+     * utilities such as `border-success/30`: Tailwind cannot always emit a
+     * deterministic color for a CSS-variable color.  Each role therefore has
+     * an explicit light/dark surface pair that can be compiled directly.
+     */
+    --status-success-surface: #f0fdf4;
+    --status-success-foreground: #166534;
+    --status-success-border: #166534;
+    --status-success-foreground-on-dark: #4ade80;
+    --status-success-border-on-dark: #4ade80;
+    --status-warning-surface: #fffbeb;
+    --status-warning-foreground: #92400e;
+    --status-warning-border: #92400e;
+    --status-warning-foreground-on-dark: #fbbf24;
+    --status-warning-border-on-dark: #fbbf24;
+    --status-error-surface: #fef2f2;
+    --status-error-foreground: #b91c1c;
+    --status-error-border: #b91c1c;
+    --status-error-foreground-on-dark: #fca5a5;
+    --status-error-border-on-dark: #fca5a5;
+
+    /* Success action treatment: readable when rendered on either a light
+       canvas or the dark deep-chrome surface. */
+    --success-action-surface: var(--success);
+    --success-action-surface-hover: #14532d;
+    --success-action-foreground: var(--canvas);
+    --success-action-foreground-on-dark: var(--success-on-dark);
+
     /* Radius */
     --radius-pill: 9999px;
     --radius-lg: 16px;
@@ -89,6 +118,98 @@
     --tracking-display-tight: -0.02em;
     --tracking-display: -0.01em;
     --tracking-caption: 0.16em;
+
+    /* Semantic editorial roles.  Consumers use role aliases instead of
+       repeating a page-specific type size or tracking literal. */
+    --type-page-title-size: var(--text-display-lg);
+    --type-page-title-leading: var(--leading-display-lg);
+    --type-page-title-weight: 600;
+    --type-page-title-tracking: var(--tracking-display-tight);
+    --type-section-title-size: var(--text-display-md);
+    --type-section-title-leading: var(--leading-display-md);
+    --type-section-title-weight: 600;
+    --type-section-title-tracking: var(--tracking-display);
+    --type-subsection-title-size: var(--text-display-sm);
+    --type-subsection-title-leading: var(--leading-display-sm);
+    --type-subsection-title-weight: 600;
+    --type-subsection-title-tracking: var(--tracking-display);
+    --type-nav-size: var(--text-body-sm);
+    --type-nav-leading: var(--leading-body-sm);
+    --type-nav-weight: 500;
+    --type-nav-tracking: normal;
+    --type-action-size: var(--text-body-sm);
+    --type-action-leading: var(--leading-body-sm);
+    --type-action-weight: 500;
+    --type-action-tracking: normal;
+    --type-status-size: var(--text-caption);
+    --type-status-leading: var(--leading-caption);
+    --type-status-weight: 500;
+    --type-status-tracking: var(--tracking-caption);
+    --type-metric-size: var(--text-display-md);
+    --type-metric-leading: var(--leading-display-md);
+    --type-metric-weight: 600;
+    --type-metric-tracking: var(--tracking-display);
+    --type-question-size: var(--text-body-lg);
+    --type-question-leading: var(--leading-body-lg);
+    --type-question-weight: 500;
+    --type-question-tracking: normal;
+    --type-table-label-size: var(--text-caption);
+    --type-table-label-leading: var(--leading-caption);
+    --type-table-label-weight: 500;
+    --type-table-label-tracking: var(--tracking-caption);
+
+    /* Page-frame roles.  These are max-width owners, not page-level
+       improvisation.  `full` keeps focus workflows fluid. */
+    --page-frame-reading: 48rem;
+    --page-frame-standard: 64rem;
+    --page-frame-wide: 80rem;
+    --page-frame-full: 100%;
+    --page-frame-inline: var(--space-page-inline);
+    --page-frame-inline-lg: var(--space-page-inline-lg);
+    --page-frame-block: var(--space-page-block);
+    --page-frame-section-gap: var(--space-section);
+
+    /* Action and touch contracts.  Exam Focus controls keep the larger
+       target even when their visual label is compact. */
+    --action-height-compact: 2.25rem;
+    --action-height: 2.75rem;
+    --action-height-large: 3rem;
+    --action-min-inline: 2.75rem;
+    --action-padding-inline: var(--space-control-x);
+    --action-gap: var(--space-control-gap);
+    --action-group-gap: var(--space-control-gap);
+    --exam-focus-touch-target: 44px;
+    --exam-focus-touch-target-min: var(--exam-focus-touch-target);
+
+    /* Shared control states.  State borders remain opaque and can be
+       consumed by Tailwind without an unsupported alpha composition. */
+    --control-surface: var(--canvas);
+    --control-surface-hover: var(--canvas-warm);
+    --control-surface-disabled: var(--hairline-soft);
+    --control-foreground: var(--ink);
+    --control-foreground-disabled: var(--muted);
+    --control-border: var(--hairline);
+    --control-border-hover: var(--ink-soft);
+    --control-border-focus: var(--ink);
+    --control-border-invalid: var(--error);
+    --control-border-success: var(--status-success-border);
+    --control-ring: var(--focus-ring-color);
+    --control-pressed-surface: var(--surface-card);
+
+    /* Dynamic viewport and safe-area roles for dialogs/sheets/focus chrome. */
+    --overlay-viewport-height: 100dvh;
+    --overlay-viewport-max-height: calc(100dvh - var(--space-panel));
+    --overlay-viewport-padding-top: env(safe-area-inset-top);
+    --overlay-viewport-padding-bottom: env(safe-area-inset-bottom);
+    --overlay-viewport-padding-inline: var(--space-page-inline);
+
+    /* Named elevation roles keep surface hierarchy reviewable. */
+    --elevation-none: none;
+    --elevation-card: var(--shadow-card);
+    --elevation-popover: var(--shadow-pop);
+    --elevation-focus: var(--shadow-elevate);
+    --elevation-overlay: var(--shadow-elevate);
+    --elevation-sticky: var(--shadow-sticky);
 
     /* Semantic page, section, field, and control spacing */
     --space-page-inline: 1.5rem;

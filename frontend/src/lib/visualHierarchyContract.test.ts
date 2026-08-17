@@ -42,7 +42,9 @@ function sourceFor(relativePath: string): string {
 }
 
 function headingLevels(source: string): number[] {
-  return [...source.matchAll(/<h([1-6])\b/g)].map((match) => Number(match[1]));
+  return [...source.matchAll(/<h([1-6])\b|<CardTitle\b[^>]*\bas=["']h([1-6])["']/g)].map((match) =>
+    Number(match[1] ?? match[2]),
+  );
 }
 
 function openingHeadingTags(source: string): string[] {
@@ -52,6 +54,7 @@ function openingHeadingTags(source: string): string[] {
 const meaningfulContextCallsites = new Set([
   "pages/LoginPage.tsx",
   "pages/RegistrationPage.tsx",
+  "pages/ExamStartPage.tsx",
   "pages/admin/AdminLoginPage.tsx",
   "pages/admin/AccountDirectoryPage.tsx",
   "pages/admin/CandidateImportPage.tsx",

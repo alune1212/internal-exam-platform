@@ -21,7 +21,7 @@ describe("ExamNavigator", () => {
     render(<ExamNavigator items={items} activeId={1} onJump={vi.fn()} />);
 
     const navigator = screen.getByRole("region", { name: "题号导航" });
-    expect(navigator).toHaveClass("max-h-[calc(100vh-7rem)]");
+    expect(navigator).toHaveClass("max-h-[calc(100dvh-7rem)]");
 
     const list = screen.getByTestId("exam-navigator-list");
     expect(list).toHaveClass("min-h-0", "overflow-y-auto", "p-1");
@@ -34,6 +34,7 @@ describe("ExamNavigator", () => {
 
     const activeButton = screen.getByRole("button", { name: "跳转到第 1 题" });
     expect(activeButton).toHaveClass("outline", "outline-2", "outline-offset-[-3px]");
+    expect(activeButton).toHaveClass("min-h-touch-target", "min-w-touch-target");
     expect(activeButton).not.toHaveClass("ring-2");
     expect(activeButton).toHaveAttribute("aria-current", "true");
     expect(activeButton).toHaveAttribute("aria-describedby", "exam-nav-state-1");

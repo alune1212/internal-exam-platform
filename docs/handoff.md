@@ -351,6 +351,62 @@ UAT, or a production promotion decision. This change did not modify backend
 endpoints, API payloads, route definitions, authentication, exam snapshots,
 scoring, deadlines, retake, polling, or auto-submit semantics.
 
+## Frontend Design System V2 Convergence Verification (2026-08-14)
+
+The active OpenSpec change `converge-frontend-design-system-v2` completed the
+route-wide convergence pass on top of the Academic Editorial direction. The
+implemented contract now has one token source, one page-frame width owner,
+shared surface/form/status/action/table patterns, and explicit Auth Canvas,
+Candidate Calm, Admin Workbench, and Exam Focus family rules. The current
+human-readable contract is `frontend/DESIGN.md`.
+
+Observed final engineering gates:
+
+- `npm run format:check`, `npm run lint`, `npm run build`, and
+  `npm run check:offline` passed from `frontend/`; the offline check reported
+  `external_runtime_references=0`.
+- Vitest passed `92/92` files and `576/576` tests. The focused design-token,
+  copy, accessibility, hierarchy, and presentation-policy gate passed `5/5`
+  files and `39/39` tests.
+- `npm run test:e2e:visual` passed `237/237` cases with system Google Chrome
+  `151.0.7922.138`, with zero failed or skipped tests.
+- `sh ops/e2e/run-browser-gate.sh` rebuilt the isolated production-like stack
+  and passed `244/244` cases with Chromium `139.0.7258.5`: six formal desktop
+  flows, one formal mobile flow, and 237 visual-system cases, with zero failed
+  or skipped tests. The script removed its disposable containers, network,
+  PostgreSQL, learning-media, and worker-state volumes after the run.
+- The rendered matrix covered 320x844, 375x812, 414x896, 430x932, 768x1024,
+  and 1280x900, plus 844x390 and 896x414 landscape viewports, reduced motion,
+  and 200-percent zoom. It exercised every declared auth, candidate, admin,
+  and active-exam route/state entry, including long CJK and unbroken content,
+  loading/empty/error/stale/pending/success states, result release boundaries,
+  saved/saving/offline/conflict/submitted/auto-submitted states, mobile Sheets,
+  Dialog scrolling, keyboard focus, touch targets, safe-area ownership,
+  horizontal overflow, and action reachability after scrolling.
+- The final browser pass verified the fixes surfaced during rendered testing:
+  transient Sheet overlays no longer produce covered-action false positives;
+  fixed Exam Focus controls retain pointer ownership and safe-area clearance;
+  short-landscape auth and exam layouts remain reachable; long titles and
+  identifiers wrap; learning-video file selection exposes one accessible
+  product action; and save-state fixtures no longer queue behind an unintended
+  empty-draft request.
+- Operator learning-video metadata inspection requires a local `blob:` media
+  URL. `nginx/operator.conf` therefore widens only the operator
+  `media-src` directive to include `blob:`; candidate CSP and all
+  script/style/connect/object/frame directives remain unchanged. Exact
+  deployment assertions passed `19/19` in
+  `backend/app/tests/test_deployment_config.py`.
+- The frontend Docker context still excludes executable E2E suites while
+  allowing only the declarative route-state inventory shared by router tests
+  and rendered coverage. No package or lockfile change was introduced.
+
+The implementation did not change backend business code, route destinations,
+API request or response contracts, authentication, snapshot/scoring/save/
+submit behavior, import/report semantics, or dependencies. Browser artifacts
+under `.runtime/e2e/browser-output/` remain disposable engineering evidence;
+they are not formal Mac/Windows host acceptance, Safari/iOS/Android acceptance,
+real-device UAT, or a production promotion decision.
+
 ## Known Gaps
 
 - The local real-SMTP UAT is complete, but real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, the formal-host SMTP rerun, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.

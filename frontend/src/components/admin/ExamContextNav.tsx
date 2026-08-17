@@ -76,21 +76,24 @@ export function ExamContextNav({ examId, examTitle }: ExamContextNavProps) {
     <section
       data-testid="exam-context-nav"
       aria-labelledby="exam-context-nav-title"
-      className="flex flex-col gap-3 rounded-md border border-hairline bg-surface-card p-4"
+      className="flex min-w-0 flex-col gap-4 rounded-md border border-hairline bg-surface-card p-4"
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
         <p
           id="exam-context-nav-title"
-          className="text-caption font-semibold uppercase tracking-[0.14em] text-muted"
+          className="shrink-0 text-caption font-semibold uppercase tracking-caption text-muted"
         >
           当前考试
         </p>
-        <p className="text-body-sm font-medium text-ink" data-testid="exam-context-identity">
+        <p
+          className="min-w-0 max-w-full break-words text-body-sm font-medium text-ink sm:flex-1 sm:text-right"
+          data-testid="exam-context-identity"
+        >
           {identity}
         </p>
       </div>
-      <nav aria-label="考试上下文导航">
-        <ul className="flex flex-wrap gap-2">
+      <nav aria-label="考试上下文导航" data-testid="exam-context-links">
+        <ul className="flex min-w-0 flex-wrap gap-2">
           {destinations.map((destination) => {
             const active = isDestinationActive(destination, pathname, hash, examId);
 
@@ -100,8 +103,9 @@ export function ExamContextNav({ examId, examTitle }: ExamContextNavProps) {
                   to={destination.to}
                   aria-current={active ? "page" : undefined}
                   data-active={active ? "true" : "false"}
+                  data-destination-id={destination.id}
                   className={cn(
-                    "inline-flex h-10 items-center whitespace-nowrap rounded-md border px-3 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
+                    "inline-flex min-h-10 items-center whitespace-nowrap rounded-md border px-3 text-body-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
                     active
                       ? "border-ink bg-ink text-canvas"
                       : "border-hairline bg-canvas text-muted hover:border-ink hover:text-ink",

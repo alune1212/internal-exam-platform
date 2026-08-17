@@ -42,7 +42,7 @@ describe("CandidateImportPage", () => {
   it("renders semantic roster copy", () => {
     renderPage();
 
-    expect(screen.getByText("ROSTER · 应考名单")).toBeInTheDocument();
+    expect(screen.getByText("应考名单", { exact: true })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "导入名单" })).toHaveClass(
       "font-display",
       "text-display-lg",

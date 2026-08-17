@@ -15,7 +15,7 @@ import {
   updateAdminExam,
 } from "@/api/exams";
 import { ExamContextNav } from "@/components/admin/ExamContextNav";
-import { PageHeader, PageSection, PageShell, PageState } from "@/components/page";
+import { PageActions, PageHeader, PageSection, PageShell, PageState } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -223,10 +223,10 @@ export function ExamEditPage() {
 
   if (exams.isLoading) {
     return (
-      <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+      <PageShell data-testid="exam-edit-shell" density="workbench" width="wide">
         <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
         {examId ? <ExamContextNav examId={examId} /> : null}
-        <PageSection variant="card">
+        <PageSection variant="panel">
           <PageState state="loading" rows={4} surface="inherit" className="py-8" />
         </PageSection>
       </PageShell>
@@ -235,10 +235,10 @@ export function ExamEditPage() {
 
   if (exams.isError) {
     return (
-      <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+      <PageShell data-testid="exam-edit-shell" density="workbench" width="wide">
         <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
         {examId ? <ExamContextNav examId={examId} /> : null}
-        <PageSection variant="card">
+        <PageSection variant="panel">
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
@@ -254,10 +254,10 @@ export function ExamEditPage() {
 
   if (!currentExam) {
     return (
-      <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+      <PageShell data-testid="exam-edit-shell" density="workbench" width="wide">
         <PageHeader eyebrow={adminPageCopy.exams} title={pageTitle} />
         {examId ? <ExamContextNav examId={examId} /> : null}
-        <PageSection variant="card">
+        <PageSection variant="panel">
           <PageState
             state="error"
             eyebrow={adminPageCopy.error}
@@ -272,7 +272,7 @@ export function ExamEditPage() {
   }
 
   return (
-    <PageShell data-testid="exam-edit-shell" density="workbench" width="full" stagger>
+    <PageShell data-testid="exam-edit-shell" density="workbench" width="wide">
       <PageHeader
         eyebrow={adminPageCopy.exams}
         title={pageTitle}
@@ -287,6 +287,7 @@ export function ExamEditPage() {
             <Button
               type="button"
               size="sm"
+              pending={mutation.isPending}
               disabled={mutation.isPending}
               onClick={form.handleSubmit((values) => mutation.mutate(values))}
             >
@@ -299,7 +300,7 @@ export function ExamEditPage() {
 
       <ExamContextNav examId={examId ?? String(currentExam.id)} examTitle={currentExam.title} />
 
-      <PageSection id="archive" variant="card" className="grid gap-6 lg:grid-cols-2 lg:p-8">
+      <PageSection id="archive" variant="panel" className="grid gap-6 md:grid-cols-2">
         {notice ? (
           <Alert
             variant={notice.tone === "success" ? "success" : "error"}
@@ -310,11 +311,11 @@ export function ExamEditPage() {
         ) : null}
         <FieldGroup className="contents">
           <Field>
-            <FieldLabel htmlFor="title">考试名称 · Title</FieldLabel>
+            <FieldLabel htmlFor="title">考试名称</FieldLabel>
             <Input id="title" {...form.register("title")} />
           </Field>
           <Field data-disabled={isPublished ? "" : undefined}>
-            <FieldLabel htmlFor="duration_minutes">时长（分钟）· Duration</FieldLabel>
+            <FieldLabel htmlFor="duration_minutes">时长（分钟）</FieldLabel>
             <Input
               id="duration_minutes"
               type="number"
@@ -324,7 +325,7 @@ export function ExamEditPage() {
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor="status">状态 · Status</FieldLabel>
+            <FieldLabel htmlFor="status">状态</FieldLabel>
             <Select id="status" {...form.register("status")}>
               {STATUS_OPTIONS.filter((option) => {
                 if (currentExam.status === "draft") return option.value === "draft";
@@ -338,11 +339,11 @@ export function ExamEditPage() {
             </Select>
           </Field>
           <Field>
-            <FieldLabel htmlFor="available_from">开放开始时间 · Available From</FieldLabel>
+            <FieldLabel htmlFor="available_from">开放开始时间</FieldLabel>
             <Input id="available_from" type="datetime-local" {...form.register("available_from")} />
           </Field>
           <Field data-invalid={form.formState.errors.available_until ? "" : undefined}>
-            <FieldLabel htmlFor="available_until">开放结束时间 · Available Until</FieldLabel>
+            <FieldLabel htmlFor="available_until">开放结束时间</FieldLabel>
             <Input
               id="available_until"
               type="datetime-local"
@@ -357,7 +358,7 @@ export function ExamEditPage() {
             data-disabled={isPublished ? "" : undefined}
             data-invalid={form.formState.errors.question_rule_json ? "" : undefined}
           >
-            <FieldLabel htmlFor="question_rule_json">抽题规则 · JSON</FieldLabel>
+            <FieldLabel htmlFor="question_rule_json">抽题规则</FieldLabel>
             <Textarea
               id="question_rule_json"
               rows={8}
@@ -383,29 +384,27 @@ export function ExamEditPage() {
         </FieldGroup>
         <div className="flex flex-col gap-3 border-t border-hairline pt-4 md:flex-row md:items-center md:justify-between lg:col-span-2">
           <div className="flex flex-col gap-1">
-            <span className="text-caption uppercase tracking-[0.16em] text-muted">
-              {adminPageCopy.roster}
-            </span>
-            <span className="text-body text-ink">应考名单 · 在此页维护本场考试名单</span>
+            <span className="text-caption text-muted">{adminPageCopy.roster}</span>
+            <span className="text-body text-ink">在此页维护本场考试名单</span>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link to={`/admin/exams/${examId ?? "1"}/candidates`}>管理名单</Link>
-          </Button>
+          <PageActions placement="card" aria-label="名单操作">
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/admin/exams/${examId ?? "1"}/candidates`}>管理名单</Link>
+            </Button>
+          </PageActions>
         </div>
       </PageSection>
 
       {isDraft ? (
         <PageSection
           id="publish"
-          variant="card"
+          variant="panel"
           aria-labelledby="publication-readiness-title"
-          className="grid gap-5 lg:p-8"
+          className="grid gap-5"
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex flex-col gap-1">
-              <span className="text-caption uppercase tracking-[0.16em] text-muted">
-                RELEASE GATE · 发布门禁
-              </span>
+              <span className="text-caption text-muted">发布门禁</span>
               <h2
                 id="publication-readiness-title"
                 className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -416,16 +415,19 @@ export function ExamEditPage() {
                 保存配置后刷新预检；只有全部阻断项通过，才可按考试名称确认发布。
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={readiness.isFetching}
-              onClick={() => void readiness.refetch()}
-            >
-              <RefreshCw data-icon="inline-start" />
-              {readiness.isFetching ? "检查中" : "刷新预检"}
-            </Button>
+            <PageActions placement="card" aria-label="预检操作">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={readiness.isFetching}
+                pending={readiness.isFetching}
+                onClick={() => void readiness.refetch()}
+              >
+                <RefreshCw data-icon="inline-start" />
+                {readiness.isFetching ? "检查中" : "刷新预检"}
+              </Button>
+            </PageActions>
           </div>
 
           {readiness.isLoading ? (
@@ -444,28 +446,28 @@ export function ExamEditPage() {
                 </AlertDescription>
               </Alert>
               {readiness.data.blockers.length ? (
-                <div aria-label="发布阻断项" className="rounded-md border border-error p-4">
-                  <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-error">
-                    BLOCKERS · 阻断项
-                  </h3>
-                  <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
-                    {readiness.data.blockers.map((issue) => (
-                      <li key={issue.code}>{issue.message}</li>
-                    ))}
-                  </ul>
-                </div>
+                <Alert variant="error" aria-label="发布阻断项">
+                  <AlertDescription>
+                    <span className="font-medium text-ink">发布阻断项</span>
+                    <ul className="mt-2 list-disc space-y-2 pl-5">
+                      {readiness.data.blockers.map((issue) => (
+                        <li key={issue.code}>{issue.message}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
               ) : null}
               {readiness.data.warnings.length ? (
-                <div aria-label="发布警告" className="rounded-md border border-warning p-4">
-                  <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-warning">
-                    WARNINGS · 警告
-                  </h3>
-                  <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
-                    {readiness.data.warnings.map((issue) => (
-                      <li key={issue.code}>{issue.message}</li>
-                    ))}
-                  </ul>
-                </div>
+                <Alert variant="warning" aria-label="发布警告">
+                  <AlertDescription>
+                    <span className="font-medium text-ink">发布警告</span>
+                    <ul className="mt-2 list-disc space-y-2 pl-5">
+                      {readiness.data.warnings.map((issue) => (
+                        <li key={issue.code}>{issue.message}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
               ) : null}
               <Field
                 data-invalid={
@@ -485,7 +487,7 @@ export function ExamEditPage() {
                   发布不可通过状态下拉框完成；服务端会在同一事务中重新预检后再冻结题池。
                 </FieldDescription>
               </Field>
-              <div className="flex justify-end">
+              <PageActions placement="form">
                 <Button
                   type="button"
                   disabled={
@@ -493,6 +495,7 @@ export function ExamEditPage() {
                     publishConfirmation !== currentExam.title ||
                     publishMutation.isPending
                   }
+                  pending={publishMutation.isPending}
                   onClick={() => publishMutation.mutate()}
                 >
                   {readiness.data.ready ? (
@@ -502,7 +505,7 @@ export function ExamEditPage() {
                   )}
                   {publishMutation.isPending ? "发布中" : "确认发布"}
                 </Button>
-              </div>
+              </PageActions>
             </div>
           ) : null}
         </PageSection>
@@ -511,14 +514,12 @@ export function ExamEditPage() {
       {!isDraft ? (
         <PageSection
           id="result-release"
-          variant="card"
+          variant="panel"
           aria-labelledby="result-release-title"
-          className="grid gap-5 lg:p-8"
+          className="grid gap-5"
         >
           <div className="flex flex-col gap-1">
-            <span className="text-caption uppercase tracking-[0.16em] text-muted">
-              RESULT RELEASE · 结果发布
-            </span>
+            <span className="text-caption text-muted">结果发布</span>
             <h2
               id="result-release-title"
               className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -560,16 +561,17 @@ export function ExamEditPage() {
                 />
                 <FieldDescription>发布后不可撤销，也不能再次发布。</FieldDescription>
               </Field>
-              <div className="flex justify-end">
+              <PageActions placement="form">
                 <Button
                   type="button"
                   disabled={releaseConfirmation !== currentExam.title || releaseMutation.isPending}
+                  pending={releaseMutation.isPending}
                   onClick={() => releaseMutation.mutate()}
                 >
                   <ShieldCheck data-icon="inline-start" />
                   {releaseMutation.isPending ? "发布中" : "发布答案与解析"}
                 </Button>
-              </div>
+              </PageActions>
             </div>
           )}
         </PageSection>

@@ -18,7 +18,6 @@ import {
 } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -75,7 +74,7 @@ export function ProfilePage() {
 
   if (query.isLoading) {
     return (
-      <PageShell density="calm" width="full" className="mx-auto max-w-2xl">
+      <PageShell density="calm" width="reading">
         <PageHeader
           title={candidatePageText.login.profileTitle}
           description={candidatePageText.login.profileDescription}
@@ -88,7 +87,7 @@ export function ProfilePage() {
   }
   if (hasLoadError || !query.data) {
     return (
-      <PageShell density="calm" width="full" className="mx-auto max-w-2xl">
+      <PageShell density="calm" width="reading">
         <PageHeader
           title={candidatePageText.login.profileTitle}
           description={candidatePageText.login.profileDescription}
@@ -112,13 +111,7 @@ export function ProfilePage() {
   }
 
   return (
-    <PageShell
-      density="calm"
-      width="full"
-      stagger
-      data-testid="candidate-profile-shell"
-      className="mx-auto max-w-2xl"
-    >
+    <PageShell density="calm" width="reading" stagger data-testid="candidate-profile-shell">
       {hasStaleError ? (
         <PageStaleNotice
           lastSuccessfulAt={query.dataUpdatedAt}
@@ -131,37 +124,36 @@ export function ProfilePage() {
         description={candidatePageText.login.profileDescription}
       />
       <PageSection variant="plain" className="gap-6">
-        <Card className="bg-canvas shadow-card">
-          <CardContent className="p-6 md:p-8">
-            <form
-              className="flex flex-col gap-6"
-              onSubmit={form.handleSubmit(handleSubmit)}
-              noValidate
-            >
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="profile_email">邮箱（只读）</FieldLabel>
-                  <Input
-                    id="profile_email"
-                    value={query.data.email}
-                    readOnly
-                    aria-readonly="true"
-                  />
-                </Field>
-                <Field data-invalid={form.formState.errors.display_name ? "" : undefined}>
-                  <FieldLabel htmlFor="profile_display_name">显示姓名</FieldLabel>
-                  <Input
-                    id="profile_display_name"
-                    autoComplete="name"
-                    aria-invalid={Boolean(form.formState.errors.display_name)}
-                    {...form.register("display_name")}
-                  />
-                  {form.formState.errors.display_name ? (
-                    <FieldError>{form.formState.errors.display_name.message}</FieldError>
-                  ) : null}
-                </Field>
-              </FieldGroup>
-              <Button type="submit" size="lg" className="self-start" disabled={mutation.isPending}>
+        <PageSection variant="panel" data-testid="candidate-profile-form-section">
+          <form
+            className="flex flex-col gap-6"
+            aria-busy={mutation.isPending}
+            onSubmit={form.handleSubmit(handleSubmit)}
+            noValidate
+          >
+            <FieldGroup>
+              <Field pending={mutation.isPending}>
+                <FieldLabel htmlFor="profile_email">邮箱（只读）</FieldLabel>
+                <Input id="profile_email" value={query.data.email} readOnly aria-readonly="true" />
+              </Field>
+              <Field
+                pending={mutation.isPending}
+                data-invalid={form.formState.errors.display_name ? "" : undefined}
+              >
+                <FieldLabel htmlFor="profile_display_name">显示姓名</FieldLabel>
+                <Input
+                  id="profile_display_name"
+                  autoComplete="name"
+                  aria-invalid={Boolean(form.formState.errors.display_name)}
+                  {...form.register("display_name")}
+                />
+                {form.formState.errors.display_name ? (
+                  <FieldError>{form.formState.errors.display_name.message}</FieldError>
+                ) : null}
+              </Field>
+            </FieldGroup>
+            <PageActions placement="form" align="start" aria-label="资料保存操作">
+              <Button type="submit" size="lg" pending={mutation.isPending}>
                 {mutation.isPending ? (
                   <Spinner data-icon="inline-start" aria-label="正在保存" />
                 ) : (
@@ -169,19 +161,19 @@ export function ProfilePage() {
                 )}
                 保存显示姓名
               </Button>
-              {mutation.isSuccess ? (
-                <Alert variant="success">
-                  <AlertDescription>资料已更新，正式考试名单保持不变。</AlertDescription>
-                </Alert>
-              ) : null}
-              {mutation.isError ? (
-                <Alert variant="error">
-                  <AlertDescription>资料保存失败，请稍后重试。</AlertDescription>
-                </Alert>
-              ) : null}
-            </form>
-          </CardContent>
-        </Card>
+            </PageActions>
+            {mutation.isSuccess ? (
+              <Alert variant="success">
+                <AlertDescription>资料已更新，正式考试名单保持不变。</AlertDescription>
+              </Alert>
+            ) : null}
+            {mutation.isError ? (
+              <Alert variant="error">
+                <AlertDescription>资料保存失败，请稍后重试。</AlertDescription>
+              </Alert>
+            ) : null}
+          </form>
+        </PageSection>
         <PageActions aria-label="资料页面操作">
           <Button type="button" variant="ghost" onClick={() => navigate("/exams")}>
             返回受邀考试

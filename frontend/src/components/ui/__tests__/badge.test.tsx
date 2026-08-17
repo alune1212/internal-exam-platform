@@ -12,7 +12,8 @@ describe("Badge", () => {
     expect(el.className).toContain("text-canvas");
     expect(el.className).toContain("rounded-sm");
     expect(el.className).toContain("uppercase");
-    expect(el.className).toContain("tracking-[0.16em]");
+    expect(el.className).toContain("tracking-caption");
+    expect(el).toHaveAttribute("data-badge-variant", "default");
   });
 
   it("outline variant uses border-ink", () => {

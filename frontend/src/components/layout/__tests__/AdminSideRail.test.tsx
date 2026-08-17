@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 
-import { AdminSideRail } from "@/components/layout/AdminSideRail";
+import { ADMIN_NAVIGATION_GROUPS, AdminSideRail } from "@/components/layout/AdminSideRail";
 
 function mockMediaQuery(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -49,6 +49,35 @@ describe("AdminSideRail", () => {
       .map((link) => link.textContent)
       .filter((label): label is string => Boolean(label && primaryLabels.includes(label)));
     expect(renderedLabels).toHaveLength(primaryLabels.length);
+  });
+
+  it("preserves the exact ordered targets in the shared desktop model", () => {
+    renderSideRail("/admin/dashboard");
+    const nav = screen.getByRole("navigation", { name: "管理后台导航" });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual([
+      "/admin/dashboard",
+      "/admin/questions",
+      "/admin/questions/import",
+      "/admin/learning",
+      "/admin/exams",
+      "/admin/reports/scores",
+      "/admin/accounts",
+      "/admin/operations",
+    ]);
+    expect(ADMIN_NAVIGATION_GROUPS.flatMap((group) => group.items.map((item) => item.to))).toEqual([
+      "/admin/dashboard",
+      "/admin/questions",
+      "/admin/questions/import",
+      "/admin/learning",
+      "/admin/exams",
+      "/admin/reports/scores",
+      "/admin/accounts",
+      "/admin/operations",
+    ]);
   });
 
   it("orders grouped destinations in the canonical operational sequence", () => {
@@ -140,6 +169,8 @@ describe("AdminSideRail", () => {
     expect(aside).toHaveClass("h-dvh");
     expect(aside).toHaveClass("overflow-hidden");
     expect(screen.getByRole("button", { name: "退出登录" })).toHaveClass("w-full");
+    expect(screen.getByTestId("admin-desktop-navigation-scroll")).toHaveClass("overflow-y-auto");
+    expect(screen.getByTestId("admin-desktop-navigation-scroll")).toHaveClass("overscroll-contain");
   });
 
   it("keeps logout keyboard reachable and invokes the existing callback", async () => {
@@ -176,7 +207,9 @@ describe("AdminSideRail", () => {
 
     await user.click(screen.getByRole("button", { name: "打开菜单" }));
 
-    const navNames = (await screen.findAllByRole("link"))
+    const nav = await screen.findByRole("navigation", { name: "管理后台导航" });
+    const navNames = within(nav)
+      .getAllByRole("link")
       .map((link) => link.textContent)
       .filter((label): label is string => Boolean(label && primaryLabels.includes(label)));
     expect(navNames).toEqual([
@@ -194,6 +227,42 @@ describe("AdminSideRail", () => {
       "data-active-group",
       "true",
     );
+    expect(within(nav).getByRole("link", { name: "考试" })).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps mobile navigation internally scrollable with a reachable logout", async () => {
+    const user = userEvent.setup();
+    renderSideRail("/admin/dashboard", false);
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+
+    const sheet = await screen.findByTestId("admin-mobile-navigation");
+    expect(sheet).toHaveClass("max-h-[calc(100dvh-1rem)]");
+    expect(sheet).toHaveClass("overflow-y-auto");
+    expect(sheet).toHaveClass("overscroll-contain");
+    expect(sheet).toHaveClass("pb-[calc(1.5rem+env(safe-area-inset-bottom))]");
+    const logout = within(sheet).getByRole("button", { name: "退出登录" });
+    logout.focus();
+    expect(document.activeElement).toBe(logout);
+  });
+
+  it("keeps desktop and mobile navigation keyboard order and targets in parity", async () => {
+    const desktop = renderSideRail("/admin/dashboard", true);
+    const desktopNav = screen.getByRole("navigation", { name: "管理后台导航" });
+    const desktopTargets = within(desktopNav)
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"));
+    desktop.unmount();
+
+    const user = userEvent.setup();
+    renderSideRail("/admin/dashboard", false);
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+    const mobileNav = await screen.findByRole("navigation", { name: "管理后台导航" });
+    expect(
+      within(mobileNav)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(desktopTargets);
   });
 
   it("uses high-contrast light link colors inside the mobile sheet", async () => {

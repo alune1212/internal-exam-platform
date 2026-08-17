@@ -7,7 +7,14 @@ import { getExamWorkspace } from "@/api/exams";
 import { ExamContextNav } from "@/components/admin/ExamContextNav";
 import { MetricCard } from "@/components/admin/MetricCard";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
-import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "@/components/page";
+import {
+  PageActions,
+  PageHeader,
+  PageSection,
+  PageShell,
+  PageStaleNotice,
+  PageState,
+} from "@/components/page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { adminPageCopy, formatExamStatus } from "@/lib/pageCopy";
@@ -54,7 +61,7 @@ function statusVariant(status: string): StatusPillVariant {
 
 function formatObservedAt(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
 }
 
 function actionHref(examId: string, action: ExamWorkspaceNextAction) {
@@ -118,13 +125,13 @@ function WorkspaceState({
   const navigate = useNavigate();
 
   return (
-    <PageShell data-testid="exam-workspace-shell" density="workbench" width="full" stagger>
-      <PageHeader eyebrow="EXAM WORKSPACE · 考试工作台" title="考试工作台" />
+    <PageShell data-testid="exam-workspace-shell" density="workbench" width="wide">
+      <PageHeader eyebrow="考试工作台" title="考试工作台" />
       {examId ? <ExamContextNav examId={examId} /> : null}
-      <PageSection variant="card">
+      <PageSection variant="panel">
         <PageState
           state={state}
-          eyebrow={state === "error" ? adminPageCopy.error : "WORKSPACE · 加载中"}
+          eyebrow={state === "error" ? adminPageCopy.error : "加载中"}
           title={title}
           description={description}
           action={onRetry ? { label: "重试", onClick: onRetry } : undefined}
@@ -203,18 +210,19 @@ export function ExamWorkspacePage() {
   const nextActionTarget = actionHref(examId, data.next_action);
 
   return (
-    <PageShell data-testid="exam-workspace-shell" density="workbench" width="full" stagger>
+    <PageShell data-testid="exam-workspace-shell" density="workbench" width="wide">
       <PageHeader
-        eyebrow="EXAM WORKSPACE · 考试工作台"
+        eyebrow="考试工作台"
         title={`考试工作台 · ${data.exam.title}`}
         description="按一次服务器观察汇总本场考试的生命周期状态；所有操作仍需在目标页面重新校验。"
         actions={
-          <div className="flex flex-wrap gap-2">
+          <>
             <Button
               type="button"
               size="sm"
               variant="ghost"
               disabled={workspace.isFetching}
+              pending={workspace.isFetching}
               onClick={() => void workspace.refetch()}
             >
               <RefreshCw data-icon="inline-start" />
@@ -223,7 +231,7 @@ export function ExamWorkspacePage() {
             <Button asChild size="sm" variant="outline">
               <Link to={`/admin/exams/${examId}/edit`}>编排考试</Link>
             </Button>
-          </div>
+          </>
         }
       >
         <div className="flex flex-wrap items-center gap-3">
@@ -260,11 +268,9 @@ export function ExamWorkspacePage() {
         </AlertDescription>
       </Alert>
 
-      <PageSection variant="card" aria-labelledby="workspace-readiness-title">
+      <PageSection variant="panel" aria-labelledby="workspace-readiness-title">
         <div className="flex flex-col gap-2">
-          <span className="text-caption uppercase tracking-[0.16em] text-muted">
-            PUBLICATION · 发布状态
-          </span>
+          <span className="text-caption text-muted">发布状态</span>
           <h2
             id="workspace-readiness-title"
             className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -274,30 +280,30 @@ export function ExamWorkspacePage() {
           <p className="text-body-sm text-muted">{readinessText(data)}</p>
         </div>
         {data.readiness?.blockers.length ? (
-          <div aria-label="发布阻断项" className="rounded-md border border-error p-4">
-            <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-error">
-              BLOCKERS · 阻断项
-            </h3>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
-              {data.readiness.blockers.map((issue) => (
-                <li key={issue.code}>{issue.message}</li>
-              ))}
-            </ul>
-          </div>
+          <Alert variant="error" aria-label="发布阻断项">
+            <AlertTitle>发布阻断项</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc space-y-2 pl-5">
+                {data.readiness.blockers.map((issue) => (
+                  <li key={issue.code}>{issue.message}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
         ) : null}
         {data.readiness?.warnings.length ? (
-          <div aria-label="发布警告" className="rounded-md border border-warning p-4">
-            <h3 className="min-w-0 break-words text-caption font-semibold uppercase tracking-[0.14em] text-warning">
-              WARNINGS · 警告
-            </h3>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-body-sm text-ink">
-              {data.readiness.warnings.map((issue) => (
-                <li key={issue.code}>{issue.message}</li>
-              ))}
-            </ul>
-          </div>
+          <Alert variant="warning" aria-label="发布警告">
+            <AlertTitle>发布警告</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc space-y-2 pl-5">
+                {data.readiness.warnings.map((issue) => (
+                  <li key={issue.code}>{issue.message}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
         ) : null}
-        <div className="flex flex-wrap gap-3">
+        <PageActions placement="card" aria-label="发布操作">
           <Button asChild size="sm">
             <Link to={nextActionTarget}>
               {nextAction.label}
@@ -307,7 +313,7 @@ export function ExamWorkspacePage() {
           <Button asChild size="sm" variant="outline">
             <Link to={`/admin/exams/${examId}/edit#publish`}>查看发布预检</Link>
           </Button>
-        </div>
+        </PageActions>
       </PageSection>
 
       <SummaryGroup
@@ -351,9 +357,7 @@ export function ExamWorkspacePage() {
 
       <PageSection variant="plain" aria-labelledby="workspace-incidents-title">
         <div className="flex flex-col gap-2">
-          <span className="text-caption uppercase tracking-[0.16em] text-muted">
-            INCIDENTS · 事故
-          </span>
+          <span className="text-caption text-muted">事故</span>
           <h2
             id="workspace-incidents-title"
             className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -371,11 +375,9 @@ export function ExamWorkspacePage() {
         </div>
       </PageSection>
 
-      <PageSection variant="card" aria-labelledby="workspace-actions-title">
+      <PageSection variant="panel" aria-labelledby="workspace-actions-title">
         <div className="flex flex-col gap-2">
-          <span className="text-caption uppercase tracking-[0.16em] text-muted">
-            SURFACES · 现有页面
-          </span>
+          <span className="text-caption text-muted">相关操作</span>
           <h2
             id="workspace-actions-title"
             className="min-w-0 break-words font-display text-display-sm text-ink"
@@ -386,7 +388,7 @@ export function ExamWorkspacePage() {
             工作台只提供深链接，不绕过现有发布、邀请、事故、结果或归档门禁。
           </p>
         </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="考试操作页面">
+        <PageActions placement="card" aria-label="考试操作页面">
           <Button asChild size="sm" variant="outline">
             <Link to={`/admin/exams/${examId}/edit#publish`}>发布 / 编排</Link>
           </Button>
@@ -405,7 +407,7 @@ export function ExamWorkspacePage() {
           <Button asChild size="sm" variant="outline">
             <Link to={`/admin/exams/${examId}/edit#archive`}>归档 / 编排</Link>
           </Button>
-        </div>
+        </PageActions>
       </PageSection>
     </PageShell>
   );

@@ -39,8 +39,8 @@ function availabilityLabel(status?: Exam["availability_status"]) {
 const columns: ColumnDef<Exam>[] = [
   {
     accessorKey: "id",
-    header: "ID",
-    cell: ({ row }) => <span className="font-mono text-sm">{row.original.id}</span>,
+    header: adminTableCopy.id,
+    cell: ({ row }) => <span className="font-mono text-body-sm">{row.original.id}</span>,
     meta: { mobilePriority: false },
   },
   {
@@ -49,7 +49,7 @@ const columns: ColumnDef<Exam>[] = [
     cell: ({ row }) => (
       <Link
         to={`/admin/exams/${row.original.id}`}
-        className="font-medium text-ink underline-offset-4 hover:underline"
+        className="block min-w-0 break-words font-medium text-ink underline-offset-4 hover:underline"
       >
         {row.original.title}
       </Link>
@@ -60,7 +60,9 @@ const columns: ColumnDef<Exam>[] = [
     accessorKey: "duration_minutes",
     header: adminTableCopy.duration,
     cell: ({ row }) => (
-      <span className="font-mono text-sm tabular-nums">{row.original.duration_minutes} 分</span>
+      <span className="font-mono text-body-sm tabular-nums">
+        {row.original.duration_minutes} 分
+      </span>
     ),
     meta: { mobileLabel: adminTableCopy.duration },
   },
@@ -95,7 +97,7 @@ const columns: ColumnDef<Exam>[] = [
       const count = row.original.question_pool_count ?? 0;
       const frozen = row.original.status === "active" || count > 0;
       return (
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1">
           <StatusPill variant={frozen ? "success" : "default"}>
             {frozen ? "已冻结" : "未冻结"}
           </StatusPill>
@@ -135,7 +137,13 @@ export function AdminExamListPage() {
         queryFn={getAdminExams}
         columns={columns}
         actions={
-          <Button type="button" size="sm" disabled={isCreating} onClick={() => void handleCreate()}>
+          <Button
+            type="button"
+            size="sm"
+            pending={isCreating}
+            disabled={isCreating}
+            onClick={() => void handleCreate()}
+          >
             <Plus data-icon="inline-start" />
             {isCreating ? "创建中" : "新建考试"}
           </Button>

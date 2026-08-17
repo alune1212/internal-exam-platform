@@ -59,6 +59,11 @@ describe("Dialog", () => {
     const content = await screen.findByTestId("dc");
     expect(content.className).toContain("rounded-lg");
     expect(content.className).toContain("shadow-pop");
+    expect(content.className).toContain("max-h-[calc(100dvh-2rem)]");
+    expect(content.className).toContain("overflow-y-auto");
+    expect(content).toHaveClass("inset-x-4", "mx-auto", "w-auto");
+    expect(content.className).toContain("safe-area-inset-bottom");
+    expect(screen.getByRole("button", { name: "关闭" }).className).toContain("safe-area-inset-top");
     expect(content).toHaveClass("z-modal", "duration-normal", "ease-standard");
     expect(document.querySelector(".z-overlay")).toHaveClass(
       "z-overlay",

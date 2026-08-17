@@ -3,7 +3,7 @@ import { cva } from "class-variance-authority";
 export const badgeVariants = cva(
   `
     inline-flex items-center gap-1 rounded-sm px-2 py-0.5
-    text-[11px] font-medium uppercase tracking-[0.16em]
+    text-caption font-medium uppercase tracking-caption
     transition-colors
   `,
   {
@@ -14,9 +14,11 @@ export const badgeVariants = cva(
         // Muted shares its neutral surface with StatusPill's default so the
         // two chip families look like one continuous "neutral" tier.
         muted: "bg-canvas-warm text-ink",
-        success: "border border-success bg-canvas text-success",
-        warning: "border border-warning bg-canvas text-warning",
-        error: "border border-error bg-canvas text-error",
+        info: "border border-ink-blue bg-canvas text-ink-blue",
+        pending: "border border-warning-border bg-warning-surface text-status-warning",
+        success: "border border-success-border bg-success-surface text-status-success",
+        warning: "border border-warning-border bg-warning-surface text-status-warning",
+        error: "border border-error-border bg-error-surface text-status-error",
       },
     },
     defaultVariants: {

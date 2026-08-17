@@ -134,6 +134,44 @@ describe("ExamStartPage", () => {
     expect(getActiveExams).toHaveBeenCalledTimes(2);
   });
 
+  it("renders the calm loading state while eligibility is pending", async () => {
+    vi.mocked(getActiveExams).mockReturnValue(new Promise(() => {}));
+
+    renderExamStart();
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "阅读规则，开始作答" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "阅读规则，开始作答" }).closest("[data-width]"),
+    ).toHaveAttribute("data-width", "reading");
+  });
+
+  it("keeps long exam context readable without changing the start action", async () => {
+    const longExam = {
+      ...exam,
+      title: "内部考试说明与应考规则的长标题用于确认页面可以自然换行",
+    };
+    vi.mocked(getActiveExams).mockResolvedValue([longExam]);
+
+    renderExamStart();
+
+    expect(await screen.findByText(longExam.title)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /开始考试/ })).toBeEnabled();
+  });
+
+  it("communicates a pending attempt start while preserving the request payload", async () => {
+    vi.mocked(getActiveExams).mockResolvedValue([exam]);
+    vi.mocked(startExam).mockReturnValue(new Promise(() => {}));
+
+    renderExamStart();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /开始考试/ }));
+
+    expect(screen.getByRole("button", { name: "正在开始" })).toBeDisabled();
+    expect(startExam).toHaveBeenCalledWith("1");
+  });
+
   it("keeps the invitation return target for unauthenticated candidates", () => {
     renderExamStart(createQueryClient(), {
       candidate: null,

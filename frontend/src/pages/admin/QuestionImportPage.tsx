@@ -9,7 +9,7 @@ import {
   importQuestions,
 } from "@/api/imports";
 import { ImportPanel } from "@/components/admin/ImportPanel";
-import { PageHeader, PageSection, PageShell } from "@/components/page";
+import { PageActions, PageHeader, PageSection, PageShell } from "@/components/page";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -24,7 +24,7 @@ export function QuestionImportPage() {
     mutationFn: importQuestions,
     onSuccess: () => {
       setNotice({ tone: "success", message: importCopy.questionImportComplete });
-      queryClient.invalidateQueries({ queryKey: ["admin", "questions"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "questions"] });
     },
     onError: (error) =>
       setNotice({
@@ -52,7 +52,7 @@ export function QuestionImportPage() {
   };
 
   return (
-    <PageShell data-testid="question-import-shell" density="workbench" width="default" stagger>
+    <PageShell data-testid="question-import-shell" density="workbench" width="standard">
       <PageHeader
         eyebrow={adminPageCopy.questionImport}
         title={adminPageText.questionImport.title}
@@ -89,30 +89,32 @@ export function QuestionImportPage() {
       ) : null}
 
       {mutation.data ? (
-        <PageSection variant="card" className="gap-3 p-6">
+        <PageSection variant="summary" data-testid="question-import-result">
           <p className="text-body text-ink">
             成功 <span className="font-mono">{mutation.data.success_count}</span> 行，失败{" "}
             <span className="font-mono text-error">{mutation.data.failed_count}</span> 行
           </p>
           {mutation.data.failed_count > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => void handleDownloadFailureReport(mutation.data.batch_id)}
-            >
-              <Download data-icon="inline-start" />
-              下载失败明细
-            </Button>
+            <PageActions placement="card" aria-label="导入结果操作">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleDownloadFailureReport(mutation.data.batch_id)}
+              >
+                <Download data-icon="inline-start" />
+                下载失败明细
+              </Button>
+            </PageActions>
           ) : null}
           {mutation.data.failures.length ? (
             <>
               <Separator />
-              <ul className="flex flex-col gap-1 text-caption text-muted">
+              <ul className="flex min-w-0 flex-col gap-2 text-body-sm text-muted">
                 {mutation.data.failures.map((failure: ImportFailure) => (
-                  <li key={failure.row_number} className="font-mono">
-                    行 {failure.row_number} · {failure.reason}
+                  <li key={failure.row_number} className="flex min-w-0 gap-2 break-words">
+                    <span className="shrink-0 font-mono text-caption">行 {failure.row_number}</span>
+                    <span className="min-w-0 break-words">{failure.reason}</span>
                   </li>
                 ))}
               </ul>

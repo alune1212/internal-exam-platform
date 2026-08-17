@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { ApiError, getErrorMessage } from "@/api/client";
-import { PageShell, PageState } from "@/components/page";
+import { PageActions, PageSection, PageShell, PageState } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import { ExamTakingWorkspace } from "@/features/exam/ExamTakingWorkspace";
 import { useAttemptCountdown } from "@/features/exam/useAttemptCountdown";
@@ -10,7 +10,7 @@ import { useAttemptDraftQueue } from "@/features/exam/useAttemptDraftQueue";
 import { useAttemptSession } from "@/features/exam/useAttemptSession";
 import { useExamSubmission } from "@/features/exam/useExamSubmission";
 import { clearCurrentCandidate, getCurrentCandidate } from "@/lib/candidateSession";
-import { candidatePageCopy, formatQuestionEyebrow } from "@/lib/pageCopy";
+import { candidatePageCopy, formatAttemptStatus, formatQuestionEyebrow } from "@/lib/pageCopy";
 import {
   buildQuestionNavItems,
   getQuestionTypeLabel,
@@ -251,8 +251,8 @@ export function ExamTakingPage() {
 
   if (!attemptId) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+      <PageShell density="focus" width="reading">
+        <PageSection variant="panel">
           <PageState
             state="notStarted"
             surface="inherit"
@@ -261,12 +261,12 @@ export function ExamTakingPage() {
             description="请从考试列表进入并阅读规则。"
             className="py-0"
           />
-          <div className="mt-6 flex justify-center">
+          <PageActions align="center" aria-label="考试说明操作">
             <Button asChild>
               <Link to={`/exams/${examId}/start`}>返回考试说明</Link>
             </Button>
-          </div>
-        </div>
+          </PageActions>
+        </PageSection>
       </PageShell>
     );
   }
@@ -278,35 +278,35 @@ export function ExamTakingPage() {
         ? "其他页面或设备已接管本次考试。重新核验后可继续，已保存答案和考试截止时间不会变化。"
         : "当前浏览器没有本次考试的有效设备会话。重新核验后可恢复已保存答案。";
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+      <PageShell density="focus" width="reading">
+        <PageSection variant="panel">
           {takeoverPending ? (
             <PageState state="loading" surface="inherit" rows={3} className="py-0" />
           ) : (
             <PageState
               state="error"
               surface="inherit"
-              eyebrow="DEVICE SESSION · 设备会话"
+              eyebrow="设备会话"
               title="需要重新核验并接管考试。"
               description={takeoverMessage}
               className="py-0"
             />
           )}
           {!takeoverPending ? (
-            <div className="mt-6 flex justify-center">
+            <PageActions align="center" aria-label="考试接管操作">
               <Button type="button" onClick={beginFreshTakeover}>
                 重新验证码登录并接管
               </Button>
-            </div>
+            </PageActions>
           ) : null}
-        </div>
+        </PageSection>
       </PageShell>
     );
   }
 
   if (isLoading) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="reading">
         <PageState state="loading" rows={4} />
       </PageShell>
     );
@@ -318,8 +318,8 @@ export function ExamTakingPage() {
       attemptError.status === 409 &&
       attemptError.detail?.includes("考试会话已失效");
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+      <PageShell density="focus" width="reading">
+        <PageSection variant="panel">
           <PageState
             state="error"
             surface="inherit"
@@ -328,7 +328,7 @@ export function ExamTakingPage() {
             description={getErrorMessage(attemptError, "请确认考试仍在开放时间内，并稍后重试。")}
             className="py-0"
           />
-          <div className="mt-6 flex justify-center">
+          <PageActions align="center" aria-label="考试恢复操作">
             {isDeviceConflict ? (
               <Button type="button" onClick={beginFreshTakeover}>
                 重新验证码登录并接管
@@ -338,15 +338,15 @@ export function ExamTakingPage() {
                 <Link to="/exams">返回考试列表</Link>
               </Button>
             )}
-          </div>
-        </div>
+          </PageActions>
+        </PageSection>
       </PageShell>
     );
   }
 
   if (!attempt) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="reading">
         <PageState
           state="error"
           eyebrow={candidatePageCopy.error}
@@ -358,30 +358,35 @@ export function ExamTakingPage() {
   }
 
   if (SUBMITTED_STATUSES.has(attempt.status)) {
+    const wasAutoSubmitted = attempt.status === "auto_submitted";
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
-        <div className="rounded-lg border border-hairline bg-surface-card p-8">
+      <PageShell density="focus" width="reading">
+        <PageSection variant="panel">
           <PageState
             state="submitted"
             surface="inherit"
-            eyebrow={candidatePageCopy.submitted}
+            eyebrow={formatAttemptStatus(attempt.status)}
             title="考试已交卷。"
-            description="你可以前往结果页查看本次交卷记录。"
+            description={
+              wasAutoSubmitted
+                ? "考试时间已到，系统已自动交卷。你可以前往结果页查看本次交卷记录。"
+                : "你可以前往结果页查看本次交卷记录。"
+            }
             className="py-0"
           />
-          <div className="mt-6 flex justify-center">
+          <PageActions align="center" aria-label="交卷结果操作">
             <Button asChild>
               <Link to={`/exams/${examId}/result?attemptId=${attempt.id}`}>查看成绩</Link>
             </Button>
-          </div>
-        </div>
+          </PageActions>
+        </PageSection>
       </PageShell>
     );
   }
 
   if (!activeQuestion) {
     return (
-      <PageShell density="focus" width="full" className="mx-auto max-w-3xl py-12">
+      <PageShell density="focus" width="reading">
         <PageState
           state="empty"
           eyebrow={candidatePageCopy.empty}
@@ -447,6 +452,7 @@ export function ExamTakingPage() {
       onSubmit={() => submission.requestSubmit("manual")}
       onRetrySave={() => void performFullSave()}
       onResolveConflict={beginFreshTakeover}
+      onReturnToExamList={() => navigate("/exams")}
       navigationWarning={
         blocker.state === "blocked" ? { onStay: blocker.reset, onLeave: blocker.proceed } : null
       }

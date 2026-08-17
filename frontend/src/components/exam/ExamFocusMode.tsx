@@ -90,7 +90,7 @@ export function ExamFocusMode({
             tabIndex={-1}
             data-testid="exam-question-heading"
             aria-describedby={`${questionHeadingId}-eyebrow ${questionHeadingId}-state`}
-            className="min-w-0 break-words font-display text-display-md font-semibold leading-snug text-ink focus-visible:outline-none"
+            className="min-w-0 break-words font-display text-section-title font-section-title text-ink focus-visible:outline-none"
           >
             {stem.title}
           </h2>

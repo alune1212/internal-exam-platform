@@ -25,6 +25,31 @@ export type VisualBrowserState =
   | "submitted"
   | "auto-submitted";
 
+/**
+ * UI scenarios are deliberately separate from API/browser states. A rendered
+ * route can be ready while it is exercising a long-content, open-dialog, or
+ * guarded-exit presentation state.
+ */
+export type VisualScenario =
+  | "baseline"
+  | "long-content"
+  | "long-options"
+  | "result-released"
+  | "result-unreleased"
+  | "mobile-navigation-overflow"
+  | "attempt-exit"
+  | "question-form-open"
+  | "learning-video-controls";
+
+export type VisualRepresentativeGroupId =
+  | "candidate-login"
+  | "exam-list"
+  | "active-formal-exam"
+  | "result"
+  | "admin-dashboard"
+  | "question-form"
+  | "score-report";
+
 export type VisualViewportName =
   | "phone-small"
   | "phone"
@@ -40,6 +65,16 @@ export type VisualRouteStateEntry = {
   route: string;
   auth: VisualAuthRequirement;
   states: readonly VisualBrowserState[];
+  scenarios?: readonly VisualScenario[];
+  signals: readonly string[];
+};
+
+export type VisualRepresentativeRoute = {
+  id: VisualRepresentativeGroupId;
+  family: VisualRouteFamily;
+  route: string;
+  auth: VisualAuthRequirement;
+  scenarios: readonly VisualScenario[];
   signals: readonly string[];
 };
 
@@ -60,12 +95,92 @@ export const VISUAL_SYSTEM_VIEWPORTS = [
 
 export const VISUAL_SYSTEM_SPOT_CHECKS = ["zoom-200", "reduced-motion"] as const;
 
+export const VISUAL_REPRESENTATIVE_VIEWPORTS = VISUAL_SYSTEM_VIEWPORTS.filter(
+  ({ name }) =>
+    name === "phone-small" ||
+    name === "phone" ||
+    name === "phone-wide" ||
+    name === "phone-xl" ||
+    name === "tablet" ||
+    name === "desktop",
+);
+
+/**
+ * The fixed first-batch gate from the OpenSpec design. Keep this list small
+ * and stable; broader route coverage remains in ROUTE_STATE_INVENTORY below.
+ */
+export const VISUAL_REPRESENTATIVE_GROUPS = [
+  {
+    id: "candidate-login",
+    family: "auth",
+    route: "/login",
+    auth: "none",
+    scenarios: ["baseline", "long-content"],
+    signals: ["auth-canvas", "single-h1", "primary-action", "keyboard-focus"],
+  },
+  {
+    id: "exam-list",
+    family: "candidate",
+    route: "/exams",
+    auth: "candidate",
+    scenarios: ["baseline", "long-content", "mobile-navigation-overflow"],
+    signals: ["candidate-top-nav", "exam-list", "primary-action", "long-identifier"],
+  },
+  {
+    id: "active-formal-exam",
+    family: "focus",
+    route: "/exams/:examId/taking?attemptId=:attemptId",
+    auth: "attempt",
+    scenarios: ["baseline", "long-options", "attempt-exit"],
+    signals: [
+      "exam-focus",
+      "save-status",
+      "radio-checkbox-semantics",
+      "touch-targets",
+      "guarded-exit",
+    ],
+  },
+  {
+    id: "result",
+    family: "candidate",
+    route: "/exams/:examId/result?attemptId=:attemptId",
+    auth: "candidate",
+    scenarios: ["result-released", "result-unreleased", "long-content"],
+    signals: ["candidate-top-nav", "result-summary", "answer-release-gate", "result-filter"],
+  },
+  {
+    id: "admin-dashboard",
+    family: "admin",
+    route: "/admin/dashboard",
+    auth: "admin",
+    scenarios: ["baseline", "long-content", "mobile-navigation-overflow"],
+    signals: ["admin-navigation", "status-summary", "primary-action", "activity"],
+  },
+  {
+    id: "question-form",
+    family: "admin",
+    route: "/admin/questions",
+    auth: "admin",
+    scenarios: ["question-form-open", "long-content"],
+    signals: ["admin-navigation", "open-dialog", "field-flow", "pending-mutation"],
+  },
+  {
+    id: "score-report",
+    family: "admin",
+    route: "/admin/reports/scores",
+    auth: "admin",
+    scenarios: ["baseline", "long-content", "mobile-navigation-overflow"],
+    signals: ["admin-navigation", "report-toolbar", "responsive-data", "export-action"],
+  },
+] as const satisfies readonly VisualRepresentativeRoute[];
+
 export const ROUTE_STATE_INVENTORY = [
   {
     family: "auth",
     route: "/login",
     auth: "none",
     states: ["ready", "loading", "validation", "error"],
+    scenarios: ["baseline", "long-content"],
     signals: ["auth-canvas", "no-product-navigation", "no-global-footer", "single-h1"],
   },
   {
@@ -91,6 +206,14 @@ export const ROUTE_STATE_INVENTORY = [
   },
   {
     family: "candidate",
+    route: "/learning/:videoId",
+    auth: "candidate",
+    states: ["ready", "loading", "error", "saving", "saved"],
+    scenarios: ["long-content"],
+    signals: ["candidate-top-nav", "video-player", "learning-progress", "save-status"],
+  },
+  {
+    family: "candidate",
     route: "/practice",
     auth: "candidate",
     states: ["ready", "loading", "empty", "error"],
@@ -108,6 +231,7 @@ export const ROUTE_STATE_INVENTORY = [
     route: "/exams",
     auth: "candidate",
     states: ["ready", "loading", "empty", "error"],
+    scenarios: ["baseline", "long-content", "mobile-navigation-overflow"],
     signals: ["candidate-top-nav", "exam-list", "primary-action"],
   },
   {
@@ -122,6 +246,7 @@ export const ROUTE_STATE_INVENTORY = [
     route: "/exams/:examId/result?attemptId=:attemptId",
     auth: "candidate",
     states: ["ready", "loading", "error"],
+    scenarios: ["result-released", "result-unreleased", "long-content"],
     signals: ["candidate-top-nav", "result-summary", "result-filter"],
   },
   {
@@ -136,6 +261,7 @@ export const ROUTE_STATE_INVENTORY = [
     route: "/admin/dashboard",
     auth: "admin",
     states: ["ready", "loading", "error"],
+    scenarios: ["baseline", "long-content", "mobile-navigation-overflow"],
     signals: ["admin-navigation", "status-summary", "primary-action"],
   },
   {
@@ -150,6 +276,7 @@ export const ROUTE_STATE_INVENTORY = [
     route: "/admin/questions",
     auth: "admin",
     states: ["ready", "loading", "empty", "error"],
+    scenarios: ["question-form-open", "long-content"],
     signals: ["admin-navigation", "filter", "table"],
   },
   {
@@ -192,6 +319,7 @@ export const ROUTE_STATE_INVENTORY = [
     route: "/admin/learning",
     auth: "admin",
     states: ["ready", "loading", "empty", "error"],
+    scenarios: ["learning-video-controls"],
     signals: ["admin-navigation", "content-list", "primary-action"],
   },
   {
@@ -206,6 +334,7 @@ export const ROUTE_STATE_INVENTORY = [
     route: "/admin/reports/scores",
     auth: "admin",
     states: ["ready", "loading", "empty", "error"],
+    scenarios: ["baseline", "long-content", "mobile-navigation-overflow"],
     signals: ["admin-navigation", "filter", "table", "export-action"],
   },
   {
@@ -253,6 +382,7 @@ export const ROUTE_STATE_INVENTORY = [
       "submitted",
       "auto-submitted",
     ],
+    scenarios: ["baseline", "long-options", "attempt-exit"],
     signals: ["exam-focus", "timer", "save-status", "navigator", "submit-action"],
   },
   {

@@ -85,7 +85,7 @@ export function ExamStartPage() {
 
   if (candidate && examQuery.isLoading) {
     return (
-      <PageShell density="calm" width="full" className="mx-auto max-w-3xl">
+      <PageShell density="calm" width="reading">
         <PageHeader
           title={candidatePageText.examRules.title}
           description={candidatePageText.examRules.description}
@@ -101,7 +101,7 @@ export function ExamStartPage() {
 
   if (candidate && (hasLoadError || !exam)) {
     return (
-      <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
+      <PageShell density="calm" width="reading" stagger>
         <PageHeader
           title={candidatePageText.examRules.title}
           description={candidatePageText.examRules.description}
@@ -124,7 +124,7 @@ export function ExamStartPage() {
   }
 
   return (
-    <PageShell density="calm" width="full" stagger className="mx-auto max-w-3xl">
+    <PageShell density="calm" width="reading" stagger>
       {hasStaleError ? (
         <PageStaleNotice
           lastSuccessfulAt={examQuery.dataUpdatedAt}
@@ -133,6 +133,7 @@ export function ExamStartPage() {
         />
       ) : null}
       <PageHeader
+        context={exam?.title}
         title={candidatePageText.examRules.title}
         description={candidatePageText.examRules.description}
       />
@@ -141,7 +142,7 @@ export function ExamStartPage() {
         <ol className="flex flex-col gap-3 border-y border-hairline py-5 text-body text-ink lg:py-6">
           {RULES.map((rule, index) => (
             <li key={rule.text} className="flex gap-3">
-              <span className="font-mono text-caption uppercase tracking-[0.16em] text-muted">
+              <span className="font-mono text-status font-status text-muted">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <span>{rule.text}</span>
@@ -151,8 +152,8 @@ export function ExamStartPage() {
       </PageSection>
 
       {candidate ? (
-        <PageSection variant="card" className="gap-3 p-5">
-          <p className="text-caption tracking-[0.12em] text-muted">当前{productTerms.examTaker}</p>
+        <PageSection variant="panel" className="gap-3">
+          <p className="text-status font-status text-muted">当前{productTerms.examTaker}</p>
           <NamePlate name={candidateDisplayName(candidate)} subtitle="应考人员" />
         </PageSection>
       ) : null}

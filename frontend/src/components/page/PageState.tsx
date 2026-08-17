@@ -45,11 +45,22 @@ const stateTone: Record<PageStateKind, EmptyStateTone> = {
   submitted: "default",
 };
 
+const defaultStateCopy: Record<
+  Exclude<PageStateKind, "loading">,
+  { title: string; description: string }
+> = {
+  empty: { title: "暂无内容", description: "这里还没有可显示的数据。" },
+  error: { title: "加载失败", description: "请稍后重试。" },
+  notLoggedIn: { title: "请先登录", description: "登录后才能继续当前操作。" },
+  notStarted: { title: "尚未开始", description: "当前内容还没有开始。" },
+  submitted: { title: "已提交", description: "这项操作已经完成。" },
+};
+
 export function PageState({
   state,
-  eyebrow = state === "error" ? "STATE · 异常状态" : "STATE · 空状态",
-  title = state === "error" ? "加载失败" : "暂无内容",
-  description = state === "error" ? "请稍后重试。" : "这里还没有可显示的数据。",
+  eyebrow,
+  title,
+  description,
   action,
   secondaryAction,
   onRetry,
@@ -80,20 +91,27 @@ export function PageState({
       role: "status",
       "aria-live": "polite",
       "aria-busy": true,
+      "data-page-state": state,
+      "data-state-kind": state,
+      "data-color-independent": "true",
     });
   }
 
+  const defaults = defaultStateCopy[state];
   const resolvedAction = action ?? (onRetry ? { label: retryLabel, onClick: onRetry } : undefined);
 
   return (
     <EmptyState
       chapter={eyebrow}
-      title={title}
-      description={description}
+      title={title ?? defaults.title}
+      description={description ?? defaults.description}
       action={resolvedAction}
       secondaryAction={secondaryAction}
       tone={stateTone[state]}
       className={cn(surface === "inherit" && "bg-transparent", className)}
+      data-page-state={state}
+      data-state-kind={state}
+      data-color-independent="true"
       data-state-surface={surface}
       {...props}
     />

@@ -1,6 +1,16 @@
 import type { Page, Route } from "@playwright/test";
 
-import { VISUAL_SYSTEM_VIEWPORTS, type VisualBrowserState } from "./route-state-inventory";
+import {
+  VISUAL_SYSTEM_VIEWPORTS,
+  type VisualBrowserState,
+  type VisualScenario,
+} from "./route-state-inventory";
+
+export type { VisualScenario } from "./route-state-inventory";
+export {
+  VISUAL_REPRESENTATIVE_GROUPS,
+  VISUAL_REPRESENTATIVE_VIEWPORTS,
+} from "./route-state-inventory";
 
 export const CANDIDATE_URL = process.env.E2E_CANDIDATE_URL ?? "http://127.0.0.1:18080";
 export const OPERATOR_URL = process.env.E2E_OPERATOR_URL ?? "http://127.0.0.1:18081";
@@ -38,12 +48,16 @@ export type VisualAuthOptions = {
   admin?: boolean;
   registration?: boolean;
   attempt?: boolean;
+  draft?: boolean;
   answers?: Record<number, string>;
+  longContent?: boolean;
 };
 
 export type VisualRouteOptions = {
   state?: VisualRouteState;
   attemptStatus?: VisualAttemptStatus;
+  scenario?: VisualScenario;
+  resultAnswersReleased?: boolean;
 };
 
 export type VisualRouteHandle = {
@@ -61,10 +75,39 @@ const candidate = {
   status: "active" as const,
 };
 
+export const VISUAL_LONG_IDENTIFIER =
+  "VISUAL_UNBROKEN_IDENTIFIER_20260814_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789";
+export const VISUAL_LONG_CHINESE =
+  "这是一段用于代表性渲染验收的较长中文内容，检查标题、说明、表格单元格和操作区域在窄屏、放大和横屏条件下是否能够自然换行。";
+
+const longCandidate = {
+  ...candidate,
+  email: `${VISUAL_LONG_IDENTIFIER.toLowerCase()}@example.test`,
+  display_name: `视觉验收候选人${VISUAL_LONG_CHINESE}`,
+};
+
 const questionOptions = [
   { label: "A", content: "保持题干和选项的可读间距。", sort_order: 1 },
   { label: "B", content: "把关键信息藏在装饰中。", sort_order: 2 },
   { label: "C", content: "让操作状态只靠颜色表达。", sort_order: 3 },
+];
+
+const longQuestionOptions = [
+  {
+    label: "A",
+    content: `${VISUAL_LONG_CHINESE}${VISUAL_LONG_IDENTIFIER}`,
+    sort_order: 1,
+  },
+  {
+    label: "B",
+    content: `保持答案、保存状态和下一步操作可见。${VISUAL_LONG_IDENTIFIER}`,
+    sort_order: 2,
+  },
+  {
+    label: "C",
+    content: `使用原生语义并保留键盘箭头流转。${VISUAL_LONG_IDENTIFIER}`,
+    sort_order: 3,
+  },
 ];
 
 const attemptQuestions = [
@@ -403,13 +446,149 @@ const operationsSnapshot = {
   },
 };
 
+type VisualFixtureDataOptions = {
+  longContent: boolean;
+  resultAnswersReleased: boolean;
+};
+
+function fixtureCandidate({ longContent }: VisualFixtureDataOptions) {
+  return longContent ? longCandidate : candidate;
+}
+
+function fixtureQuestionOptions({ longContent }: VisualFixtureDataOptions) {
+  return longContent ? longQuestionOptions : questionOptions;
+}
+
+function fixtureAttemptQuestions({ longContent }: VisualFixtureDataOptions) {
+  const options = fixtureQuestionOptions({ longContent, resultAnswersReleased: true });
+  return attemptQuestions.map((question, index) => ({
+    ...question,
+    stem_snapshot: longContent
+      ? `${question.stem_snapshot}${VISUAL_LONG_CHINESE}`
+      : question.stem_snapshot,
+    options_snapshot:
+      index === 0
+        ? options
+        : longContent
+          ? options.map((option) => ({
+              ...option,
+              content: `${option.content}${VISUAL_LONG_IDENTIFIER}`,
+            }))
+          : question.options_snapshot,
+  }));
+}
+
+function fixtureExam({ longContent }: VisualFixtureDataOptions) {
+  return longContent
+    ? {
+        ...openExam,
+        title: `视觉系统验收考试 · ${VISUAL_LONG_CHINESE}`,
+        description: `${openExam.description}${VISUAL_LONG_IDENTIFIER}`,
+      }
+    : openExam;
+}
+
+function fixtureAttempt(
+  { longContent }: VisualFixtureDataOptions,
+  attemptStatus: VisualAttemptStatus,
+) {
+  return {
+    ...attempt,
+    status: attemptStatus,
+    submitted_at: attemptStatus === "in_progress" ? null : VISUAL_NOW,
+    questions: fixtureAttemptQuestions({ longContent, resultAnswersReleased: true }),
+  };
+}
+
+function fixtureAttemptResult({ longContent, resultAnswersReleased }: VisualFixtureDataOptions) {
+  const questions = longContent
+    ? attemptResult.questions.map((question) => ({
+        ...question,
+        stem_snapshot: `${question.stem_snapshot}${VISUAL_LONG_CHINESE}`,
+      }))
+    : attemptResult.questions;
+  return {
+    ...attemptResult,
+    show_answer_after_submit: resultAnswersReleased,
+    questions: questions.map((question) => ({
+      ...question,
+      correct_answer_snapshot: resultAnswersReleased ? question.correct_answer_snapshot : null,
+      analysis_snapshot: resultAnswersReleased ? question.analysis_snapshot : null,
+    })),
+  };
+}
+
+function fixtureAdminQuestion({ longContent }: VisualFixtureDataOptions) {
+  return longContent
+    ? {
+        ...adminQuestion,
+        stem: `${adminQuestion.stem}${VISUAL_LONG_CHINESE}`,
+        analysis: `${adminQuestion.analysis}${VISUAL_LONG_IDENTIFIER}`,
+        source: VISUAL_LONG_IDENTIFIER,
+        source_no: `${VISUAL_LONG_IDENTIFIER}-SOURCE`,
+        options: longQuestionOptions.map((option, index) => ({
+          id: VISUAL_QUESTION_ID + index,
+          ...option,
+          is_correct: index === 0,
+        })),
+      }
+    : adminQuestion;
+}
+
+function fixtureLearningVideos({ longContent }: VisualFixtureDataOptions) {
+  return longContent
+    ? learningVideos.map((video) => ({
+        ...video,
+        title: `${video.title} · ${VISUAL_LONG_CHINESE}`,
+        description: `${video.description}${VISUAL_LONG_IDENTIFIER}`,
+        original_filename: `${VISUAL_LONG_IDENTIFIER}.mp4`,
+      }))
+    : learningVideos;
+}
+
+function fixtureScoreRow({ longContent }: VisualFixtureDataOptions) {
+  return longContent
+    ? {
+        ...scoreRow,
+        roster_name: longCandidate.display_name,
+        roster_email: longCandidate.email,
+        department: `${scoreRow.department}${VISUAL_LONG_IDENTIFIER}`,
+        position: `${scoreRow.position}${VISUAL_LONG_CHINESE}`,
+        exam_title: `${scoreRow.exam_title}${VISUAL_LONG_IDENTIFIER}`,
+      }
+    : scoreRow;
+}
+
+function fixtureAbsentRow({ longContent }: VisualFixtureDataOptions) {
+  return longContent
+    ? {
+        ...absentRow,
+        roster_name: longCandidate.display_name,
+        roster_email: longCandidate.email,
+        exam_title: `${absentRow.exam_title}${VISUAL_LONG_IDENTIFIER}`,
+      }
+    : absentRow;
+}
+
+function fixtureLearningReportRow({ longContent }: VisualFixtureDataOptions) {
+  return longContent
+    ? {
+        ...learningReportRow,
+        account_email: longCandidate.email,
+        display_name: longCandidate.display_name,
+        video_title: `${learningReportRow.video_title}${VISUAL_LONG_CHINESE}`,
+      }
+    : learningReportRow;
+}
+
 export function responseEnvelope(data: JsonValue | unknown, message = "ok") {
   return JSON.stringify({ success: true, data, message });
 }
 
-export function candidateStorageValue() {
+export function candidateStorageValue(longContent = false) {
+  const storageCandidate = longContent ? longCandidate : candidate;
   return JSON.stringify({
-    ...candidate,
+    ...storageCandidate,
     token: VISUAL_CANDIDATE_TOKEN,
     token_expires_at: "2099-01-01T00:00:00.000Z",
   });
@@ -441,9 +620,10 @@ export function attemptDraftStorageValue(answers: Record<number, string> = {}) {
 }
 
 export async function installVisualAuth(page: Page, options: VisualAuthOptions = {}) {
+  const authCandidate = options.longContent ? longCandidate : candidate;
   const registration = {
     registration_credential: "visual-registration-credential",
-    email: candidate.email,
+    email: authCandidate.email,
     suggested_display_name: "视觉验收候选人",
     returnTo: "/exams",
     expires_at: "2099-01-01T00:00:00.000Z",
@@ -466,10 +646,13 @@ export async function installVisualAuth(page: Page, options: VisualAuthOptions =
     {
       admin: options.admin ? adminStorageValue() : null,
       attempt: options.attempt ?? false,
-      candidateValue: options.candidate ? candidateStorageValue() : null,
+      candidateValue: options.candidate ? candidateStorageValue(options.longContent) : null,
       registrationValue: options.registration ? JSON.stringify(registration) : null,
       attemptValue: options.attempt ? attemptSessionStorageValue() : null,
-      draftValue: options.attempt ? attemptDraftStorageValue(options.answers) : null,
+      draftValue:
+        options.attempt && options.draft !== false
+          ? attemptDraftStorageValue(options.answers)
+          : null,
     },
   );
 }
@@ -523,7 +706,11 @@ function dataForPath(
   pathname: string,
   search: string,
   attemptStatus: VisualAttemptStatus,
+  fixtureOptions: VisualFixtureDataOptions,
 ): JsonValue | unknown {
+  const fixtureCandidateValue = fixtureCandidate(fixtureOptions);
+  const fixtureExamValue = fixtureExam(fixtureOptions);
+  const fixtureQuestions = fixtureAttemptQuestions(fixtureOptions);
   if (pathname === "/api/candidates/login") {
     return {
       challenge_id: 1,
@@ -537,24 +724,24 @@ function dataForPath(
   ) {
     return {
       outcome: "authenticated",
-      account: candidate,
+      account: fixtureCandidateValue,
       token: VISUAL_CANDIDATE_TOKEN,
       token_expires_at: "2099-01-01T00:00:00.000Z",
     };
   }
   if (pathname === "/api/admin/login") return { token: VISUAL_ADMIN_TOKEN, token_type: "bearer" };
-  if (pathname === "/api/account/profile") return candidate;
-  if (pathname === "/api/exams/active") return [openExam, upcomingExam];
+  if (pathname === "/api/account/profile") return fixtureCandidateValue;
+  if (pathname === "/api/exams/active") return [fixtureExamValue, upcomingExam];
   if (pathname === `/api/exams/${VISUAL_EXAM_ID}/start`) {
     return {
       attempt_id: VISUAL_ATTEMPT_ID,
       exam: {
-        id: openExam.id,
-        title: openExam.title,
-        duration_minutes: openExam.duration_minutes,
+        id: fixtureExamValue.id,
+        title: fixtureExamValue.title,
+        duration_minutes: fixtureExamValue.duration_minutes,
         show_answer_after_submit: true,
       },
-      questions: attemptQuestions,
+      questions: fixtureQuestions,
       started_at: VISUAL_NOW,
       ends_at: "2098-01-15T09:45:00.000Z",
       attempt_session_credential: VISUAL_ATTEMPT_CREDENTIAL,
@@ -562,19 +749,16 @@ function dataForPath(
       answer_revision: 0,
     };
   }
-  if (pathname === `/api/attempts/${VISUAL_ATTEMPT_ID}/result`) return attemptResult;
+  if (pathname === `/api/attempts/${VISUAL_ATTEMPT_ID}/result`)
+    return fixtureAttemptResult(fixtureOptions);
   if (pathname === `/api/attempts/${VISUAL_ATTEMPT_ID}`) {
-    return {
-      ...attempt,
-      status: attemptStatus,
-      submitted_at: attemptStatus === "in_progress" ? null : VISUAL_NOW,
-    };
+    return fixtureAttempt(fixtureOptions, attemptStatus);
   }
   if (pathname === "/api/practice/questions") return [practiceQuestion];
   if (pathname === "/api/practice/wrong-questions") return [wrongQuestion];
-  if (pathname === "/api/learning/videos") return learningVideos;
-  if (pathname.startsWith("/api/learning/videos/")) return learningVideos[0];
-  if (pathname === "/api/admin/exams") return [openExam, draftExam];
+  if (pathname === "/api/learning/videos") return fixtureLearningVideos(fixtureOptions);
+  if (pathname.startsWith("/api/learning/videos/")) return fixtureLearningVideos(fixtureOptions)[0];
+  if (pathname === "/api/admin/exams") return [fixtureExamValue, draftExam];
   if (pathname === `/api/admin/exams/${VISUAL_EXAM_ID}/workspace`) return workspace;
   if (pathname === `/api/admin/exams/${VISUAL_EXAM_ID}/publication-readiness`) return readiness;
   if (pathname === `/api/admin/exams/${VISUAL_EXAM_ID}/candidates`) return [rosterRow];
@@ -588,26 +772,29 @@ function dataForPath(
       failed_count: 0,
     };
   if (pathname === `/api/admin/exams/${VISUAL_EXAM_ID}/incidents`) return [];
-  if (pathname === "/api/admin/questions") return [adminQuestion];
+  if (pathname === "/api/admin/questions") return [fixtureAdminQuestion(fixtureOptions)];
   if (pathname === "/api/admin/accounts")
     return [
       {
         id: 301,
-        email: candidate.email,
-        display_name: candidate.display_name,
+        email: fixtureCandidateValue.email,
+        display_name: fixtureCandidateValue.display_name,
         status: "active",
         created_at: VISUAL_NOW,
         updated_at: VISUAL_NOW,
       },
     ];
   if (pathname === "/api/admin/learning/videos")
-    return learningVideos.map(({ progress, ...video }) => {
+    return fixtureLearningVideos(fixtureOptions).map(({ progress, ...video }) => {
       void progress;
       return video;
     });
-  if (pathname === "/api/admin/learning/reports") return [learningReportRow];
-  if (pathname === "/api/admin/reports/scores") return [scoreRow];
-  if (pathname === "/api/admin/reports/rankings") return [{ ...scoreRow, rank: 1 }];
+  if (pathname.startsWith("/api/admin/learning/videos/"))
+    return fixtureLearningVideos(fixtureOptions)[0];
+  if (pathname === "/api/admin/learning/reports") return [fixtureLearningReportRow(fixtureOptions)];
+  if (pathname === "/api/admin/reports/scores") return [fixtureScoreRow(fixtureOptions)];
+  if (pathname === "/api/admin/reports/rankings")
+    return [{ ...fixtureScoreRow(fixtureOptions), rank: 1 }];
   if (pathname === "/api/admin/reports/question-accuracy")
     return [
       {
@@ -628,7 +815,8 @@ function dataForPath(
         category_2: "状态语言",
       },
     ];
-  if (pathname === "/api/admin/reports/absent-candidates") return [absentRow];
+  if (pathname === "/api/admin/reports/absent-candidates")
+    return [fixtureAbsentRow(fixtureOptions)];
   if (pathname === "/api/admin/operations/snapshot") return operationsSnapshot;
   if (
     pathname === "/api/admin/imports/templates/questions" ||
@@ -651,6 +839,15 @@ export async function installVisualRoutes(
 ): Promise<VisualRouteHandle> {
   const apiPattern = /^https?:\/\/[^/]+\/api(?:\/|$)/;
   const state = options.state ?? "ready";
+  const scenario = options.scenario ?? "baseline";
+  const fixtureOptions: VisualFixtureDataOptions = {
+    longContent:
+      scenario === "long-content" ||
+      scenario === "long-options" ||
+      scenario === "question-form-open" ||
+      scenario === "learning-video-controls",
+    resultAnswersReleased: options.resultAnswersReleased ?? scenario !== "result-unreleased",
+  };
   const attemptStatus =
     options.attemptStatus ??
     (state === "submitted"
@@ -680,6 +877,15 @@ export async function installVisualRoutes(
       return;
     }
     if (state === "saving" && pathname.endsWith("/answers/save")) return;
+    if (
+      state === "saving" &&
+      !isGet(route) &&
+      (pathname === "/api/admin/questions" ||
+        pathname.startsWith("/api/admin/questions/") ||
+        pathname === "/api/admin/learning/videos" ||
+        pathname.startsWith("/api/admin/learning/videos/"))
+    )
+      return;
     if (state === "conflict" && pathname.endsWith("/answers/save")) {
       failedRequests.push(key);
       await apiError(route, 409, "答案版本冲突，请刷新后重试。");
@@ -703,7 +909,7 @@ export async function installVisualRoutes(
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: responseEnvelope(attemptResult),
+        body: responseEnvelope(fixtureAttemptResult(fixtureOptions)),
       });
       return;
     }
@@ -739,11 +945,13 @@ export async function installVisualRoutes(
         pathname.startsWith(`/api/exams/${VISUAL_EXAM_ID}/`) ||
         pathname.startsWith(`/api/attempts/${VISUAL_ATTEMPT_ID}`) ||
         pathname.startsWith(`/api/admin/exams/${VISUAL_EXAM_ID}/`) ||
+        pathname.startsWith("/api/admin/questions/") ||
+        pathname.startsWith("/api/admin/learning/videos/") ||
         pathname.startsWith("/api/admin/imports/") ||
         pathname.startsWith("/api/admin/reports/export") ||
         pathname.startsWith("/api/admin/learning/reports/export");
       if (!known) unexpectedApiRequests.push(key);
-      const data = dataForPath(pathname, url.search, attemptStatus);
+      const data = dataForPath(pathname, url.search, attemptStatus, fixtureOptions);
       await route.fulfill({
         status: 200,
         contentType: "application/json",

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useMatches, useNavigate } from "react-router-dom";
 import { TopNav } from "@/components/layout/TopNav";
-import { PageState } from "@/components/page";
 import { detectBrowserSupport } from "@/lib/browserSupport";
 import {
   clearCurrentCandidate,
@@ -13,15 +12,60 @@ import { subscribeSessionChanges } from "@/lib/sessionEvents";
 import { cn } from "@/lib/utils";
 import type { Candidate } from "@/types/candidate";
 
+import {
+  CandidatePresentationBoundary,
+  hasStaticCandidateFocus,
+  useCandidatePresentationMode,
+} from "./candidate-presentation-mode";
+import { UnsupportedBrowserNotice } from "./UnsupportedBrowserNotice";
+
 export type CandidateSessionContext = {
   candidate: Candidate | null;
   loginCandidate: (candidate: Candidate) => void;
   logoutCandidate: () => void;
 };
 
+function CandidateLayoutFrame({
+  candidate,
+  isAuthRoute,
+  loginCandidate,
+  logoutCandidate,
+}: {
+  candidate: Candidate | null;
+  isAuthRoute: boolean;
+  loginCandidate: (candidate: Candidate) => void;
+  logoutCandidate: () => void;
+}) {
+  const { mode } = useCandidatePresentationMode();
+  const showCandidateChrome = !isAuthRoute && mode !== "focus";
+
+  return (
+    <div
+      data-testid="candidate-layout-frame"
+      data-candidate-presentation={mode}
+      className={cn("flex min-h-screen flex-col bg-canvas", isAuthRoute && "bg-canvas-warm")}
+    >
+      {showCandidateChrome ? <TopNav candidate={candidate} onLogout={logoutCandidate} /> : null}
+      <main
+        className={cn(
+          "w-full min-w-0 flex-1",
+          isAuthRoute
+            ? "flex min-h-screen items-center justify-center px-page-inline py-page-block md:px-page-inline-lg"
+            : "",
+        )}
+      >
+        <Outlet
+          context={{ candidate, loginCandidate, logoutCandidate } satisfies CandidateSessionContext}
+        />
+      </main>
+    </div>
+  );
+}
+
 export function CandidateLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const matches = useMatches();
   const [candidate, setCandidate] = useState<Candidate | null>(() => getCurrentCandidate());
   const isAuthRoute = location.pathname === "/login" || location.pathname === "/register";
   const browserSupport = detectBrowserSupport(window.navigator.userAgent);
@@ -37,23 +81,7 @@ export function CandidateLayout() {
   }, []);
 
   if (!browserSupport.supported) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-canvas-warm px-4 py-8">
-        <div className="w-full max-w-xl rounded-lg border border-error bg-canvas p-8 shadow-pop">
-          <PageState
-            state="error"
-            surface="inherit"
-            eyebrow="DEVICE · 浏览器不受支持"
-            title="请更换受支持的系统浏览器。"
-            description={browserSupport.reason}
-          />
-          <p className="mt-4 text-body-sm text-muted">
-            支持 Windows Edge/Chrome、macOS Chrome/Safari（Chrome 120+、Safari 17+）、Android Chrome
-            和 iOS Safari；微信等内嵌浏览器不能用于正式考试。
-          </p>
-        </div>
-      </main>
-    );
+    return <UnsupportedBrowserNotice support={browserSupport} />;
   }
 
   if (!candidate && !isAuthRoute) {
@@ -71,21 +99,20 @@ export function CandidateLayout() {
     navigate("/login", { replace: true });
   }
 
+  const initialPresentationMode = isAuthRoute
+    ? "auth"
+    : hasStaticCandidateFocus(matches)
+      ? "focus"
+      : "calm";
+
   return (
-    <div className={cn("flex min-h-screen flex-col bg-canvas", isAuthRoute && "bg-canvas-warm")}>
-      {isAuthRoute ? null : <TopNav candidate={candidate} onLogout={logoutCandidate} />}
-      <main
-        className={cn(
-          "w-full flex-1",
-          isAuthRoute
-            ? "flex min-h-screen items-center justify-center px-4 py-8 md:px-6"
-            : "mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10",
-        )}
-      >
-        <Outlet
-          context={{ candidate, loginCandidate, logoutCandidate } satisfies CandidateSessionContext}
-        />
-      </main>
-    </div>
+    <CandidatePresentationBoundary initialMode={initialPresentationMode}>
+      <CandidateLayoutFrame
+        candidate={candidate}
+        isAuthRoute={isAuthRoute}
+        loginCandidate={loginCandidate}
+        logoutCandidate={logoutCandidate}
+      />
+    </CandidatePresentationBoundary>
   );
 }

@@ -67,20 +67,18 @@ export function ExamNavigator({
     <section
       aria-label="题号导航"
       className={cn(
-        "flex min-w-0 flex-col gap-4",
+        "flex min-h-0 min-w-0 flex-col gap-4",
         desktopLayout &&
-          "max-h-[calc(100vh-7rem)] rounded-lg border border-hairline bg-surface-card p-5 shadow-card",
+          "max-h-[calc(100dvh-7rem)] rounded-lg border border-hairline bg-surface-card p-5 shadow-card",
         sheetLayout && "bg-canvas p-5",
         className,
       )}
     >
       <header className="flex min-w-0 items-baseline justify-between gap-3 border-b border-hairline pb-3">
-        <h3 className="min-w-0 break-words font-display text-display-sm font-semibold text-ink">
+        <h3 className="min-w-0 break-words font-display text-subsection-title font-subsection-title text-ink">
           题号导航
         </h3>
-        <span className="text-caption uppercase tracking-[0.16em] text-muted">
-          共 {items.length} 题
-        </span>
+        <span className="text-status font-status text-muted">共 {items.length} 题</span>
       </header>
 
       <div
@@ -90,12 +88,12 @@ export function ExamNavigator({
         {groups.map((group) => (
           <div key={group.type} className="flex min-w-0 flex-col gap-2">
             <div className="flex items-baseline justify-between">
-              <span className="break-words font-display text-caption tracking-[0.18em] text-muted">
+              <span className="break-words font-display text-status font-status text-muted">
                 {getQuestionTypeLabel(group.type)}
               </span>
               <span className="text-body-sm text-muted">{group.items.length} 题</span>
             </div>
-            <ul className="grid grid-cols-5 gap-2">
+            <ul className="grid grid-cols-4 gap-2">
               {group.items.map((item) => (
                 <li key={item.id} className="contents">
                   <span id={`${idPrefix}-state-${item.id}`} className="sr-only">
@@ -110,7 +108,7 @@ export function ExamNavigator({
                     aria-current={activeId === item.id ? "true" : undefined}
                     data-question-state={item.answered ? "answered" : "unanswered"}
                     className={cn(
-                      "flex h-10 items-center justify-center rounded-md border font-mono text-base tabular-nums transition-colors",
+                      "flex min-h-touch-target min-w-touch-target items-center justify-center rounded-md border font-mono text-action font-action tabular-nums transition-colors",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
                       !item.answered && "border-hairline bg-canvas text-ink",
                       item.answered && !item.submittedResult && "border-ink bg-ink text-canvas",
