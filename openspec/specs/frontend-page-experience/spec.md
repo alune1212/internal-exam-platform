@@ -47,47 +47,53 @@ The system MUST NOT expose admin mutation actions that depend on unresolved requ
 - **THEN** the page does not present import, remove, or retake actions as if the exam state were known
 
 ### Requirement: Design-System Page Composition
-The system SHALL compose frontend pages from the canonical design contract defined by `frontend/DESIGN.md`. Ordinary pages MUST use shared tokens and primitives while preserving four explicit composition contexts: Candidate Calm, Admin Workbench, Exam Focus, and the chrome-free Auth Canvas. These composition rules MUST NOT change route authorization, API contracts, or exam-delivery semantics.
+The system SHALL compose every current frontend route from the canonical design contract defined by `frontend/DESIGN.md`. The presentation SHALL retain the warm-paper palette, restrained Academic Editorial tone, and offline-safe system-font stacks while allowing navigation presentation, typography hierarchy, page skeletons, and result composition to be redesigned. Ordinary pages MUST use shared owners for page width, surfaces, fields, status feedback, data presentation, and actions while preserving four explicit composition contexts: Candidate Calm, Admin Workbench, Exam Focus, and the chrome-free Auth Canvas. These composition rules MUST NOT change route paths, navigation destinations, authorization, API contracts, or exam-delivery semantics.
 
 #### Scenario: Ordinary page renders its main heading
 - **WHEN** an ordinary candidate or admin page renders
-- **THEN** it uses a single page-level H1 through `PageHeader` or an equivalent heading that follows the documented H1 contract
+- **THEN** it uses one page-level H1 whose Chinese task name is the primary visible label
 - **AND** any context label is optional, meaningful, upright, and visually subordinate to the H1
 
 #### Scenario: Ordinary candidate page renders
 - **WHEN** a candidate opens an ordinary learning, practice-entry, exam-list, result, review, or profile page
-- **THEN** the page uses Candidate Calm composition with the candidate top navigation and calm page density
-- **AND** it does not render the admin side rail or the active-attempt navigator
+- **THEN** the page uses Candidate Calm composition with calm density, clear task hierarchy, and the existing candidate navigation destinations
+- **AND** it does not render the admin workbench navigation or the active-attempt navigator
 
 #### Scenario: Ordinary admin page renders
 - **WHEN** an administrator opens a dashboard, list, import, edit, workspace, operations, or report page
-- **THEN** the page uses Admin Workbench composition with the admin navigation and scan-friendly page density
-- **AND** it does not use a marketing hero or candidate navigation
+- **THEN** the page uses Admin Workbench composition with compact scan-friendly density and the existing admin navigation destinations
+- **AND** it does not use candidate navigation, a marketing hero, or candidate-page spacing as its default
 
 #### Scenario: Specialized exam workflow renders
 - **WHEN** the formal exam-taking or practice focus workflow renders its active question interface
-- **THEN** it uses Exam Focus composition and may use specialized question, timer, option, and navigator components
-- **AND** it preserves shared token, radius, focus, state, and typography conventions without forcing the ordinary `PageHeader`
+- **THEN** it uses Exam Focus composition with task-relevant question, timer, persistence, navigation, and submission controls
+- **AND** unrelated ordinary-page navigation or heading chrome does not compete with the active attempt
 
 #### Scenario: Authentication canvas renders
 - **WHEN** a login, registration, or registration-completion route renders before the application shell is available
-- **THEN** it omits candidate top navigation, admin side navigation, and a decorative global footer
-- **AND** its fields, actions, notices, and validation feedback still use the shared form and feedback primitives
+- **THEN** it uses a minimal Auth Canvas without candidate navigation, admin navigation, or a decorative global footer
+- **AND** its identity step, validation, recovery, and primary action use the shared form and feedback contracts
+
+#### Scenario: Repeated page pattern renders
+- **WHEN** a current route needs a page frame, bounded surface, field, status treatment, action group, report toolbar, or responsive data region
+- **THEN** it uses the documented shared pattern or an explicitly governed family-specific variant
+- **AND** the page does not recreate the same visual contract from local width, border, radius, shadow, typography, and spacing rules
 
 #### Scenario: Local forms and feedback render
-- **WHEN** frontend pages render repeated form fields, textareas, selects, alerts, status pills, or feedback notices
-- **THEN** they prefer existing local UI, page, and editorial primitives before introducing hand-written styling
+- **WHEN** frontend pages render repeated fields, textareas, selects, alerts, status pills, or feedback notices
+- **THEN** they use the shared field, control, status, and feedback contracts before introducing a local presentation variant
 
 #### Scenario: Login, registration, and profile pages render
-- **WHEN** an email login, first-registration profile, or account-profile page renders
-- **THEN** its fields, actions, notices, and validation feedback use the shared `Field`, `Input`, `Button`, `Alert`, `Card`, `PageHeader`, and `PageSection` primitives or their documented equivalents
+- **WHEN** an email login, first-registration profile, admin login, or account-profile page renders
+- **THEN** its fields, actions, notices, and validation feedback use the shared Auth or Candidate form and feedback contracts
+- **AND** the presentation change does not alter identity, registration, session, or profile behavior
 
 ### Requirement: Accessible Stateful Controls
-The system SHALL expose semantic state and keyboard/focus behavior for native, custom, and segmented frontend controls, including OTP verification, registration completion, profile editing, invitation actions, filters, imports, and shared select controls. Repeated controls SHALL provide documented default, hover, focus-visible, active, disabled, loading, error, and success treatments as applicable.
+The system SHALL expose semantic state and complete keyboard/focus behavior for native, custom, segmented, file-selection, question-option, dialog, and sheet controls. Repeated controls SHALL provide documented default, hover, focus-visible, active or selected, disabled, pending, error, and success treatments as applicable. State text and focus indicators MUST satisfy the canonical contrast contract and MUST NOT rely on color alone.
 
 #### Scenario: Segmented filter is selected
 - **WHEN** a user changes a segmented filter in candidate results or admin reports
-- **THEN** the selected option is exposed through accessible state, not only through visual color
+- **THEN** the selected option is exposed through accessible state and a governed selected treatment, not only through color
 
 #### Scenario: Custom dropdown is used
 - **WHEN** a custom dropdown is used instead of a native select
@@ -95,47 +101,75 @@ The system SHALL expose semantic state and keyboard/focus behavior for native, c
 
 #### Scenario: OTP or profile validation state is shown
 - **WHEN** login, registration, or profile validation fails or an action is pending
-- **THEN** the affected control has an accessible name and invalid/busy state
-- **AND** the error or success feedback is announced through the shared alert/error semantics without relying on color alone
+- **THEN** the affected control has an accessible name and invalid or busy state
+- **AND** error or success feedback is announced through shared semantics without relying on color alone
+
+#### Scenario: Single-choice question options are used
+- **WHEN** a keyboard user enters a single-choice question option group
+- **THEN** the group exposes native-equivalent radio semantics, one managed tab stop, and arrow-key movement between options
+- **AND** Space or Enter selects the focused option without changing answer-save semantics
+
+#### Scenario: Visible file picker is activated
+- **WHEN** a keyboard user reaches an import or learning-video file-selection control
+- **THEN** the visible trigger is focusable, has a visible focus indicator, and activates the native file selection behavior
+- **AND** the selected filename and upload availability are communicated without bypassing existing validation
+
+#### Scenario: Guarded exit warning opens
+- **WHEN** leaving an active attempt requires a warning
+- **THEN** the warning exposes its title and description, moves focus to the safe initial action, traps or manages focus for its modal behavior, and defines Escape behavior
+- **AND** dismissing it returns focus to the action that opened it
 
 #### Scenario: Shared control changes interaction state
-- **WHEN** a shared button, field, select, file picker, or filter enters a disabled, loading, error, or success state
-- **THEN** its visible label, focus behavior, and accessible state remain consistent with the canonical control contract
+- **WHEN** a shared action, field, select, file picker, or filter enters a disabled, pending, error, or success state
+- **THEN** its visible label, focus behavior, accessible state, and contrast remain consistent with the canonical control contract
 - **AND** a disabled or pending mutation cannot be mistaken for an available action
 
 #### Scenario: Status color communicates meaning
 - **WHEN** a control or feedback component uses color to distinguish a state
-- **THEN** the same state is also identifiable through text, iconography, shape, or accessible semantics
+- **THEN** the same state is identifiable through text, iconography, shape, or accessible semantics
+- **AND** the treatment meets the documented contrast target on its current surface
+
+#### Scenario: Dialog or sheet content exceeds the viewport
+- **WHEN** overlay content is taller than the available dynamic viewport, including mobile landscape or browser zoom
+- **THEN** the overlay provides an internal scroll region and keeps its close control and required actions keyboard-reachable
+- **AND** focus management continues to operate while the content scrolls
 
 ### Requirement: Responsive Design Consistency
-The system SHALL keep Candidate Calm, Admin Workbench, Auth Canvas, and Exam Focus workflows usable without overlap or horizontal page overflow at 320, 375, 414, 430, and 768 CSS pixels, at representative desktop widths, in mobile landscape, and at 200 percent browser zoom. The system SHALL preserve safe-area support and reduced-motion behavior.
+The system SHALL keep Candidate Calm, Admin Workbench, Auth Canvas, and Exam Focus workflows usable without overlap or horizontal page overflow at 320, 375, 414, 430, and 768 CSS pixels, at representative desktop widths, in 844x390 and 896x414 mobile landscape, and at 200 percent browser zoom. The system SHALL preserve dynamic-viewport, safe-area, long-content, and reduced-motion behavior.
 
 #### Scenario: Candidate focus mode is used on mobile
-- **WHEN** the formal exam or practice focus page is viewed on a narrow mobile viewport
-- **THEN** fixed bottom navigation does not cover answer controls, question actions, feedback text, or the device safe area
-- **AND** formal exam answer-save controls and save status remain available with the same semantics as desktop
+- **WHEN** the formal exam or practice focus page is viewed on a narrow or dynamic mobile viewport
+- **THEN** fixed or sticky controls do not cover answer controls, question actions, feedback text, submit, or the device safe area
+- **AND** answer-save controls and save status remain available with the same semantics as desktop
 
 #### Scenario: Admin report actions wrap on mobile
 - **WHEN** admin report filters, segmented controls, and export actions render on a narrow mobile viewport
-- **THEN** the controls wrap within the page header without horizontal overflow
+- **THEN** the controls reflow according to the shared report-action contract without horizontal overflow
+- **AND** the actionable label remains readable on one line within each reflowed control
 
 #### Scenario: Registration and invitation pages are used on mobile
 - **WHEN** a user completes registration, edits a profile, or opens an invited exam on a narrow viewport
-- **THEN** fields, OTP controls, notices, and invitation actions remain reachable and readable
-- **AND** no fixed action or responsive table obscures the next required action or introduces horizontal scrolling
+- **THEN** fields, notices, invitation actions, and the next required action remain reachable and readable
+- **AND** no fixed control or responsive data region introduces horizontal scrolling or obscures the task
 
-#### Scenario: Exam workspace is resized or zoomed
-- **WHEN** the exam-taking page is used at 320, 375, 414, or 430 CSS pixels, in mobile landscape, or at 200 percent browser zoom
-- **THEN** the active question, options, save state, navigation, and submit action remain reachable without horizontal overflow
-- **AND** reduced-motion preferences continue to suppress nonessential motion
+#### Scenario: Mobile navigation content exceeds the available height
+- **WHEN** candidate or admin navigation opens in mobile landscape or at 200 percent zoom
+- **THEN** every navigation destination and logout action remains reachable through a dynamic-viewport-aware scroll region
+- **AND** the overlay does not depend on a fixed `100vh` assumption
 
 #### Scenario: Representative ordinary page is resized
-- **WHEN** a representative candidate or admin list, form, workspace, or report is viewed at 320, 375, 414, or 768 CSS pixels or at 200 percent browser zoom
-- **THEN** page headings wrap safely, action groups reflow, responsive tables use their documented compact presentation, and the page does not scroll horizontally
+- **WHEN** a representative list, form, dashboard, workspace, report, auth, or result page is viewed at a required viewport or populated with long Chinese text and unbroken identifiers
+- **THEN** headings wrap safely, actions reflow, data regions use their documented compact presentation, and content remains within the viewport
+- **AND** no root overflow rule hides an oversized interactive or content box
 
 #### Scenario: Compact action text would wrap internally
 - **WHEN** a navigation item, button, segmented option, or compact action does not fit its current row
 - **THEN** the parent layout reflows the whole control while the actionable label remains on one line
+
+#### Scenario: Exam workspace is resized or zoomed
+- **WHEN** the exam-taking page is used at a required narrow viewport, in mobile landscape, or at 200 percent browser zoom
+- **THEN** the active question, long option content, save state, navigation, and submit action remain reachable without horizontal overflow
+- **AND** reduced-motion preferences continue to suppress nonessential motion
 
 ### Requirement: Admin Brand Mark Consistency
 The system SHALL use a consistent brand glyph for the browser tab identity and repeated admin chrome wordmarks while preserving readable light and dark variants.
@@ -179,40 +213,49 @@ The system SHALL present admin import file selection through product-styled cont
 - **THEN** the page uses the existing import API behavior, success/error notices, query invalidation, and failure-report download behavior for that page
 
 ### Requirement: Product Copy and Terminology Consistency
-The system SHALL use synchronized Chinese-English product terminology for visible frontend copy across public, candidate, and admin pages. General learning/practice surfaces SHALL refer to the authenticated person as a user (`用户`), while formal exam roster and exam authorization surfaces SHALL use the participant term (`应考人员`); the two terms MUST NOT be mixed as interchangeable labels.
+The system SHALL use Chinese-first, task-oriented product language across public, candidate, and admin pages. English SHALL appear only for the product name or a stable product or operational term whose presence adds meaning; ordinary pages MUST NOT require decorative bilingual eyebrows, routine all-caps English metadata, or faux chapter labels. General learning and practice surfaces SHALL refer to the authenticated person as `用户`, while formal exam roster and authorization surfaces SHALL use `应考人员`; those terms MUST NOT be mixed as interchangeable labels. Copy changes MUST preserve existing business meaning and MUST NOT expose raw API codes.
+
+#### Scenario: Ordinary page or section label renders
+- **WHEN** a public, candidate, or admin page renders a heading, section label, table label, or state label
+- **THEN** Chinese text carries the primary task meaning
+- **AND** decorative English is omitted unless the label uses an explicitly governed product or operational term
 
 #### Scenario: Bilingual page labels render
-- **WHEN** a public, candidate, or admin page renders a bilingual eyebrow, section label, compact heading, or table label
-- **THEN** the English and Chinese text describe the same canonical product concept from the shared copy contract
+- **WHEN** a product name or allowlisted stable operational term renders with both English and Chinese text
+- **THEN** both labels describe the same canonical concept and Chinese remains the primary task language
+- **AND** the bilingual treatment is not generalized into a routine eyebrow, table label, or decorative chapter marker
 
 #### Scenario: Candidate role terms render
 - **WHEN** candidate-facing login, exam list, practice, exam start, exam taking, result, or review pages refer to the current user
-- **THEN** learning and practice copy uses the canonical user terminology
-- **AND** formal roster/authorization copy uses `应考人员` and does not imply that every user is an exam participant
+- **THEN** learning and practice copy uses the canonical `用户` terminology
+- **AND** formal roster or authorization copy uses `应考人员` without implying that every user is an exam participant
 
 #### Scenario: Admin roster terms render
-- **WHEN** admin pages refer to exam-scoped participant lists, participant records, roster imports, or roster management actions
-- **THEN** the visible copy uses the canonical roster and participant terminology consistently in both Chinese and English labels
+- **WHEN** admin pages refer to exam-scoped participant lists, participant records, roster imports, or roster-management actions
+- **THEN** visible copy uses the same canonical Chinese roster and participant terminology on desktop and responsive presentations
 
 #### Scenario: Raw API codes would be visible
-- **WHEN** a frontend page or component renders exam status, availability status, attempt status, question type, question status, or report status values received from APIs
-- **THEN** the UI maps those values to user-facing display text and MUST NOT expose raw code values such as `draft`, `active`, `archived`, `single`, `multiple`, `judge`, `not_started`, `in_progress`, or `submitted` as ordinary visible copy
+- **WHEN** a frontend page or component renders exam status, availability status, attempt status, question type, question status, or report status received from an API
+- **THEN** the UI maps it to canonical user-facing Chinese text
+- **AND** it does not expose raw codes such as `draft`, `active`, `archived`, `single`, `multiple`, `judge`, `not_started`, `in_progress`, or `submitted` as ordinary visible copy
 
 #### Scenario: Candidate critical actions render
 - **WHEN** the candidate exam workflow renders answer persistence, exam submission, or navigation away from the active exam surface
-- **THEN** the labels and feedback consistently distinguish saving answers, submitting the exam, and returning to the exam list
+- **THEN** labels and feedback consistently distinguish saving answers, submitting the exam, staying in the exam, and returning to the exam list
 
 #### Scenario: Admin report and table headers render
-- **WHEN** admin report tables, candidate tables, question tables, or responsive mobile table labels render
-- **THEN** headers and mobile labels use the same canonical field names and synchronized Chinese-English terminology for equivalent fields
+- **WHEN** a field appears in an admin table, responsive data card, form, filter, report, or export action
+- **THEN** each presentation uses the same canonical Chinese field or action name
 
 #### Scenario: Page states render
-- **WHEN** loading, empty, disabled, or error states render for the same product object or action on related pages
-- **THEN** the state copy uses the same canonical object/action names and avoids contradictory terms for the same condition
+- **WHEN** loading, empty, disabled, stale, pending, success, or error states render for the same product object or action on related pages
+- **THEN** state copy uses the same canonical Chinese object and action names
+- **AND** it avoids contradictory terms or decorative English for the same condition
 
 #### Scenario: Copy contract changes
-- **WHEN** reusable product terminology, status labels, or critical action labels are changed
-- **THEN** focused frontend tests cover the shared copy helpers or the high-risk visible page labels affected by the change
+- **WHEN** reusable headings, terminology, state labels, critical actions, or supporting copy are rewritten
+- **THEN** focused tests cover the shared copy contract and high-risk visible labels
+- **AND** route behavior, form meaning, API parameters, and business outcomes remain unchanged
 
 ### Requirement: Unified Email Login and Registration Challenge
 The candidate frontend SHALL expose one email-only OTP entry point labeled `邮箱登录` for existing accounts and first-time registration. It MUST NOT request or display `employee_no`, `phone_suffix`, or a roster name as a prerequisite for the OTP request. After successful OTP verification, an active existing account receives the candidate session; an unknown mailbox receives a short-lived registration-completion challenge and MUST complete the profile step before receiving a candidate session.
@@ -415,84 +458,105 @@ The exam-taking interface SHALL expose question, option, navigation, persistence
 - **AND** repeated countdown updates do not flood the live region
 
 ### Requirement: Canonical Design Token Source of Truth
-The frontend SHALL maintain one canonical source model for governed visual values. Runtime color, typography, spacing, radius, elevation, focus, motion, and z-index literals SHALL be defined in the CSS root token source; structural breakpoint literals SHALL be defined in one typed build-time map consumed by Tailwind and JavaScript media-query code. TypeScript visual-token access, component styles, and `frontend/DESIGN.md` MUST reference or verifiably mirror those owners. The canonical typography contract SHALL use the existing offline-safe system font stacks with documented CJK fallbacks and MUST NOT require an undeclared external font request.
+The frontend SHALL maintain one canonical source model for governed visual values. Runtime color, typography, spacing, target size, radius, elevation, focus, motion, and z-index literals SHALL be defined in the CSS root token source; structural breakpoint literals SHALL be defined in one typed build-time map consumed by responsive build and JavaScript code. Tailwind aliases, the exported TypeScript design-token map, media-query consumers, and `frontend/DESIGN.md` MUST reference or verifiably mirror those owners. Shared consumers and ordinary pages MUST use semantic aliases for governed typography, tracking, page spacing, control spacing, target size, radius, elevation, and status contrast. Any arbitrary visual literal or data-derived exception MUST be documented in a narrow allowlist. The canonical typography contract SHALL use the existing offline-safe system font stacks with documented CJK fallbacks and MUST NOT require an external or bundled font asset.
 
 #### Scenario: Component needs a visual value
-- **WHEN** a changed component needs a color, font family, spacing, radius, shadow, focus, or motion value
-- **THEN** it references a named canonical token or an explicitly documented data-derived exception
-- **AND** it does not introduce an untracked raw visual literal or legacy HSL design token
+- **WHEN** a changed shared component or ordinary page needs a color, type size, tracking, page spacing, control spacing, radius, shadow, focus, motion, or status value
+- **THEN** it references the corresponding semantic contract
+- **AND** it does not introduce an untracked raw visual literal, legacy HSL token, or parallel token owner
+
+#### Scenario: Local exception is necessary
+- **WHEN** a data-derived identity color, safe-area calculation, state selector, or other legitimate local value cannot use the ordinary semantic aliases
+- **THEN** the exception is narrowly owned, documented, and covered by the visual-policy allowlist
+- **AND** it is not reused as a general page, surface, typography, or status value
 
 #### Scenario: Token representation drifts
-- **WHEN** the canonical runtime tokens, typed breakpoint map, Tailwind aliases, TypeScript visual-token references, media-query consumers, or design documentation disagree about a governed value
+- **WHEN** the canonical runtime tokens, typed breakpoint map, Tailwind aliases, exported TypeScript design-token map, media-query consumers, visual-policy allowlist, or design documentation disagree
 - **THEN** an automated consistency check fails before the change can be considered complete
 
 #### Scenario: Responsive code needs a structural breakpoint
-- **WHEN** Tailwind or JavaScript media-query code needs a supported viewport threshold
-- **THEN** it consumes the typed build-time breakpoint map rather than declaring an independent width literal
+- **WHEN** build-time responsive styling or JavaScript media-query code needs a supported viewport threshold
+- **THEN** it consumes the canonical typed breakpoint map rather than declaring an independent width literal
 - **AND** CSS custom properties are not treated as media-query conditions
+
+#### Scenario: Status treatment renders on dark or light surfaces
+- **WHEN** success, warning, error, selected, or focus text appears on a supported surface
+- **THEN** its text and non-text indicators meet the documented contrast target for that surface
+- **AND** a state-specific on-dark or on-light token is used where the ordinary status token is insufficient
 
 #### Scenario: External font services are unavailable
 - **WHEN** the frontend runs in its supported offline or internal-network environment
-- **THEN** the documented system font stacks render readable Latin and CJK text without a network font dependency
+- **THEN** the documented system font stacks render readable Latin and CJK text without a network or bundled font dependency
 
 ### Requirement: Typography and Editorial Hierarchy
-The frontend SHALL use one page-level H1, ordered H2/H3 descendants, upright heading styles, and optional contextual labels. Decorative English metadata, faux chapter numbering, and italic headings MUST NOT be required to identify ordinary pages. English metadata MAY appear when it communicates a real product concept and remains synchronized with the canonical Chinese terminology.
+The frontend SHALL use a redesigned but canonical system-font hierarchy with one page-level H1, ordered H2/H3 descendants, upright task labels, readable Chinese body text, and family-specific density. Editorial identity SHALL be expressed through scale, weight, whitespace, rules, and controlled asymmetry rather than repeated decorative English, faux chapter numbering, or italic headings.
 
 #### Scenario: Ordinary page has no meaningful context label
 - **WHEN** an ordinary page title fully identifies the current task
-- **THEN** the page renders the H1 without a forced eyebrow or faux chapter label
+- **THEN** it renders the Chinese H1 without a forced eyebrow, translated duplicate, or faux chapter label
 
 #### Scenario: Page context label adds real meaning
-- **WHEN** a page needs a route family, workflow position, or operational status above its title
+- **WHEN** a page needs a route family, workflow position, or operational state above its title
 - **THEN** it renders at most one upright contextual label stacked with the title
-- **AND** the label does not compete with or sit as a detached left-hand heading column
+- **AND** the label does not repeat the H1 or create a detached decorative heading column
+
+#### Scenario: Page family applies typography density
+- **WHEN** text hierarchy renders in Candidate Calm, Admin Workbench, Exam Focus, or Auth Canvas
+- **THEN** it uses the documented scale and spacing for that family while retaining the same semantic heading and body roles
+- **AND** pages do not invent local type sizes or tracking to simulate a new role
 
 #### Scenario: Heading needs emphasis
 - **WHEN** an H1, H2, or H3 needs visual emphasis
-- **THEN** it uses weight, color, size, or a restrained rule while preserving normal font style
+- **THEN** it uses scale, weight, ink contrast, whitespace, or a restrained rule while preserving normal font style
 
 #### Scenario: Question position is shown
 - **WHEN** Exam Focus communicates a genuine question position or sequence
 - **THEN** ordinal text may use the documented compact or monospaced treatment
-- **AND** it is not generalized into decorative chapter numbering on unrelated pages
+- **AND** that treatment is not generalized into decorative numbering on unrelated pages
 
 ### Requirement: Surface Hierarchy and Container Discipline
-The frontend SHALL use the documented canvas, plain section, panel, focus card, and table surface hierarchy. A visual group MUST have one owner for border, radius, background, and elevation; parent and child containers MUST NOT both present independent card treatment for the same group.
+The frontend SHALL use a restrained canvas, plain section, panel, focus object, summary, and data-surface hierarchy. Each task region MUST have at most one primary containment owner for border, radius, background, padding, and elevation. Internal structure SHALL prefer whitespace, typography, and dividers; elevation SHALL be reserved for overlays and explicitly documented critical or summary emphasis.
 
 #### Scenario: Metric grid is grouped
-- **WHEN** metric cards appear inside a page section
-- **THEN** either the outer section is visually plain and the metric cards own containment, or the outer surface owns containment and the metric children are borderless
-- **AND** both levels do not independently render card borders and shadows
+- **WHEN** metrics, fields, statuses, or records belong to one task region
+- **THEN** either the outer region owns containment and its children remain visually subordinate, or individual children own containment inside a plain region
+- **AND** the same group does not render card borders, radii, shadows, and padding at both levels
 
 #### Scenario: Form or table surface renders
-- **WHEN** a form, table, status group, or explanatory section renders
-- **THEN** one documented surface variant owns its boundary and spacing
-- **AND** inner layout wrappers do not add another decorative card layer
+- **WHEN** a form, table, responsive data presentation, status group, report toolbar, or explanatory section renders
+- **THEN** one documented surface or plain-section contract owns its boundary and spacing
+- **AND** local wrappers do not introduce another decorative card layer
 
 #### Scenario: Async state replaces content
-- **WHEN** loading, empty, error, or stale feedback appears within an established section
-- **THEN** it inherits the existing section containment instead of adding an unrelated nested card
+- **WHEN** loading, empty, error, or stale feedback appears within an established region
+- **THEN** it inherits the region's containment instead of adding an unrelated nested card
+
+#### Scenario: Overlay or critical summary needs elevation
+- **WHEN** a dialog, sheet, popover, or explicitly documented critical summary must separate from its canvas
+- **THEN** it uses the governed elevation and surface treatment for that role
+- **AND** ordinary page sections do not copy the same elevated treatment for decoration
 
 ### Requirement: Admin Navigation Information Architecture
-The admin shell SHALL group existing destinations into stable operational domains and SHALL expose the current group and destination on desktop and mobile. Exam-specific destinations SHALL provide an accessible exam context without changing routes, permissions, mutation guards, or the underlying navigation targets. Logout MUST remain reachable within the viewport.
+The admin shell SHALL preserve every current navigation destination, route target, authorization boundary, and operational grouping while redesigning the navigation presentation for clearer hierarchy and compact workbench use. Desktop and mobile navigation MUST expose the same order, labels, active destination, and reachable logout action. Exam-specific context MUST continue to link only to existing authorized destinations.
 
 #### Scenario: Administrator opens a primary admin destination
 - **WHEN** an administrator opens dashboard, account, question, import, exam, learning, report, or operations content
-- **THEN** the navigation exposes the destination within its canonical group and indicates the active item and group
+- **THEN** the redesigned navigation exposes that existing destination within its canonical group and indicates the active item and group
+- **AND** it does not add, remove, merge, or retarget a destination
 
 #### Scenario: Administrator opens an exam-scoped destination
-- **WHEN** an administrator opens an existing exam workspace, editor, roster/invitation, or result/review destination, including monitoring content presented inside the workspace
-- **THEN** the shell or page-level context identifies the current exam and related destinations
-- **AND** links lead to existing authorized pages without bypassing readiness or mutation guards
+- **WHEN** an administrator opens an existing exam workspace, editor, roster or invitation, or result or review destination
+- **THEN** the page identifies the current exam and related existing destinations without duplicating the page H1
+- **AND** navigation does not bypass readiness, permission, or mutation guards
 
 #### Scenario: Administrator uses mobile navigation
-- **WHEN** the admin navigation sheet opens on a narrow viewport
-- **THEN** it preserves the same group order, labels, active context, and reachable logout action as the desktop navigation
-- **AND** it introduces no horizontal overflow
+- **WHEN** the admin navigation opens on a narrow or short viewport
+- **THEN** it preserves the desktop order, labels, active context, and logout action inside a reachable scroll region
+- **AND** it introduces neither horizontal overflow nor inaccessible clipped destinations
 
 #### Scenario: Administrator scrolls a long desktop page
 - **WHEN** page content exceeds the desktop viewport height
-- **THEN** the side rail remains viewport-stable and logout remains near the visible rail bottom
+- **THEN** the navigation remains viewport-stable and logout remains reachable without page-content height controlling its position
 
 ### Requirement: Admin Exam Workspace Visual Hierarchy
 The admin exam workspace SHALL present one page title, exam lifecycle status and server observation time, one advisory next-action treatment, readiness and blockers, aggregate operational summaries, and deep links in that order of attention. It MUST preserve the aggregate, privacy, freshness, polling, and advisory semantics defined by the `admin-exam-workspace` capability.
@@ -518,27 +582,41 @@ The admin exam workspace SHALL present one page title, exam lifecycle status and
 - **AND** related deep links use existing destinations
 
 ### Requirement: Exam Focus Visual Contract
-The active exam interface SHALL preserve a specialized focus composition that keeps the current question, options, timer, answer-save state and recovery, navigator, progress, and submit action reachable and semantically exposed on desktop and mobile. Visual-system changes MUST NOT alter start, save, submit, deadline, scoring, snapshot, retake, or auto-submit semantics defined by `exam-delivery`.
+The active exam interface SHALL use a dedicated, task-only composition that keeps the current question, semantically grouped options, timer, answer-save state and recovery, navigator, progress, guarded exit, and submit action reachable on desktop and mobile. It MUST NOT render unrelated ordinary candidate navigation while an attempt is active. Visual and accessibility changes MUST NOT alter start, save, submit, deadline, scoring, snapshot, retake, or auto-submit semantics defined by `exam-delivery`.
 
 #### Scenario: Active exam renders on desktop
 - **WHEN** an in-progress attempt renders at a desktop width
 - **THEN** the question remains the primary content and the navigator remains an adjacent, scan-friendly secondary region
-- **AND** timer, save state, progress, and submit remain reachable without ordinary-page chrome competing for attention
+- **AND** timer, save state, progress, guarded exit, and submit remain reachable without ordinary-page chrome competing for attention
 
 #### Scenario: Active exam renders on mobile
-- **WHEN** an in-progress attempt renders at a narrow viewport
-- **THEN** progress and navigation remain available through the documented bottom control and sheet pattern
-- **AND** safe-area spacing prevents those controls from covering the question, feedback, or submit action
+- **WHEN** an in-progress attempt renders at a narrow or short viewport
+- **THEN** progress and navigation remain available through a dynamic-viewport-aware control and reachable overlay
+- **AND** safe-area spacing prevents controls from covering the question, feedback, or submit action
+
+#### Scenario: Exam Focus controls provide touch targets
+- **WHEN** option, navigation, guarded-exit, save, or submit actions render in an Exam Focus touch layout
+- **THEN** each action exposes a hit area of at least 44 by 44 CSS pixels without overlapping another action
+- **AND** target sizing does not hide labels, answer content, persistence state, or safe-area spacing
+
+#### Scenario: Candidate answers a single-choice question
+- **WHEN** the active question accepts one option
+- **THEN** its options expose radio-group semantics and expected keyboard navigation while preserving the existing answer value and save request
+
+#### Scenario: Candidate requests to leave
+- **WHEN** the candidate activates the attempt exit action
+- **THEN** a semantically complete guarded warning explains the consequence, places focus on the safe action, and restores focus when dismissed
+- **AND** confirmed navigation still uses the existing destination and unsaved-work rules
 
 #### Scenario: Answer persistence state changes
 - **WHEN** an answer is pending, saving, saved, offline, conflicted, or failed
-- **THEN** the visible state and recovery action use the canonical status language and semantic feedback
+- **THEN** visible state and recovery use canonical Chinese status language and accessible feedback
 - **AND** the interface does not announce a saved state until persistence is confirmed
 
 #### Scenario: Attempt reaches submission state
 - **WHEN** a user submits or the delivery system auto-submits an attempt
 - **THEN** the interface distinguishes pending, failed, submitted, and auto-submitted outcomes through text and accessible state
-- **AND** the submit action cannot be confused with ordinary answer saving
+- **AND** submit cannot be confused with ordinary answer saving
 
 ### Requirement: Motion and Reduced-Motion Consistency
 The frontend SHALL use named duration and easing tokens for permitted motion. Motion MUST support comprehension or state change, MUST be limited to transform and opacity where practical, and MUST provide a non-animated or minimal-opacity alternative when reduced motion is requested.
@@ -559,22 +637,65 @@ The frontend SHALL use named duration and easing tokens for permitted motion. Mo
 - **AND** reduced-motion mode does not delay access to its controls
 
 ### Requirement: Rendered Visual Acceptance Evidence
-A visual-system change SHALL NOT be considered complete from static source inspection alone. Representative Candidate Calm, Admin Workbench, Auth Canvas, and Exam Focus routes MUST have automated checks and rendered browser evidence for their relevant states and viewport matrix. The evidence MUST be summarized in `docs/handoff.md`, and the implemented contract MUST remain synchronized with `frontend/DESIGN.md`.
+A presentation-system change SHALL NOT be considered complete from static source inspection alone. The representative Auth Canvas, Candidate Calm, Admin Workbench, and Exam Focus routes MUST pass before broad migration, and every current route MUST subsequently have an applicable automated contract check or rendered browser observation for its family, relevant states, and viewport conditions. Evidence MUST be summarized in `docs/handoff.md`, and the implemented contract MUST remain synchronized with `frontend/DESIGN.md`.
 
 #### Scenario: Representative route matrix is verified
-- **WHEN** implementation verification runs
-- **THEN** representative list, form, workspace, report, auth, active-exam, and result surfaces are rendered at their required mobile, tablet, desktop, zoom, and reduced-motion conditions
-- **AND** evidence confirms page family, heading hierarchy, surface containment, action reachability, visible focus, and absence of horizontal overflow or covered controls
+- **WHEN** the first migration batch is evaluated
+- **THEN** candidate login, exam list, active exam, result, admin dashboard, question form, and representative report surfaces are rendered at required mobile, tablet, desktop, zoom, and reduced-motion conditions
+- **AND** broad route migration does not begin until the shared hierarchy, containment, actions, focus, and overflow checks pass
+
+#### Scenario: Full current route inventory is verified
+- **WHEN** the remaining presentation migration is complete
+- **THEN** every current frontend route is mapped to a page family and has applicable ready, loading, empty, error, pending, success, long-content, or other relevant state evidence
+- **AND** evidence confirms heading order, action reachability, visible focus, containment, readable Chinese copy, and absence of covered controls or horizontal overflow
 
 #### Scenario: Browser exposes a visual or runtime regression
-- **WHEN** a representative route has an unexpected console error, horizontal overflow, obscured action, missing focus indicator, unreadable state, or broken hierarchy
-- **THEN** the visual-system change remains incomplete until the issue is corrected or an explicit scoped exception is documented
+- **WHEN** a route has an unexpected console error, horizontal overflow, obscured action, missing focus indicator, unreadable state, broken hierarchy, or ungoverned decorative treatment
+- **THEN** the change remains incomplete until the issue is corrected or a narrow documented exception is approved
 
 #### Scenario: Specialized focus route is assessed
 - **WHEN** Exam Focus is included in visual acceptance
-- **THEN** it is evaluated against the Exam Focus contract rather than ordinary `PageHeader`, admin navigation, or footer expectations
+- **THEN** it is evaluated against the dedicated Exam Focus contract rather than ordinary page-header or candidate-navigation expectations
 
 #### Scenario: Disposable browser evidence is recorded
 - **WHEN** local or containerized browser evidence passes
-- **THEN** the handoff identifies the environment and covered viewports
+- **THEN** the handoff identifies the environment, browser, route states, and covered viewports
 - **AND** it does not present that evidence as formal Mac or Windows acceptance unless the corresponding host workflow was actually run
+
+### Requirement: Exam Result Information Hierarchy
+The candidate result experience SHALL present outcome, score or pass summary, available attempt context, breakdown or filtering, and question review in a stable task order. Available attempt context MUST be derived only from current route or query state and fields already returned by existing result queries. The presentation MAY be recomposed, but it MUST preserve the current result data, filter behavior, answer correctness, snapshot-based review, and navigation semantics without requiring a new endpoint or response field. Result hierarchy MUST use one primary summary treatment and MUST NOT create competing nested summary cards for the same outcome.
+
+#### Scenario: Candidate opens a completed result
+- **WHEN** a submitted attempt result is available
+- **THEN** the page first communicates the outcome and primary score or pass information, then supporting attempt context and review controls
+- **AND** the same data and correctness semantics remain available after the visual recomposition
+
+#### Scenario: Result context is limited to existing data
+- **WHEN** the redesigned result summary needs attempt context
+- **THEN** it uses only the existing route parameters, selected attempt identifier, and result fields already available to the page
+- **AND** it does not add or require an API request, endpoint, or response field
+
+#### Scenario: Candidate filters or reviews result questions
+- **WHEN** the candidate changes a result filter or opens question review content
+- **THEN** the active filter, question order, saved answer, correct answer, analysis, and awarded score remain consistent with the existing result behavior
+- **AND** the review region remains visually subordinate to the primary result summary without nested-card duplication
+
+#### Scenario: Result is viewed on a narrow viewport
+- **WHEN** the result summary and review render at a supported mobile width or 200 percent zoom
+- **THEN** outcome, score, filters, and review actions remain readable and reachable without horizontal overflow or covered content
+
+### Requirement: Presentation-System Drift Governance
+The frontend SHALL enforce the canonical presentation contract through automated source policy, a documented exception allowlist, route-family coverage, and observed rendered evidence. A passing build alone MUST NOT establish visual completion.
+
+#### Scenario: Source introduces a governed visual bypass
+- **WHEN** changed production source introduces a raw color, undeclared font asset, arbitrary typography or tracking value, independent page-width owner, duplicated surface treatment, or unsupported responsive breakpoint
+- **THEN** an automated policy check fails unless the usage is a documented narrow exception
+
+#### Scenario: Representative pattern is approved for broad migration
+- **WHEN** a shared page, surface, field, status, action, report, data, or navigation pattern passes its representative route checks
+- **THEN** remaining routes reuse that approved contract rather than creating page-specific visual variants
+
+#### Scenario: Canonical documentation or evidence drifts
+- **WHEN** implementation changes a governed presentation rule or verification result
+- **THEN** `frontend/DESIGN.md` and the relevant automated checks are updated with the implementation
+- **AND** `docs/handoff.md` records only commands and browser evidence actually observed
