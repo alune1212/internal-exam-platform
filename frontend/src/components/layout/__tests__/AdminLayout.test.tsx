@@ -61,7 +61,7 @@ describe("AdminLayout", () => {
       "href",
       "/admin/dashboard",
     );
-    expect(screen.getByRole("link", { name: "考试" })).toHaveAttribute("href", "/admin/exams");
+    expect(screen.getByRole("link", { name: "考试编排" })).toHaveAttribute("href", "/admin/exams");
     expect(screen.queryByRole("link", { name: "返回考试列表首页" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "学习" })).not.toHaveAttribute("href", "/learning");
     expect(screen.queryByRole("region", { name: "题号导航" })).not.toBeInTheDocument();

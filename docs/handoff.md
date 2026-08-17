@@ -407,6 +407,36 @@ under `.runtime/e2e/browser-output/` remain disposable engineering evidence;
 they are not formal Mac/Windows host acceptance, Safari/iOS/Android acceptance,
 real-device UAT, or a production promotion decision.
 
+## Admin Navigation Hierarchy Verification (2026-08-17)
+
+The shared admin navigation now hides single-destination group labels visually
+while retaining their `aria-labelledby` semantics. Multi-destination labels use
+a caption-and-rule treatment, destination rows keep 48px targets with distinct
+hover/active/focus states, and desktop/mobile share the same four-block rhythm.
+The `/admin/exams` destination is labelled `考试编排`; its route, active pattern,
+order, group ID, and permission boundary are unchanged.
+
+Observed final engineering gates:
+
+- `npm run format:check`, `npm run lint`, `npm run build`, and
+  `npm run check:offline` passed; Vitest passed `92/92` files and `581/581`
+  tests, including `26/26` focused layout tests.
+- `sh ops/e2e/run-browser-gate.sh` passed `244/244` Playwright cases and
+  removed its disposable containers, network, and data volumes afterward.
+- OpenSpec strict validation passed `14/14`; `git diff --check` passed.
+- The daily Compose stack was rebuilt with `up -d --build` without removing
+  persistent volumes. Candidate health, operator readiness, migration head,
+  and candidate/admin route separation remained correct.
+- Rendered desktop and mobile checks confirmed label hierarchy, 24px block
+  separation, 8px label-to-links spacing, 4px adjacent-link spacing, active
+  navigation, menu close behavior, zero horizontal overflow, and no related
+  console errors.
+
+This pass did not change backend code, API or route contracts, authentication,
+exam behavior, dependencies, migrations, or OpenSpec artifacts. The rendered
+checks are local Chromium engineering evidence, not formal real-device or
+designated-host acceptance.
+
 ## Known Gaps
 
 - The local real-SMTP UAT is complete, but real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, the formal-host SMTP rerun, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.

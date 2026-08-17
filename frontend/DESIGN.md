@@ -1,7 +1,7 @@
 ---
 version: 2.0
 name: internal-exam-platform-academic-editorial-v2
-updated: 2026-08-14
+updated: 2026-08-17
 status: canonical-contract
 description: >-
   Canonical V2 visual, interaction, copy, ownership, and verification contract
@@ -519,13 +519,22 @@ desktop rail and mobile sheet. Each current primary destination appears once:
 | ----- | --------------------------------------------------------------------------------------- |
 | 概览  | 仪表盘 (`/admin/dashboard`)                                                             |
 | 内容  | 题库, 题库导入, 学习 (`/admin/questions`, `/admin/questions/import`, `/admin/learning`) |
-| 考试  | 考试 and exam-scoped work (`/admin/exams`)                                              |
+| 考试  | 考试编排 and exam-scoped work (`/admin/exams`)                                          |
 | 复盘  | 报表 (`/admin/reports/scores`, with existing report patterns)                           |
 | 系统  | 用户账户, 运维 (`/admin/accounts`, `/admin/operations`)                                 |
 
 The active item and active group are exposed visually and semantically. Rail
 height/scroll behavior remains stable on desktop. The mobile sheet uses the
 same order and has a labelled navigation region plus reachable logout.
+Groups with multiple destinations render a visible group label. A group with
+one destination keeps its label available to assistive technology but hides it
+visually so the label is not repeated immediately above its only link.
+Visible group labels use the caption role plus a restrained trailing rule;
+navigation links remain full-row 48px targets with higher text contrast and
+distinct hover, active, and focus-visible states. The desktop rail and mobile
+sheet share four visual blocks: dashboard, content, exam/report, and system.
+Blocks use 24px separation, visible labels use 8px separation from their link
+list, and adjacent links use 4px separation. Hidden labels add no visual gap.
 
 ### Exam context navigation
 
@@ -680,6 +689,11 @@ change.
 
 ## Changelog
 
+- **2026-08-17** — Clarified grouped admin navigation with visually hidden
+  single-destination labels, caption-and-rule multi-destination labels, four
+  stable spacing blocks, stronger link affordances, and the task-specific
+  `考试编排` destination label while preserving assistive-technology labels,
+  shared desktop/mobile structure, active state, and route targets.
 - **2026-08-14** — V2 converged the canonical contract around the live CSS token
   source, offline font stacks and CJK fallbacks, typed breakpoints, four page
   families, the application/session-to-responsive-data single-owner graph,

@@ -30,7 +30,16 @@ function renderSideRail(initialPath: string, matches = true) {
 }
 
 describe("AdminSideRail", () => {
-  const primaryLabels = ["仪表盘", "用户账户", "考试", "题库", "题库导入", "学习", "报表", "运维"];
+  const primaryLabels = [
+    "仪表盘",
+    "用户账户",
+    "考试编排",
+    "题库",
+    "题库导入",
+    "学习",
+    "报表",
+    "运维",
+  ];
 
   it("renders every primary admin destination exactly once", () => {
     renderSideRail("/admin/dashboard");
@@ -38,7 +47,7 @@ describe("AdminSideRail", () => {
     expect(screen.getByRole("link", { name: "用户账户" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "题库导入" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "考试" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "考试编排" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "学习" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "报表" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "运维" })).toBeInTheDocument();
@@ -92,17 +101,95 @@ describe("AdminSideRail", () => {
       "题库",
       "题库导入",
       "学习",
-      "考试",
+      "考试编排",
       "报表",
       "用户账户",
       "运维",
     ]);
     expect(
-      screen
-        .getAllByText(/^(概览|内容|考试|复盘|系统)/)
-        .filter((label) => label.tagName === "P")
-        .map((label) => label.textContent?.replace(" · 当前分组", "")),
-    ).toEqual(["概览", "内容", "考试", "复盘", "系统"]);
+      ["content", "system"].map(
+        (groupId) =>
+          screen.getByRole("navigation").querySelector(`#admin-nav-group-${groupId}`)?.textContent,
+      ),
+    ).toEqual(["内容", "系统"]);
+  });
+
+  it("uses a stable four-block rhythm with explicit group and link spacing", () => {
+    renderSideRail("/admin/dashboard");
+    const nav = screen.getByRole("navigation", { name: "管理后台导航" });
+    const groups = Array.from(nav.querySelectorAll<HTMLElement>("section[data-nav-group-id]"));
+
+    expect(nav).toHaveClass("gap-1");
+    expect(groups.map((group) => group.dataset.navGroupId)).toEqual([
+      "overview",
+      "content",
+      "exams",
+      "review",
+      "system",
+    ]);
+    expect(groups.map((group) => group.dataset.visualBreakBefore)).toEqual([
+      "false",
+      "true",
+      "true",
+      "false",
+      "true",
+    ]);
+
+    for (const group of groups) {
+      expect(group).toHaveClass("gap-2");
+      const links = within(group).getAllByRole("link");
+      expect(links[0]?.parentElement).toHaveClass("gap-1");
+    }
+  });
+
+  it("separates visible group headings with a hairline divider", () => {
+    renderSideRail("/admin/dashboard");
+    const nav = screen.getByRole("navigation", { name: "管理后台导航" });
+
+    for (const groupId of ["content", "system"]) {
+      const title = nav.querySelector<HTMLElement>(`#admin-nav-group-${groupId}`);
+      expect(title).toHaveClass("flex", "items-center", "gap-2");
+      expect(title?.querySelector("[data-nav-group-divider]")).toHaveClass("h-px", "flex-1");
+      expect(title?.querySelector("[data-nav-group-divider]")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+    }
+
+    for (const groupId of ["overview", "exams", "review"]) {
+      const title = nav.querySelector<HTMLElement>(`#admin-nav-group-${groupId}`);
+      expect(title?.querySelector("[data-nav-group-divider]")).not.toBeInTheDocument();
+    }
+  });
+
+  it("hides single-item group labels while preserving navigation semantics", () => {
+    renderSideRail("/admin/dashboard");
+    const nav = screen.getByRole("navigation", { name: "管理后台导航" });
+
+    for (const groupId of ["overview", "exams", "review"]) {
+      const title = nav.querySelector<HTMLElement>(`#admin-nav-group-${groupId}`);
+      expect(title).toHaveClass("sr-only");
+      expect(title?.closest("section")).toHaveAttribute(
+        "aria-labelledby",
+        `admin-nav-group-${groupId}`,
+      );
+    }
+
+    for (const groupId of ["content", "system"]) {
+      const title = nav.querySelector<HTMLElement>(`#admin-nav-group-${groupId}`);
+      expect(title).not.toHaveClass("sr-only");
+      expect(title?.closest("section")).toHaveAttribute(
+        "aria-labelledby",
+        `admin-nav-group-${groupId}`,
+      );
+    }
+
+    expect(nav.querySelector("#admin-nav-group-exams")).toHaveTextContent("考试");
+    expect(within(nav).getByRole("link", { name: "考试编排" })).toHaveAttribute(
+      "href",
+      "/admin/exams",
+    );
+    expect(within(nav).queryByRole("link", { name: "考试" })).not.toBeInTheDocument();
   });
 
   it("renders the dark wordmark with the admin subtitle", () => {
@@ -135,8 +222,25 @@ describe("AdminSideRail", () => {
 
     expect(importLink).toHaveClass("bg-canvas");
     expect(importLink).toHaveClass("text-ink");
-    expect(questionLink).toHaveClass("text-footer-soft");
+    expect(questionLink).toHaveClass("text-canvas");
+    expect(questionLink).toHaveClass("hover:bg-white/10");
+    expect(questionLink).toHaveClass("focus-visible:ring-canvas");
+    expect(questionLink).toHaveClass("focus-visible:ring-offset-footer");
     expect(questionLink).not.toHaveClass("bg-canvas");
+  });
+
+  it("keeps dark active and inactive links visually distinct and focusable", () => {
+    renderSideRail("/admin/dashboard");
+    const activeLink = screen.getByRole("link", { name: "仪表盘" });
+    const inactiveLink = screen.getByRole("link", { name: "题库" });
+
+    expect(activeLink).toHaveClass("bg-canvas", "text-ink");
+    expect(activeLink).toHaveClass("focus-visible:ring-canvas");
+    expect(activeLink).toHaveClass("focus-visible:ring-offset-footer");
+    expect(inactiveLink).toHaveClass("text-canvas", "hover:bg-white/10");
+    expect(inactiveLink).toHaveClass("focus-visible:ring-canvas");
+    expect(inactiveLink).toHaveClass("focus-visible:ring-offset-footer");
+    expect(inactiveLink).not.toHaveClass("text-footer-soft");
   });
 
   it("keeps the reports nav item active across report subpages", () => {
@@ -217,17 +321,52 @@ describe("AdminSideRail", () => {
       "题库",
       "题库导入",
       "学习",
-      "考试",
+      "考试编排",
       "报表",
       "用户账户",
       "运维",
     ]);
-    expect(screen.getByRole("link", { name: "考试" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "考试编排" })).toHaveAttribute("aria-current", "page");
     expect(document.getElementById("admin-nav-group-exams")?.closest("section")).toHaveAttribute(
       "data-active-group",
       "true",
     );
-    expect(within(nav).getByRole("link", { name: "考试" })).toHaveAttribute("data-active", "true");
+    const activeLink = within(nav).getByRole("link", { name: "考试编排" });
+    expect(activeLink).toHaveAttribute("data-active", "true");
+    expect(activeLink).toHaveClass(
+      "bg-surface-card",
+      "text-ink",
+      "focus-visible:ring-ink",
+      "focus-visible:ring-offset-canvas",
+    );
+  });
+
+  it("applies the same single-item label visibility rule in the mobile sheet", async () => {
+    const user = userEvent.setup();
+    renderSideRail("/admin/dashboard", false);
+
+    await user.click(screen.getByRole("button", { name: "打开菜单" }));
+
+    const nav = await screen.findByRole("navigation", { name: "管理后台导航" });
+    for (const groupId of ["overview", "exams", "review"]) {
+      const title = nav.querySelector<HTMLElement>(`#admin-nav-group-${groupId}`);
+      expect(title).toHaveClass("sr-only");
+      expect(title?.closest("section")).toHaveAttribute(
+        "aria-labelledby",
+        `admin-nav-group-${groupId}`,
+      );
+    }
+
+    for (const groupId of ["content", "system"]) {
+      const title = nav.querySelector<HTMLElement>(`#admin-nav-group-${groupId}`);
+      expect(title).not.toHaveClass("sr-only");
+    }
+
+    expect(nav.querySelector("#admin-nav-group-exams")).toHaveTextContent("考试");
+    expect(within(nav).getByRole("link", { name: "考试编排" })).toHaveAttribute(
+      "href",
+      "/admin/exams",
+    );
   });
 
   it("keeps mobile navigation internally scrollable with a reachable logout", async () => {
@@ -263,6 +402,18 @@ describe("AdminSideRail", () => {
         .getAllByRole("link")
         .map((link) => link.getAttribute("href")),
     ).toEqual(desktopTargets);
+
+    const readGroupLayout = (nav: HTMLElement) =>
+      Array.from(nav.querySelectorAll<HTMLElement>("section[data-nav-group-id]")).map((group) => ({
+        id: group.dataset.navGroupId,
+        visibleLabel: !group.querySelector("p")?.classList.contains("sr-only"),
+        visualBreakBefore: group.dataset.visualBreakBefore,
+        className: group.className,
+        linkContainerClassName: group.querySelector("p + div")?.className,
+        dividerPresent: Boolean(group.querySelector("[data-nav-group-divider]")),
+      }));
+
+    expect(readGroupLayout(mobileNav)).toEqual(readGroupLayout(desktopNav));
   });
 
   it("uses high-contrast light link colors inside the mobile sheet", async () => {
@@ -272,12 +423,13 @@ describe("AdminSideRail", () => {
     await user.click(screen.getByRole("button", { name: "打开菜单" }));
 
     const inactiveLink = await screen.findByRole("link", { name: "题库" });
-    expect(inactiveLink).toHaveClass("text-body-sm");
-    expect(inactiveLink).toHaveClass("text-muted");
+    expect(inactiveLink).toHaveClass("text-body");
     expect(inactiveLink).toHaveClass("hover:bg-surface-card");
     expect(inactiveLink).toHaveClass("hover:text-ink");
-    expect(inactiveLink).not.toHaveClass("text-footer-soft");
-    expect(inactiveLink).not.toHaveClass("hover:text-white");
+    expect(inactiveLink).toHaveClass("focus-visible:ring-ink");
+    expect(inactiveLink).toHaveClass("focus-visible:ring-offset-canvas");
+    expect(inactiveLink).not.toHaveClass("text-muted");
+    expect(inactiveLink).not.toHaveClass("hover:text-canvas");
   });
 
   it("marks the mobile sticky header as scrolled after the page scrolls", async () => {

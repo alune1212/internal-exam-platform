@@ -61,7 +61,7 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
       {
         id: "exams",
         to: "/admin/exams",
-        label: "考试",
+        label: "考试编排",
         activePattern: /^\/admin\/exams(?:\/|$)/,
       },
     ],
@@ -108,13 +108,17 @@ function SidebarList({
   const { pathname } = useLocation();
 
   return (
-    <nav aria-label="管理后台导航" data-navigation-tone={tone} className="flex flex-col gap-5">
-      {ADMIN_NAVIGATION_GROUPS.map((group) => {
+    <nav aria-label="管理后台导航" data-navigation-tone={tone} className="flex flex-col gap-1">
+      {ADMIN_NAVIGATION_GROUPS.map((group, groupIndex) => {
         const itemsWithActive = group.items.map((item) => ({
           item,
           active: itemIsActive(item, pathname),
         }));
         const groupIsActive = itemsWithActive.some(({ active }) => active);
+        const showGroupLabel = group.items.length > 1;
+        const previousGroupShowsLabel =
+          groupIndex > 0 && ADMIN_NAVIGATION_GROUPS[groupIndex - 1].items.length > 1;
+        const startsVisualBlock = groupIndex > 0 && (showGroupLabel || previousGroupShowsLabel);
         const groupTitleId = `admin-nav-group-${group.id}`;
 
         return (
@@ -123,17 +127,35 @@ function SidebarList({
             aria-labelledby={groupTitleId}
             data-nav-group-id={group.id}
             data-active-group={groupIsActive ? "true" : "false"}
-            className="flex flex-col gap-1"
+            data-visible-group-label={showGroupLabel ? "true" : "false"}
+            data-visual-break-before={startsVisualBlock ? "true" : "false"}
+            className={cn("flex flex-col gap-2", startsVisualBlock && "mt-5")}
           >
             <p
               id={groupTitleId}
-              className={cn(
-                "px-3 text-caption font-semibold uppercase tracking-caption",
-                tone === "dark" ? "text-footer-soft" : "text-muted",
-              )}
+              className={
+                showGroupLabel
+                  ? cn(
+                      "flex items-center gap-2 px-3 text-caption font-semibold uppercase tracking-caption",
+                      tone === "dark" ? "text-footer-soft" : "text-muted",
+                    )
+                  : "sr-only"
+              }
             >
-              {group.label}
-              {groupIsActive ? <span className="sr-only"> · 当前分组</span> : null}
+              <span className="shrink-0">
+                {group.label}
+                {groupIsActive ? <span className="sr-only"> · 当前分组</span> : null}
+              </span>
+              {showGroupLabel ? (
+                <span
+                  aria-hidden="true"
+                  data-nav-group-divider
+                  className={cn(
+                    "h-px min-w-0 flex-1",
+                    tone === "dark" ? "bg-footer-soft opacity-40" : "bg-hairline",
+                  )}
+                />
+              ) : null}
             </p>
             <div className="flex flex-col gap-1">
               {itemsWithActive.map(({ item, active }) => (
@@ -149,14 +171,18 @@ function SidebarList({
                     const resolvedActive = isActive || active;
 
                     return cn(
-                      "flex min-h-12 w-full min-w-0 items-center break-words rounded-md px-3 py-3 text-left text-body-sm font-medium leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2",
+                      "flex min-h-12 w-full min-w-0 items-center break-words rounded-md px-3 py-3 text-left text-body-sm font-medium leading-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
                       tone === "dark"
-                        ? resolvedActive
-                          ? "bg-canvas text-ink"
-                          : "text-footer-soft hover:text-canvas"
-                        : resolvedActive
-                          ? "bg-surface-card text-ink"
-                          : "text-muted hover:bg-surface-card hover:text-ink",
+                        ? cn(
+                            "focus-visible:ring-canvas focus-visible:ring-offset-footer",
+                            resolvedActive ? "bg-canvas text-ink" : "text-canvas hover:bg-white/10",
+                          )
+                        : cn(
+                            "focus-visible:ring-ink focus-visible:ring-offset-canvas",
+                            resolvedActive
+                              ? "bg-surface-card text-ink"
+                              : "text-body hover:bg-surface-card hover:text-ink",
+                          ),
                     );
                   }}
                 >
