@@ -323,8 +323,29 @@ export function formatExamStatus(status?: string | null) {
   return status ? (examStatusCopy[status] ?? "未知状态") : "未知状态";
 }
 
+/**
+ * Map an exam.status string to the editorial pill variant. `active` and the
+ * legacy aliases (`live`, `published`) read as in-flight; `archived` and
+ * its closing aliases (`ended`, `closed`) read as warning.
+ */
+export function examStatusVariant(status: string): "success" | "warning" | "default" {
+  if (status === "active" || status === "live" || status === "published") return "success";
+  if (status === "archived" || status === "ended" || status === "closed") return "warning";
+  return "default";
+}
+
 export function formatExamAvailability(status?: string | null) {
   return status ? (examAvailabilityCopy[status] ?? "未知开放状态") : "未知开放状态";
+}
+
+/**
+ * Format an ISO timestamp with the zh-CN locale; falls back to the raw value
+ * when the input is not a valid date (mirrors how admin dashboards display
+ * sentinel strings like `"-"`).
+ */
+export function formatObservedAt(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
 }
 
 export function formatAttemptStatus(status?: string | null) {

@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { ContextLabel } from "@/components/editorial/ContextLabel";
+import { hasMeaningfulContent } from "@/lib/children";
 import { cn } from "@/lib/utils";
 
 import { PageActions } from "./PageActions";
@@ -18,13 +19,6 @@ export interface PageHeaderProps extends Omit<React.HTMLAttributes<HTMLElement>,
   title: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
-}
-
-function hasMeaningfulContent(value: React.ReactNode): boolean {
-  if (value === null || value === undefined || typeof value === "boolean") return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some(hasMeaningfulContent);
-  return true;
 }
 
 export function PageHeader({

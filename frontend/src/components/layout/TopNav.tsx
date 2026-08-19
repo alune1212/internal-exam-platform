@@ -13,6 +13,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { isNavItemActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { candidateActionCopy } from "@/lib/pageCopy";
 import { useScrolled } from "@/lib/useScrolled";
@@ -38,18 +39,13 @@ export const CANDIDATE_NAVIGATION_ITEMS: readonly NavItem[] = [
   { to: "/exams", label: "考试", end: true },
 ];
 
-function candidateNavigationItemIsActive(item: NavItem, pathname: string) {
-  if (item.activePattern?.test(pathname)) return true;
-  return item.end ? pathname === item.to : pathname.startsWith(`${item.to}/`);
-}
-
 type TopNavProps = {
   candidate: Candidate | null;
   onLogout: () => void;
 };
 
 function NavLinkItem({ item, pathname }: { item: NavItem; pathname: string }) {
-  const active = candidateNavigationItemIsActive(item, pathname);
+  const active = isNavItemActive(item, pathname);
 
   return (
     <NavLink
@@ -80,7 +76,7 @@ function MobileNavLink({
   pathname: string;
   onNavigate: () => void;
 }) {
-  const active = candidateNavigationItemIsActive(item, pathname);
+  const active = isNavItemActive(item, pathname);
 
   return (
     <NavLink

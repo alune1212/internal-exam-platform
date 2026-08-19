@@ -6,7 +6,7 @@ import { ApiError, getErrorMessage } from "@/api/client";
 import { getExamWorkspace } from "@/api/exams";
 import { ExamContextNav } from "@/components/admin/ExamContextNav";
 import { MetricCard } from "@/components/admin/MetricCard";
-import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
+import { StatusPill } from "@/components/editorial/StatusPill";
 import {
   PageActions,
   PageHeader,
@@ -17,11 +17,18 @@ import {
 } from "@/components/page";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { adminPageCopy, formatExamStatus } from "@/lib/pageCopy";
+import {
+  adminPageCopy,
+  examStatusVariant,
+  formatExamStatus,
+  formatObservedAt,
+} from "@/lib/pageCopy";
 import { adminKeys } from "@/lib/queryKeys";
 import type { ExamWorkspaceNextAction, ExamWorkspaceRead } from "@/types/exam";
 
 const WORKSPACE_POLL_INTERVAL_MS = 15_000;
+// Backend emits only `active`; `published` and `live` are kept as defensive
+// aliases for label mapping. Polling fires only while the exam is truly live.
 const ACTIVE_EXAM_STATUSES = new Set(["active", "published", "live"]);
 
 const nextActionCopy: Record<ExamWorkspaceNextAction, { label: string; description: string }> = {
@@ -53,15 +60,31 @@ const nextActionCopy: Record<ExamWorkspaceNextAction, { label: string; descripti
 
 type SummaryItem = { label: string; value: number; tone?: "default" | "success" | "warning" };
 
-function statusVariant(status: string): StatusPillVariant {
-  if (ACTIVE_EXAM_STATUSES.has(status)) return "success";
-  if (status === "archived" || status === "ended" || status === "closed") return "warning";
-  return "default";
-}
+function WorkspaceIssueList({
+  variant,
+  title,
+  ariaLabel,
+  issues,
+}: {
+  variant: "error" | "warning";
+  title: string;
+  ariaLabel: string;
+  issues: ReadonlyArray<{ code: string; message: string }>;
+}) {
+  if (issues.length === 0) return null;
 
-function formatObservedAt(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
+  return (
+    <Alert variant={variant} aria-label={ariaLabel}>
+      <AlertTitle>{title}</AlertTitle>
+      <AlertDescription>
+        <ul className="list-disc space-y-2 pl-5">
+          {issues.map((issue) => (
+            <li key={issue.code}>{issue.message}</li>
+          ))}
+        </ul>
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 function actionHref(examId: string, action: ExamWorkspaceNextAction) {
@@ -92,14 +115,12 @@ function actionHref(examId: string, action: ExamWorkspaceNextAction) {
 function SummaryGroup({ title, items }: { title: string; items: SummaryItem[] }) {
   return (
     <PageSection variant="plain" className="gap-3" aria-labelledby={`${title}-summary-title`}>
-      <div className="flex items-baseline justify-between gap-3">
-        <h2
-          id={`${title}-summary-title`}
-          className="min-w-0 break-words font-display text-display-sm text-ink"
-        >
-          {title}
-        </h2>
-      </div>
+      <h2
+        id={`${title}-summary-title`}
+        className="min-w-0 break-words font-display text-display-sm text-ink"
+      >
+        {title}
+      </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((item) => (
           <MetricCard key={item.label} {...item} />
@@ -235,7 +256,7 @@ export function ExamWorkspacePage() {
         }
       >
         <div className="flex flex-wrap items-center gap-3">
-          <StatusPill variant={statusVariant(data.exam.status)}>
+          <StatusPill variant={examStatusVariant(data.exam.status)}>
             {formatExamStatus(data.exam.status)}
           </StatusPill>
           <span className="text-body-sm text-muted">
@@ -263,8 +284,7 @@ export function ExamWorkspacePage() {
         <AlertTitle>下一步建议</AlertTitle>
         <AlertDescription>
           <span className="font-medium text-ink">{nextAction.label}：</span>{" "}
-          <span data-next-action-reason>{data.next_action_reason || nextAction.description}</span>
-          {data.next_action_reason ? <span className="ml-1">{nextAction.description}</span> : null}
+          <span data-next-action-reason>{data.next_action_reason ?? nextAction.description}</span>
         </AlertDescription>
       </Alert>
 
@@ -279,29 +299,21 @@ export function ExamWorkspacePage() {
           </h2>
           <p className="text-body-sm text-muted">{readinessText(data)}</p>
         </div>
-        {data.readiness?.blockers.length ? (
-          <Alert variant="error" aria-label="发布阻断项">
-            <AlertTitle>发布阻断项</AlertTitle>
-            <AlertDescription>
-              <ul className="list-disc space-y-2 pl-5">
-                {data.readiness.blockers.map((issue) => (
-                  <li key={issue.code}>{issue.message}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {data.readiness?.warnings.length ? (
-          <Alert variant="warning" aria-label="发布警告">
-            <AlertTitle>发布警告</AlertTitle>
-            <AlertDescription>
-              <ul className="list-disc space-y-2 pl-5">
-                {data.readiness.warnings.map((issue) => (
-                  <li key={issue.code}>{issue.message}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
+        {data.readiness ? (
+          <>
+            <WorkspaceIssueList
+              variant="error"
+              title="发布阻断项"
+              ariaLabel="发布阻断项"
+              issues={data.readiness.blockers}
+            />
+            <WorkspaceIssueList
+              variant="warning"
+              title="发布警告"
+              ariaLabel="发布警告"
+              issues={data.readiness.warnings}
+            />
+          </>
         ) : null}
         <PageActions placement="card" aria-label="发布操作">
           <Button asChild size="sm">

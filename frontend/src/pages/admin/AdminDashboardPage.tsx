@@ -27,6 +27,10 @@ const ACTIVITY_STATUS_LABEL: Record<ActivityDotStatus, string> = {
   info: "提示",
 };
 
+function pickLatestUpdatedAt(...timestamps: Array<number | undefined>): number {
+  return Math.max(...timestamps.filter((value): value is number => typeof value === "number"));
+}
+
 function resolveActivityTime(value: string): { label: string; dateTime?: string } {
   if (value === "-") {
     return { label: value };
@@ -106,9 +110,12 @@ export function AdminDashboardPage() {
     (exams.isError && Boolean(exams.data)) ||
     (scores.isError && Boolean(scores.data)) ||
     (absent.isError && Boolean(absent.data));
-  const liveExams = (exams.data ?? []).filter(
-    (exam) => exam.status === "active" || exam.status === "live",
-  ).length;
+  const liveExams = React.useMemo(
+    () =>
+      (exams.data ?? []).filter((exam) => exam.status === "active" || exam.status === "live")
+        .length,
+    [exams.data],
+  );
   const hasMetricError = questionsError || examsError || scoresError || absentError;
   const activityUnavailable = (scores.isError && !scores.data) || (absent.isError && !absent.data);
 
@@ -137,16 +144,16 @@ export function AdminDashboardPage() {
     [scores.data, absent.data],
   );
 
-  const lastRefreshedLabel = React.useMemo(() => {
-    // Intl format only needs to refresh alongside the queries, not on every render.
-    const lastUpdate = Math.max(
-      questions.dataUpdatedAt,
-      exams.dataUpdatedAt,
-      scores.dataUpdatedAt,
-      absent.dataUpdatedAt,
-    );
-    return lastUpdate ? new Date(lastUpdate).toLocaleString("zh-CN") : "尚未刷新";
-  }, [questions.dataUpdatedAt, exams.dataUpdatedAt, scores.dataUpdatedAt, absent.dataUpdatedAt]);
+  const lastUpdate = pickLatestUpdatedAt(
+    questions.dataUpdatedAt,
+    exams.dataUpdatedAt,
+    scores.dataUpdatedAt,
+    absent.dataUpdatedAt,
+  );
+  const lastRefreshedLabel = React.useMemo(
+    () => (lastUpdate ? new Date(lastUpdate).toLocaleString("zh-CN") : "尚未刷新"),
+    [lastUpdate],
+  );
 
   return (
     <PageShell data-testid="admin-dashboard-shell" density="workbench" width="wide">
@@ -158,12 +165,7 @@ export function AdminDashboardPage() {
 
       {hasStaleData ? (
         <PageStaleNotice
-          lastSuccessfulAt={Math.max(
-            questions.dataUpdatedAt,
-            exams.dataUpdatedAt,
-            scores.dataUpdatedAt,
-            absent.dataUpdatedAt,
-          )}
+          lastSuccessfulAt={lastUpdate}
           onRetry={retryDashboard}
           retrying={
             questions.isFetching || exams.isFetching || scores.isFetching || absent.isFetching

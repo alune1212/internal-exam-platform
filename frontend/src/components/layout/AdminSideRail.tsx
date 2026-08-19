@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { isNavItemActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
@@ -94,8 +95,7 @@ export const ADMIN_NAVIGATION_GROUPS: readonly AdminNavigationGroup[] = [
 ];
 
 function itemIsActive(item: AdminNavigationItem, pathname: string) {
-  if (item.activePattern?.test(pathname)) return true;
-  return item.end ? pathname === item.to : pathname.startsWith(`${item.to}/`);
+  return isNavItemActive(item, pathname);
 }
 
 function SidebarList({

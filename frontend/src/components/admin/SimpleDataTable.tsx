@@ -19,6 +19,11 @@ import {
 import { MD, useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
+// Hoisted so every render of `<SimpleDataTable>` receives the same row-model
+// factory reference; TanStack downstream selectors can then memoize against
+// the table options without re-running for an identity-only change.
+const coreRowModel = getCoreRowModel();
+
 type MobilePriority = "primary" | "secondary" | false;
 
 declare module "@tanstack/react-table" {
@@ -98,7 +103,7 @@ export function SimpleDataTable<TData>({
   const table = useReactTable({
     data,
     columns,
-    getCoreRowModel: getCoreRowModel(),
+    getCoreRowModel: coreRowModel,
     getRowId: (row, index) =>
       rowKey ? String(rowKey(row)) : String((row as { id?: number | string }).id ?? index),
   });

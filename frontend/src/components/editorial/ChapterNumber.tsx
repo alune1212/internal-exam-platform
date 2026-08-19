@@ -1,16 +1,10 @@
 import * as React from "react";
 
+import { hasMeaningfulContent } from "@/lib/children";
 import { cn } from "@/lib/utils";
 
 export interface ChapterNumberProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode;
-}
-
-function hasMeaningfulContent(value: React.ReactNode): boolean {
-  if (value === null || value === undefined || typeof value === "boolean") return false;
-  if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some(hasMeaningfulContent);
-  return true;
 }
 
 export function ChapterNumber({ children, className, ...props }: ChapterNumberProps) {

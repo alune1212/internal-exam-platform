@@ -7,23 +7,18 @@ import { useState } from "react";
 import { getErrorMessage } from "@/api/client";
 import { createAdminExam, getAdminExams } from "@/api/exams";
 import { ReportPage } from "@/components/admin/ReportPage";
-import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
+import { StatusPill } from "@/components/editorial/StatusPill";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   adminPageCopy,
   adminPageText,
   adminTableCopy,
+  examStatusVariant,
   formatExamAvailability,
   formatExamStatus,
 } from "@/lib/pageCopy";
 import type { Exam } from "@/types/exam";
-
-function statusVariant(status: string): StatusPillVariant {
-  if (status === "active" || status === "live") return "success";
-  if (status === "archived" || status === "ended") return "warning";
-  return "default";
-}
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -70,7 +65,7 @@ const columns: ColumnDef<Exam>[] = [
     accessorKey: "status",
     header: adminTableCopy.status,
     cell: ({ row }) => (
-      <StatusPill variant={statusVariant(row.original.status)}>
+      <StatusPill variant={examStatusVariant(row.original.status)}>
         {formatExamStatus(row.original.status)}
       </StatusPill>
     ),
