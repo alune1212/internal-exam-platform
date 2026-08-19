@@ -9,6 +9,7 @@ import { ReportPage } from "@/components/admin/ReportPage";
 import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import { ReportToolbar } from "@/components/admin/ReportToolbar";
 import { adminPageCopy, adminPageText, adminTableCopy } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 import type { ScoreReportRow } from "@/types/report";
 
 type ScoreReportDisplayRow = ScoreReportRow & { rank: number | null };
@@ -75,7 +76,7 @@ const columns: ColumnDef<ScoreReportDisplayRow>[] = [
 ];
 
 export function ScoreReportPage() {
-  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
+  const exams = useQuery({ queryKey: adminKeys.exams(), queryFn: getAdminExams });
   const [selectedExamId, setSelectedExamId] = useState<string | null | undefined>(undefined);
   const examsLoadError = exams.isError && !exams.data;
   const examsPending = selectedExamId === undefined && !examsLoadError;

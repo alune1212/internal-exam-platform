@@ -16,7 +16,7 @@ import {
   PageState,
 } from "@/components/page";
 import { Button } from "@/components/ui/button";
-import { candidatePageCopy, candidatePageText, productTerms } from "@/lib/pageCopy";
+import { candidatePageCopy, candidatePageText, productGlossary } from "@/lib/pageCopy";
 import { setAttemptSession } from "@/lib/attemptSession";
 import { candidateDisplayName } from "@/types/candidate";
 
@@ -153,7 +153,7 @@ export function ExamStartPage() {
 
       {candidate ? (
         <PageSection variant="panel" className="gap-3">
-          <p className="text-status font-status text-muted">当前{productTerms.examTaker}</p>
+          <p className="text-status font-status text-muted">当前{productGlossary.examTaker}</p>
           <NamePlate name={candidateDisplayName(candidate)} subtitle="应考人员" />
         </PageSection>
       ) : null}

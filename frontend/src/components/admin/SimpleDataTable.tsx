@@ -113,17 +113,6 @@ export function SimpleDataTable<TData>({
   const tableRows = table.getRowModel().rows;
   const isEmpty = tableRows.length === 0;
   const renderRow = renderMobileRow ?? defaultMobileRow;
-  const mobileNodes = isEmpty
-    ? []
-    : tableRows.map((row) => (
-        <div
-          key={row.id}
-          data-testid="mobile-row-card"
-          className={cn(defaultMobileCardClassName(), mobileRowClassName?.(row.original))}
-        >
-          {renderRow(row)}
-        </div>
-      ));
 
   if (isEmpty) {
     if (shouldRenderTable) {
@@ -161,7 +150,15 @@ export function SimpleDataTable<TData>({
         data-table-mode="cards"
         className={cn("flex min-w-0 flex-col gap-3", className)}
       >
-        {mobileNodes}
+        {tableRows.map((row) => (
+          <div
+            key={row.id}
+            data-testid="mobile-row-card"
+            className={cn(defaultMobileCardClassName(), mobileRowClassName?.(row.original))}
+          >
+            {renderRow(row)}
+          </div>
+        ))}
       </div>
     );
   }

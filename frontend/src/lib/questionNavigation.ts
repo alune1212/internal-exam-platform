@@ -80,16 +80,19 @@ export function perTypeIndexOf<TQuestion extends { id: number; question_type: st
   questions: TQuestion[],
   questionId: number,
 ): number {
-  const target = questions.find((q) => q.id === questionId);
-  if (!target) return 0;
+  let targetType: string | null = null;
+  for (const question of questions) {
+    if (question.id === questionId) {
+      targetType = question.question_type;
+      break;
+    }
+  }
+  if (targetType === null) return 0;
   let count = 0;
   for (const question of questions) {
-    if (question.question_type === target.question_type) {
-      count += 1;
-      if (question.id === questionId) {
-        return count;
-      }
-    }
+    if (question.question_type !== targetType) continue;
+    count += 1;
+    if (question.id === questionId) return count;
   }
   return 0;
 }

@@ -55,8 +55,6 @@ export function useAttemptDraftQueue(attempt: Attempt | undefined, session: Atte
     }
   }, []);
 
-  useEffect(() => cancelPendingSave, [cancelPendingSave]);
-
   const buildAnswerItems = useCallback((): AnswerSaveItem[] => {
     if (!attempt) return [];
     return attempt.questions.map((question) => ({

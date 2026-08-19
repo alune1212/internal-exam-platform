@@ -98,9 +98,7 @@ export function ExamResultPage() {
 
   const visibleQuestions = result.questions
     .map((question, index) => ({ question, index }))
-    .filter(({ question }) =>
-      filter === "wrong" && !question.is_correct ? true : filter === "all",
-    );
+    .filter(({ question }) => filter === "all" || !question.is_correct);
 
   return (
     <PageShell density="calm" width="wide" stagger>

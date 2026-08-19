@@ -41,7 +41,7 @@ export function LoginPage() {
   const returnTo = getSafeReturnTo(searchParams.get("returnTo"));
   const context = useOutletContext<CandidateSessionContext | null>();
   const candidate = context?.candidate ?? null;
-  const loginCandidate = context?.loginCandidate ?? (() => undefined);
+  const loginCandidate = context?.loginCandidate;
   const [challenge, setChallenge] = useState<CandidateLoginChallenge | null>(null);
   const [challengeEmail, setChallengeEmail] = useState("");
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -71,7 +71,7 @@ export function LoginPage() {
           return;
         }
         clearRegistrationFlow();
-        loginCandidate({
+        loginCandidate?.({
           ...verification.account,
           status: "active",
           token: verification.token,

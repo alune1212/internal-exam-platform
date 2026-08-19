@@ -14,14 +14,15 @@ import {
   adminPageCopy,
   adminPageText,
   adminTableCopy,
-  formatAttemptStatusShort,
+  formatAttemptStatus,
 } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 import type { AbsentCandidateRow } from "@/types/report";
 
 const statusLabels: Record<AttendanceStatus, string> = {
-  not_started: formatAttemptStatusShort("not_started"),
-  in_progress: formatAttemptStatusShort("in_progress"),
-  submitted: formatAttemptStatusShort("submitted"),
+  not_started: formatAttemptStatus("not_started"),
+  in_progress: formatAttemptStatus("in_progress"),
+  submitted: formatAttemptStatus("submitted"),
 };
 
 const statusVariants: Record<AttendanceStatus, StatusPillVariant> = {
@@ -82,7 +83,7 @@ const columns: ColumnDef<AbsentCandidateRow>[] = [
 export function AbsentCandidatePage() {
   const [status, setStatus] = useState<AttendanceStatus>("not_started");
   const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
-  const exams = useQuery({ queryKey: ["admin", "exams"], queryFn: getAdminExams });
+  const exams = useQuery({ queryKey: adminKeys.exams(), queryFn: getAdminExams });
 
   return (
     <ReportPage

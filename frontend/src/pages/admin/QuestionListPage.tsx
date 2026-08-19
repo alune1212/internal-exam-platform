@@ -34,6 +34,7 @@ import {
   formatQuestionStatus,
   formatQuestionTypeLabel,
 } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 import type { Question, QuestionOptionPayload, QuestionPayload } from "@/types/question";
 
 type Notice = { tone: "success" | "error"; message: string };
@@ -144,7 +145,7 @@ export function QuestionListPage() {
   const formDialogReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const invalidateQuestions = () => {
-    void queryClient.invalidateQueries({ queryKey: ["admin", "questions"] });
+    void queryClient.invalidateQueries({ queryKey: adminKeys.questions() });
   };
 
   const saveMutation = useMutation({

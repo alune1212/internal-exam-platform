@@ -10,6 +10,7 @@ import { PageHeader, PageSection, PageShell, PageStaleNotice, PageState } from "
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { adminPageCopy, formatAttemptStatus, formatExamStatus } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 
 interface ActivityItem {
   id: string;
@@ -77,22 +78,22 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 export function AdminDashboardPage() {
   const questions = useQuery({
-    queryKey: ["admin", "questions"],
+    queryKey: adminKeys.questions(),
     queryFn: getAdminQuestions,
     retry: false,
   });
   const exams = useQuery({
-    queryKey: ["admin", "exams"],
+    queryKey: adminKeys.exams(),
     queryFn: getAdminExams,
     retry: false,
   });
   const scores = useQuery({
-    queryKey: ["admin", "score-report"],
+    queryKey: adminKeys.scoreReport(null),
     queryFn: () => getScoreReport(),
     retry: false,
   });
   const absent = useQuery({
-    queryKey: ["admin", "absent-candidates", "not_started"],
+    queryKey: adminKeys.absentCandidates(null, "not_started"),
     queryFn: () => getAbsentCandidates("not_started"),
     retry: false,
   });

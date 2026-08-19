@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { adminPageCopy, adminPageText, importCopy } from "@/lib/pageCopy";
+import { adminKeys } from "@/lib/queryKeys";
 import type { ImportFailure } from "@/types/imports";
 
 export function QuestionImportPage() {
@@ -24,7 +25,7 @@ export function QuestionImportPage() {
     mutationFn: importQuestions,
     onSuccess: () => {
       setNotice({ tone: "success", message: importCopy.questionImportComplete });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "questions"] });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.questions() });
     },
     onError: (error) =>
       setNotice({

@@ -30,13 +30,10 @@ export function useAttemptSession(candidateId: number | null, attemptId: string 
   const [sessionConflict, setSessionConflict] = useState(false);
 
   useEffect(() => {
-    setSessionState(
-      candidateId !== null && Number.isInteger(numericAttemptId)
-        ? getAttemptSession(candidateId, numericAttemptId)
-        : null,
-    );
+    // The initializer already reads from storage on mount; here we only
+    // clear any leftover conflict state when the scope changes.
     setSessionConflict(false);
-  }, [candidateId, hasScope, numericAttemptId]);
+  }, [candidateId, numericAttemptId]);
 
   const invalidateSession = useCallback(() => {
     if (candidateId !== null && Number.isInteger(numericAttemptId)) {

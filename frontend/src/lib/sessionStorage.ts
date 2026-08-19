@@ -17,8 +17,10 @@ export function readSessionValue(key: string): string | null {
 }
 
 export function writeSessionValue(key: string, value: string): void {
+  // Hot path (attempt draft sync fires every selection): only mirror to
+  // sessionStorage. Legacy localStorage cleanup happens once per key in
+  // `readSessionValue` on the next read.
   window.sessionStorage.setItem(key, value);
-  window.localStorage.removeItem(key);
 }
 
 export function clearSessionValue(key: string): void {

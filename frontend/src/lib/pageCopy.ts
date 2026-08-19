@@ -161,9 +161,6 @@ export const productGlossary = {
   returnExamList: "返回考试列表",
 } as const;
 
-// Keep the established export name as a compatibility alias for consumers.
-export const productTerms = productGlossary;
-
 /**
  * The only English terms permitted in ordinary visible product copy.
  * Product names may remain bilingual; operational terms must add meaning.
@@ -350,10 +347,6 @@ export function formatObservedAt(value: string): string {
 
 export function formatAttemptStatus(status?: string | null) {
   return status ? (attemptStatusCopy[status] ?? "未知作答状态") : attemptStatusCopy.not_started;
-}
-
-export function formatAttemptStatusShort(status?: string | null) {
-  return formatAttemptStatus(status);
 }
 
 export function formatAttemptKind(kind?: string | null) {
