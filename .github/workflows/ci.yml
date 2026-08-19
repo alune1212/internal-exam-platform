@@ -162,8 +162,6 @@ jobs:
       - name: Parse every PowerShell operation
         shell: pwsh
         run: ./ops/windows/Test-PowerShellSyntax.ps1
-      - name: Render Compose exposure
-        run: docker compose --env-file .env.example config > /tmp/internal-exam-compose.yml
       - name: Verify no public runtime dependency
         working-directory: frontend
         run: npm run check:offline

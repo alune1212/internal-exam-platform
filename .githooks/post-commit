@@ -29,11 +29,13 @@ fi
 subject="$(git log -1 --pretty='%s' HEAD)"
 
 # Loop guard: avoid reminding for commits that themselves look like simplify output.
+shopt -s nocasematch
 case "$subject" in
-  *simplify* | *Simplify* | refactor:* | "refactor("*": "*)
+  *simplify* | refactor:*)
     exit 0
     ;;
 esac
+shopt -u nocasematch
 
 # Idempotency: only print once per commit SHA.
 git_dir="$(git rev-parse --git-dir)"

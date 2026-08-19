@@ -97,7 +97,7 @@ class Settings(BaseSettings):
     storage_footprint_multiplier: int = Field(default=3, ge=1)
     auto_submit_check_interval_seconds: int = Field(default=30, ge=1)
     auto_submit_batch_size: int = Field(default=100, ge=1)
-    auto_submit_heartbeat_path: str = "/tmp/internal-exam-auto-submit.heartbeat"  # noqa: S108
+    auto_submit_heartbeat_path: str = "/var/run/internal-exam/auto-submit.heartbeat"
     auto_submit_heartbeat_max_age_seconds: int = Field(default=90, ge=1)
 
     @model_validator(mode="after")

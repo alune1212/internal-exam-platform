@@ -17,23 +17,25 @@ ALLOWED_PATHS = {
     REPO_ROOT / "backend" / "app" / "ops" / "account_migration_preflight.py",
     REPO_ROOT / "backend" / "app" / "tests" / "test_account_migration_preflight.py",
     REPO_ROOT / "backend" / "app" / "tests" / "test_postgres_migration.py",
+    # This guard skips itself: retired identifiers are listed below as real
+    # strings and the script would otherwise flag its own source.
+    Path(__file__).resolve(),
 }
 ALLOWED_PREFIXES = (
     REPO_ROOT / "backend" / "alembic" / "versions",
 )
 TEXT_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".json", ".yml", ".yaml"}
 
-# Build retired identifiers so this guard does not flag its own source.
 RETIRED_IDENTIFIERS = (
-    "employee" + "_no",
-    "phone" + "_suffix",
-    "should" + "_attend",
-    "is_login" + "_sentinel",
+    "employee_no",
+    "phone_suffix",
+    "should_attend",
+    "is_login_sentinel",
 )
 RETIRED_STANDALONE_IMPORT_MARKERS = (
-    "/api/admin/imports/templates/" + "candidates",
-    "generate_" + "candidate_template",
-    "import_" + "candidates_from_workbook",
+    "/api/admin/imports/templates/candidates",
+    "generate_candidate_template",
+    "import_candidates_from_workbook",
 )
 
 
