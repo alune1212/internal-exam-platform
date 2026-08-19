@@ -12,11 +12,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.models import ExamAttempt
+from app.models import ExamAttempt, ExamAttemptQuestion
 from app.services.exam_service import (
     _is_attempt_expired,
     score_and_mark_attempt_submitted,
@@ -36,8 +36,13 @@ DEFAULT_BATCH_SIZE = settings.auto_submit_batch_size
 def _expired_attempts_query(
     now: datetime, batch_size: int
 ) -> Select[tuple[ExamAttempt]]:
+    # Eager-load questions + per-question answers so score_and_mark_attempt_submitted
+    # doesn't trigger N+1 lazy loads while iterating the batch.
     return (
         select(ExamAttempt)
+        .options(
+            selectinload(ExamAttempt.questions).selectinload(ExamAttemptQuestion.answer)
+        )
         .where(
             ExamAttempt.status == "in_progress",
             ExamAttempt.ends_at <= now,

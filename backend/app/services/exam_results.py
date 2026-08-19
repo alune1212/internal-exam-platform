@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime
 from hashlib import sha256
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -99,16 +99,16 @@ def release_result_details(
         raise ExamConfigError("确认名称与考试名称不一致")
     if exam.result_details_released_at is not None:
         raise ResultDetailsAlreadyReleasedError(exam_id)
-    in_progress = (
-        db.query(ExamAttempt.id)
-        .filter(ExamAttempt.exam_id == exam_id, ExamAttempt.status == "in_progress")
-        .first()
+    in_progress, any_attempt = (
+        db.query(
+            func.min(case((ExamAttempt.status == "in_progress", 1), else_=None)),
+            func.min(ExamAttempt.id),
+        )
+        .filter(ExamAttempt.exam_id == exam_id)
+        .one()
     )
     if in_progress is not None:
         raise ResultDetailsNotReadyError("仍有进行中的考试记录，不能发布答案解析。")
-    any_attempt = (
-        db.query(ExamAttempt.id).filter(ExamAttempt.exam_id == exam_id).first()
-    )
     if any_attempt is None:
         raise ResultDetailsNotReadyError("当前考试尚无答题记录，不能发布答案解析。")
     released_at = datetime.now(UTC)
@@ -216,22 +216,6 @@ def list_exam_incidents(db: Session, exam_id: int) -> list[AttemptIncidentRead]:
     ]
 
 
-def _latest_attempt(
-    db: Session, exam_id: int, candidate_id: int, *, for_update: bool = False
-) -> ExamAttempt | None:
-    query = (
-        db.query(ExamAttempt)
-        .filter(
-            ExamAttempt.exam_id == exam_id,
-            ExamAttempt.candidate_id == candidate_id,
-        )
-        .order_by(ExamAttempt.attempt_no.desc(), ExamAttempt.id.desc())
-    )
-    if for_update:
-        query = query.with_for_update()
-    return query.first()
-
-
 def _retake_preview_rows(
     db: Session,
     exam_id: int,
@@ -270,7 +254,10 @@ def _retake_preview_rows(
     rows: list[BulkRetakeRow] = []
     for candidate_id in sorted(set(candidate_ids)):
         scope = scopes.get(candidate_id)
-        attempt = _latest_attempt(db, exam_id, candidate_id)
+        # Imported here to break the exam_attempts ↔ exam_results cycle.
+        from app.services.exam_attempts import _latest_attempt_for_candidate
+
+        attempt = _latest_attempt_for_candidate(db, exam_id, candidate_id)
         base = {
             "candidate_id": candidate_id,
             # Formal identity is always the frozen scope snapshot.  The
@@ -390,7 +377,12 @@ def apply_bulk_retake(
         if row.outcome != "eligible":
             result_rows.append(row)
             continue
-        attempt = _latest_attempt(db, exam_id, row.candidate_id, for_update=True)
+        # Imported here to break the exam_attempts ↔ exam_results cycle.
+        from app.services.exam_attempts import _latest_attempt_for_candidate
+
+        attempt = _latest_attempt_for_candidate(
+            db, exam_id, row.candidate_id, for_update=True
+        )
         if attempt is None:
             raise BulkRetakeConflictError("答题记录已经变化，请重新预览。")
         if void_existing and attempt.status != "voided":

@@ -17,7 +17,7 @@ from app.schemas.exam import (
 )
 from app.schemas.question import QuestionImportResult
 from app.services.exam_attempts import (
-    _has_unused_retake_grant,
+    _find_unused_retake_grant,
     _latest_attempt_for_candidate,
     create_retake_grant,
 )
@@ -169,7 +169,9 @@ def _build_exam_read_for_candidate(
     if scope is None:
         return None
     latest = _latest_attempt_for_candidate(db, exam.id, candidate_id)
-    has_unused_retake_grant = _has_unused_retake_grant(db, exam.id, candidate_id)
+    has_unused_retake_grant = (
+        _find_unused_retake_grant(db, exam.id, candidate_id) is not None
+    )
     if (
         latest
         and latest.status in TERMINAL_ATTEMPT_STATUSES
@@ -250,7 +252,9 @@ def _build_exam_candidate_row(
         latest_submitted_at=latest.submitted_at if latest else None,
         attempt_no=latest.attempt_no if latest else None,
         attempt_kind=latest.attempt_kind if latest else None,
-        has_unused_retake_grant=_has_unused_retake_grant(db, exam_id, candidate.id),
+        has_unused_retake_grant=(
+            _find_unused_retake_grant(db, exam_id, candidate.id) is not None
+        ),
     )
 
 

@@ -534,12 +534,6 @@ def validate_backup(
     )
 
 
-def validate_cross_host_backup(directory: Path) -> dict[str, object]:
-    """Validate a paired backup with the identity needed for host cutover."""
-
-    return validate_backup(directory, require_cross_host_identity=True)
-
-
 def validate_cutover_backup(
     directory: str | Path,
     *,

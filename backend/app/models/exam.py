@@ -138,26 +138,6 @@ class ExamCandidateScope(TimestampMixin, Base):
     exam = relationship("Exam", back_populates="candidate_scopes")
     candidate = relationship("Candidate")
 
-    @property
-    def invitation_state(self) -> str:
-        """Alias used by delivery code while the database column stays explicit."""
-
-        return self.invitation_status
-
-    @invitation_state.setter
-    def invitation_state(self, value: str) -> None:
-        self.invitation_status = value
-
-    @property
-    def remark(self) -> str | None:
-        """Scope-owned replacement for the old global candidate remark."""
-
-        return self.roster_remark
-
-    @remark.setter
-    def remark(self, value: str | None) -> None:
-        self.roster_remark = value
-
 
 class ExamRetakeGrant(TimestampMixin, Base):
     __tablename__ = "exam_retake_grant"

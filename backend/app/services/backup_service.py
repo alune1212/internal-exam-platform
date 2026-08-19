@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import MetaData, Table, func, inspect, literal, select
 
+from app.core.time import to_utc
 from app.models import OperationalLock
 from app.ops.internal_backup import (
     BACKUP_KINDS,
@@ -68,10 +69,6 @@ class BackupRunResult:
     evidence_path: Path
     pruned_backup_ids: list[str]
     fence_boundary: dict[str, object] | None = None
-
-
-def _utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def data_change_fingerprint(db: Session, media_root: Path) -> str:
@@ -272,7 +269,7 @@ def run_paired_backup(
             "cutover final backup 必须同时使用 backup_kind=cutover 与 "
             "under_writer_fence。"
         )
-    checked_at = _utc(now or datetime.now(UTC))
+    checked_at = to_utc(now or datetime.now(UTC))
     fence_boundary = _fence_boundary(
         under_writer_fence=under_writer_fence,
         dataset_id=fence_dataset_id,

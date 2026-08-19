@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.core.auto_submit_worker import is_heartbeat_fresh
 from app.core.config import settings
+from app.core.time import to_utc
 from app.models import OperationalLock
 from app.ops.internal_backup import (
     SECOND_COPY_EVIDENCE_SUFFIX,
@@ -29,10 +30,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from sqlalchemy.orm import Session
-
-
-def _utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _signal(
@@ -85,7 +82,7 @@ def _latest_json(
 def get_operations_snapshot(
     db: Session, *, now: datetime | None = None
 ) -> OperationsSnapshotRead:
-    checked_at = _utc(now or datetime.now(UTC))
+    checked_at = to_utc(now or datetime.now(UTC))
 
     def version() -> OperationalSignalRead:
         status = "current" if settings.git_commit != "development" else "degraded"
@@ -180,7 +177,7 @@ def get_operations_snapshot(
         if not rows:
             return _signal("failed", "尚无已验证配对备份", checked_at)
         path, manifest = rows[0]
-        created_at = _utc(datetime.fromisoformat(str(manifest["created_at"])))
+        created_at = to_utc(datetime.fromisoformat(str(manifest["created_at"])))
         stale = (checked_at - created_at).total_seconds() > 48 * 60 * 60
         return _signal(
             "stale" if stale else "current",
@@ -218,7 +215,7 @@ def get_operations_snapshot(
         checked = payload.get("checkedAt")
         stale = False
         if passed and isinstance(checked, str):
-            stale = (checked_at - _utc(datetime.fromisoformat(checked))).days > 100
+            stale = (checked_at - to_utc(datetime.fromisoformat(checked))).days > 100
         status = "failed" if not passed else "stale" if stale else "current"
         return _signal(
             status,

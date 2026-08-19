@@ -12,3 +12,13 @@ def ensure_aware(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt
+
+
+def to_utc(dt: datetime) -> datetime:
+    """Normalize a datetime to UTC, first ensuring it carries tzinfo.
+
+    Prefer this for serialisation, comparisons, and persisted timestamps so
+    naive values from SQLite tests and aware values from PostgreSQL converge
+    on the same timezone without per-call replacement/asthimezone juggling.
+    """
+    return ensure_aware(dt).astimezone(UTC)

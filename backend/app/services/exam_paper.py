@@ -91,6 +91,12 @@ def _questions_by_type(questions: list[Question]) -> dict[str, list[Question]]:
 
 
 def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
+    """Convert a stored question_rule into a typed FixedPaperRule.
+
+    Re-validates the shape on read so a persisted exam whose rule dict was
+    inserted outside the update pipeline (legacy fixtures, ops imports, etc.)
+    still raises a domain error rather than KeyError at attempt-start time.
+    """
     if not question_rule:
         return None
 

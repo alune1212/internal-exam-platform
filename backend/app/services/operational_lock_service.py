@@ -8,6 +8,7 @@ from sqlalchemy import func, select, text
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
+from app.core.time import to_utc
 from app.models import ExamAttempt, OperationalLock
 from app.ops.internal_backup import BackupError, validate_cutover_backup
 
@@ -18,9 +19,6 @@ if TYPE_CHECKING:
 
 BACKUP_WRITE_FREEZE = "backup-write-freeze"
 FORMAL_WRITER_FENCE = "formal-writer-fence"
-# Descriptive alias for host wrappers and callers that use the longer name.
-WRITER_FENCE = FORMAL_WRITER_FENCE
-FORMAL_CUTOVER_WRITER_FENCE = FORMAL_WRITER_FENCE
 FORMAL_WRITE_GATE_ADVISORY_KEY = 4_981_031_177
 _FENCE_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$")
 _FENCE_REASON_PATTERN = re.compile(r"^[^\x00-\x1f\x7f]{1,500}$")
@@ -69,12 +67,6 @@ class WriterFenceConflictError(DomainError):
 
     def __init__(self, detail: str = "正式切换写栅栏状态冲突。") -> None:
         super().__init__(detail)
-
-
-def _utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
 
 
 def _acquire_transaction_mutex(db: Session) -> None:
@@ -199,17 +191,17 @@ def inspect_writer_fence(
         "writer_generation": (fence.writer_generation if fence is not None else None),
         "reason": fence.reason if fence is not None else None,
         "acquiredAt": (
-            _utc(fence.acquired_at).isoformat() if fence is not None else None
+            to_utc(fence.acquired_at).isoformat() if fence is not None else None
         ),
         "expiresAt": (
-            _utc(fence.expires_at).isoformat() if fence is not None else None
+            to_utc(fence.expires_at).isoformat() if fence is not None else None
         ),
         "releasedAt": (
-            _utc(fence.released_at).isoformat()
+            to_utc(fence.released_at).isoformat()
             if fence is not None and fence.released_at is not None
             else None
         ),
-        "checkedAt": _utc(checked_at).isoformat(),
+        "checkedAt": to_utc(checked_at).isoformat(),
     }
 
 
@@ -451,8 +443,6 @@ def transfer_writer_fence(
 
 # Host adapters historically used both names; they intentionally share the
 # same atomic implementation rather than introducing a second transition.
-accept_writer_fence = transfer_writer_fence
-transfer_formal_writer_fence = transfer_writer_fence
 
 
 def release_writer_fence(
@@ -559,8 +549,6 @@ def assert_writer_fence_clear(db: Session, *, now: datetime | None = None) -> No
 
 
 # Compatibility names for host adapters and service callers.
-assert_formal_writer_fence_clear = assert_writer_fence_clear
-WriterFenceBlockedError = WriterFenceActiveError
 
 
 def assert_backup_write_allowed(db: Session, *, now: datetime | None = None) -> None:
@@ -652,5 +640,3 @@ def acquire_fenced_backup_write_freeze(
 
 
 # Descriptive compatibility name for host wrappers.
-acquire_writer_fence_backup_freeze = acquire_fenced_backup_write_freeze
-acquire_cutover_backup_write_freeze = acquire_fenced_backup_write_freeze

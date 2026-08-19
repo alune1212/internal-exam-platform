@@ -49,24 +49,19 @@ def parse_admin_token(token: str) -> str | None:
     active_username, _active_password = settings.configured_active_operator
     if not active_username:
         return None
-    if verify_session_token(
-        token,
-        subject=f"admin:{active_username}",
-        secret=settings.token_secret,
-        max_age_seconds=settings.admin_token_ttl_seconds,
-    ):
+    # Both checks share subject/secret/ttl; only the subject prefix differs.
+    verify_kwargs = {
+        "secret": settings.token_secret,
+        "max_age_seconds": settings.admin_token_ttl_seconds,
+    }
+    if verify_session_token(token, subject=f"admin:{active_username}", **verify_kwargs):
         return active_username
     # Keep the pre-named-operator token shape for development fixtures only,
     # while retaining the same single-active-operator switch semantics.
     if (
         settings.environment == "development"
         and not settings.backup_operator_enabled
-        and verify_session_token(
-            token,
-            subject=active_username,
-            secret=settings.token_secret,
-            max_age_seconds=settings.admin_token_ttl_seconds,
-        )
+        and verify_session_token(token, subject=active_username, **verify_kwargs)
     ):
         return active_username
     return None

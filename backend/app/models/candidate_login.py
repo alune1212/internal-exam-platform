@@ -62,29 +62,3 @@ class CandidateLoginChallenge(TimestampMixin, Base):
     )
 
     candidate = relationship("Candidate", back_populates="login_challenges")
-
-    @property
-    def completion_credential_hash(self) -> str | None:
-        """Compatibility alias for auth code that calls this a completion token."""
-
-        return self.registration_credential_hash
-
-    @completion_credential_hash.setter
-    def completion_credential_hash(self, value: str | None) -> None:
-        self.registration_credential_hash = value
-
-    @property
-    def completion_credential_expires_at(self) -> datetime | None:
-        return self.registration_credential_expires_at
-
-    @completion_credential_expires_at.setter
-    def completion_credential_expires_at(self, value: datetime | None) -> None:
-        self.registration_credential_expires_at = value
-
-    @property
-    def completion_credential_consumed_at(self) -> datetime | None:
-        return self.registration_credential_consumed_at
-
-    @completion_credential_consumed_at.setter
-    def completion_credential_consumed_at(self, value: datetime | None) -> None:
-        self.registration_credential_consumed_at = value

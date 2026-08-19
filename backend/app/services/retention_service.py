@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.core.exceptions import DomainError
+from app.core.time import to_utc
 from app.models import (
     AdminAuditEvent,
     Exam,
@@ -44,12 +45,8 @@ class RetentionSafeguardError(DomainError):
     status_code = 409
 
 
-def _utc(value: datetime) -> datetime:
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-
-
 def _latest(*values: datetime | None) -> datetime:
-    present = [_utc(value) for value in values if value is not None]
+    present = [to_utc(value) for value in values if value is not None]
     return max(present) if present else datetime.min.replace(tzinfo=UTC)
 
 
@@ -66,7 +63,7 @@ def _fingerprint(cutoff_at: datetime, exams: list[RetentionExamPreview]) -> str:
 def preview_retention(
     db: Session, *, now: datetime | None = None
 ) -> RetentionPreviewRead:
-    generated_at = _utc(now or datetime.now(UTC))
+    generated_at = to_utc(now or datetime.now(UTC))
     cutoff_at = datetime.combine(
         (generated_at - timedelta(days=RETENTION_DAYS)).date(), time.min, UTC
     )
@@ -289,7 +286,7 @@ def create_retention_archive(
     now: datetime | None = None,
 ) -> RetentionArchiveRead:
     assert_admin_mutation_allowed(db)
-    created_at = _utc(now or datetime.now(UTC))
+    created_at = to_utc(now or datetime.now(UTC))
     preview = preview_retention(db, now=created_at)
     rows = _eligible_rows(preview, exam_ids, preview_fingerprint)
     payload = _archive_payload(db, [row.exam_id for row in rows])
@@ -377,7 +374,7 @@ def delete_retained_exams(
     now: datetime | None = None,
 ) -> RetentionDeleteRead:
     assert_admin_mutation_allowed(db)
-    deleted_at = _utc(now or datetime.now(UTC))
+    deleted_at = to_utc(now or datetime.now(UTC))
     preview = preview_retention(db, now=deleted_at)
     rows = _eligible_rows(preview, exam_ids, preview_fingerprint)
     normalized_ids = [row.exam_id for row in rows]
@@ -396,7 +393,7 @@ def delete_retained_exams(
         raise RetentionSafeguardError("配对备份未通过校验。") from exc
     archive_created_at = datetime.fromisoformat(str(manifest["created_at"]))
     backup_created_at = datetime.fromisoformat(str(backup_manifest["created_at"]))
-    if _utc(backup_created_at) < _utc(archive_created_at):
+    if to_utc(backup_created_at) < to_utc(archive_created_at):
         raise RetentionSafeguardError("配对备份早于归档产物，请重新创建并验证备份。")
 
     attempt_ids = [

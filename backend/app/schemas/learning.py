@@ -58,13 +58,3 @@ class LearningReportRow(BaseModel):
     completion_status: str
     last_heartbeat_at: datetime | None = None
     completed_at: datetime | None = None
-
-    @property
-    def candidate_name(self) -> str | None:
-        """Compatibility alias for old Python callers.
-
-        The alias is intentionally a property (rather than a serialized field)
-        so legacy personnel columns cannot reappear in learning API responses.
-        """
-
-        return self.display_name

@@ -24,6 +24,7 @@ from uuid import uuid4
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.exceptions import DomainError
+from app.core.time import to_utc
 from app.models import Exam, ExamCandidateScope
 from app.services.email_service import (
     PermanentEmailDeliveryError,
@@ -295,11 +296,7 @@ def _scope_claimable(scope: ExamCandidateScope, *, mode: str, now: datetime) -> 
     claimed_at = scope.invitation_claimed_at
     if claimed_at is None:
         return True
-    if claimed_at.tzinfo is None:
-        claimed_at = claimed_at.replace(tzinfo=UTC)
-    return (
-        now - claimed_at.astimezone(UTC)
-    ).total_seconds() >= invitation_claim_ttl_seconds()
+    return (now - to_utc(claimed_at)).total_seconds() >= invitation_claim_ttl_seconds()
 
 
 def claim_invitations(

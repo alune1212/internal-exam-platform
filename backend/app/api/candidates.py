@@ -155,6 +155,24 @@ def search_accounts(
     )
 
 
+def _set_account_status_handler(
+    candidate_id: int,
+    payload: AccountStatusUpdate,
+    request: Request,
+    db: Session,
+    operator_subject: str,
+) -> ApiResponse[AccountAdminRead]:
+    return ApiResponse(
+        data=candidate_service.set_account_status(
+            db,
+            candidate_id,
+            payload.status,
+            operator_subject=operator_subject,
+            request=request,
+        )
+    )
+
+
 @admin_accounts_router.patch(
     "/{candidate_id}/status", response_model=ApiResponse[AccountAdminRead]
 )
@@ -165,14 +183,8 @@ def update_account_status(
     db: Session = Depends(get_db),
     operator_subject: str = Depends(require_admin),
 ) -> ApiResponse[AccountAdminRead]:
-    return ApiResponse(
-        data=candidate_service.set_account_status(
-            db,
-            candidate_id,
-            payload.status,
-            operator_subject=operator_subject,
-            request=request,
-        )
+    return _set_account_status_handler(
+        candidate_id, payload, request, db, operator_subject
     )
 
 
@@ -188,14 +200,8 @@ def update_account_status_compat(
 ) -> ApiResponse[AccountAdminRead]:
     """Compatibility spelling for clients that PATCH the account resource."""
 
-    return ApiResponse(
-        data=candidate_service.set_account_status(
-            db,
-            candidate_id,
-            payload.status,
-            operator_subject=operator_subject,
-            request=request,
-        )
+    return _set_account_status_handler(
+        candidate_id, payload, request, db, operator_subject
     )
 
 

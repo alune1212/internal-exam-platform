@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.time import ensure_aware
 from app.models import Candidate, Exam, ExamCandidateScope, ExamQuestionPool
+from app.models.exam import ExamStatus
 from app.schemas.exam import (
     ExamCreate,
     ExamRead,
@@ -31,7 +32,7 @@ from app.services.exam_paper import (
 from app.services.import_service import normalize_candidate_email
 from app.services.operational_lock_service import assert_admin_mutation_allowed
 
-VALID_EXAM_STATUSES = {"draft", "active", "archived"}
+VALID_EXAM_STATUSES = frozenset(status.value for status in ExamStatus)
 MAX_FORMAL_DURATION_MINUTES = 120
 START_GRACE_MINUTES = 15
 
@@ -121,36 +122,41 @@ def _exam_has_question_pool(db: Session, exam_id: int) -> bool:
     )
 
 
-def _assert_exam_available(exam: Exam) -> None:
-    now = datetime.now(UTC)
-    if exam.available_from is not None and now < ensure_aware(exam.available_from):
-        raise ExamNotAvailableError("考试尚未开始")
-    if exam.available_from is not None and now > ensure_aware(
+def _classify_exam_window(exam: Exam, *, now: datetime | None = None) -> str:
+    """Return "not_started" / "ended" / "open" using shared availability logic."""
+
+    observed_at = now or datetime.now(UTC)
+    if exam.available_from is not None and observed_at < ensure_aware(
+        exam.available_from
+    ):
+        return "not_started"
+    if exam.available_from is not None and observed_at > ensure_aware(
         exam.available_from
     ) + timedelta(minutes=START_GRACE_MINUTES):
-        raise ExamNotAvailableError("考试开始时间已截止")
-    if exam.available_until is not None and now > ensure_aware(exam.available_until):
+        return "ended"
+    if exam.available_until is not None and observed_at > ensure_aware(
+        exam.available_until
+    ):
+        return "ended"
+    return "open"
+
+
+def _assert_exam_available(exam: Exam) -> None:
+    status = _classify_exam_window(exam)
+    if status == "not_started":
+        raise ExamNotAvailableError("考试尚未开始")
+    if status == "ended":
+        # Pick the more specific reason when both gates apply.
+        observed_at = datetime.now(UTC)
+        if exam.available_from is not None and observed_at > ensure_aware(
+            exam.available_from
+        ) + timedelta(minutes=START_GRACE_MINUTES):
+            raise ExamNotAvailableError("考试开始时间已截止")
         raise ExamNotAvailableError("考试已结束")
 
 
-def _candidate_exam_is_visible(exam: Exam, *, now: datetime | None = None) -> bool:
-    # Published scoped exams are visible immediately.  ``_assert_exam_available``
-    # remains the authoritative start-time/grace/deadline gate.
-    _ = exam, now
-    return True
-
-
 def _exam_availability_status(exam: Exam, *, now: datetime | None = None) -> str:
-    now = now or datetime.now(UTC)
-    if exam.available_from is not None and now < ensure_aware(exam.available_from):
-        return "not_started"
-    if exam.available_from is not None and now > ensure_aware(
-        exam.available_from
-    ) + timedelta(minutes=START_GRACE_MINUTES):
-        return "ended"
-    if exam.available_until is not None and now > ensure_aware(exam.available_until):
-        return "ended"
-    return "open"
+    return _classify_exam_window(exam, now=now)
 
 
 def _question_pool_count(db: Session, exam_id: int) -> int:

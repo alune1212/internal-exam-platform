@@ -152,20 +152,23 @@ def create_retake_grant(
 
 
 def _latest_attempt_for_candidate(
-    db: Session, exam_id: int, candidate_id: int
+    db: Session,
+    exam_id: int,
+    candidate_id: int,
+    *,
+    for_update: bool = False,
 ) -> ExamAttempt | None:
-    return (
+    """Latest attempt per (exam, candidate) with stable (attempt_no DESC, id DESC) tie-breaker."""
+    query = (
         db.query(ExamAttempt)
         .filter(
             ExamAttempt.exam_id == exam_id, ExamAttempt.candidate_id == candidate_id
         )
         .order_by(ExamAttempt.attempt_no.desc(), ExamAttempt.id.desc())
-        .first()
     )
-
-
-def _has_unused_retake_grant(db: Session, exam_id: int, candidate_id: int) -> bool:
-    return _find_unused_retake_grant(db, exam_id, candidate_id) is not None
+    if for_update:
+        query = query.with_for_update()
+    return query.first()
 
 
 def _constraint_name(exc: IntegrityError) -> str:
@@ -175,19 +178,24 @@ def _constraint_name(exc: IntegrityError) -> str:
     return str(name) if name else str(orig or exc)
 
 
-def _is_in_progress_attempt_unique_violation(exc: IntegrityError) -> bool:
+def _is_unique_violation(exc: IntegrityError, *signatures: str) -> bool:
     message = _constraint_name(exc)
-    return (
-        "ux_exam_attempt_one_in_progress" in message
-        or "exam_attempt.exam_id, exam_attempt.candidate_id" in message
+    return any(signature in message for signature in signatures)
+
+
+def _is_in_progress_attempt_unique_violation(exc: IntegrityError) -> bool:
+    return _is_unique_violation(
+        exc,
+        "ux_exam_attempt_one_in_progress",
+        "exam_attempt.exam_id, exam_attempt.candidate_id",
     )
 
 
 def _is_unused_retake_grant_unique_violation(exc: IntegrityError) -> bool:
-    message = _constraint_name(exc)
-    return (
-        "ux_exam_retake_grant_one_unused" in message
-        or "exam_retake_grant.exam_id, exam_retake_grant.candidate_id" in message
+    return _is_unique_violation(
+        exc,
+        "ux_exam_retake_grant_one_unused",
+        "exam_retake_grant.exam_id, exam_retake_grant.candidate_id",
     )
 
 
@@ -225,10 +233,6 @@ def _ensure_attempt_scope(db: Session, attempt: ExamAttempt) -> None:
     )
     if scoped is None:
         raise CandidateNotEligibleError(attempt.candidate_id)
-
-
-def _attempt_deadline(attempt: ExamAttempt) -> datetime:
-    return ensure_aware(attempt.ends_at)
 
 
 def _new_attempt_session_credential() -> tuple[str, str]:
@@ -280,7 +284,7 @@ def takeover_attempt_session(
 
 
 def _is_attempt_expired(attempt: ExamAttempt, now: datetime | None = None) -> bool:
-    return (now or datetime.now(UTC)) >= _attempt_deadline(attempt)
+    return (now or datetime.now(UTC)) >= ensure_aware(attempt.ends_at)
 
 
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
