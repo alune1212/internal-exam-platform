@@ -10,12 +10,7 @@ import { ReportExportButton } from "@/components/admin/ReportExportButton";
 import { ReportToolbar } from "@/components/admin/ReportToolbar";
 import { StatusPill, type StatusPillVariant } from "@/components/editorial/StatusPill";
 import { Button } from "@/components/ui/button";
-import {
-  adminPageCopy,
-  adminPageText,
-  adminTableCopy,
-  formatAttemptStatus,
-} from "@/lib/pageCopy";
+import { adminPageCopy, adminPageText, adminTableCopy, formatAttemptStatus } from "@/lib/pageCopy";
 import { adminKeys } from "@/lib/queryKeys";
 import type { AbsentCandidateRow } from "@/types/report";
 
