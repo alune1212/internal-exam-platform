@@ -10,6 +10,7 @@
 cd backend
 uv sync                              # 安装依赖
 uv run pytest                        # 运行测试
+uv run pytest --ignore=app/tests/test_postgres_concurrency.py  # 跳过需 live postgres 的并发测试（快速 smoke）
 uv run ruff check .                  # lint 检查
 uv run ruff check --fix .            # lint 自动修复
 uv run ruff format .                 # 代码格式化
@@ -35,7 +36,7 @@ npm run test:watch   # Vitest watch 模式
 npx tsc --noEmit     # 类型检查（build 已包含）
 ```
 
-测试栈：Vitest + @testing-library/react + jsdom，单测覆盖 `components/editorial/`、`components/exam/`、`components/layout/`、`lib/adminSession`、`api/client` 和 `pages/P0Pages.test.tsx`。
+测试栈：Vitest + @testing-library/react + jsdom，覆盖 `components/editorial/`、`components/exam/`、`components/layout/`、`lib/adminSession`、`api/client` 与 `pages/P0Pages.test.tsx`。Vitest 自动发现 `**/*.test.{ts,tsx}`，新增单测无需在此清单登记。
 
 > **Node.js v26 注意**：jsdom 的 `window.localStorage` 在 Node.js v26 下可能为 `undefined`。测试中如需操作 localStorage，需在测试文件顶部安装 in-memory mock（参考 `lib/adminSession.test.ts`）。
 
@@ -123,7 +124,7 @@ monorepo 结构，前后端分离，Docker Compose 编排。
 
 前端身份认证：`api/client.ts` 的 `apiRequest`/`uploadRequest` 根据路径自动注入认证 header——`/api/admin/**` 带 `X-Admin-Token`（`AdminLoginPage` 保存后端返回的签名 session token），其余带 `X-Candidate-Token`（从 `lib/candidateSession.ts` 读取签名 candidate token）。401 时自动清 session 并跳转登录页。后端 `require_admin` 使用 `TOKEN_SECRET` 校验签名 admin token，`get_current_candidate_id` 从 `X-Candidate-Token` header 校验并提取候选人 ID。
 
-前端设计系统：`frontend/src/index.css` 定义 CSS 变量，`frontend/tailwind.config.ts` 映射 Tailwind token，`frontend/src/lib/design-tokens.ts` 仅在需要原始值时使用。优先复用本地 UI primitives 和 `components/editorial/`，不要重新引入旧 shadcn HSL token 或页面级临时样式。完整设计规范见 `frontend/DESIGN.md`（含 token 表、组件清单、章节样式），所有 PR 改动若触及视觉需先读它。
+前端设计系统：`frontend/src/index.css` 定义 CSS 变量，`frontend/tailwind.config.ts` 映射 Tailwind token。Tailwind 类名直接编码 token；新增原始值读取请直接扩展 CSS 变量与 Tailwind 映射。优先复用本地 UI primitives 和 `components/editorial/`，不要重新引入旧 shadcn HSL token 或页面级临时样式。完整设计规范见 `frontend/DESIGN.md`（含 token 表、组件清单、章节样式），所有 PR 改动若触及视觉需先读它。
 
 领域异常体系：所有业务异常继承 `app.core.exceptions.DomainError`（含 `status_code` 属性），API 路由层通过 `main.py` 的统一异常处理器映射为 HTTP 响应。新增异常时在 service 层定义，无需在路由层逐一捕获。
 
@@ -168,6 +169,10 @@ uv run alembic downgrade -1  # 回滚一步
 ## 当前阶段
 
 第一阶段核心业务闭环已实现，前端 Academic Editorial redesign（含 Phase 1-7：tokens、primitives、layouts、P0/P1/P2 页面、状态与精修）已合并。考试默认使用固定 50 题等价试卷，结果页显示及格线和通过状态。前后端身份认证闭环已实现（签名 admin token、签名 candidate token、401 自动跳转、AdminLayout 路由守卫）。考试与应参人员范围通过 `exam_candidate_scope` 关联，单场名单支持导入、列表、移除和补考授权；导入失败报告可下载，报表导出返回单个多 Sheet Excel。当前安全加固包括导入大小/行数/sheet 限制、Excel 公式转义、生产默认密钥/CORS 拒绝、以及保存/提交时锁定 attempt 读取。视频学习模块（管理上传 + 候选人观看完成）已实现。详细交接文档见 `docs/handoff.md`。
+
+### 近期清理 (ponytail 4 轮)
+
+最近 4 个 commit 移除 ~10,751 行 / ~110 文件的过度设计代码：`ops/macos` 跨主机 cutover 5 个 zsh + `ops/windows` 16 个 PowerShell + `frontend/e2e/visual-system` + 多个零调用方 lib (`presentationPolicy`/`design-tokens`/3 个 contract 测试/`useScrolled`/`sessionEvents`/`sessionStorage`/`examDefaults`/`control-base`/`label`) + 后端死别名 (`assert_formal_writer_fence_owner` 等) + 双动作 HTTP 路由 (PUT/PATCH、`activate/deactivate`) + `exam_paper.FixedPaperRule` dataclass 改 dict。Frontend `field.tsx` 简化为 React.useId 直连；`card.tsx` 与 `PageSection` 的重复 variants 已合并。后续大规模重构前，先跑 `/ponytail:ponytail-audit` 复查。
 
 ## OpenSpec 提案工作流
 
