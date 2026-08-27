@@ -124,18 +124,6 @@ zsh ops/macos/Test-FormalPreflight.zsh \
 
 若账号未登录、Docker 不 ready、MacBook 不在 AC、服务 degraded、时间/网络/备份证据缺失，停止 candidate gateway 或暂停/改期考试；不要临时使用开发 Compose、手工登录后门或第二写入主机补救。
 
-## 初始 formal writer commissioning（generation 1）
-
-第一次生成正式 writer 前先回读当前接口：
-
-```zsh
-zsh ops/macos/Initialize-FormalWriter.zsh --help
-```
-
-fresh formal root 的实际顺序是：已安装 sealed release → `Initialize-FormalWriter --action Prepare --empty-dataset`（只预留 dataset/host identity/generation 1）→ schemaVersion=2 staging 的七份 checksummed raw（health/migration、browser 完整 E2E、real SMTP、exact-image capacity、restart、route、real second-copy restore）→ `Invoke-Staging --action Accept` → `Down` 保留 durable bundle → `Start-Platform --maintenance` → 私有 `Capture-FormalBrowserSmokeEvidence` → designated account `/usr/bin/sudo -v` 后普通用户 `Capture-PrivilegedHostEvidence` → `Initialize-FormalWriter --action Activate`。首次 commissioning 不运行 `Promote-Release` 或跨宿主 `prepare-cutover/accept-cutover`；`Promote-Release` 只适用于已经存在正式 current writer 的版本升级。`Activate` 内部取得 generation-1 writer fence，生成/校验 fence 内最终 paired backup 与独立第二副本，执行 restore drill 和带 `--pf-evidence`/`--network-time-evidence` 的 target-maintenance preflight，持久化 pending barrier、释放 fence、写入 terminal evidence，最后才 public Start。
-
-`Prepare`/`Activate` 是两阶段 crash-resume 流程；Activate 的 phase journal 依次记录 `intent → maintenance-started → fence-acquired → backup-passed → restore-passed → preflight-passed → state-bound → fence-released → terminal`。崩溃后只允许同一命令按 checksums、dataset/host/generation 和精确 fence resume；不得手工改 `bootstrapPending`、删除 journal 或伪造 `passed`。私有 browser smoke 只覆盖 loopback 28080/28081 的桌面 Chromium smoke，不是 staging E2E 或手机 UAT。任一真实外部证据（网络、SMTP、第二设备、独立加密第二副本、桌面/手机 UAT）缺失时保持 BLOCKED。
-
 ## 客户端和正式证据
 
 当前 Mac UAT 至少覆盖 macOS Chrome、macOS Safari 和一台真实 Android Chrome 或 iOS Safari。嵌入式浏览器、过旧版本和未知 user agent 必须阻断；浏览器运行时不访问公共 CDN、字体或遥测服务。

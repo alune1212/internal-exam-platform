@@ -31,3 +31,8 @@ backups/
 .runtime/
 frontend/playwright-report/
 frontend/test-results/
+
+# Local tool state (design audit logs, MCP playwright dumps, serena project cache)
+.hallmark/
+.playwright-mcp/
+.serena/

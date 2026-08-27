@@ -25,7 +25,6 @@
 - [ ] release bundle 的 manifest、SHA-256、Git commit、migration head、image digest、ARM64 支持和安全扫描证据一致；发布包不含 `.env`、数据库、媒体、备份或诊断。
 - [ ] Mac staging 按实际接口顺序完成：`Invoke-Staging --action Up` → `Status` → `Invoke-StagingRuntimeChecks.zsh`（health/migration、exact six-service restart、route raw evidence）→ `Invoke-StagingExternalChecks.zsh --check browser|smtp|capacity`（browser 完整 E2E report、真实 SMTP、exact-image 100-client report）→ `Invoke-StagingBackupRestoreCheck.zsh`（真实独立加密第二副本 restore）→ `Invoke-Staging --action Accept`（schemaVersion=2，七份 raw evidence 全部带 checksum）→ `Down`（删除独立 project/volume，同时保留 durable evidence bundle）→ `Promote-Release`。不得手写顶层 `gates.status=passed`，不得用本机静态或 synthetic evidence 替代 browser、SMTP、capacity、backup-restore 外部门禁；staging 不得触碰 formal volume。
 - [ ] 考试窗口开始前已停止 development/staging project，只留下一个 formal writer；记录 writer generation/commit。
-- [ ] 初始 formal writer generation 1 按实际两阶段顺序完成：`Prepare --empty-dataset` → schemaVersion=2 staging durable bundle → private `Start-Platform --maintenance` + `Capture-FormalBrowserSmokeEvidence` → designated account `/usr/bin/sudo -v` 后普通用户 `Capture-PrivilegedHostEvidence` → `Activate`。`Activate` 内部完成 exact fence、final paired backup/second-copy、restore drill、target-maintenance preflight、pending barrier、terminal evidence 和 public Start；任何真实外部证据缺失时保持 BLOCKED，不得把跨宿主 `prepare-cutover/accept-cutover` 或 `Promote-Release` 冒充首次 commissioning。
 - [ ] `zsh ops/macos/Install-LaunchAgents.zsh --root "$HOME/Library/Application Support/InternalExam"` 成功；两个 plist 均 loaded，日志路径有界且没有 secret。
 
 ## 3. 破坏性账号迁移门禁
@@ -81,8 +80,6 @@
 - [ ] post-exam/pre-upgrade 备份包含数据库、媒体、manifest、SHA256SUMS、`SUCCESS`，并同步到与 Mac 不同物理宿主/磁盘的独立加密第二存储；不可用/校验失败时不得写成功。
 - [ ] 从第二副本运行一次性 restore drill，migration、表计数和媒体校验通过；正式项目未改变，临时 project/volume 已清理。
 - [ ] 同宿主回滚演练使用“上一版本发布包 + 升级前配对备份”：迁移/写入前可安全回到上一 release；迁移或写入后必须授权破坏性恢复配对备份，不使用 `alembic downgrade`。
-- [ ] 目标宿主迁移前，`zsh ops/macos/Prepare-HostCutover.zsh --target-host windows-docker-wsl2 --confirmation "PREPARE HOST CUTOVER"` 成功；该命令在 writer fence 内自行创建最终 `cutover` 配对备份和独立加密第二副本，并证明无进行中 attempt、整个正式 Compose 已停止及 source writer generation 已记录。只有这一步完成后才允许 Windows target expose。
-- [ ] Mac target 完成独立 restore/UAT 后，`zsh ops/macos/Accept-HostCutover.zsh --final-backup-path <backup> --browser-smoke-evidence <evidence> --source-stopped --confirmation "ACCEPT HOST CUTOVER"` 证据通过；该 zsh 只在 Mac target/回切运行，Windows target 不运行它，而使用未来 Windows 适配器；人工批准仍是单独步骤。
 - [ ] Windows target 一旦产生写入，回切 Mac 必须先从 Windows 生成新的验证配对备份；不能让已停机 Mac 直接重启形成双写，也不能使用过期 source state。
 - [ ] `zsh ops/macos/Export-Diagnostics.zsh --root "$HOME/Library/Application Support/InternalExam"` 生成有界、脱敏、带 checksum 的 ZIP；能从中定位版本、服务、worker、锁、磁盘和备份状态。
 

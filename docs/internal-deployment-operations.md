@@ -36,7 +36,6 @@
 | 配对备份/第二副本 | ops/macos/Invoke-PairedBackup.zsh |
 | 隔离恢复演练 | ops/macos/Invoke-RestoreDrill.zsh |
 | 正式 promotion | ops/macos/Promote-Release.zsh |
-| Mac source stop/Mac target acceptance | ops/macos/Prepare-HostCutover.zsh、Accept-HostCutover.zsh |
 | 备份操作员切换 | ops/macos/Set-BackupOperator.zsh |
 | 关闭 session | ops/macos/Close-ExamSessions.zsh |
 | 脱敏诊断 | ops/macos/Export-Diagnostics.zsh |

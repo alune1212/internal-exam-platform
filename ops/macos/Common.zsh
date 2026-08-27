@@ -252,7 +252,7 @@ macos_compose_base() {
   typeset -ga MACOS_COMPOSE_ARGS
   MACOS_COMPOSE_ARGS=(compose --project-name "$project" --env-file "$env_file" -f "$release/docker-compose.yml")
   # A cutover restore must never merge data into the previous formal named
-  # volumes.  Accept-HostCutover writes this owner-only, checksummed override
+  # volumes.  The cutover writes this owner-only, checksummed override
   # before touching the formal project; every subsequent formal one-shot and
   # lifecycle command then resolves the same fresh volume names here.
   if [[ "$project" == "$MACOS_FORMAL_PROJECT" && -n "${MACOS_LAYOUT_STATE:-}" ]]; then
@@ -971,7 +971,7 @@ macos_assert_backup() {
 }
 
 macos_assert_cutover_backup_binding() {
-  # Bind the bytes restored by Accept-HostCutover to the exact five-artifact
+  # Bind the restored bytes to the exact five-artifact
   # identity emitted by canonical host portability.  A basename, manifest
   # self-check, or second-copy location alone is insufficient: every byte and
   # every expected artifact must match the prepared state before restore.

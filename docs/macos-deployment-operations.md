@@ -94,8 +94,6 @@ zsh ops/macos/Install-Release.zsh \
 
 Staging 使用与 formal 完全不同的 project、端口和 volume。它固定使用 candidate 18080、operator 18081、PostgreSQL 15432、frontend 15173；不得指向 formal volume：
 
-fresh formal root 必须先执行本节后文的 `Initialize-FormalWriter.zsh --action Prepare --empty-dataset`，取得 pending `hostId`/`datasetId` 后再运行下面的 staging；已有正式 writer 的普通版本升级不重复 Prepare。
-
 ~~~zsh
 MAC_ROOT="$HOME/Library/Application Support/InternalExam"
 RELEASE="$MAC_ROOT/releases/1.2.3"
@@ -229,7 +227,7 @@ Down 只删除该 commit-scoped staging project/volume，不得对 formal 执行
 - pre-upgrade paired backup 与独立第二存储校验；
 - source writer 状态、当前 migration head 和人工“允许发布”决定。
 
-下列 `Promote-Release` 仅适用于已有正式 current writer 的版本升级；fresh root 的首次 generation-1 commissioning 不运行 `Promote-Release`，而按本节后面的 `Prepare` → private maintenance → `Activate` 流程执行。
+下列 `Promote-Release` 仅适用于已有正式 current writer 的版本升级。
 
 ~~~zsh
 zsh ops/macos/Promote-Release.zsh \
@@ -242,7 +240,7 @@ zsh ops/macos/Promote-Release.zsh \
 
 promotion 会在 formal project 中使用 --no-build、核对 portable backup、记录 current/previous release state；它不是考试批准。promotion 后仍须重新运行 Mac preflight、第二设备负向入口检查和人工开考确认。
 
-正式 preflight 使用实际的 Mac 脚本；它要求 Docker settings、AC/sleep、time、FileVault、firewall、privileged `pf`/network-time evidence、真实 OTP/邀请 SMTP 和 browser evidence。首次 generation-1 commissioning 时，`Activate` 会在私有 maintenance 阶段内部生成 target-maintenance preflight；普通正式重启/发布仍按下列命令显式运行：
+正式 preflight 使用实际的 Mac 脚本；它要求 Docker settings、AC/sleep、time、FileVault、firewall、privileged `pf`/network-time evidence、真实 OTP/邀请 SMTP 和 browser evidence。普通正式重启/发布仍按下列命令显式运行：
 
 ~~~zsh
 # 先由 designated account 完成一次 sudo ticket；不要以 root 运行整段 preflight。
@@ -269,65 +267,6 @@ zsh ops/macos/Test-FormalPreflight.zsh \
 4. destructive boundary 之后禁止 `alembic downgrade`。任何失败都停止所有 writer，使用上一 release + 已验证 paired backup restore-only 回滚，并重新跑 migration head、count、health、入口、OTP/邀请 SMTP、profile、frozen-report 和人工 preflight；若备份后已有写入，必须遵循精确数据损失确认。
 
 迁移后的最小 browser/SMTP smoke 必须覆盖 active/pending/inactive 账号、六位十分钟 OTP、注册完成、四小时 session/no remember-me、邮箱/来源/全局限流、同源邀请回跳、initial send/failed-only resend，以及 profile 编辑不改写冻结 roster/report。没有真实外部 SMTP 与桌面/手机证据时保持 BLOCKED。
-
-### 初始 formal writer commissioning（generation 1）
-
-当前 `Initialize-FormalWriter.zsh` 已提供两阶段、可 crash-resume 的首次 writer 路径；实际接口仍以 `--help`/源码为准。该路径只适用于 fresh formal root，不能与未来跨宿主 `prepare-cutover`/`accept-cutover` 混用：
-
-~~~zsh
-MAC_ROOT="$HOME/Library/Application Support/InternalExam"
-RELEASE="$MAC_ROOT/releases/1.2.3"
-BROWSER_SOURCE="/private/tmp/internal-exam-browser-source-<exact-commit>"
-
-# Stage A：只预留空 dataset、host identity、writerGeneration=1 和独立 volumes；
-# 不启动 public candidate，不进行 ownership change。
-zsh ops/macos/Initialize-FormalWriter.zsh \
-  --action Prepare \
-  --release-path "$RELEASE" \
-  --empty-dataset \
-  --root "$MAC_ROOT"
-
-# 现在返回本节前面的 staging 流程，依次完成 Up、七份真实 raw、Accept 和 Down，
-# 并把 Down 保留的 durable canonical 路径赋给 STAGING_CANONICAL；未完成时不要继续。
-
-# 私有 maintenance endpoints 只用于最终 writer 的 browser smoke，端口固定
-# 127.0.0.1:28080/28081；它不是 staging E2E，也不是手机 UAT。
-zsh ops/macos/Start-Platform.zsh --maintenance --root "$MAC_ROOT"
-BROWSER_SMOKE="$MAC_ROOT/evidence/formal-browser-smoke-<timestamp>.json"
-zsh ops/macos/Capture-FormalBrowserSmokeEvidence.zsh \
-  --browser-source "$BROWSER_SOURCE" \
-  --release-path "$RELEASE" \
-  --output-path "$BROWSER_SMOKE" \
-  --candidate-url http://127.0.0.1:28080 \
-  --operator-url http://127.0.0.1:28081 \
-  --root "$MAC_ROOT"
-
-# privileged evidence 只能由 designated account 先 sudo -v、再以普通用户运行。
-/usr/bin/sudo -v
-zsh ops/macos/Capture-PrivilegedHostEvidence.zsh --root "$MAC_ROOT"
-PF_EVIDENCE="$MAC_ROOT/evidence/pf-privileged-host-evidence.json"
-NETWORK_TIME_EVIDENCE="$MAC_ROOT/evidence/network-time-privileged-host-evidence.json"
-
-# Stage B：Activate 会校验 schemaVersion=2 staging 七份 raw、private browser smoke，
-# 并在内部完成 generation-1 fence、writer-fence 下最终 paired backup + second copy、
-# restore drill、target-maintenance preflight、pending barrier、fence release、terminal
-# evidence，最后才 public Start。若任一证据缺失/过期/身份不匹配，命令 fail closed。
-zsh ops/macos/Initialize-FormalWriter.zsh \
-  --action Activate \
-  --release-path "$RELEASE" \
-  --staging-evidence "$STAGING_CANONICAL" \
-  --browser-smoke-evidence "$BROWSER_SMOKE" \
-  --pf-evidence "$PF_EVIDENCE" \
-  --network-time-evidence "$NETWORK_TIME_EVIDENCE" \
-  --confirmation "ACTIVATE FORMAL WRITER 1.2.3" \
-  --root "$MAC_ROOT"
-~~~
-
-`BROWSER_SOURCE` 必须是与 release commit 完全一致、无 tracked/untracked 修改且已安装本地 Playwright/Chromium 的 Git 工作树；当前 checkout 只有在已提交且完全 clean 时才能使用。脚本不接受自签的目录 manifest 或非 Git 导出目录。该 smoke 只验证私有维护端点，不能代替 staging E2E、手机 UAT 或第二设备网络门禁。
-
-`Prepare` 与 `Activate` 之间可以暂停；`Activate` 在每个边界写入 checksummed phase journal（`intent → maintenance-started → fence-acquired → backup-passed → restore-passed → preflight-passed → state-bound → fence-released → terminal`）。若进程/主机在 fence 内崩溃，保留精确 fence 和 phase journal，由同一命令按 digest、dataset/host/generation 重新校验并 resume；不得删除 journal、补写 sidecar、手工把 `bootstrapPending` 改为 false 或绕过 terminal barrier。只有 terminal evidence 与 public-ready current state 同时落盘后，才允许 public `Start-Platform`；随后仍需主操作员人工确认“允许开考”。真实网络、SMTP、第二设备、独立加密第二副本和桌面/手机 UAT 缺失时，整体验收仍为 **BLOCKED**，不能用本机静态/synthetic evidence 替代。
-
-如果 Docker Desktop settings 文件不含 `UseResourceSaver`/等价字段，先生成带 checksum 的 operator settings evidence，再将其作为 `--docker-settings-evidence` 传给 `Activate`/`Test-FormalPreflight`；不要用未签名截图或手写 JSON 冒充。
 
 ## 4. 启动、状态和停止
 
@@ -454,31 +393,6 @@ Mac→Windows 迁移必须先：
 6. 只有 source stopped 且 target evidence/人工批准齐全才开放 Windows candidate writer。
 
 Windows target 一旦写入，回切 Mac 必须先在 Windows 生成新的 verified paired backup，再停止 Windows writer、在 Mac staging/restore 后切换；不能重启旧 Mac 形成双写。Mac 证据永远不满足 Windows acceptance。完整状态机见 host-migration.md。
-
-正式 Mac source 准备切换时，使用实际的 Mac source-stop/writer-generation 命令。`Prepare-HostCutover.zsh` 只在 Mac source 上运行：
-
-~~~zsh
-zsh ops/macos/Prepare-HostCutover.zsh \
-  --target-host windows-docker-wsl2 \
-  --confirmation "PREPARE HOST CUTOVER" \
-  --root "$MAC_ROOT"
-~~~
-
-该命令在持久 writer fence 内自行创建并验证最终 `cutover` 配对备份及其独立加密第二副本；不得把操作员预先选择的普通备份冒充最终迁移快照。
-
-Windows target 不运行下面的 Mac zsh；它必须使用未来 Windows Docker Desktop + WSL2 适配器完成独立 restore、native 架构 staging、SMTP、UAT 和 100-client gate。下面的 `Accept-HostCutover.zsh` 只在 Mac target（例如 Windows→Mac 回切）上运行，用于接受已停止 source 的备份和 target evidence：
-
-~~~zsh
-zsh ops/macos/Accept-HostCutover.zsh \
-  --final-backup-path "$MAC_ROOT/backups/<final-backup-id>" \
-  --browser-smoke-evidence "$MAC_ROOT/evidence/<target-browser-smoke>.json" \
-  --prepared-evidence "$MAC_ROOT/evidence/<cutover-prepared>.json" \
-  --source-stopped \
-  --confirmation "ACCEPT HOST CUTOVER" \
-  --root "$MAC_ROOT"
-~~~
-
-这些命令会验证 source stopped 和备份/证据，但不自动批准考试；目标开放前仍要由目标宿主主操作员人工确认。
 
 ## 8. LaunchAgent 和人工批准
 
