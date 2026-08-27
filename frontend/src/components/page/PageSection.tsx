@@ -24,15 +24,14 @@ export interface PageSectionProps extends React.HTMLAttributes<HTMLElement> {
   surface?: PageSectionVariant;
 }
 
+const FOCUS_RAISED =
+  "flex flex-col gap-section rounded-lg border border-hairline bg-canvas p-panel shadow-card";
 const variantClassName: Record<PageSectionVariant, string> = {
   plain: "flex flex-col gap-stack",
   panel: "flex flex-col gap-stack rounded-md border border-hairline bg-surface-card p-panel",
-  focus:
-    "flex flex-col gap-section rounded-lg border border-hairline bg-canvas p-panel shadow-card",
-  "focus-summary":
-    "flex flex-col gap-section rounded-lg border border-hairline bg-canvas p-panel shadow-card",
-  summary:
-    "flex flex-col gap-section rounded-lg border border-hairline bg-canvas p-panel shadow-card",
+  focus: FOCUS_RAISED,
+  "focus-summary": FOCUS_RAISED,
+  summary: FOCUS_RAISED,
   data: "flex flex-col gap-stack overflow-hidden rounded-md border border-hairline bg-canvas",
   overlay:
     "flex flex-col gap-stack rounded-lg border border-hairline bg-surface-elev p-panel shadow-elevate",

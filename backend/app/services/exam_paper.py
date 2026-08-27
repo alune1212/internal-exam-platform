@@ -1,22 +1,13 @@
 import random
 from collections import defaultdict
-from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import Exam, ExamQuestionPool, Question
 from app.services.exam_errors import ExamConfigError, InsufficientQuestionsError
-
-
-@dataclass(frozen=True)
-class FixedPaperRule:
-    question_count: int
-    total_score: Decimal
-    type_counts: dict[str, int]
-    pass_score: Decimal | None
-
 
 VALID_FIXED_TYPES = {"single", "multiple", "judge"}
 
@@ -90,31 +81,28 @@ def _questions_by_type(questions: list[Question]) -> dict[str, list[Question]]:
     return grouped
 
 
-def _parse_fixed_paper_rule(question_rule: dict | None) -> FixedPaperRule | None:
-    """Convert a stored question_rule into a typed FixedPaperRule.
+def _parse_fixed_paper_rule(question_rule: dict | None) -> dict[str, Any] | None:
+    """Re-validate the stored question_rule dict and return a normalized copy.
 
-    Re-validates the shape on read so a persisted exam whose rule dict was
-    inserted outside the update pipeline (legacy fixtures, ops imports, etc.)
-    still raises a domain error rather than KeyError at attempt-start time.
+    Re-validates on read so a persisted exam whose rule dict was inserted
+    outside the update pipeline (legacy fixtures, ops imports, etc.) still
+    raises a domain error rather than KeyError at attempt-start time.
     """
     if not question_rule:
         return None
 
     _validate_question_rule(question_rule)
-    question_count = question_rule["question_count"]
-    total_score = Decimal(question_rule["total_score"])
     raw_type_counts = question_rule["type_counts"]
     type_counts = {
         question_type: int(raw_type_counts.get(question_type, 0))
         for question_type in ("single", "multiple", "judge")
     }
-    pass_score = _optional_decimal(question_rule.get("pass_score"), "pass_score")
-    return FixedPaperRule(
-        question_count=question_count,
-        total_score=total_score,
-        type_counts=type_counts,
-        pass_score=pass_score,
-    )
+    return {
+        "question_count": int(question_rule["question_count"]),
+        "total_score": Decimal(question_rule["total_score"]),
+        "type_counts": type_counts,
+        "pass_score": _optional_decimal(question_rule.get("pass_score"), "pass_score"),
+    }
 
 
 def _category_key(question: Question) -> str:
@@ -140,35 +128,19 @@ def _deduplicate_questions_by_stem(questions: list[Question]) -> list[Question]:
     return unique_questions
 
 
-def _take_from_bucket(
-    selected: list[Question],
-    bucket: list[Question],
-    used_ids: set[int],
-    count: int,
-    *,
-    reason: str,
-) -> None:
-    if count < 0:
-        raise InsufficientQuestionsError(reason)
-    if count == 0:
-        return
-    available = [question for question in bucket if question.id not in used_ids]
-    if len(available) < count:
-        raise InsufficientQuestionsError(reason)
-    for question in available[:count]:
-        selected.append(question)
-        used_ids.add(question.id)
-
-
 def _select_questions_by_type(
-    questions: list[Question], rule: FixedPaperRule
+    questions: list[Question], rule: dict[str, Any]
 ) -> list[Question]:
+    question_count = int(rule["question_count"])
+    type_counts: dict[str, int] = {
+        str(key): int(value) for key, value in rule["type_counts"].items()
+    }
     questions = _deduplicate_questions_by_stem(questions)
-    if len(questions) < rule.question_count:
+    if len(questions) < question_count:
         raise InsufficientQuestionsError("启用题目数量不足，无法生成考试试卷")
 
     grouped_by_type = _questions_by_type(questions)
-    for question_type, count in rule.type_counts.items():
+    for question_type, count in type_counts.items():
         if len(grouped_by_type[question_type]) < count:
             raise InsufficientQuestionsError(
                 f"{question_type} 题目数量不足，无法生成考试试卷"
@@ -176,7 +148,7 @@ def _select_questions_by_type(
     seen_combos = {
         (_category_key(question), question.question_type) for question in questions
     }
-    for question_type, target_count in rule.type_counts.items():
+    for question_type, target_count in type_counts.items():
         required = sum(
             1 for _category, q_type in seen_combos if q_type == question_type
         )
@@ -199,7 +171,7 @@ def _select_questions_by_type(
     for question in questions:
         by_combo[(_category_key(question), question.question_type)].append(question)
 
-    for question_type, target_count in rule.type_counts.items():
+    for question_type, target_count in type_counts.items():
         per_category = max(1, target_count // len(categories))
         remaining = target_count
         for category in categories:
@@ -208,39 +180,48 @@ def _select_questions_by_type(
             bucket = by_combo.get((category, question_type), [])
             if bucket:
                 count = min(per_category, remaining, len(bucket))
-                _take_from_bucket(
-                    selected,
-                    bucket,
-                    used_ids,
-                    count,
-                    reason=f"{category} 的{question_type}题目数量不足，无法生成考试试卷",
-                )
+                reason = f"{category} 的{question_type}题目数量不足，无法生成考试试卷"
+                if count < 0:
+                    raise InsufficientQuestionsError(reason)
+                if count > 0:
+                    available = [q for q in bucket if q.id not in used_ids]
+                    if len(available) < count:
+                        raise InsufficientQuestionsError(reason)
+                    for question in available[:count]:
+                        selected.append(question)
+                        used_ids.add(question.id)
                 remaining -= count
 
     for (category, question_type), bucket in sorted(by_combo.items()):
         if not bucket or any(question.id in used_ids for question in bucket):
             continue
-        _take_from_bucket(
-            selected,
-            bucket,
-            used_ids,
-            1,
-            reason=f"{category} 缺少 {question_type} 题目，无法覆盖题型组合",
-        )
+        count = 1
+        reason = f"{category} 缺少 {question_type} 题目，无法覆盖题型组合"
+        available = [q for q in bucket if q.id not in used_ids]
+        if len(available) < count:
+            raise InsufficientQuestionsError(reason)
+        for question in available[:count]:
+            selected.append(question)
+            used_ids.add(question.id)
 
-    for question_type, target_count in rule.type_counts.items():
+    for question_type, target_count in type_counts.items():
         current_count = sum(
             1 for question in selected if question.question_type == question_type
         )
-        _take_from_bucket(
-            selected,
-            grouped_by_type[question_type],
-            used_ids,
-            target_count - current_count,
-            reason=f"{question_type} 题目数量不足，无法生成考试试卷",
-        )
+        count = target_count - current_count
+        reason = f"{question_type} 题目数量不足，无法生成考试试卷"
+        bucket = grouped_by_type[question_type]
+        if count < 0:
+            raise InsufficientQuestionsError(reason)
+        if count > 0:
+            available = [q for q in bucket if q.id not in used_ids]
+            if len(available) < count:
+                raise InsufficientQuestionsError(reason)
+            for question in available[:count]:
+                selected.append(question)
+                used_ids.add(question.id)
 
-    if len(selected) != rule.question_count:
+    if len(selected) != question_count:
         raise InsufficientQuestionsError("抽题数量与规则不一致，无法生成考试试卷")
     return selected
 

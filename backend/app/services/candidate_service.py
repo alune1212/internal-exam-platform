@@ -215,7 +215,16 @@ def verify_candidate_login_challenge(
     credential = token_urlsafe(32)
     challenge.registration_credential_hash = _hash_registration_credential(credential)
     registration_expires_at = now + timedelta(
-        seconds=_registration_credential_ttl_seconds()
+        seconds=min(
+            settings.candidate_login_otp_ttl_seconds,
+            int(
+                getattr(
+                    settings,
+                    "candidate_registration_credential_ttl_seconds",
+                    settings.candidate_login_otp_ttl_seconds,
+                )
+            ),
+        )
     )
     challenge.registration_credential_expires_at = registration_expires_at
     challenge.registration_credential_consumed_at = None
@@ -443,7 +452,7 @@ def get_active_account(db: Session, candidate_id: int) -> Candidate:
 
 def _authenticated_response(account: Candidate) -> AuthenticatedCandidateLoginResponse:
     token_expires_at = datetime.now(UTC) + timedelta(
-        seconds=_candidate_token_ttl_seconds()
+        seconds=min(int(settings.candidate_token_ttl_seconds), 4 * 60 * 60)
     )
     return AuthenticatedCandidateLoginResponse(
         outcome="authenticated",
@@ -616,20 +625,3 @@ def _hash_request_source(request_ip: str | None) -> str | None:
         return None
     digest = hashlib.sha256(request_ip.encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
-
-
-def _registration_credential_ttl_seconds() -> int:
-    return min(
-        settings.candidate_login_otp_ttl_seconds,
-        int(
-            getattr(
-                settings,
-                "candidate_registration_credential_ttl_seconds",
-                settings.candidate_login_otp_ttl_seconds,
-            )
-        ),
-    )
-
-
-def _candidate_token_ttl_seconds() -> int:
-    return min(int(settings.candidate_token_ttl_seconds), 4 * 60 * 60)

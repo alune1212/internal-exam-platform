@@ -24,11 +24,12 @@ export interface CardProps extends DivProps {
   variant?: CardSurface;
 }
 
+const CARD_RAISED = "rounded-lg border border-hairline bg-canvas shadow-card";
 const surfaceClassName: Record<CardSurface, string> = {
-  card: "rounded-lg border border-hairline bg-canvas shadow-card",
-  focus: "rounded-lg border border-hairline bg-canvas shadow-card",
-  "focus-summary": "rounded-lg border border-hairline bg-canvas shadow-card",
-  summary: "rounded-lg border border-hairline bg-canvas shadow-card",
+  card: CARD_RAISED,
+  focus: CARD_RAISED,
+  "focus-summary": CARD_RAISED,
+  summary: CARD_RAISED,
   panel: "rounded-md border border-hairline bg-surface-card",
   data: "rounded-md border border-hairline bg-canvas",
   overlay: "rounded-lg border border-hairline bg-surface-elev shadow-elevate",

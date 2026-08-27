@@ -117,6 +117,7 @@ export function RegistrationPage() {
                 autoComplete="name"
                 autoFocus
                 aria-invalid={Boolean(form.formState.errors.display_name)}
+                disabled={mutation.isPending}
                 {...form.register("display_name")}
               />
               {suggestion ? (
@@ -141,6 +142,7 @@ export function RegistrationPage() {
                       type="checkbox"
                       className="size-4"
                       aria-invalid={Boolean(form.formState.errors.confirm_suggested_name)}
+                      disabled={mutation.isPending}
                       {...form.register("confirm_suggested_name")}
                     />
                     确认此姓名用于用户账号

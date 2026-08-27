@@ -209,10 +209,6 @@ def add_exam_candidate(
     "/{exam_id}/candidates/{candidate_id}",
     response_model=ApiResponse[ExamCandidateRow],
 )
-@admin_router.put(
-    "/{exam_id}/candidates/{candidate_id}",
-    response_model=ApiResponse[ExamCandidateRow],
-)
 def update_exam_candidate(
     exam_id: int,
     candidate_id: int,
@@ -250,9 +246,6 @@ def _schedule_read(
 
 @admin_router.get(
     "/{exam_id}/invitations", response_model=ApiResponse[InvitationStatusRead]
-)
-@admin_router.get(
-    "/{exam_id}/invitations/status", response_model=ApiResponse[InvitationStatusRead]
 )
 def get_invitation_status(
     exam_id: int, db: Session = Depends(get_db)

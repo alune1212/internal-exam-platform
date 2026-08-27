@@ -58,8 +58,6 @@ const sheetVariants = cva(
   },
 );
 
-export type SheetOverlayProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>;
-
 export interface SheetContentProps
   extends
     React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
@@ -90,13 +88,9 @@ const SheetContent = React.forwardRef<
 ));
 SheetContent.displayName = DialogPrimitive.Content.displayName;
 
-export interface SheetHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+interface SheetHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   chapter?: string;
 }
-export type SheetTitleProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>;
-export type SheetDescriptionProps = React.ComponentPropsWithoutRef<
-  typeof DialogPrimitive.Description
->;
 
 const SheetHeader = React.forwardRef<HTMLDivElement, SheetHeaderProps>(
   ({ className, chapter, children, ...props }, ref) => (
@@ -111,6 +105,9 @@ const SheetHeader = React.forwardRef<HTMLDivElement, SheetHeaderProps>(
   ),
 );
 SheetHeader.displayName = "SheetHeader";
+
+type SheetTitleProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>;
+type SheetDescriptionProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>;
 
 const SheetTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,

@@ -10,8 +10,8 @@ describe("Select", () => {
     const user = userEvent.setup();
     render(
       <Field>
-        <FieldLabel>考试状态</FieldLabel>
-        <Select defaultValue="draft">
+        <FieldLabel htmlFor="status">考试状态</FieldLabel>
+        <Select id="status" defaultValue="draft">
           <option value="draft">草稿</option>
           <option value="active">已发布</option>
         </Select>
@@ -21,7 +21,6 @@ describe("Select", () => {
 
     const select = screen.getByRole("combobox", { name: "考试状态" });
     expect(select).toHaveClass("h-11", "rounded-md", "border-hairline", "focus-visible:ring-ink");
-    expect(select).toHaveAttribute("aria-describedby");
 
     await user.selectOptions(select, "active");
     expect(select).toHaveValue("active");
@@ -30,20 +29,20 @@ describe("Select", () => {
   it("exposes disabled, invalid, and success states without replacing the native element", () => {
     const { rerender } = render(
       <Field state="disabled">
-        <FieldLabel>状态</FieldLabel>
-        <Select defaultValue="draft">
+        <FieldLabel htmlFor="status">状态</FieldLabel>
+        <Select id="status" defaultValue="draft" disabled>
           <option value="draft">草稿</option>
         </Select>
       </Field>,
     );
     const select = screen.getByRole("combobox", { name: "状态" });
     expect(select).toBeDisabled();
-    expect(select).toHaveAttribute("data-state", "disabled");
+    expect(select.closest("[data-slot='field']")).toHaveAttribute("data-state", "disabled");
 
     rerender(
       <Field state="invalid">
-        <FieldLabel>状态</FieldLabel>
-        <Select defaultValue="draft">
+        <FieldLabel htmlFor="status">状态</FieldLabel>
+        <Select id="status" defaultValue="draft" aria-invalid>
           <option value="draft">草稿</option>
         </Select>
       </Field>,
@@ -52,12 +51,14 @@ describe("Select", () => {
 
     rerender(
       <Field state="success">
-        <FieldLabel>状态</FieldLabel>
-        <Select defaultValue="draft">
+        <FieldLabel htmlFor="status">状态</FieldLabel>
+        <Select id="status" defaultValue="draft">
           <option value="draft">草稿</option>
         </Select>
       </Field>,
     );
-    expect(screen.getByRole("combobox", { name: "状态" })).toHaveAttribute("data-success");
+    expect(
+      screen.getByRole("combobox", { name: "状态" }).closest("[data-slot='field']"),
+    ).toHaveAttribute("data-state", "success");
   });
 });

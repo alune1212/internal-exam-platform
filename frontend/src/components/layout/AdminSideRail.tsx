@@ -1,5 +1,5 @@
 import { LogOut, Menu } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
 import { Wordmark } from "@/components/editorial/Wordmark";
@@ -13,8 +13,28 @@ import {
 } from "@/components/ui/sheet";
 import { isNavItemActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
-import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
+
+function useScrolled(threshold = 8): boolean {
+  const [scrolled, setScrolled] = useState(false);
+  const lastScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const update = () => {
+      const next = window.scrollY > threshold;
+      if (next === lastScrolledRef.current) return;
+      lastScrolledRef.current = next;
+      setScrolled(next);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [threshold]);
+
+  return scrolled;
+}
 
 export type AdminNavigationItem = {
   id: string;

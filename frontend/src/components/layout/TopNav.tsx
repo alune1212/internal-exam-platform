@@ -1,5 +1,5 @@
 import { ArrowLeft, LogIn, LogOut, Menu } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 
 import { NamePlate } from "@/components/editorial/NamePlate";
@@ -16,9 +16,29 @@ import {
 import { isNavItemActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { candidateActionCopy } from "@/lib/pageCopy";
-import { useScrolled } from "@/lib/useScrolled";
 import { MD, useMediaQuery } from "@/lib/use-media-query";
 import { candidateDisplayName, type Candidate } from "@/types/candidate";
+
+function useScrolled(threshold = 8): boolean {
+  const [scrolled, setScrolled] = useState(false);
+  const lastScrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const update = () => {
+      const next = window.scrollY > threshold;
+      if (next === lastScrolledRef.current) return;
+      lastScrolledRef.current = next;
+      setScrolled(next);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [threshold]);
+
+  return scrolled;
+}
 
 type NavItem = {
   to: string;

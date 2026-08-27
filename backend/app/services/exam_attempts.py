@@ -58,22 +58,6 @@ from app.services.operational_lock_service import assert_backup_write_allowed
 from app.services.scoring_service import score_answer
 
 
-def _build_correct_answer_snapshot(options: list) -> str:
-    correct = sorted(option.label for option in options if option.is_correct)
-    return ",".join(correct)
-
-
-def _build_options_snapshot(options: list) -> list[dict]:
-    return [
-        {
-            "label": option.label,
-            "content": option.content,
-            "sort_order": option.sort_order,
-        }
-        for option in sorted(options, key=lambda item: item.sort_order)
-    ]
-
-
 def _find_unused_retake_grant(
     db: Session,
     exam_id: int,
@@ -283,10 +267,6 @@ def takeover_attempt_session(
     )
 
 
-def _is_attempt_expired(attempt: ExamAttempt, now: datetime | None = None) -> bool:
-    return (now or datetime.now(UTC)) >= ensure_aware(attempt.ends_at)
-
-
 def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartResponse:
     # Keep the existing-attempt recovery branch read-only so it remains
     # available while a backup freeze or writer fence blocks writes.  New
@@ -392,9 +372,9 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
 
     rule = _parse_fixed_paper_rule(exam.question_rule)
     if rule is not None:
-        scaled_pairs = _rescale_scores(questions, rule.total_score)
-        total_score = rule.total_score
-        pass_score_snapshot = rule.pass_score
+        scaled_pairs = _rescale_scores(questions, rule["total_score"])
+        total_score = rule["total_score"]
+        pass_score_snapshot = rule["pass_score"]
     else:
         scaled_pairs = [(question, question.score) for question in questions]
         total_score = sum(question.score for question in questions)
@@ -435,13 +415,25 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
 
     snapshots: list[ExamAttemptQuestion] = []
     for index, (question, scaled_score) in enumerate(scaled_pairs):
+        sorted_options = sorted(question.options, key=lambda item: item.sort_order)
+        options_snapshot = [
+            {
+                "label": option.label,
+                "content": option.content,
+                "sort_order": option.sort_order,
+            }
+            for option in sorted_options
+        ]
+        correct_answer_snapshot = ",".join(
+            sorted(option.label for option in question.options if option.is_correct)
+        )
         snapshot = ExamAttemptQuestion(
             attempt_id=attempt.id,
             original_question_id=question.id,
             question_type=question.question_type,
             stem_snapshot=question.stem,
-            options_snapshot=_build_options_snapshot(question.options),
-            correct_answer_snapshot=_build_correct_answer_snapshot(question.options),
+            options_snapshot=options_snapshot,
+            correct_answer_snapshot=correct_answer_snapshot,
             analysis_snapshot=question.analysis,
             score=scaled_score,
             sort_order=index,
@@ -548,7 +540,7 @@ def save_answers(
     _ensure_attempt_scope(db, attempt)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
-    if _is_attempt_expired(attempt):
+    if datetime.now(UTC) >= ensure_aware(attempt.ends_at):
         submit_attempt(db, attempt_id, "auto")
         raise AttemptAlreadySubmittedError(attempt_id)
     if (
@@ -605,7 +597,7 @@ def score_and_mark_attempt_submitted(
         return build_attempt_result(attempt)
     effective_submit_type = (
         "auto"
-        if submit_type == "auto" or _is_attempt_expired(attempt, submitted_at)
+        if submit_type == "auto" or submitted_at >= ensure_aware(attempt.ends_at)
         else submit_type
     )
     score = Decimal("0")

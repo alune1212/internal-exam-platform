@@ -1,6 +1,26 @@
 import { QueryClient } from "@tanstack/react-query";
 
-import { subscribeSessionChanges } from "@/lib/sessionEvents";
+export type SessionChangeReason =
+  | "candidate-login"
+  | "candidate-logout"
+  | "admin-login"
+  | "admin-logout"
+  | "unauthorized";
+
+const sessionChangeListeners = new Set<(reason: SessionChangeReason) => void>();
+
+export function subscribeSessionChange(
+  listener: (reason: SessionChangeReason) => void,
+): () => void {
+  sessionChangeListeners.add(listener);
+  return () => {
+    sessionChangeListeners.delete(listener);
+  };
+}
+
+export function emitSessionChange(reason: SessionChangeReason): void {
+  sessionChangeListeners.forEach((listener) => listener(reason));
+}
 
 export function createAppQueryClient() {
   return new QueryClient({
@@ -18,7 +38,7 @@ export function createAppQueryClient() {
 }
 
 export function bindSessionCacheClearing(queryClient: QueryClient): () => void {
-  return subscribeSessionChanges(() => {
+  return subscribeSessionChange(() => {
     queryClient.clear();
   });
 }

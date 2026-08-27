@@ -134,7 +134,13 @@ export function ProfilePage() {
             <FieldGroup>
               <Field pending={mutation.isPending}>
                 <FieldLabel htmlFor="profile_email">邮箱（只读）</FieldLabel>
-                <Input id="profile_email" value={query.data.email} readOnly aria-readonly="true" />
+                <Input
+                  id="profile_email"
+                  value={query.data.email}
+                  readOnly
+                  aria-readonly="true"
+                  disabled={mutation.isPending}
+                />
               </Field>
               <Field
                 pending={mutation.isPending}
@@ -145,6 +151,7 @@ export function ProfilePage() {
                   id="profile_display_name"
                   autoComplete="name"
                   aria-invalid={Boolean(form.formState.errors.display_name)}
+                  disabled={mutation.isPending}
                   {...form.register("display_name")}
                 />
                 {form.formState.errors.display_name ? (

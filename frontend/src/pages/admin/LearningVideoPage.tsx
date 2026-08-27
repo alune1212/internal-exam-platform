@@ -488,6 +488,7 @@ export function AdminLearningVideoPage() {
                 id="learning-video-edit-title"
                 value={editTitle}
                 onChange={(event) => setEditTitle(event.target.value)}
+                disabled={updateMutation.isPending}
               />
             </Field>
             <Field pending={updateMutation.isPending}>
@@ -496,6 +497,7 @@ export function AdminLearningVideoPage() {
                 id="learning-video-edit-description"
                 value={editDescription}
                 onChange={(event) => setEditDescription(event.target.value)}
+                disabled={updateMutation.isPending}
               />
             </Field>
             <PageActions placement="form" aria-label="视频编辑操作">

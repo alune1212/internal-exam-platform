@@ -22,9 +22,6 @@ from app.services.exam_attempts import (
     create_retake_grant,
 )
 from app.services.exam_attempts import (
-    _is_attempt_expired as _is_attempt_expired,
-)
-from app.services.exam_attempts import (
     _load_attempt_with_snapshots as _load_attempt_with_snapshots,
 )
 from app.services.exam_attempts import (
@@ -111,9 +108,6 @@ from app.services.exam_errors import (
 )
 from app.services.exam_errors import (
     InsufficientQuestionsError as InsufficientQuestionsError,
-)
-from app.services.exam_paper import (
-    FixedPaperRule as FixedPaperRule,
 )
 from app.services.exam_paper import (
     _rescale_scores as _rescale_scores,

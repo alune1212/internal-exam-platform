@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { emitSessionChanged } from "@/lib/sessionEvents";
-import { bindSessionCacheClearing, createAppQueryClient } from "./queryClient";
+import { bindSessionCacheClearing, createAppQueryClient, emitSessionChange } from "./queryClient";
 
 describe("createAppQueryClient", () => {
   it("sets conservative default query behavior for admin and candidate pages", () => {
@@ -19,7 +18,7 @@ describe("createAppQueryClient", () => {
     queryClient.setQueryData(["admin", "exams"], [{ id: 1 }]);
     queryClient.setQueryData(["candidate", 1, "attempt", 10], { id: 10 });
 
-    emitSessionChanged({ reason: "candidate-login" });
+    emitSessionChange("candidate-login");
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     unsubscribe();

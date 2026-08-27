@@ -16,9 +16,9 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.core.time import ensure_aware
 from app.models import ExamAttempt, ExamAttemptQuestion
 from app.services.exam_service import (
-    _is_attempt_expired,
     score_and_mark_attempt_submitted,
 )
 from app.services.operational_lock_service import (
@@ -70,9 +70,8 @@ def process_due_attempts(
     for attempt in attempts:
         # Re-check the deadline inside the loop: another worker may have
         # already submitted (or the row may have been touched between
-        # the query and the lock). Reuse the service-layer predicate so
-        # "what counts as expired" stays in one place.
-        if not _is_attempt_expired(attempt, due_at):
+        # the query and the lock).
+        if due_at < ensure_aware(attempt.ends_at):
             continue
         score_and_mark_attempt_submitted(
             attempt, submit_type="auto", submitted_at=due_at

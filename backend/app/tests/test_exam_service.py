@@ -636,12 +636,12 @@ def test_start_exam_rescales_scores_to_integer_points(db: Session) -> None:
 
 
 def test_select_questions_by_type_uses_unique_stems() -> None:
-    rule = exam_service.FixedPaperRule(
-        question_count=3,
-        total_score=Decimal("100"),
-        type_counts={"single": 3, "multiple": 0, "judge": 0},
-        pass_score=None,
-    )
+    rule = {
+        "question_count": 3,
+        "total_score": Decimal("100"),
+        "type_counts": {"single": 3, "multiple": 0, "judge": 0},
+        "pass_score": None,
+    }
     questions = [
         Question(id=1, question_type="single", stem="题目1", score=1),
         Question(id=2, question_type="single", stem="题目1", score=1),

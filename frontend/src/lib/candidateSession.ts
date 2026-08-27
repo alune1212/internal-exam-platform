@@ -1,4 +1,4 @@
-import { emitSessionChanged } from "@/lib/sessionEvents";
+import { emitSessionChange } from "@/app/queryClient";
 import type { Candidate } from "@/types/candidate";
 import { clearAllAttemptSessions } from "@/lib/attemptSession";
 import { clearAllAttemptDrafts } from "@/lib/attemptDraft";
@@ -109,7 +109,7 @@ export function setCurrentCandidate(candidate: Candidate) {
   window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(candidate));
   // Remove any persistent copy without ever reading it.
   window.localStorage.removeItem(STORAGE_KEY);
-  emitSessionChanged({ reason: "candidate-login" });
+  emitSessionChange("candidate-login");
 }
 
 export function clearCurrentCandidate(
@@ -120,7 +120,7 @@ export function clearCurrentCandidate(
   clearRegistrationFlow();
   clearAllAttemptSessions();
   clearAllAttemptDrafts();
-  emitSessionChanged({ reason });
+  emitSessionChange(reason);
 }
 
 export type RegistrationFlow = {

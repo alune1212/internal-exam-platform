@@ -188,23 +188,6 @@ def update_account_status(
     )
 
 
-@admin_accounts_router.patch(
-    "/{candidate_id}", response_model=ApiResponse[AccountAdminRead]
-)
-def update_account_status_compat(
-    candidate_id: int,
-    payload: AccountStatusUpdate,
-    request: Request,
-    db: Session = Depends(get_db),
-    operator_subject: str = Depends(require_admin),
-) -> ApiResponse[AccountAdminRead]:
-    """Compatibility spelling for clients that PATCH the account resource."""
-
-    return _set_account_status_handler(
-        candidate_id, payload, request, db, operator_subject
-    )
-
-
 @admin_accounts_router.post(
     "/{candidate_id}/activate", response_model=ApiResponse[AccountAdminRead]
 )
@@ -219,26 +202,6 @@ def activate_account(
             db,
             candidate_id,
             "active",
-            operator_subject=operator_subject,
-            request=request,
-        )
-    )
-
-
-@admin_accounts_router.post(
-    "/{candidate_id}/deactivate", response_model=ApiResponse[AccountAdminRead]
-)
-def deactivate_account(
-    candidate_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    operator_subject: str = Depends(require_admin),
-) -> ApiResponse[AccountAdminRead]:
-    return ApiResponse(
-        data=candidate_service.set_account_status(
-            db,
-            candidate_id,
-            "inactive",
             operator_subject=operator_subject,
             request=request,
         )

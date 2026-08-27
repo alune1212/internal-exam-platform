@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation, useMatches, useNavigate } from "react-router-dom";
 import { TopNav } from "@/components/layout/TopNav";
+import { subscribeSessionChange } from "@/app/queryClient";
 import { detectBrowserSupport } from "@/lib/browserSupport";
 import {
   clearCurrentCandidate,
@@ -8,7 +9,6 @@ import {
   setCurrentCandidate,
   getSafeReturnTo,
 } from "@/lib/candidateSession";
-import { subscribeSessionChanges } from "@/lib/sessionEvents";
 import { cn } from "@/lib/utils";
 import type { Candidate } from "@/types/candidate";
 
@@ -71,10 +71,10 @@ export function CandidateLayout() {
   const browserSupport = detectBrowserSupport(window.navigator.userAgent);
 
   useEffect(() => {
-    return subscribeSessionChanges((event) => {
-      if (event.reason === "candidate-login") {
+    return subscribeSessionChange((reason) => {
+      if (reason === "candidate-login") {
         setCandidate(getCurrentCandidate());
-      } else if (event.reason === "candidate-logout" || event.reason === "unauthorized") {
+      } else if (reason === "candidate-logout" || reason === "unauthorized") {
         setCandidate(null);
       }
     });

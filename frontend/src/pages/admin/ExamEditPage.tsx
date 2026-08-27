@@ -22,7 +22,6 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { DEFAULT_FIXED_PAPER_RULE } from "@/lib/examDefaults";
 import {
   adminPageCopy,
   adminPageText,
@@ -30,6 +29,14 @@ import {
   formatExamStatus,
 } from "@/lib/pageCopy";
 import { adminKeys } from "@/lib/queryKeys";
+
+const DEFAULT_FIXED_PAPER_RULE = {
+  question_count: 50,
+  total_score: 100,
+  pass_score: 60,
+  mode: "fixed_paper",
+  type_counts: { single: 30, multiple: 10, judge: 10 },
+} as const;
 
 const STATUS_OPTIONS = [
   { value: "draft", label: formatExamStatus("draft") },

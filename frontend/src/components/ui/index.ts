@@ -14,13 +14,6 @@ export {
 } from "./card";
 export { Input, type InputProps } from "./input";
 export { Select, type SelectProps } from "./select";
-export { Label } from "./label";
-export {
-  controlBaseClasses,
-  controlClasses,
-  controlVariantClasses,
-  type ControlVariant,
-} from "./control-base";
 export {
   Field,
   FieldGroup,
@@ -87,10 +80,5 @@ export {
   SheetTitle,
   SheetDescription,
   SheetClose,
-  type SheetOverlayProps,
-  type SheetContentProps,
-  type SheetHeaderProps,
-  type SheetTitleProps,
-  type SheetDescriptionProps,
 } from "./sheet";
 export { Skeleton } from "./skeleton";
