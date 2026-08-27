@@ -350,9 +350,6 @@ def assert_writer_fence_owner(
     )
 
 
-assert_formal_writer_fence_owner = assert_writer_fence_owner
-
-
 def transfer_writer_fence(
     db: Session,
     *,

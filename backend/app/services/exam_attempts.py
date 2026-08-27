@@ -613,7 +613,6 @@ def score_and_mark_attempt_submitted(
     for question in attempt.questions:
         answer = question.answer
         scoring = score_answer(
-            question.question_type,
             question.correct_answer_snapshot,
             answer.selected_answer if answer else None,
             float(question.score),

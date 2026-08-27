@@ -5,7 +5,6 @@ import { clearAllAttemptDrafts } from "@/lib/attemptDraft";
 
 const STORAGE_KEY = "internal-exam-candidate";
 const REGISTRATION_KEY = "internal-exam-registration-flow";
-export const DEFAULT_CANDIDATE_DESTINATION = "/exams";
 
 /**
  * Return targets are navigation hints only.  Keep them as same-origin paths
@@ -13,20 +12,20 @@ export const DEFAULT_CANDIDATE_DESTINATION = "/exams";
  * values before putting them back into a URL.
  */
 export function getSafeReturnTo(value: string | null | undefined): string {
-  if (!value) return DEFAULT_CANDIDATE_DESTINATION;
+  if (!value) return "/exams";
   let candidate: string;
   try {
     candidate = decodeURIComponent(value);
   } catch {
-    return DEFAULT_CANDIDATE_DESTINATION;
+    return "/exams";
   }
   if (!candidate.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\")) {
-    return DEFAULT_CANDIDATE_DESTINATION;
+    return "/exams";
   }
   try {
     const url = new URL(candidate, window.location.origin);
     if (url.origin !== window.location.origin || url.protocol !== window.location.protocol) {
-      return DEFAULT_CANDIDATE_DESTINATION;
+      return "/exams";
     }
     if (
       !url.pathname.startsWith("/") ||
@@ -35,17 +34,12 @@ export function getSafeReturnTo(value: string | null | undefined): string {
       url.pathname === "/login" ||
       url.pathname === "/register"
     ) {
-      return DEFAULT_CANDIDATE_DESTINATION;
+      return "/exams";
     }
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {
-    return DEFAULT_CANDIDATE_DESTINATION;
+    return "/exams";
   }
-}
-
-export function candidateLoginPath(returnTo?: string | null): string {
-  const safe = getSafeReturnTo(returnTo);
-  return `/login?returnTo=${encodeURIComponent(safe)}`;
 }
 
 export function maskEmail(email: string | null | undefined): string {
@@ -88,7 +82,12 @@ function parseCandidate(raw: string): Candidate | null {
     ) {
       throw new Error("invalid candidate session");
     }
-    if (isCandidateSessionExpired({ token_expires_at: tokenExpiresAt })) {
+    if (!tokenExpiresAt) {
+      clearCurrentCandidate("unauthorized");
+      return null;
+    }
+    const expiresAt = Date.parse(tokenExpiresAt);
+    if (Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
       clearCurrentCandidate("unauthorized");
       return null;
     }
@@ -104,12 +103,6 @@ function parseCandidate(raw: string): Candidate | null {
     clearCurrentCandidate("unauthorized");
     return null;
   }
-}
-
-export function isCandidateSessionExpired(candidate: Pick<Candidate, "token_expires_at">): boolean {
-  if (!candidate.token_expires_at) return false;
-  const expiresAt = Date.parse(candidate.token_expires_at);
-  return Number.isFinite(expiresAt) && expiresAt <= Date.now();
 }
 
 export function setCurrentCandidate(candidate: Candidate) {

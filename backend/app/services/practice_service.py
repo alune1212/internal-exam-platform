@@ -46,7 +46,6 @@ def submit_practice_answer(
 
     correct_answer = _build_correct_answer(question)
     scoring = score_answer(
-        question.question_type,
         correct_answer,
         payload.selected_answer,
         float(question.score),

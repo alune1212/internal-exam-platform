@@ -69,35 +69,17 @@ def check_candidate_otp_send_rate_limit(
     """
 
     now = now or datetime.now(UTC)
-    window_seconds = int(
-        getattr(
-            settings,
-            "candidate_login_email_rate_limit_window_seconds",
-            settings.public_token_rate_limit_window_seconds,
-        )
-    )
+    window_seconds = int(settings.candidate_login_email_rate_limit_window_seconds)
     source_window_seconds = int(
-        getattr(
-            settings,
-            "candidate_login_source_rate_limit_window_seconds",
-            window_seconds,
-        )
+        settings.candidate_login_source_rate_limit_window_seconds
     )
     global_window_seconds = int(
-        getattr(
-            settings,
-            "candidate_login_global_rate_limit_window_seconds",
-            window_seconds,
-        )
+        settings.candidate_login_global_rate_limit_window_seconds
     )
-    email_limit = int(getattr(settings, "candidate_login_email_rate_limit_count", 5))
-    source_limit = int(getattr(settings, "candidate_login_source_rate_limit_count", 20))
-    global_limit = int(
-        getattr(settings, "candidate_login_global_rate_limit_count", 100)
-    )
+    email_limit = int(settings.candidate_login_email_rate_limit_count)
+    source_limit = int(settings.candidate_login_source_rate_limit_count)
+    global_limit = int(settings.candidate_login_global_rate_limit_count)
 
-    # Import lazily to avoid a core -> models import cycle at module import
-    # time.  ``normalized_email`` is indexed by the migration.
     from app.models import CandidateLoginChallenge
 
     _acquire_otp_quota_lock(db)
@@ -150,11 +132,6 @@ def _acquire_otp_quota_lock(db: Session) -> None:
         text("SELECT pg_advisory_xact_lock(:lock_key)"),
         {"lock_key": _OTP_QUOTA_ADVISORY_LOCK_KEY},
     )
-
-
-# Descriptive alias used by tests and future callers that want to be explicit
-# about this being the persisted (rather than burst-only) limiter.
-check_persisted_candidate_otp_rate_limit = check_candidate_otp_send_rate_limit
 
 
 def _client_ip(request: Request) -> str:

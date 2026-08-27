@@ -155,19 +155,6 @@ def _assert_exam_available(exam: Exam) -> None:
         raise ExamNotAvailableError("考试已结束")
 
 
-def _exam_availability_status(exam: Exam, *, now: datetime | None = None) -> str:
-    return _classify_exam_window(exam, now=now)
-
-
-def _question_pool_count(db: Session, exam_id: int) -> int:
-    return (
-        db.query(func.count(ExamQuestionPool.id))
-        .filter(ExamQuestionPool.exam_id == exam_id)
-        .scalar()
-        or 0
-    )
-
-
 def _question_pool_counts_by_exam(db: Session, exam_ids: list[int]) -> dict[int, int]:
     if not exam_ids:
         return {}
@@ -191,11 +178,16 @@ def _build_exam_read(
     pool_count = (
         pool_counts.get(exam.id, 0)
         if pool_counts is not None
-        else _question_pool_count(db, exam.id)
+        else (
+            db.query(func.count(ExamQuestionPool.id))
+            .filter(ExamQuestionPool.exam_id == exam.id)
+            .scalar()
+            or 0
+        )
     )
     data: dict[str, object] = {
         "question_pool_count": pool_count,
-        "availability_status": _exam_availability_status(exam, now=observed_at),
+        "availability_status": _classify_exam_window(exam, now=observed_at),
     }
     if updates:
         data.update(updates)

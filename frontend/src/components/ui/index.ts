@@ -46,8 +46,6 @@ export {
 export { Separator, type SeparatorProps } from "./separator";
 export { Textarea, type TextareaProps } from "./textarea";
 export { Spinner, type SpinnerProps } from "./spinner";
-export { Badge, type BadgeProps } from "./badge";
-export { badgeVariants } from "./badge-variants";
 export {
   Table,
   TableHeader,

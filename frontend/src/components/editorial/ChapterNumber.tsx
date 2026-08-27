@@ -1,6 +1,5 @@
 import * as React from "react";
 
-import { hasMeaningfulContent } from "@/lib/children";
 import { cn } from "@/lib/utils";
 
 export interface ChapterNumberProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -8,7 +7,21 @@ export interface ChapterNumberProps extends React.HTMLAttributes<HTMLSpanElement
 }
 
 export function ChapterNumber({ children, className, ...props }: ChapterNumberProps) {
-  if (!hasMeaningfulContent(children)) return null;
+  if (
+    children === null ||
+    children === undefined ||
+    children === false ||
+    (typeof children === "string" && children.trim().length === 0) ||
+    (Array.isArray(children) &&
+      !children.some(
+        (v) =>
+          v !== null &&
+          v !== undefined &&
+          v !== false &&
+          (typeof v === "string" ? v.trim().length > 0 : true),
+      ))
+  )
+    return null;
 
   return (
     <span

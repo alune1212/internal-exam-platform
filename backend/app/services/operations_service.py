@@ -43,22 +43,18 @@ def _signal(
     )
 
 
-def _failed_signal(checked_at: datetime, error: Exception) -> OperationalSignalRead:
-    return _signal(
-        "failed",
-        "状态读取失败",
-        checked_at,
-        error_type=type(error).__name__,
-    )
-
-
 def _safe(
     checked_at: datetime, loader: Callable[[], OperationalSignalRead]
 ) -> OperationalSignalRead:
     try:
         return loader()
     except Exception as exc:
-        return _failed_signal(checked_at, exc)
+        return _signal(
+            "failed",
+            "状态读取失败",
+            checked_at,
+            error_type=type(exc).__name__,
+        )
 
 
 def _latest_json(

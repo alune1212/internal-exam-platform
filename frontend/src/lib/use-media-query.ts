@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { breakpointQueries, type BreakpointName, minWidthQuery } from "@/lib/breakpoints";
+import { breakpointQueries } from "@/lib/breakpoints";
 
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState<boolean>(() => {
@@ -36,12 +36,3 @@ export const MD = {
   md: breakpointQueries.md,
   lg: breakpointQueries.lg,
 } as const;
-
-/**
- * Build a media-query from the shared structural breakpoint map. Keeping this
- * helper next to the hook makes it harder for runtime consumers to drift from
- * Tailwind's screen thresholds.
- */
-export function useBreakpoint(name: BreakpointName): boolean {
-  return useMediaQuery(minWidthQuery(name));
-}

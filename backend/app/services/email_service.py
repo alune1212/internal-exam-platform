@@ -94,7 +94,15 @@ def deliver_candidate_login_otp(
             send_candidate_login_otp(**delivery_kwargs)
         except TransientEmailDeliveryError as exc:
             if attempt == max_attempts:
-                _log_delivery_failure(challenge_id, attempt, exc)
+                logger.warning(
+                    "candidate_login.email_delivery_failed",
+                    extra={
+                        "event": "candidate_login.email_delivery_failed",
+                        "challenge_id": challenge_id,
+                        "attempt": attempt,
+                        "error_type": type(exc).__name__,
+                    },
+                )
                 return False
             logger.warning(
                 "candidate_login.email_delivery_retry",
@@ -107,7 +115,15 @@ def deliver_candidate_login_otp(
             )
             sleep(base_seconds * (2 ** (attempt - 1)))
         except Exception as exc:
-            _log_delivery_failure(challenge_id, attempt, exc)
+            logger.warning(
+                "candidate_login.email_delivery_failed",
+                extra={
+                    "event": "candidate_login.email_delivery_failed",
+                    "challenge_id": challenge_id,
+                    "attempt": attempt,
+                    "error_type": type(exc).__name__,
+                },
+            )
             return False
         else:
             logger.info(
@@ -120,18 +136,6 @@ def deliver_candidate_login_otp(
             )
             return True
     return False
-
-
-def _log_delivery_failure(challenge_id: int, attempt: int, exc: Exception) -> None:
-    logger.warning(
-        "candidate_login.email_delivery_failed",
-        extra={
-            "event": "candidate_login.email_delivery_failed",
-            "challenge_id": challenge_id,
-            "attempt": attempt,
-            "error_type": type(exc).__name__,
-        },
-    )
 
 
 def _send_smtp(delivery: CandidateLoginEmail) -> None:

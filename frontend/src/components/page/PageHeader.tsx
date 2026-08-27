@@ -1,7 +1,6 @@
 import * as React from "react";
 
 import { ContextLabel } from "@/components/editorial/ContextLabel";
-import { hasMeaningfulContent } from "@/lib/children";
 import { cn } from "@/lib/utils";
 
 import { PageActions } from "./PageActions";
@@ -42,7 +41,18 @@ export function PageHeader({
       {...props}
     >
       <div className="flex min-w-0 flex-col gap-3">
-        {hasMeaningfulContent(resolvedContext) ? (
+        {resolvedContext !== null &&
+        resolvedContext !== undefined &&
+        resolvedContext !== false &&
+        (typeof resolvedContext !== "string" || resolvedContext.trim().length > 0) &&
+        (!Array.isArray(resolvedContext) ||
+          resolvedContext.some(
+            (v) =>
+              v !== null &&
+              v !== undefined &&
+              v !== false &&
+              (typeof v === "string" ? v.trim().length > 0 : true),
+          )) ? (
           <ContextLabel data-page-context="">{resolvedContext}</ContextLabel>
         ) : null}
         <h1 className="min-w-0 break-words font-display text-display-lg font-semibold text-ink lg:text-display-xl">

@@ -45,11 +45,6 @@ class RetentionSafeguardError(DomainError):
     status_code = 409
 
 
-def _latest(*values: datetime | None) -> datetime:
-    present = [to_utc(value) for value in values if value is not None]
-    return max(present) if present else datetime.min.replace(tzinfo=UTC)
-
-
 def _fingerprint(cutoff_at: datetime, exams: list[RetentionExamPreview]) -> str:
     payload = {
         "cutoff_at": cutoff_at.isoformat(),
@@ -90,19 +85,26 @@ def preview_retention(
             .scalar()
             or 0
         )
-        final_activity_at = _latest(
-            exam.created_at,
-            exam.updated_at,
-            *(
-                value
-                for attempt in attempts
-                for value in (
+        final_activity_candidates: list[datetime] = [
+            to_utc(source)
+            for source in (exam.created_at, exam.updated_at)
+            if source is not None
+        ]
+        for attempt in attempts:
+            final_activity_candidates.extend(
+                to_utc(source)
+                for source in (
                     attempt.created_at,
                     attempt.updated_at,
                     attempt.submitted_at,
                     attempt.voided_at,
                 )
-            ),
+                if source is not None
+            )
+        final_activity_at = (
+            max(final_activity_candidates)
+            if final_activity_candidates
+            else datetime.min.replace(tzinfo=UTC)
         )
         reasons: list[str] = []
         if exam.status != "archived":
@@ -218,16 +220,12 @@ def _archive_payload(db: Session, exam_ids: list[int]) -> dict[str, Any]:
                             for question in attempt.questions
                         ],
                     }
-                    for attempt in attempt_sort(exam.attempts)
+                    for attempt in sorted(exam.attempts, key=lambda attempt: attempt.id)
                 ],
             }
             for exam in exams
         ]
     }
-
-
-def attempt_sort(attempts: list[ExamAttempt]) -> list[ExamAttempt]:
-    return sorted(attempts, key=lambda attempt: attempt.id)
 
 
 def _json_bytes(payload: object) -> bytes:
