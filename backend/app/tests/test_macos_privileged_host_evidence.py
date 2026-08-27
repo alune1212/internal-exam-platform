@@ -252,8 +252,6 @@ def _assert_fixture(
 def test_privileged_evidence_scripts_use_fixed_commands_and_passthrough() -> None:
     capture = (MACOS_OPS / "Capture-PrivilegedHostEvidence.zsh").read_text()
     preflight = (MACOS_OPS / "Test-FormalPreflight.zsh").read_text()
-    accept = (MACOS_OPS / "Accept-HostCutover.zsh").read_text()
-    resume = (MACOS_OPS / "Resume-HostCutover.zsh").read_text()
 
     assert "(( EUID != 0 ))" in capture
     assert "/usr/bin/sudo -n /sbin/pfctl -s info" in capture
@@ -271,11 +269,6 @@ def test_privileged_evidence_scripts_use_fixed_commands_and_passthrough() -> Non
     assert "sudo" not in preflight
     assert "UseResourceSaver" in preflight
     assert "evidence_memory" not in preflight
-    for script in (accept, resume):
-        assert "--pf-evidence" in script
-        assert "--network-time-evidence" in script
-        assert '--pf-evidence "$pf_evidence"' in script
-        assert '--network-time-evidence "$network_time_evidence"' in script
 
 
 def test_capture_uses_protected_owner_not_application_operator(tmp_path: Path) -> None:

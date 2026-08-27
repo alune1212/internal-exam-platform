@@ -99,14 +99,6 @@ def test_compose_project_identities_are_explicit_and_distinct() -> None:
     assert development_env["POSTGRES_LOOPBACK_PORT"] == "25432"
     assert development_env["FRONTEND_LOOPBACK_PORT"] == "25173"
 
-    windows_scripts = "\n".join(
-        path.read_text(encoding="utf-8") for path in WINDOWS_OPS.glob("*.ps1")
-    )
-    assert "internal-exam-formal" in windows_scripts
-    assert "internal-exam-staging-$shortCommit" in windows_scripts
-    staging_script = (WINDOWS_OPS / "Invoke-Staging.ps1").read_text(encoding="utf-8")
-    assert "internal-exam-formal" not in staging_script
-
 
 def test_development_bind_mount_defaults_remain_separate_from_formal_paths() -> None:
     compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")

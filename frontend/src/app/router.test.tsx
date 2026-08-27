@@ -3,7 +3,37 @@ import { describe, expect, it } from "vitest";
 
 import { CANDIDATE_PRESENTATION_HANDLE } from "@/components/layout/candidate-presentation-mode";
 import { router } from "@/app/router";
-import { ROUTE_STATE_INVENTORY } from "../../e2e/fixtures/route-state-inventory";
+
+const ROUTE_STATE_INVENTORY_ROUTES = [
+  "/login",
+  "/register",
+  "/admin/login",
+  "/learning",
+  "/learning/:videoId",
+  "/practice",
+  "/practice/wrong-questions",
+  "/exams",
+  "/exams/:examId/start",
+  "/exams/:examId/result?attemptId=:attemptId",
+  "/profile",
+  "/admin/dashboard",
+  "/admin/accounts",
+  "/admin/questions",
+  "/admin/questions/import",
+  "/admin/exams",
+  "/admin/exams/:examId",
+  "/admin/exams/:examId/edit",
+  "/admin/exams/:examId/candidates",
+  "/admin/learning",
+  "/admin/learning/reports",
+  "/admin/reports/scores",
+  "/admin/reports/questions",
+  "/admin/reports/wrong",
+  "/admin/reports/absent",
+  "/admin/operations",
+  "/exams/:examId/taking?attemptId=:attemptId",
+  "/practice?questionId=:questionId",
+] as const;
 
 function joinPath(parent: string, path: string | undefined) {
   if (!path) return parent || "/";
@@ -71,7 +101,7 @@ describe("application router", () => {
     const routerDestinations = leafPaths(router.routes).filter(
       (path) => !redirectOnlyPaths.has(path),
     );
-    const inventoryDestinations = ROUTE_STATE_INVENTORY.map(({ route }) => route.split("?")[0]);
+    const inventoryDestinations = ROUTE_STATE_INVENTORY_ROUTES.map((route) => route.split("?")[0]);
 
     expect(new Set(inventoryDestinations)).toEqual(new Set(routerDestinations));
   });

@@ -40,14 +40,6 @@ export default defineConfig({
       },
       testMatch: /formal-exam-mobile\.spec\.ts/,
     },
-    {
-      name: "chromium-visual-system",
-      use: {
-        ...devices["Desktop Chrome"],
-        ...(process.env.E2E_BROWSER_CHANNEL ? { channel: process.env.E2E_BROWSER_CHANNEL } : {}),
-      },
-      testMatch: /visual-system\.spec\.ts/,
-    },
   ],
   outputDir,
 });

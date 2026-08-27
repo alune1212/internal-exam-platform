@@ -1,12 +1,7 @@
 node_modules
 dist
-# Production TypeScript checks compile `src/**/*.test.tsx`; keep the one
-# declarative route inventory shared by router and E2E coverage, while all
-# executable browser fixtures and specs remain outside the image context.
-e2e/*
-!e2e/fixtures
-e2e/fixtures/*
-!e2e/fixtures/route-state-inventory.ts
+# Executable browser fixtures and specs stay out of the production image.
+e2e/
 playwright-report
 test-results
 .env
