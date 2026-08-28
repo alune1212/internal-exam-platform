@@ -190,3 +190,17 @@ uv run alembic downgrade -1  # 回滚一步
 - 格式：`<type>: <描述>`
 - type 使用英文（feat / fix / refactor / docs / chore / test）
 - 示例：`feat: 实现题库 Excel 导入入库`
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+5 个 canonical label：`needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`。See `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+Single-context（root `CONTEXT.md` + `docs/adr/`）。See `docs/agents/domain.md`。当前 `CONTEXT.md` / `docs/adr/` 尚未建立；按 `domain.md` 约定，遇到术语或决策时由 `/domain-modeling` 惰性创建。
