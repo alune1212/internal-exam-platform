@@ -108,9 +108,12 @@ def test_development_bind_mount_defaults_remain_separate_from_formal_paths() -> 
 
 
 def test_release_evidence_contract_is_architecture_aware_and_redacted() -> None:
-    bundle_generator = (WINDOWS_OPS / "New-ReleaseBundle.ps1").read_text(
-        encoding="utf-8"
-    )
+    bundle_generator_path = WINDOWS_OPS / "New-ReleaseBundle.ps1"
+    bundle_verifier_path = WINDOWS_OPS / "Test-ReleaseBundle.ps1"
+    assert bundle_verifier_path.is_file()
+
+    bundle_generator = bundle_generator_path.read_text(encoding="utf-8")
+    assert bundle_verifier_path.name in bundle_generator
     lowered = bundle_generator.lower()
     for field in (
         "applicationversion",
