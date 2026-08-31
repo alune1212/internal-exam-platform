@@ -44,6 +44,22 @@ describe("attemptSession", () => {
     expect(getAttemptSession(7, 19)).toBeNull();
   });
 
+  it("does not promote a legacy localStorage session", () => {
+    window.localStorage.setItem(
+      "internal-exam-attempt-session:7:19",
+      JSON.stringify({
+        candidateId: 7,
+        attemptId: 19,
+        credential: "legacy",
+        generation: 1,
+        answerRevision: 0,
+      }),
+    );
+
+    expect(getAttemptSession(7, 19)).toBeNull();
+    expect(window.localStorage.getItem("internal-exam-attempt-session:7:19")).toContain("legacy");
+  });
+
   it("clears all attempt credentials at candidate logout", () => {
     setAttemptSession({
       candidateId: 7,

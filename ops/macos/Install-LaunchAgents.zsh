@@ -22,11 +22,51 @@ macos_assert_outside_worktree "$root" >/dev/null
 macos_initialize_layout "$root"
 macos_assert_protected_configuration "$root"
 macos_assert_formal_writer_ready 0
+[[ -f "$MACOS_CURRENT_STATE" && ! -L "$MACOS_CURRENT_STATE" && -f "$MACOS_CURRENT_STATE.sha256" && ! -L "$MACOS_CURRENT_STATE.sha256" ]] || macos_die "formal current release state is missing or incomplete"
+macos_secure_path "$MACOS_CURRENT_STATE"
+macos_secure_path "$MACOS_CURRENT_STATE.sha256"
+macos_check_checksum "$MACOS_CURRENT_STATE"
 macos_release_state "$MACOS_CURRENT_STATE"
 selected_release="$MACOS_STATE_PATH"
 macos_assert_outside_worktree "$selected_release" >/dev/null
-"$selected_release/ops/macos/Test-ReleaseBundle.zsh" --release-path "$selected_release" >/dev/null
-ops_dir="$selected_release/ops/macos"
+[[ -x "$SCRIPT_DIR/Test-ReleaseBundle.zsh" ]] || macos_die "trusted release verifier is missing"
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$selected_release" --root "$root" >/dev/null
+trusted_runtime="$MACOS_LAYOUT_STATE/trusted-runtime-${MACOS_STATE_COMMIT:l}"
+[[ "$trusted_runtime" != "$MACOS_LAYOUT_RELEASES"/* && "$trusted_runtime" != "$selected_release"/* ]] || macos_die "trusted runtime must stay outside release paths"
+macos_assert_outside_worktree "$trusted_runtime" >/dev/null
+trusted_runtime_staging=""
+cleanup_trusted_runtime() {
+  [[ -z "$trusted_runtime_staging" ]] || rm -R -- "$trusted_runtime_staging"
+}
+trap cleanup_trusted_runtime EXIT
+typeset -a trusted_runtime_files
+trusted_runtime_files=(Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh Test-ReleaseBundle.zsh)
+if [[ -e "$trusted_runtime" ]]; then
+  [[ -d "$trusted_runtime" && ! -L "$trusted_runtime" ]] || macos_die "trusted runtime is not a directory"
+  "$trusted_runtime/Trusted-LaunchAgent.zsh" --validate-only >/dev/null
+else
+  trusted_runtime_staging="${trusted_runtime}.installing-$$"
+  [[ ! -e "$trusted_runtime_staging" ]] || macos_die "trusted runtime staging path already exists"
+  mkdir -p -- "$trusted_runtime_staging"
+  chmod 700 "$trusted_runtime_staging"
+  for runtime_file in "${trusted_runtime_files[@]}"; do
+    source_file="$SCRIPT_DIR/$runtime_file"
+    [[ -f "$source_file" && ! -L "$source_file" ]] || macos_die "trusted runtime source is missing or a symlink: $runtime_file"
+    cp -p -- "$source_file" "$trusted_runtime_staging/$runtime_file"
+    chmod 700 "$trusted_runtime_staging/$runtime_file"
+  done
+  trusted_runtime_manifest="$trusted_runtime_staging/trusted-runtime.SHA256SUMS"
+  : > "$trusted_runtime_manifest"
+  chmod 600 "$trusted_runtime_manifest"
+  for runtime_file in "${trusted_runtime_files[@]}"; do
+    print -r -- "$(macos_sha256 "$trusted_runtime_staging/$runtime_file")  $runtime_file" >> "$trusted_runtime_manifest"
+  done
+  "$trusted_runtime_staging/Trusted-LaunchAgent.zsh" --validate-only >/dev/null
+  mv -- "$trusted_runtime_staging" "$trusted_runtime"
+  trusted_runtime_staging=""
+fi
+[[ -x "$trusted_runtime/Trusted-LaunchAgent.zsh" ]] || macos_die "trusted host LaunchAgent is missing"
+macos_secure_path "$trusted_runtime"
 mkdir -p -- "$launch_agents_dir"
 chmod 700 "$launch_agents_dir"
 macos_require_command plutil
@@ -50,18 +90,18 @@ escape_xml_text() {
 }
 
 root_replacement="$(escape_sed_replacement "$(escape_xml_text "$root")")"
-ops_replacement="$(escape_sed_replacement "$(escape_xml_text "$ops_dir")")"
+runtime_replacement="$(escape_sed_replacement "$(escape_xml_text "$trusted_runtime")")"
 uid="$(id -u)"
 for template in \
-  "$ops_dir/com.internal-exam.formal-bootstrap.plist.template" \
-  "$ops_dir/com.internal-exam.opportunity-backup.plist.template"; do
+  "$SCRIPT_DIR/com.internal-exam.formal-bootstrap.plist.template" \
+  "$SCRIPT_DIR/com.internal-exam.opportunity-backup.plist.template"; do
   [[ -f "$template" ]] || macos_die "LaunchAgent template is missing"
   plutil -lint -- "$template" >/dev/null 2>&1 || macos_die "LaunchAgent template is invalid"
   template_name="${template:t}"
   destination="$launch_agents_dir/${template_name%.template}"
   temporary="$(mktemp "${destination}.tmp.XXXXXX")"
   sed -e "s|__INTERNAL_EXAM_ROOT__|$root_replacement|g" \
-      -e "s|__MACOS_OPS_DIR__|$ops_replacement|g" "$template" > "$temporary"
+      -e "s|__TRUSTED_RUNTIME_DIR__|$runtime_replacement|g" "$template" > "$temporary"
   chmod 600 "$temporary"
   plutil -lint -- "$temporary" >/dev/null 2>&1 || { rm -f -- "$temporary"; macos_die "rendered LaunchAgent is invalid"; }
   mv -f -- "$temporary" "$destination"
@@ -71,4 +111,4 @@ for template in \
   launchctl bootstrap "gui/$uid" "$destination" >/dev/null 2>&1 || macos_die "unable to bootstrap LaunchAgent: $label"
   launchctl print "gui/$uid/$label" >/dev/null 2>&1 || macos_die "LaunchAgent did not load: $label"
 done
-macos_log "launchagents_installed root=$root agents=$launch_agents_dir"
+macos_log "launchagents_installed root=$root agents=$launch_agents_dir trusted_runtime=$trusted_runtime"

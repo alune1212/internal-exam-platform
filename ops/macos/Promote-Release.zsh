@@ -54,7 +54,7 @@ second_copy_backup_path="$second_copy_root/${paired_backup_path:t}"
 [[ -f "$staging_evidence" ]] || macos_die "staging evidence is missing"
 [[ "$release_path:h" == "$MACOS_LAYOUT_RELEASES" ]] || macos_die "promotion requires an installed release under ROOT/releases/<version>"
 [[ "$staging_evidence" == "$MACOS_LAYOUT_ROOT"/* ]] || macos_die "staging evidence must remain under the protected root"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 
 manifest="$release_path/release-manifest.json"

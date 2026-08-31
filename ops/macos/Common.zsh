@@ -15,6 +15,10 @@ typeset -g MACOS_STAGE_PORT_CANDIDATE="18080"
 typeset -g MACOS_STAGE_PORT_OPERATOR="18081"
 typeset -g MACOS_STAGE_PORT_DATABASE="15432"
 typeset -g MACOS_STAGE_PORT_FRONTEND="15173"
+typeset -g MACOS_RELEASE_SIGNING_PUBLIC_KEY_NAME="release-signing-public-key.pem"
+typeset -g MACOS_RELEASE_SIGNING_FINGERPRINT_NAME="release-signing-public-key.fingerprint"
+typeset -g MACOS_RELEASE_MANIFEST_SIGNATURE_NAME="release-manifest.json.sig"
+typeset -g MACOS_RELEASE_CHECKSUM_SIGNATURE_NAME="SHA256SUMS.sig"
 
 macos_die() {
   print -u2 -- "macOS operation failed: $*"
@@ -116,6 +120,8 @@ macos_layout() {
   typeset -g MACOS_FORMAL_ENV="$MACOS_LAYOUT_CONFIGURATION/formal.env"
   typeset -g MACOS_STAGING_ENV="$MACOS_LAYOUT_CONFIGURATION/staging.env"
   typeset -g MACOS_HOST_EVIDENCE="$MACOS_LAYOUT_CONFIGURATION/host-evidence.env"
+  typeset -g MACOS_RELEASE_SIGNING_PUBLIC_KEY="$MACOS_LAYOUT_CONFIGURATION/$MACOS_RELEASE_SIGNING_PUBLIC_KEY_NAME"
+  typeset -g MACOS_RELEASE_SIGNING_FINGERPRINT="$MACOS_LAYOUT_CONFIGURATION/$MACOS_RELEASE_SIGNING_FINGERPRINT_NAME"
   typeset -g MACOS_CURRENT_STATE="$MACOS_LAYOUT_STATE/current-release.json"
   typeset -g MACOS_PREVIOUS_STATE="$MACOS_LAYOUT_STATE/previous-release.json"
 }
@@ -278,6 +284,51 @@ macos_compose_capture() {
   shift 3
   macos_compose_base "$release" "$env_file" "$project"
   macos_run_capture docker "${MACOS_COMPOSE_ARGS[@]}" "$@"
+}
+
+macos_assert_proxy_network() {
+  local release="$1" env_file="$2" project="$3" rendered_config="$4" profile="$5"
+  local gateway_subnet gateway_ip_range candidate_gateway_ip operator_gateway_ip forwarded_allow_ips
+  local network_names network_name network_subnets subnet gateway_network_name
+  typeset -a active_network_args network_subnet_values
+  [[ -n "$release" && -n "$env_file" && -n "$project" && -n "$profile" ]] || macos_die "proxy network preflight inputs are incomplete" || return 1
+  gateway_subnet="$(macos_dotenv_get "$env_file" GATEWAY_SUBNET 2>/dev/null || true)"
+  gateway_ip_range="$(macos_dotenv_get "$env_file" GATEWAY_IP_RANGE 2>/dev/null || true)"
+  candidate_gateway_ip="$(macos_dotenv_get "$env_file" CANDIDATE_GATEWAY_IP 2>/dev/null || true)"
+  operator_gateway_ip="$(macos_dotenv_get "$env_file" OPERATOR_GATEWAY_IP 2>/dev/null || true)"
+  forwarded_allow_ips="$candidate_gateway_ip,$operator_gateway_ip"
+  [[ -n "$gateway_subnet" && -n "$gateway_ip_range" && -n "$candidate_gateway_ip" && -n "$operator_gateway_ip" ]] || macos_die "proxy network values must be explicit" || return 1
+  [[ "$rendered_config" == *"subnet: $gateway_subnet"* ]] || macos_die "rendered gateway subnet does not match protected configuration" || return 1
+  [[ "$rendered_config" == *"ip_range: $gateway_ip_range"* ]] || macos_die "rendered gateway allocation range does not match protected configuration" || return 1
+  [[ "$rendered_config" == *"ipv4_address: $candidate_gateway_ip"* && "$rendered_config" == *"ipv4_address: $operator_gateway_ip"* ]] || macos_die "rendered gateway addresses do not match protected configuration" || return 1
+  [[ "$rendered_config" == *"--forwarded-allow-ips=$forwarded_allow_ips"* ]] || macos_die "rendered Uvicorn proxy allowlist does not match protected configuration" || return 1
+  active_network_args=()
+  gateway_network_name="${project}_gateway"
+  network_names="$(macos_run_capture docker network ls --format '{{.Name}}')"
+  for network_name in "${(@f)network_names}"; do
+    [[ -n "$network_name" ]] || continue
+    network_subnets="$(macos_run_capture docker network inspect --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}' "$network_name")"
+    network_subnet_values=(${(s: :)network_subnets})
+    if [[ "$network_name" == "$gateway_network_name" ]]; then
+      (( ${#network_subnet_values[@]} == 1 )) || macos_die "existing gateway network does not match protected configuration" || return 1
+      [[ "${network_subnet_values[1]}" == "$gateway_subnet" ]] || macos_die "existing gateway network does not match protected configuration" || return 1
+      continue
+    fi
+    for subnet in "${network_subnet_values[@]}"; do
+      [[ "$subnet" == *.*/* ]] || continue
+      active_network_args+=(--active-network "$subnet")
+    done
+  done
+  macos_compose_base "$release" "$env_file" "$project"
+  macos_run_checked docker "${MACOS_COMPOSE_ARGS[@]}" run --rm --no-deps backend \
+    uv run --no-sync python -m app.ops.preflight network \
+    --environment "$profile" \
+    --gateway-subnet "$gateway_subnet" \
+    --gateway-ip-range "$gateway_ip_range" \
+    --candidate-gateway-ip "$candidate_gateway_ip" \
+    --operator-gateway-ip "$operator_gateway_ip" \
+    --forwarded-allow-ips "$forwarded_allow_ips" \
+    "${active_network_args[@]}"
 }
 
 macos_backend_one_shot() {
@@ -758,6 +809,58 @@ macos_sha256() {
   /usr/bin/shasum -a 256 -- "$1" | /usr/bin/awk '{print $1}'
 }
 
+macos_release_signing_key_fingerprint() {
+  local public_key="${1:-}" der_path digest
+  [[ -f "$public_key" && ! -L "$public_key" ]] || macos_die "release signing public key is missing or a symlink" || return 1
+  macos_require_command openssl
+  der_path="$(macos_mktemp internal-exam-release-public-key.XXXXXX)"
+  chmod 600 "$der_path"
+  # Fingerprint the DER-encoded SubjectPublicKeyInfo (SPKI), never a PEM
+  # wrapper or a private-key representation.
+  if ! openssl pkey -pubin -in "$public_key" -outform DER -out "$der_path" >/dev/null 2>&1; then
+    rm -f -- "$der_path"
+    macos_die "release signing public key is invalid"
+    return 1
+  fi
+  digest="$(macos_sha256 "$der_path")"
+  rm -f -- "$der_path"
+  [[ "$digest" =~ '^[0-9a-fA-F]{64}$' ]] || macos_die "release signing public key fingerprint is invalid" || return 1
+  print -r -- "sha256:${digest:l}"
+}
+
+macos_assert_rsa3072_public_key() {
+  local public_key="${1:-}" key_details
+  [[ -f "$public_key" && ! -L "$public_key" ]] || macos_die "release signing public key is missing or a symlink" || return 1
+  macos_require_command openssl
+  key_details="$(openssl rsa -pubin -in "$public_key" -text -noout 2>/dev/null)" || macos_die "release signing key must be an RSA public key" || return 1
+  [[ "$key_details" == *"Public-Key: (3072 bit)"* ]] || macos_die "release signing key must be RSA-3072" || return 1
+}
+
+macos_validate_release_signing_trust() {
+  local public_key="${1:-${MACOS_RELEASE_SIGNING_PUBLIC_KEY:-}}"
+  local fingerprint_file="${2:-${MACOS_RELEASE_SIGNING_FINGERPRINT:-}}"
+  local expected actual
+  [[ -n "$public_key" && -n "$fingerprint_file" ]] || macos_die "release signing trust paths are not configured" || return 1
+  [[ -f "$public_key" && ! -L "$public_key" ]] || macos_die "release signing public key is missing or a symlink" || return 1
+  [[ -f "$fingerprint_file" && ! -L "$fingerprint_file" ]] || macos_die "release signing fingerprint is missing or a symlink" || return 1
+  macos_secure_path "$public_key"
+  macos_secure_path "$fingerprint_file"
+  macos_assert_rsa3072_public_key "$public_key"
+  expected="$(tr -d '[:space:]' < "$fingerprint_file")"
+  [[ "$expected" =~ '^sha256:[0-9a-f]{64}$' ]] || macos_die "release signing fingerprint format is invalid" || return 1
+  actual="$(macos_release_signing_key_fingerprint "$public_key")"
+  [[ "$actual" == "${expected:l}" ]] || macos_die "release signing public key fingerprint does not match the pinned fingerprint" || return 1
+}
+
+macos_verify_release_signature() {
+  local public_key="${1:-}" signature_path="${2:-}" content_path="${3:-}" label="${4:-release}"
+  [[ -f "$public_key" && ! -L "$public_key" ]] || macos_die "release signing public key is missing or a symlink" || return 1
+  [[ -f "$signature_path" && ! -L "$signature_path" ]] || macos_die "$label signature is missing or a symlink" || return 1
+  [[ -f "$content_path" && ! -L "$content_path" ]] || macos_die "$label signed file is missing or a symlink" || return 1
+  macos_require_command openssl
+  openssl dgst -sha256 -verify "$public_key" -signature "$signature_path" "$content_path" >/dev/null 2>&1 || macos_die "$label signature validation failed" || return 1
+}
+
 macos_write_checksum() {
   local file="${1:-}" checksum_file="${1:-}.sha256" digest
   digest="$(macos_sha256 "$file")"
@@ -1108,7 +1211,7 @@ macos_require_formal_paths() {
   [[ "$release_path" == /* && -d "$release_path" ]] || macos_die "release state path is invalid" || return 1
   macos_docker_ready
   [[ -x "$MACOS_OPS_SCRIPT_DIR/Test-ReleaseBundle.zsh" ]] || macos_die "release verifier is missing"
-  "$MACOS_OPS_SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+  "$MACOS_OPS_SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$MACOS_LAYOUT_ROOT" >/dev/null
   path_backend_image="$(macos_json_get "$release_path/ops/release/built-image-identity.json" images.backend.reference 2>/dev/null || true)"
   [[ "$path_backend_image" == *":$(macos_json_get "$release_path/release-manifest.json" gitCommit | tr '[:upper:]' '[:lower:]')" ]] || macos_die "path validation backend image is not the selected release image"
   # Path validation is a host-portability policy check, not an application

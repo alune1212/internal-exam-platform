@@ -437,6 +437,49 @@ exam behavior, dependencies, migrations, or OpenSpec artifacts. The rendered
 checks are local Chromium engineering evidence, not formal real-device or
 designated-host acceptance.
 
+## Repository Security Remediation Verification (2026-08-31)
+
+The active OpenSpec change `remediate-repository-security-findings` implements
+the code and local-contract remediation mapped to the 15 findings from scan
+`f7b16a71-afca-4d54-8f5d-23915b46d02d`, based on clean commit
+`665a5bf6a2d42e67c0f10f687108957fab2ffa37`. It remains active at `29/32`
+tasks: remote clean-HEAD evidence, designated-host drills, and a fresh complete
+Codex Security scan are intentionally not represented as complete.
+
+Observed final local engineering gates:
+
+- Backend format, Ruff, and `ty` passed. The ordinary suite passed `718` tests
+  with `13` expected PostgreSQL-only skips. The disposable PostgreSQL 16 gate
+  upgraded the full Alembic chain through `202608300001` and passed all `731`
+  tests with no skips, then removed its scoped test project.
+- Frontend format, lint, production build, and offline-asset checks passed;
+  Vitest passed `86/86` files and `547/547` tests, and the built runtime had
+  `0` external references.
+- The disposable browser gate passed `7/7` Playwright flows through the split
+  candidate/operator gateways and removed its containers, networks, and
+  volumes. Legacy-contract, Compose render, macOS zsh syntax, strict OpenSpec
+  (`14/14`), and `git diff --check` also passed.
+- A content-equivalent temporary clean Git revision passed the disposable
+  100-client capacity gate with `100/100` submissions, `0` errors,
+  start/save/submit p95 of `919/882/746 ms`, database connection peak `17/40`,
+  and a valid report checksum. Its containers, networks, volumes, and temporary
+  repository were removed without changing this checkout or its Git history.
+- A post-patch bypass review found and closed three local gaps before the final
+  rerun: SQLAlchemy URL query overrides now fail before credential/DDL guards;
+  practice retention uses SQL aggregation, window selection, bounded preview
+  paging, and selected-account revalidation; LaunchAgents execute only through
+  an external owner-only trusted runtime that verifies current state and both
+  release signatures before dispatching release code.
+- No package/lockfile or runtime dependency changed. The completed hardening
+  change and the unchecked Windows tasks `12.4`/`12.5` are untouched.
+
+Still required before calling the 15 finding identities closed: a clean new
+HEAD with every remote CI job and real pip-audit/npm audit/Trivy evidence; the
+designated Mac's offline key custody, current/previous release signing,
+tamper/rollback tests, approved live gateway routing, credential/token/OTP
+rotation, and real practice archive/paired-backup/delete drill; then a fresh
+complete repository Codex Security scan with no deferred coverage.
+
 ## Known Gaps
 
 - The local real-SMTP UAT is complete, but real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, the formal-host SMTP rerun, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.

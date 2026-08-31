@@ -49,6 +49,7 @@ DATA_TABLES = (
     "exam_attempt_question",
     "exam_attempt_answer",
     "practice_answer",
+    "practice_answer_aggregate",
     "learning_video",
     "learning_video_progress",
     # Audit/import metadata are formal dataset state too.  Keep operational
@@ -82,7 +83,13 @@ def data_change_fingerprint(db: Session, media_root: Path) -> str:
         timestamp_column = next(
             (
                 name
-                for name in ("updated_at", "practiced_at", "answered_at", "created_at")
+                for name in (
+                    "updated_at",
+                    "practiced_at",
+                    "latest_practiced_at",
+                    "answered_at",
+                    "created_at",
+                )
                 if name in columns
             ),
             None,

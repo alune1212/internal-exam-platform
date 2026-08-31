@@ -58,7 +58,7 @@ release_path="$(macos_resolve_path "$release_path")"
 [[ "$release_path:h" == "$MACOS_LAYOUT_RELEASES" ]] || macos_die "staging requires an installed release under ROOT/releases/<version>"
 version="${release_path:t}"
 [[ "$version" != *'/'* && -n "$version" ]] || macos_die "installed release version is invalid"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 manifest="$release_path/release-manifest.json"
 git_commit="$(macos_json_get "$manifest" gitCommit)"
@@ -153,6 +153,8 @@ assert_fresh_staging_resources() {
 case "$action" in
   Up)
     assert_fresh_staging_resources
+    staging_compose_config="$(macos_compose_capture "$release_path" "$MACOS_STAGING_ENV" "$staging_project" config)"
+    macos_assert_proxy_network "$release_path" "$MACOS_STAGING_ENV" "$staging_project" "$staging_compose_config" staging
     # Compose may create a subset of services before returning non-zero.  Mark
     # the attempt before invoking it so EXIT cleanup removes only this exact
     # staging project even for partial failures.

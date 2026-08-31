@@ -107,6 +107,7 @@ formal_candidate_public_base_url="$(macos_formal_value CANDIDATE_PUBLIC_BASE_URL
 formal_operator_port="$(macos_formal_value OPERATOR_GATEWAY_PORT)"
 formal_postgres_port="$(macos_formal_value POSTGRES_LOOPBACK_PORT)"
 formal_frontend_port="$(macos_formal_value FRONTEND_LOOPBACK_PORT)"
+formal_environment="$(macos_formal_value ENVIRONMENT)"
 formal_backend_port=8000
 [[ "$formal_candidate_port" =~ '^[0-9]+$' && "$formal_operator_port" =~ '^[0-9]+$' && "$formal_postgres_port" =~ '^[0-9]+$' && "$formal_frontend_port" =~ '^[0-9]+$' ]] || macos_die "formal service ports are missing or invalid"
 [[ "$formal_backend_port" =~ '^[0-9]+$' ]] || macos_die "formal backend port is invalid"
@@ -147,7 +148,7 @@ macos_release_state "$MACOS_CURRENT_STATE"
 release_path="$MACOS_STATE_PATH"
 release_version="$MACOS_STATE_VERSION"
 release_commit="$MACOS_STATE_COMMIT"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 [[ "$(uname -m)" == arm64 ]] || macos_die "formal macOS host must be arm64"
 manifest="$release_path/release-manifest.json"
@@ -236,6 +237,7 @@ for service in db backend auto-submit-worker frontend nginx operator-nginx; do
 done
 compose_config="$(macos_compose_capture "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT" config)"
 [[ "$compose_config" == *"${lan_ip}:${candidate_port}"* && "$compose_config" == *"127.0.0.1:${operator_port}"* ]] || macos_die "formal split ingress is not rendered"
+macos_assert_proxy_network "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT" "$compose_config" "$formal_environment"
 
 current_check=health_and_migration
 candidate_code="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 5 --max-time 10 "http://${lan_ip}:${candidate_port}/api/health")"

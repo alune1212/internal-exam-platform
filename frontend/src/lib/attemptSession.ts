@@ -12,31 +12,8 @@ function key(candidateId: number, attemptId: number) {
   return `${SESSION_PREFIX}:${candidateId}:${attemptId}`;
 }
 
-function readSessionValue(key: string): string | null {
-  const sessionValue = window.sessionStorage.getItem(key);
-  if (sessionValue) {
-    return sessionValue;
-  }
-  const legacyValue = window.localStorage.getItem(key);
-  if (!legacyValue) {
-    return null;
-  }
-  window.sessionStorage.setItem(key, legacyValue);
-  window.localStorage.removeItem(key);
-  return legacyValue;
-}
-
-function writeSessionValue(key: string, value: string): void {
-  window.sessionStorage.setItem(key, value);
-}
-
-function clearSessionValue(key: string): void {
-  window.sessionStorage.removeItem(key);
-  window.localStorage.removeItem(key);
-}
-
 export function getAttemptSession(candidateId: number, attemptId: number): AttemptSession | null {
-  const raw = readSessionValue(key(candidateId, attemptId));
+  const raw = window.sessionStorage.getItem(key(candidateId, attemptId));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<AttemptSession>;
@@ -52,13 +29,16 @@ export function getAttemptSession(candidateId: number, attemptId: number): Attem
     }
     return parsed as AttemptSession;
   } catch {
-    clearSessionValue(key(candidateId, attemptId));
+    window.sessionStorage.removeItem(key(candidateId, attemptId));
     return null;
   }
 }
 
 export function setAttemptSession(session: AttemptSession): void {
-  writeSessionValue(key(session.candidateId, session.attemptId), JSON.stringify(session));
+  window.sessionStorage.setItem(
+    key(session.candidateId, session.attemptId),
+    JSON.stringify(session),
+  );
 }
 
 export function updateAttemptSessionRevision(
@@ -71,7 +51,7 @@ export function updateAttemptSessionRevision(
 }
 
 export function clearAttemptSession(candidateId: number, attemptId: number): void {
-  clearSessionValue(key(candidateId, attemptId));
+  window.sessionStorage.removeItem(key(candidateId, attemptId));
 }
 
 export function clearAllAttemptSessions(): void {

@@ -12,6 +12,8 @@ from ops.security.evaluate_scans import (  # ty: ignore[unresolved-import]
     main,
     normalize_host_identity,
     normalize_npm_audit,
+    normalize_pip_audit,
+    normalize_severity,
     normalize_trivy,
     scanner_evidence_digest,
     validate_built_image_identity,
@@ -119,6 +121,44 @@ def test_scan_normalizers_preserve_source_identity() -> None:
     )
     assert npm[0]["key"] == "npm-audit:pkg:pkg"
     assert trivy[0]["key"] == "trivy:frontend:lib:CVE-3"
+
+
+def test_scan_severities_use_closed_policy_vocabulary() -> None:
+    assert normalize_severity(" high ", source="trivy") == "HIGH"
+    assert normalize_severity("moderate", source="npm-audit") == "MEDIUM"
+    assert (
+        normalize_pip_audit(
+            {
+                "dependencies": [
+                    {
+                        "name": "pkg",
+                        "version": "1",
+                        "vulns": [{"id": "CVE-1"}],
+                    }
+                ]
+            }
+        )[0]["severity"]
+        == "HIGH"
+    )
+
+
+@pytest.mark.parametrize("severity", ["", "unknown", 1, None])
+def test_scan_severity_rejects_empty_unknown_and_non_string_values(
+    severity: object,
+) -> None:
+    with pytest.raises(ScanInputError):
+        normalize_severity(severity, source="trivy")
+
+    finding = {
+        "key": "trivy:backend:pkg:CVE-1",
+        "source": "trivy:backend",
+        "package": "pkg",
+        "installed_version": "1",
+        "vulnerability_id": "CVE-1",
+        "severity": severity,
+    }
+    with pytest.raises(ScanInputError):
+        evaluate([finding], {})
 
 
 def test_trivy_v070_clean_result_may_omit_vulnerabilities() -> None:

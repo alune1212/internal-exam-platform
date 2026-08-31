@@ -60,6 +60,17 @@ def test_attempt_routes_reject_invalid_candidate_token() -> None:
     assert resp.status_code == 401
 
 
+def test_attempt_routes_reject_out_of_range_candidate_id_token() -> None:
+    client, _ = _build_client()
+    issued_at = int(datetime.now(UTC).timestamp())
+    payload = f"candidate:2147483648.{issued_at}.nonce"
+    token = f"{payload}.{_sign(payload, secret=settings.token_secret)}"
+
+    resp = client.get("/api/attempts/1", headers={"X-Candidate-Token": token})
+
+    assert resp.status_code == 401
+
+
 def test_attempt_routes_reject_forged_candidate_id_header() -> None:
     client, _ = _build_client()
     resp = client.get("/api/attempts/1", headers={"X-Candidate-Id": "1"})

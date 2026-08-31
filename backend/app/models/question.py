@@ -41,6 +41,9 @@ class Question(TimestampMixin, Base):
         "QuestionOption", back_populates="question", cascade="all, delete-orphan"
     )
     practice_answers = relationship("PracticeAnswer", back_populates="question")
+    practice_answer_aggregates = relationship(
+        "PracticeAnswerAggregate", back_populates="question"
+    )
 
 
 class QuestionOption(TimestampMixin, Base):

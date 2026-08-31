@@ -1,9 +1,11 @@
+import hashlib
 import json
 import platform
 import plistlib
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -27,6 +29,14 @@ def _git_mode(path: Path) -> int:
     )
     assert result.returncode == 0, result.stderr
     rows = [line for line in result.stdout.splitlines() if line]
+    # A newly added operation is intentionally untracked until the parent
+    # change is assembled.  Keep the contract useful in that worktree while
+    # retaining the Git-index assertion for every tracked operation.
+    if not rows:
+        assert path.is_file(), f"operation is missing: {path}"
+        # Match Git's regular-file mode representation for a new, not-yet-
+        # staged operation while preserving the executable-bit assertion.
+        return 0o100000 | (path.stat().st_mode & 0o777)
     assert len(rows) == 1, f"expected one Git index entry for {relative}: {rows!r}"
     return int(rows[0].split(maxsplit=1)[0], 8)
 
@@ -168,6 +178,66 @@ def test_macos_secret_isolation_and_bounded_logging_contract() -> None:
         assert development_secret not in lowered
 
 
+def test_close_exam_sessions_generates_canonical_external_session_secret() -> None:
+    closer = (MACOS_OPS / "Close-ExamSessions.zsh").read_text(encoding="utf-8")
+
+    assert "secrets.token_bytes(32)" in closer
+    assert "base64.urlsafe_b64encode" in closer
+    assert '.rstrip(b"=")' in closer
+    assert "openssl rand" not in closer
+    assert (
+        'macos_dotenv_set_atomic "$MACOS_FORMAL_ENV" TOKEN_SECRET "$new_secret"'
+        in closer
+    )
+    assert "generated session secret is not canonical" in closer
+
+    generated = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode('ascii'), end='')",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert re.fullmatch(r"[A-Za-z0-9_-]{43}", generated)
+
+
+def test_macos_release_signing_uses_trusted_rsa_sidecars_and_verifier() -> None:
+    common = (MACOS_OPS / "Common.zsh").read_text(encoding="utf-8")
+    signer = (MACOS_OPS / "Sign-ReleaseBundle.zsh").read_text(encoding="utf-8")
+    verifier = (MACOS_OPS / "Test-ReleaseBundle.zsh").read_text(encoding="utf-8")
+    installer = RELEASE_INSTALLER.read_text(encoding="utf-8")
+    seal = (MACOS_OPS / "Seal-Release.zsh").read_text(encoding="utf-8")
+
+    assert "RSA-3072" in signer
+    assert 'openssl dgst -sha256 -sign "$private_key"' in signer
+    assert "releaseSignature" in signer
+    assert "signedFiles" in signer
+    assert "release-manifest.json" in signer
+    assert "SHA256SUMS" in signer
+    assert "sidecars" in signer
+    assert "release-manifest.json.sig" in signer
+    assert "SHA256SUMS.sig" in signer
+    assert "release-signing-public-key.pem" in common
+    assert "release-signing-public-key.fingerprint" in common
+    assert "SPKI" in common
+    assert 'openssl dgst -sha256 -verify "$public_key"' in common
+    assert "macos_validate_release_signing_trust" in verifier
+    assert "releaseSignature.keyFingerprint" in verifier
+    assert "releaseSignature.signedFiles.2" in verifier
+    assert "releaseSignature.sidecars.2" in verifier
+    assert "release-manifest.json.sig|SHA256SUMS.sig" in verifier
+    assert (
+        '"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$temporary_target"'
+        in installer
+    )
+    assert '"$temporary_target/ops/macos/Test-ReleaseBundle.zsh"' not in installer
+    assert "next=Sign-ReleaseBundle" in seal
+
+
 def test_launchagent_templates_are_valid_and_write_to_bounded_paths() -> None:
     launch_agents = _launch_agent_files()
     if not launch_agents:
@@ -187,6 +257,79 @@ def test_launchagent_templates_are_valid_and_write_to_bounded_paths() -> None:
         assert "internalexam" in f"{stdout} {stderr}".lower()
         assert "token_secret" not in raw.decode("utf-8").lower()
         assert "admin_password" not in raw.decode("utf-8").lower()
+        arguments = [str(value) for value in document["ProgramArguments"]]
+        assert "__TRUSTED_RUNTIME_DIR__/Trusted-LaunchAgent.zsh" in arguments
+        assert "__MACOS_OPS_DIR__" not in " ".join(arguments)
+        assert not any("/ops/macos/" in value for value in arguments)
+
+
+def test_trusted_launchagent_rejects_runtime_support_tamper_before_dispatch() -> None:
+    zsh = _require_macos_zsh()
+    if not Path("/usr/bin/shasum").is_file():
+        pytest.skip("macOS shasum is unavailable on this runner")
+
+    runtime_files = (
+        "Trusted-LaunchAgent.zsh",
+        "LaunchAgent-Dispatcher.zsh",
+        "Common.zsh",
+        "Test-ReleaseBundle.zsh",
+    )
+    launcher_source = MACOS_OPS / "Trusted-LaunchAgent.zsh"
+    with tempfile.TemporaryDirectory(
+        prefix="internal-exam-trusted-runtime-",
+        dir="/private/tmp" if Path("/private/tmp").is_dir() else None,
+    ) as temporary:
+        base = Path(temporary) / "base"
+
+        def install_runtime(destination: Path) -> None:
+            destination.mkdir(mode=0o700)
+            destination.chmod(0o700)
+            for name in runtime_files:
+                source = MACOS_OPS / name
+                target = destination / name
+                shutil.copy2(source, target)
+                target.chmod(0o700)
+            manifest = destination / "trusted-runtime.SHA256SUMS"
+            manifest.write_text(
+                "".join(
+                    f"{hashlib.sha256((destination / name).read_bytes()).hexdigest()}  {name}\n"
+                    for name in runtime_files
+                ),
+                encoding="ascii",
+            )
+            manifest.chmod(0o600)
+
+        install_runtime(base)
+        valid = subprocess.run(  # noqa: S603
+            [zsh, str(base / launcher_source.name), "--validate-only"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+        assert valid.returncode == 0, valid.stderr
+
+        for index, name in enumerate(runtime_files[1:], start=1):
+            candidate = Path(temporary) / f"candidate-{index}"
+            install_runtime(candidate)
+            marker = candidate / "dispatch-marker"
+            with (candidate / name).open("a", encoding="utf-8") as tampered:
+                tampered.write(f'\nprint -r -- "tampered" > "{marker}"\n')
+            result = subprocess.run(  # noqa: S603
+                [
+                    zsh,
+                    str(candidate / launcher_source.name),
+                    "bootstrap",
+                    "--root",
+                    str(Path(temporary) / "formal-root"),
+                ],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+            )
+            assert result.returncode != 0, name
+            assert not marker.exists(), (
+                f"tampered {name} executed before trust validation"
+            )
 
 
 def test_ci_runs_macos_contracts_and_keeps_powershell_coverage() -> None:

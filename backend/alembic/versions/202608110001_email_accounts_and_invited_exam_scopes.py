@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime
+from ipaddress import ip_address
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
@@ -43,6 +44,15 @@ LEGACY_CANDIDATE_COLUMNS = (
     "remark",
     "is_login_sentinel",
 )
+MIGRATION_ENVIRONMENTS = frozenset({"development", "internal", "production", "formal"})
+FORMAL_MIGRATION_ENVIRONMENTS = frozenset({"internal", "production", "formal"})
+DEVELOPMENT_DATABASE_TARGETS = frozenset(
+    {
+        ("db", "exam", "internal_exam", 5432),
+        ("db", "exam_e2e", "internal_exam_e2e", 5432),
+    }
+)
+LOOPBACK_TEST_DATABASE_PORTS = frozenset({5432, 55432})
 SCOPE_COLUMNS = (
     ("roster_email", sa.String(length=255)),
     ("roster_name", sa.String(length=100)),
@@ -113,7 +123,68 @@ def _validated_sentinel_id() -> int:
     return rows[0]
 
 
-def _preflight() -> None:
+def _migration_environment() -> str:
+    """Read and validate the raw environment before touching the database."""
+
+    raw_environment = os.environ.get("ENVIRONMENT")
+    environment = raw_environment.strip().lower() if raw_environment is not None else ""
+    if environment not in MIGRATION_ENVIRONMENTS:
+        raise RuntimeError(
+            "account migration requires an explicit recognized ENVIRONMENT"
+        )
+    return environment
+
+
+def _env_true(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() == "true"
+
+
+def _assert_development_database_target(bind: sa.Connection) -> None:
+    """Keep the ungated development path on controlled local targets."""
+
+    try:
+        url = bind.engine.url
+        has_query_parameters = bool(url.query)
+        host = url.host
+        port = url.port
+    except (AttributeError, TypeError, ValueError):
+        raise RuntimeError(
+            "account migration development bypass requires the controlled PostgreSQL test target"
+        ) from None
+    if has_query_parameters:
+        raise RuntimeError(
+            "account migration development bypass requires the controlled PostgreSQL test target"
+        )
+    try:
+        host_is_loopback = bool(host and ip_address(host).is_loopback)
+    except ValueError:
+        host_is_loopback = False
+    loopback_test_target = (
+        host_is_loopback
+        and url.username == "exam"
+        and url.database == "internal_exam_test"
+        and port in LOOPBACK_TEST_DATABASE_PORTS
+    )
+    docker_target = (
+        host,
+        url.username,
+        url.database,
+        port,
+    ) in DEVELOPMENT_DATABASE_TARGETS
+    if url.drivername != "postgresql+psycopg" or not (
+        loopback_test_target or docker_target
+    ):
+        raise RuntimeError(
+            "account migration development bypass requires the controlled PostgreSQL test target"
+        )
+
+
+def _preflight(environment: str | None = None) -> None:
+    environment = _migration_environment() if environment is None else environment
+    if environment not in MIGRATION_ENVIRONMENTS:
+        raise RuntimeError(
+            "account migration requires an explicit recognized ENVIRONMENT"
+        )
     bind = _bind()
     # This is deliberately the first formal SQL in the migration. The
     # transaction-scoped mutex prevents a writer/fence transition between the
@@ -125,13 +196,22 @@ def _preflight() -> None:
         codes = ",".join(sorted({finding.code for finding in report.findings}))
         raise RuntimeError(f"account migration preflight blocked: {codes}")
 
-    require_gate = os.getenv(
-        "ACCOUNT_MIGRATION_REQUIRE_GATE", "false"
-    ).strip().lower() == "true" or os.getenv(
-        "ENVIRONMENT", "development"
-    ).strip().lower() in {"internal", "production", "formal"}
+    if environment == "development":
+        _assert_development_database_target(bind)
+        if not _env_true("ACCOUNT_MIGRATION_REQUIRE_GATE"):
+            if not (
+                _env_true("ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT")
+                and _env_true("ACCOUNT_MIGRATION_DISPOSABLE_DATABASE")
+            ):
+                raise RuntimeError(
+                    "account migration development bypass requires both explicit disposable flags"
+                )
+            return
+    require_gate = environment in FORMAL_MIGRATION_ENVIRONMENTS or _env_true(
+        "ACCOUNT_MIGRATION_REQUIRE_GATE"
+    )
     if not require_gate:
-        return
+        raise RuntimeError("account migration requires a maintenance gate")
     try:
         writer_generation = int(os.getenv("ACCOUNT_MIGRATION_WRITER_GENERATION", "0"))
     except ValueError:
@@ -598,7 +678,8 @@ def _create_constraints_and_indexes() -> None:
 
 
 def upgrade() -> None:
-    _preflight()
+    environment = _migration_environment()
+    _preflight(environment)
     bind = _bind()
     sentinel_id = _validated_sentinel_id()
     before_scope_count = int(

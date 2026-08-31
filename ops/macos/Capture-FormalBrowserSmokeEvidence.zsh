@@ -95,7 +95,7 @@ else
 fi
 [[ "$release_path" == "$pending_release_path" ]] || macos_die "selected release path is not the exact pending writer release"
 [[ "$release_path" == "$MACOS_LAYOUT_RELEASES"/* && "$release_path" != "$MACOS_LAYOUT_RELEASES"/*/* && -d "$release_path" && ! -L "$release_path" ]] || macos_die "pending release must be an installed direct child of ROOT/releases"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 release_manifest="$release_path/release-manifest.json"
 [[ "$(macos_json_get "$release_manifest" gitCommit 2>/dev/null || true)" == "${pending_commit:l}" ]] || macos_die "release manifest commit does not match the pending writer"
 [[ "$(macos_json_get "$release_manifest" applicationVersion 2>/dev/null || true)" == "$pending_version" ]] || macos_die "release manifest version does not match the pending writer"

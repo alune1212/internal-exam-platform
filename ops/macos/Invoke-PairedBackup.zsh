@@ -39,7 +39,7 @@ trap '(( lock_held == 1 )) || macos_release_lock' EXIT
 macos_release_state "$MACOS_CURRENT_STATE"
 release_path="$MACOS_STATE_PATH"
 release_version="$MACOS_STATE_VERSION"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 macos_cutover_identity
 operator="$(macos_active_operator_subject)"

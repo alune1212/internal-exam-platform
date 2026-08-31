@@ -76,6 +76,8 @@ export type PracticeWrongQuestion = {
   total_attempts: number;
   mastered: boolean;
   latest_practiced_at: string;
+  history_total: number;
+  history_truncated: boolean;
   history: PracticeAnswerHistory[];
   options: PracticeOptionComparison[];
 };

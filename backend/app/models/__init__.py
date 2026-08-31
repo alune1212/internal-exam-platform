@@ -3,6 +3,7 @@ from app.models.attempt import (
     ExamAttemptAnswer,
     ExamAttemptQuestion,
     PracticeAnswer,
+    PracticeAnswerAggregate,
 )
 from app.models.candidate import Candidate, CandidateStatus
 from app.models.candidate_login import CandidateLoginChallenge
@@ -29,6 +30,7 @@ __all__ = [
     "LearningVideoProgress",
     "OperationalLock",
     "PracticeAnswer",
+    "PracticeAnswerAggregate",
     "Question",
     "QuestionOption",
 ]

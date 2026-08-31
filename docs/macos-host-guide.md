@@ -48,9 +48,9 @@ docker info --format '{{.OSType}}/{{.Architecture}}'
 docker system df
 ```
 
-正式项目的自动恢复只允许恢复已选中的 immutable release。LaunchAgent 可以在 Docker ready 后执行无构建的 Compose recovery，但不能 build、promote、restore、删除数据、轮换 session 或批准开考；恢复成功永远不等于“允许开考”。LaunchAgent 必须安装并经过 `launchctl`/plist 验证，未安装或加载失败即为预检阻断项。
+正式项目的自动恢复只允许恢复已选中的 immutable release。LaunchAgent 通过 formal root 外部的 owner-only trusted runtime 启动；该 runtime 在任何 release action 前校验自身清单、checksummed current state、外部公钥/fingerprint 和 release signatures。LaunchAgent 可以在 Docker ready 后执行无构建的 Compose recovery，但不能 build、promote、restore、删除数据、轮换 session 或批准开考；恢复成功永远不等于“允许开考”。LaunchAgent 必须安装并经过 `launchctl`/plist 验证，运行时缺失/篡改、签名失败、未安装或加载失败即为预检阻断项。
 
-正式发布只接受以下顺序：`New-ReleaseBundle → Build-ReleaseImages → Invoke-ReleaseSecurityScan → Seal-Release → Test-ReleaseBundle → Install-Release`。Install 之前不得启动/切换 formal，Install 之后仍必须完成 schemaVersion=2 staging、外部 browser/SMTP/capacity/backup-restore gates 和人工 promotion；LaunchAgent 不得代替这些门禁。
+正式发布只接受以下顺序：`New-ReleaseBundle → Build-ReleaseImages → Invoke-ReleaseSecurityScan → Seal-Release → 离线 Sign-ReleaseBundle → Test-ReleaseBundle → Install-Release`。Install 之前不得启动/切换 formal，Install 之后仍必须完成 schemaVersion=2 staging、外部 browser/SMTP/capacity/backup-restore gates 和人工 promotion；LaunchAgent 不得代替这些门禁。正式根目录只保存 owner-only 的 `configuration/release-signing-public-key.pem` 与 `configuration/release-signing-public-key.fingerprint`；离线 RSA-3072 私钥不进入主机或 bundle。当前/previous release 缺少任一 detached signature、manifest fingerprint 与外部 SPKI fingerprint 不一致，或签名 sidecar 被篡改时，Test、Install、Start、Promote、Rollback 和 preflight 均在 payload/Compose 前阻断。
 
 ## 固定地址、入口和 HTTP 例外
 
@@ -128,6 +128,6 @@ zsh ops/macos/Test-FormalPreflight.zsh \
 
 当前 Mac UAT 至少覆盖 macOS Chrome、macOS Safari 和一台真实 Android Chrome 或 iOS Safari。嵌入式浏览器、过旧版本和未知 user agent 必须阻断；浏览器运行时不访问公共 CDN、字体或遥测服务。
 
-正式证据包至少包含：macOS/版本、arm64、Docker/Compose 版本、AutoStart/Resource Saver/8 CPU/8 GiB、固定 IP 和 DHCP reservation、CORS、FileVault、pf、防火墙、AC/UPS/睡眠、时间、formal root 权限、release manifest/SHA-256、ARM64 镜像、staging、账号迁移 preflight/backfill/destructive-check（如适用）、真实 OTP/邀请 SMTP、服务重启、备份/独立加密第二存储/restore drill、split ingress、真实桌面/手机 UAT 和 100-client 结果。browser、SMTP、capacity、backup/restore、第二设备/未授权 CIDR、账号迁移和 LaunchAgent 现场门禁必须来自真实外部/现场操作；本机静态检查、synthetic JSON 或手写 `passed` 不能替代它们。证据不得包含密码、OTP、token、SMTP secret、数据库 URL、完整邮箱、上传内容或不必要个人数据。
+正式证据包至少包含：macOS/版本、arm64、Docker/Compose 版本、AutoStart/Resource Saver/8 CPU/8 GiB、固定 IP 和 DHCP reservation、CORS、FileVault、pf、防火墙、AC/UPS/睡眠、时间、formal root 权限、release manifest/SHA-256、RSA-3072 公钥/SPKI fingerprint 与两个 detached signature 的验签结果、ARM64 镜像、staging、账号迁移 preflight/backfill/destructive-check（如适用）、真实 OTP/邀请 SMTP、服务重启、备份/独立加密第二存储/restore drill、split ingress、真实桌面/手机 UAT 和 100-client 结果。browser、SMTP、capacity、backup/restore、第二设备/未授权 CIDR、账号迁移和 LaunchAgent 现场门禁必须来自真实外部/现场操作；本机静态检查、synthetic JSON 或手写 `passed` 不能替代它们。证据不得包含密码、OTP、token、SMTP secret、数据库 URL、完整邮箱、上传内容、不必要个人数据或 release 私钥。
 
 Mac 证据只证明 Mac host 的状态；它**不满足**未来 Windows Docker Desktop + WSL2 的 AMD64 staging、恢复、网络、防火墙、备份恢复、桌面/手机 UAT 或正式 promotion。Windows 迁移必须按 [`host-migration.md`](host-migration.md) 重新生成完整证据，并在切换前后保持单写入者。

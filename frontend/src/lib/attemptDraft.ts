@@ -15,29 +15,6 @@ function key(candidateId: number, attemptId: number) {
   return `${DRAFT_PREFIX}:${candidateId}:${attemptId}`;
 }
 
-function readSessionValue(key: string): string | null {
-  const sessionValue = window.sessionStorage.getItem(key);
-  if (sessionValue) {
-    return sessionValue;
-  }
-  const legacyValue = window.localStorage.getItem(key);
-  if (!legacyValue) {
-    return null;
-  }
-  window.sessionStorage.setItem(key, legacyValue);
-  window.localStorage.removeItem(key);
-  return legacyValue;
-}
-
-function writeSessionValue(key: string, value: string): void {
-  window.sessionStorage.setItem(key, value);
-}
-
-function clearSessionValue(key: string): void {
-  window.sessionStorage.removeItem(key);
-  window.localStorage.removeItem(key);
-}
-
 export function writeAttemptDraft(
   session: AttemptSession,
   answers: Record<number, string>,
@@ -50,7 +27,7 @@ export function writeAttemptDraft(
     answers,
     updatedAt: new Date().toISOString(),
   };
-  writeSessionValue(key(session.candidateId, session.attemptId), JSON.stringify(draft));
+  window.sessionStorage.setItem(key(session.candidateId, session.attemptId), JSON.stringify(draft));
   return draft;
 }
 
@@ -58,7 +35,7 @@ export function readMatchingAttemptDraft(
   session: AttemptSession,
   serverRevision: number,
 ): AttemptDraft | null {
-  const raw = readSessionValue(key(session.candidateId, session.attemptId));
+  const raw = window.sessionStorage.getItem(key(session.candidateId, session.attemptId));
   if (!raw) return null;
   try {
     const draft = JSON.parse(raw) as AttemptDraft;
@@ -79,7 +56,7 @@ export function readMatchingAttemptDraft(
 }
 
 export function clearAttemptDraft(candidateId: number, attemptId: number): void {
-  clearSessionValue(key(candidateId, attemptId));
+  window.sessionStorage.removeItem(key(candidateId, attemptId));
 }
 
 export function clearAllAttemptDrafts(): void {

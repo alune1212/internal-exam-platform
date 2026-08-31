@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -30,11 +30,14 @@ def list_practice_questions(
 @router.post("/answers", response_model=ApiResponse[PracticeAnswerResult])
 def save_practice_answer(
     payload: PracticeAnswerSubmitRequest,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[PracticeAnswerResult]:
     return ApiResponse(
-        data=practice_service.submit_practice_answer(db, candidate_id, payload)
+        data=practice_service.submit_practice_answer(
+            db, candidate_id, payload, request=request
+        )
     )
 
 
@@ -45,6 +48,9 @@ def list_wrong_questions(
     category_1: str | None = None,
     category_2: str | None = None,
     mastered: bool | None = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    history_limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[list[PracticeWrongQuestionRead]]:
@@ -55,5 +61,8 @@ def list_wrong_questions(
             category_1=category_1,
             category_2=category_2,
             mastered=mastered,
+            limit=limit,
+            offset=offset,
+            history_limit=history_limit,
         )
     )

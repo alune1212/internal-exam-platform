@@ -4,6 +4,8 @@ from pydantic_settings import SettingsConfigDict
 
 from app.core.config import Settings
 
+VALID_FORMAL_TOKEN_SECRET = "A" * 43
+
 
 class IsolatedSettings(Settings):
     model_config = SettingsConfigDict(
@@ -32,7 +34,25 @@ def _valid_internal_backend(**overrides: object) -> Settings:
         "primary_operator_password": "strong-primary-password",
         "backup_operator_username": "backup-operator",
         "backup_operator_password": "strong-backup-password",
-        "token_secret": "strong-token-secret",
+        "token_secret": VALID_FORMAL_TOKEN_SECRET,
+        "candidate_login_email_delivery_mode": "smtp",
+        "candidate_login_email_from": "exam@example.com",
+        "candidate_login_smtp_host": "smtp.example.com",
+    }
+    values.update(overrides)
+    return _settings(**values)
+
+
+def _valid_production_backend(**overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "environment": "production",
+        "app_role": "backend",
+        "database_url": "postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam",
+        "cors_origins": "https://exam.example.com",
+        "candidate_public_base_url": "https://exam.example.com",
+        "admin_username": "production-operator",
+        "admin_password": "strong-admin-password",
+        "token_secret": VALID_FORMAL_TOKEN_SECRET,
         "candidate_login_email_delivery_mode": "smtp",
         "candidate_login_email_from": "exam@example.com",
         "candidate_login_smtp_host": "smtp.example.com",
@@ -109,8 +129,9 @@ def test_production_candidate_origin_must_be_https_and_in_cors() -> None:
         "app_role": "backend",
         "database_url": "postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam",
         "cors_origins": "https://exam.example.com",
+        "admin_username": "production-operator",
         "admin_password": "strong-admin-password",
-        "token_secret": "strong-token-secret",
+        "token_secret": VALID_FORMAL_TOKEN_SECRET,
         "candidate_login_email_delivery_mode": "smtp",
         "candidate_login_email_from": "exam@example.com",
         "candidate_login_smtp_host": "smtp.example.com",
@@ -127,6 +148,160 @@ def test_production_candidate_origin_must_be_https_and_in_cors() -> None:
             **common,
             candidate_public_base_url="https://elsewhere.example.com",
         )
+
+
+def test_production_backend_accepts_canonical_token_secret() -> None:
+    configured = _valid_production_backend()
+
+    assert len(configured.token_secret) == 43
+
+
+@pytest.mark.parametrize(
+    "token_secret",
+    [
+        "",
+        " " * 43,
+        "A" * 42,
+        "A" * 44,
+        f"{'A' * 43}=",
+        f"{'A' * 42}B",
+        "local-dev-token-secret-change-before-production",
+    ],
+)
+def test_formal_backend_rejects_noncanonical_token_secret(token_secret: str) -> None:
+    with pytest.raises(ValidationError, match=r"TOKEN_SECRET|token_secret"):
+        _valid_production_backend(token_secret=token_secret)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"admin_username": ""},
+        {"admin_username": "   "},
+        {"admin_username": "admin"},
+        {"admin_password": ""},
+        {"admin_password": "   "},
+        {"admin_password": "change-me"},
+        {"admin_password": "local-dev-admin-password"},
+        {"admin_token_ttl_seconds": 14_399},
+        {"candidate_token_ttl_seconds": 14_401},
+    ],
+)
+def test_production_requires_effective_operator_and_exact_token_ttls(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        _valid_production_backend(**overrides)
+
+
+@pytest.mark.parametrize("environment", ["internal", "production"])
+@pytest.mark.parametrize("app_role", ["backend", "worker"])
+@pytest.mark.parametrize(
+    "database_url",
+    [
+        "postgresql+psycopg://exam:@db:5432/internal_exam",
+        "postgresql+psycopg://exam:local-dev-postgres-password@db:5432/internal_exam",
+        "postgresql+psycopg://exam:%20@db:5432/internal_exam",
+    ],
+)
+def test_all_formal_roles_reject_blank_or_sample_database_password(
+    environment: str, app_role: str, database_url: str
+) -> None:
+    overrides: dict[str, object] = {
+        "environment": environment,
+        "app_role": app_role,
+        "database_url": database_url,
+    }
+    if environment == "internal" and app_role == "backend":
+        with pytest.raises(ValidationError, match="DATABASE_URL"):
+            _valid_internal_backend(database_url=database_url)
+        return
+    if environment == "production" and app_role == "backend":
+        with pytest.raises(ValidationError, match="DATABASE_URL"):
+            _valid_production_backend(database_url=database_url)
+        return
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
+        _settings(**overrides)
+
+
+@pytest.mark.parametrize("environment", ["internal", "production"])
+@pytest.mark.parametrize("app_role", ["backend", "worker"])
+@pytest.mark.parametrize(
+    "query",
+    [
+        "password=local-dev-postgres-password",
+        "host=attacker.example",
+        "dbname=other_exam",
+        "user=attacker",
+        "port=6543",
+    ],
+)
+def test_formal_roles_reject_database_url_query_parameters(
+    environment: str, app_role: str, query: str
+) -> None:
+    database_url = (
+        f"postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam?{query}"
+    )
+    if environment == "internal" and app_role == "backend":
+        with pytest.raises(ValidationError, match="DATABASE_URL"):
+            _valid_internal_backend(database_url=database_url)
+        return
+    if environment == "production" and app_role == "backend":
+        with pytest.raises(ValidationError, match="DATABASE_URL"):
+            _valid_production_backend(database_url=database_url)
+        return
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
+        _settings(
+            environment=environment,
+            app_role=app_role,
+            database_url=database_url,
+        )
+
+
+def test_database_url_query_error_does_not_echo_url_or_secret() -> None:
+    database_url = (
+        "postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam?"
+        "password=query-secret"
+    )
+    with pytest.raises(ValidationError) as exc_info:
+        _valid_production_backend(database_url=database_url)
+
+    message = str(exc_info.value)
+    assert database_url not in message
+    assert "query-secret" not in message
+
+
+@pytest.mark.parametrize("environment", ["internal", "production"])
+@pytest.mark.parametrize("app_role", ["backend", "worker"])
+def test_formal_roles_accept_percent_encoded_authority_database_password(
+    environment: str, app_role: str
+) -> None:
+    database_url = (
+        "postgresql+psycopg://exam:strong%2Fdb%40password@db:5432/internal_exam"
+    )
+    if environment == "internal" and app_role == "backend":
+        configured = _valid_internal_backend(database_url=database_url)
+    elif environment == "production" and app_role == "backend":
+        configured = _valid_production_backend(database_url=database_url)
+    else:
+        configured = _settings(
+            environment=environment,
+            app_role=app_role,
+            database_url=database_url,
+        )
+
+    assert configured.database_url == database_url
+
+
+def test_formal_worker_does_not_validate_web_token_secret() -> None:
+    configured = _settings(
+        environment="production",
+        app_role="worker",
+        database_url="postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam",
+        token_secret="bad",  # noqa: S106
+    )
+
+    assert configured.token_secret == "bad"  # noqa: S105
 
 
 def test_smtp_transport_defaults_to_starttls() -> None:

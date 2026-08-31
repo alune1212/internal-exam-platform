@@ -33,7 +33,7 @@ trap cleanup_install EXIT
 while IFS= read -r -d '' link; do
   macos_die "release bundle contains a symlink: ${link#$bundle_path/}"
 done < <(find "$bundle_path" -type l -print0)
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$bundle_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$bundle_path" --root "$root" >/dev/null
 
 manifest_path="$bundle_path/release-manifest.json"
 version="$(macos_json_get "$manifest_path" applicationVersion)"
@@ -50,8 +50,8 @@ cp -pR -- "$bundle_path/." "$temporary_target/"
 while IFS= read -r directory; do chmod 700 "$directory"; done < <(find "$temporary_target" -type d -print)
 while IFS= read -r file; do chmod 600 "$file"; done < <(find "$temporary_target" -type f -print)
 while IFS= read -r file; do chmod 700 "$file"; done < <(find "$temporary_target/ops/macos" -type f -name '*.zsh' -print)
-[[ -x "$temporary_target/ops/macos/Test-ReleaseBundle.zsh" ]] || macos_die "installed release verifier is not executable"
-"$temporary_target/ops/macos/Test-ReleaseBundle.zsh" --release-path "$temporary_target" >/dev/null
+[[ -x "$SCRIPT_DIR/Test-ReleaseBundle.zsh" ]] || macos_die "trusted release verifier is missing"
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$temporary_target" --root "$root" >/dev/null
 mv -f -- "$temporary_target" "$target"
 temporary_target=""
 macos_log "release_installed version=$version commit=$commit path=$target"

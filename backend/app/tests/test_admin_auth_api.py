@@ -36,6 +36,10 @@ from app.tests.conftest import (
 )
 
 PRODUCTION_PUBLIC_URL = "https://exam.example.com"
+VALID_FORMAL_TOKEN_SECRET = "A" * 43
+VALID_FORMAL_DATABASE_URL = (
+    "postgresql+psycopg://exam:strong-db-password@db:5432/internal_exam"
+)
 
 
 def _build_client() -> tuple[TestClient, Session]:
@@ -234,6 +238,19 @@ def test_admin_exams_rejects_wrong_token() -> None:
     assert resp.status_code == 401
 
 
+def test_admin_exams_rejects_malformed_timestamp_token() -> None:
+    client, _ = _build_client()
+    payload = f"admin:{settings.admin_username}.+123.nonce"
+    token = f"{payload}.{_sign(payload, secret=settings.token_secret)}"
+
+    resp = client.get(
+        "/api/admin/exams",
+        headers={"X-Admin-Token": token},
+    )
+
+    assert resp.status_code == 401
+
+
 def test_admin_exams_rejects_expired_token(monkeypatch: pytest.MonkeyPatch) -> None:
     client, _ = _build_client()
     token = create_session_token(settings.admin_username)
@@ -374,6 +391,7 @@ def test_production_rejects_default_admin_password_and_token_secret() -> None:
     with pytest.raises(ValidationError):
         Settings(
             environment="production",
+            database_url=VALID_FORMAL_DATABASE_URL,
             cors_origins=PRODUCTION_PUBLIC_URL,
             candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         )
@@ -381,6 +399,8 @@ def test_production_rejects_default_admin_password_and_token_secret() -> None:
     with pytest.raises(ValidationError):
         Settings(
             environment="production",
+            database_url=VALID_FORMAL_DATABASE_URL,
+            admin_username="production-operator",
             admin_password="strong-password",  # noqa: S106
             token_secret="change-me-in-production",  # noqa: S106
             cors_origins=PRODUCTION_PUBLIC_URL,
@@ -392,8 +412,10 @@ def test_production_rejects_sample_admin_password() -> None:
     with pytest.raises(ValidationError, match="ADMIN_PASSWORD"):
         Settings(
             environment="production",
+            database_url=VALID_FORMAL_DATABASE_URL,
+            admin_username="production-operator",
             admin_password="local-dev-admin-password",  # noqa: S106
-            token_secret="prod-token-secret",  # noqa: S106
+            token_secret=VALID_FORMAL_TOKEN_SECRET,
             cors_origins=PRODUCTION_PUBLIC_URL,
             candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         )
@@ -403,6 +425,8 @@ def test_production_rejects_sample_token_secret() -> None:
     with pytest.raises(ValidationError, match="TOKEN_SECRET"):
         Settings(
             environment="production",
+            database_url=VALID_FORMAL_DATABASE_URL,
+            admin_username="production-operator",
             admin_password="strong-password",  # noqa: S106
             token_secret="local-dev-token-secret-change-before-production",  # noqa: S106
             cors_origins=PRODUCTION_PUBLIC_URL,
@@ -426,8 +450,10 @@ def test_production_rejects_dangerous_cors_origins(cors_origins: str) -> None:
     with pytest.raises(ValidationError, match="CORS_ORIGINS"):
         Settings(
             environment="production",
+            database_url=VALID_FORMAL_DATABASE_URL,
+            admin_username="production-operator",
             admin_password="strong-password",  # noqa: S106
-            token_secret="prod-token-secret",  # noqa: S106
+            token_secret=VALID_FORMAL_TOKEN_SECRET,
             cors_origins=cors_origins,
             candidate_public_base_url=PRODUCTION_PUBLIC_URL,
             candidate_login_email_delivery_mode="smtp",
@@ -439,8 +465,10 @@ def test_production_rejects_dangerous_cors_origins(cors_origins: str) -> None:
 def test_production_accepts_explicit_https_cors_origins() -> None:
     configured = Settings(
         environment="production",
+        database_url=VALID_FORMAL_DATABASE_URL,
+        admin_username="production-operator",
         admin_password="strong-password",  # noqa: S106
-        token_secret="prod-token-secret",  # noqa: S106
+        token_secret=VALID_FORMAL_TOKEN_SECRET,
         cors_origins="https://exam.example.com, https://admin.example.com",
         candidate_public_base_url=PRODUCTION_PUBLIC_URL,
         candidate_login_email_delivery_mode="smtp",

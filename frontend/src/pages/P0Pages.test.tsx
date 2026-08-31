@@ -238,6 +238,8 @@ describe("P0 pages", () => {
         total_attempts: 2,
         mastered: true,
         latest_practiced_at: "2026-07-21T08:00:00Z",
+        history_total: 2,
+        history_truncated: false,
         history: [
           {
             practice_answer_id: 1,
@@ -1066,6 +1068,9 @@ describe("P0 pages", () => {
         category_1: "安全",
         category_2: undefined,
         mastered: undefined,
+        limit: 50,
+        offset: 0,
+        history_limit: 20,
       }),
     );
   });

@@ -14,6 +14,8 @@ services:
       - "1025"
     ports:
       - "127.0.0.1:18025:8025"
+    networks:
+      - business
 
   backend:
     environment:
@@ -69,3 +71,6 @@ services:
       - ${E2E_BROWSER_OUTPUT_HOST_DIR:?run-browser-gate must set E2E_BROWSER_OUTPUT_HOST_DIR}:/workspace/e2e-output:rw
       - ${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}/frontend/e2e:/workspace/frontend/e2e:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - business
+      - gateway

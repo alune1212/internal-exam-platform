@@ -1,8 +1,10 @@
 import os
+import sys
 import threading
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 from sqlalchemy import create_engine, select, text
@@ -22,6 +24,7 @@ from app.models import (
     Question,
     QuestionOption,
 )
+from app.ops.postgres_test_target import assert_postgres_test_database_target
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamUpdate
 from app.services import exam_attempts, exam_configuration, exam_service
@@ -40,26 +43,30 @@ from app.services.operational_lock_service import (
     acquire_writer_fence,
 )
 
-POSTGRES_TEST_DATABASE_URL = os.environ.get("POSTGRES_TEST_DATABASE_URL")
+
+def _postgres_test_database_url() -> str | None:
+    return os.environ.get("POSTGRES_TEST_DATABASE_URL")
 
 
 @pytest.fixture
 def pg_session_factory() -> Iterator[sessionmaker[Session]]:
-    if POSTGRES_TEST_DATABASE_URL is None:
+    database_url = _postgres_test_database_url()
+    if database_url is None:
         pytest.skip(
             "POSTGRES_TEST_DATABASE_URL is required for PostgreSQL concurrency tests"
         )
-    engine = create_engine(POSTGRES_TEST_DATABASE_URL, pool_pre_ping=True)
-    _clean_postgres(engine)
+    assert_postgres_test_database_target(database_url)
+    engine = create_engine(database_url, pool_pre_ping=True)
+    _clean_postgres(engine, database_url)
     try:
         yield sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     finally:
-        _clean_postgres(engine)
+        _clean_postgres(engine, database_url)
         engine.dispose()
 
 
-def _clean_postgres(engine: Engine) -> None:
-    _assert_isolated_test_database(engine)
+def _clean_postgres(engine: Engine, database_url: str) -> None:
+    assert_postgres_test_database_target(database_url)
     with engine.begin() as connection:
         connection.execute(
             text(
@@ -84,23 +91,45 @@ def _clean_postgres(engine: Engine) -> None:
         )
 
 
-def _assert_isolated_test_database(engine: Engine) -> None:
-    database_name = engine.url.database or ""
-    if not engine.url.drivername.startswith("postgresql") or not database_name.endswith(
-        "_test"
-    ):
-        raise RuntimeError(
-            "PostgreSQL concurrency tests require an isolated database ending in _test"
-        )
+def test_concurrency_cleanup_checks_target_before_truncate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    class RecordingConnection:
+        def __enter__(self) -> "RecordingConnection":
+            calls.append("begin")
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, statement: object) -> None:
+            calls.append(str(statement).lstrip().split(maxsplit=1)[0])
+
+    class RecordingEngine:
+        def begin(self) -> RecordingConnection:
+            return RecordingConnection()
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "assert_postgres_test_database_target",
+        lambda _database_url: calls.append("guard"),
+    )
+    _clean_postgres(cast("Engine", RecordingEngine()), "safe-target")
+
+    assert calls == ["guard", "begin", "TRUNCATE"]
 
 
 def test_pg_database_guard_rejects_non_test_database() -> None:
-    unsafe_engine = create_engine("postgresql+psycopg://exam@127.0.0.1/internal_exam")
-    try:
-        with pytest.raises(RuntimeError, match="isolated database ending in _test"):
-            _assert_isolated_test_database(unsafe_engine)
-    finally:
-        unsafe_engine.dispose()
+    with pytest.raises(RuntimeError, match="explicit disposable target"):
+        assert_postgres_test_database_target(
+            "postgresql+psycopg://exam:secret@127.0.0.1:5432/internal_exam",
+            environ={
+                "POSTGRES_TEST_DATABASE_DISPOSABLE": "true",
+                "POSTGRES_TEST_DATABASE_PORT": "5432",
+            },
+        )
 
 
 def _seed_exam(

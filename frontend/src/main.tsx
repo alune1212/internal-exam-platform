@@ -5,8 +5,10 @@ import { RouterProvider } from "react-router-dom";
 
 import { bindSessionCacheClearing, createAppQueryClient } from "@/app/queryClient";
 import { router } from "@/app/router";
+import { clearLegacyProjectStorage } from "@/lib/legacyStorageCleanup";
 import "@/index.css";
 
+clearLegacyProjectStorage();
 const queryClient = createAppQueryClient();
 bindSessionCacheClearing(queryClient);
 

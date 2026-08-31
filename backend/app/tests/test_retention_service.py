@@ -1,9 +1,12 @@
+import hashlib
 import json
 import zipfile
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -129,6 +132,7 @@ def test_retention_preview_archive_and_guarded_delete(
     exam, candidate = _old_exam_graph(db, now=now)
     exam_id = exam.id
     candidate_id = candidate.id
+    scope_id = db.query(ExamCandidateScope).one().id
     archive_root = tmp_path / "archives"
     backup_root = tmp_path / "backups"
     monkeypatch.setattr(settings, "lifecycle_archive_dir", str(archive_root))
@@ -157,10 +161,27 @@ def test_retention_preview_archive_and_guarded_delete(
             "manifest.json",
         }
         exported = json.loads(bundle.read("archive.json"))
+        assert exported["schema_version"] == 2
+        assert exported["exams"][0]["scopes"][0] == {
+            "scope_id": scope_id,
+            "candidate_id": candidate_id,
+            "roster_email": "retention-candidate@example.com",
+            "roster_name": "历史考试人",
+            "department": None,
+            "position": None,
+            "exam_group": None,
+            "remark": None,
+        }
         assert (
             exported["exams"][0]["attempts"][0]["questions"][0]["stem_snapshot"]
             == "历史题干"
         )
+        workbook = load_workbook(BytesIO(bundle.read("archive.xlsx")), data_only=False)
+        assert workbook["冻结名单"].max_row == 2
+        assert (
+            workbook["冻结名单"].cell(2, 4).value == "retention-candidate@example.com"
+        )
+        workbook.close()
 
     backup_id = _verified_backup(
         backup_root,
@@ -207,6 +228,151 @@ def test_retention_delete_fails_without_current_preview_archive_and_backup(
         )
 
     assert preview.exams[0].eligible is True
+    assert db.get(Exam, exam.id) is not None
+
+
+def test_retention_archive_escapes_workbook_strings_but_keeps_json_raw(
+    db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2026, 7, 21, 8, tzinfo=UTC)
+    exam, _ = _old_exam_graph(db, now=now)
+    scope = db.query(ExamCandidateScope).one()
+    question = db.query(ExamAttemptQuestion).one()
+    answer = db.query(ExamAttemptAnswer).one()
+    exam.title = "\t=TITLE()"
+    scope.roster_name = "\t=NAME()"
+    scope.department = "+DEPARTMENT()"
+    scope.position = "-POSITION()"
+    scope.exam_group = "@GROUP()"
+    scope.roster_remark = "=REMARK()"
+    question.stem_snapshot = "\t=STEM()"
+    question.correct_answer_snapshot = "+CORRECT()"
+    answer.selected_answer = "-SELECTED()"
+    monkeypatch.setattr(settings, "lifecycle_archive_dir", str(tmp_path / "archives"))
+
+    preview = retention_service.preview_retention(db, now=now)
+    archive = retention_service.create_retention_archive(
+        db,
+        exam_ids=[exam.id],
+        preview_fingerprint=preview.fingerprint,
+        operator_subject="primary-operator",
+        now=now,
+    )
+    with zipfile.ZipFile(
+        tmp_path / "archives" / f"{archive.artifact_id}.zip"
+    ) as bundle:
+        exported = json.loads(bundle.read("archive.json"))
+        assert exported["exams"][0]["title"] == "\t=TITLE()"
+        assert exported["exams"][0]["scopes"][0]["roster_name"] == "\t=NAME()"
+        workbook = load_workbook(BytesIO(bundle.read("archive.xlsx")), data_only=False)
+
+    assert workbook["考试归档"].cell(2, 2).value == "'\t=TITLE()"
+    assert workbook["冻结名单"].cell(2, 5).value == "'\t=NAME()"
+    assert workbook["冻结名单"].cell(2, 6).value == "'+DEPARTMENT()"
+    assert workbook["冻结名单"].cell(2, 7).value == "'-POSITION()"
+    assert workbook["冻结名单"].cell(2, 8).value == "'@GROUP()"
+    assert workbook["冻结名单"].cell(2, 9).value == "'=REMARK()"
+    assert workbook["作答快照"].cell(2, 3).value == "'\t=STEM()"
+    assert workbook["作答快照"].cell(2, 4).value == "'-SELECTED()"
+    assert workbook["作答快照"].cell(2, 5).value == "'+CORRECT()"
+    workbook.close()
+
+
+def test_retention_delete_rejects_changed_current_roster(
+    db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2026, 7, 21, 8, tzinfo=UTC)
+    exam, _ = _old_exam_graph(db, now=now)
+    archive_root = tmp_path / "archives"
+    backup_root = tmp_path / "backups"
+    monkeypatch.setattr(settings, "lifecycle_archive_dir", str(archive_root))
+    monkeypatch.setattr(settings, "backup_storage_dir", str(backup_root))
+    preview = retention_service.preview_retention(db, now=now)
+    archive = retention_service.create_retention_archive(
+        db,
+        exam_ids=[exam.id],
+        preview_fingerprint=preview.fingerprint,
+        operator_subject="primary-operator",
+        now=now,
+    )
+    scope = db.query(ExamCandidateScope).one()
+    scope.roster_name = "名单已变化"
+    db.commit()
+    backup_id = _verified_backup(
+        backup_root,
+        created_at=now + timedelta(minutes=1),
+        backup_kind=internal_backup.CUTOVER_BACKUP_KIND,
+    )
+
+    with pytest.raises(retention_service.RetentionSafeguardError, match="来源"):
+        retention_service.delete_retained_exams(
+            db,
+            exam_ids=[exam.id],
+            preview_fingerprint=preview.fingerprint,
+            archive_id=archive.artifact_id,
+            backup_id=backup_id,
+            confirmation=f"DELETE EXAMS {exam.id}",
+            operator_subject="primary-operator",
+            now=now + timedelta(minutes=2),
+        )
+    assert db.get(Exam, exam.id) is not None
+
+
+def test_retention_schema_v1_is_readable_but_cannot_delete(
+    db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2026, 7, 21, 8, tzinfo=UTC)
+    exam, _ = _old_exam_graph(db, now=now)
+    archive_root = tmp_path / "archives"
+    backup_root = tmp_path / "backups"
+    monkeypatch.setattr(settings, "lifecycle_archive_dir", str(archive_root))
+    monkeypatch.setattr(settings, "backup_storage_dir", str(backup_root))
+    preview = retention_service.preview_retention(db, now=now)
+    archive = retention_service.create_retention_archive(
+        db,
+        exam_ids=[exam.id],
+        preview_fingerprint=preview.fingerprint,
+        operator_subject="primary-operator",
+        now=now,
+    )
+    archive_path = archive_root / f"{archive.artifact_id}.zip"
+    with zipfile.ZipFile(archive_path) as bundle:
+        members = {name: bundle.read(name) for name in bundle.namelist()}
+    manifest = json.loads(members["manifest.json"])
+    manifest["schema_version"] = 1
+    manifest_bytes = retention_service._json_bytes(manifest)
+    rewritten = BytesIO()
+    with zipfile.ZipFile(rewritten, "w", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("archive.json", members["archive.json"])
+        bundle.writestr("archive.xlsx", members["archive.xlsx"])
+        bundle.writestr("manifest.json", manifest_bytes)
+    archive_path.write_bytes(rewritten.getvalue())
+    (archive_root / f"{archive.artifact_id}.manifest.json").write_bytes(manifest_bytes)
+    (archive_root / f"{archive.artifact_id}.sha256").write_text(
+        f"{hashlib.sha256(archive_path.read_bytes()).hexdigest()}  {archive_path.name}\n",
+        encoding="ascii",
+    )
+
+    assert (
+        retention_service._load_archive_manifest(archive.artifact_id)["schema_version"]
+        == 1
+    )
+    backup_id = _verified_backup(
+        backup_root,
+        created_at=now + timedelta(minutes=1),
+        backup_kind=internal_backup.CUTOVER_BACKUP_KIND,
+    )
+    with pytest.raises(retention_service.RetentionSafeguardError, match="仅可读取"):
+        retention_service.delete_retained_exams(
+            db,
+            exam_ids=[exam.id],
+            preview_fingerprint=preview.fingerprint,
+            archive_id=archive.artifact_id,
+            backup_id=backup_id,
+            confirmation=f"DELETE EXAMS {exam.id}",
+            operator_subject="primary-operator",
+            now=now + timedelta(minutes=2),
+        )
     assert db.get(Exam, exam.id) is not None
 
 

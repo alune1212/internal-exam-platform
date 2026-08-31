@@ -26,6 +26,8 @@ find "$FORMAL_ROOT" -maxdepth 2 -type d -exec stat -f '%Sp %Su %N' {} \;
 
 将正式配置填入 $FORMAL_ROOT/configuration/formal.env 时，不要把真实值复制进 Git。至少核对 ENVIRONMENT=internal、`INTERNAL_LAN_BIND_IP=<FORMAL_LAN_IP>`、`CORS_ORIGINS=http://<FORMAL_LAN_IP>:8080`、SMTP、主/备操作员、签名密钥、正式数据库凭据、绝对生命周期/备份/证据路径和独立加密第二存储路径。正式 Mac 必须满足 `<FORMAL_LAN_IP>/24` DHCP reservation、pf 允许已批准 CIDR 到 `<FORMAL_LAN_IP>:8080`、operator 8081 loopback、Docker AutoStart、Resource Saver 明确关闭、8 CPU/8 GiB 和 MacBook AC。
 
+正式 release 的信任根不在 checkout 或 release bundle 内。由离线流程保管一把 RSA-3072 私钥；正式根目录只接受 designated account 写入的两个 owner-only（`0600`）文件：`$FORMAL_ROOT/configuration/release-signing-public-key.pem` 和 `$FORMAL_ROOT/configuration/release-signing-public-key.fingerprint`。fingerprint 是该公钥 DER 编码 SubjectPublicKeyInfo（SPKI）的 `sha256:<64位小写十六进制>`，必须由外部密钥管理/发布流程提供并与公钥同时核对；私钥不得复制到 Mac、checkout、bundle、shell history、日志或证据。若公钥、fingerprint 缺失、可被替换、权限不正确或三方 fingerprint（release manifest、正式外部文件、实际 SPKI）不一致，正式操作保持阻断。
+
 ## 2. 创建、构建、扫描、封存、验证和安装 release
 
 发布包必须来自固定、干净的 Git commit，不包含 .env、数据库、媒体、备份或诊断。正式 release 的唯一顺序是：
@@ -35,7 +37,8 @@ New-ReleaseBundle（未构建、未封存）
 → Build-ReleaseImages（本机 ARM64 最终镜像）
 → Invoke-ReleaseSecurityScan（绑定最终镜像 identity）
 → Seal-Release（导入扫描报告并封存）
-→ Test-ReleaseBundle（封存包完整性验证）
+→ Sign-ReleaseBundle（离线 RSA-3072 签名）
+→ Test-ReleaseBundle（封存包与两个签名验证）
 → Install-Release（安装到正式根目录）
 ```
 
@@ -80,15 +83,34 @@ zsh ops/macos/Seal-Release.zsh \
   --root "$MAC_ROOT"
 
 # Seal-Release 已把 identity-bound 扫描结果写入 release-evidence/security-scan.json。
+# 在受控离线环境使用 RSA-3072 私钥和对应的公钥/fingerprint；私钥不进入 Mac 正式根目录。
+SIGNING_PRIVATE_KEY="/private/secure/internal-exam-release-rsa3072.pem"
+SIGNING_PUBLIC_KEY="/private/secure/internal-exam-release-rsa3072-public.pem"
+SIGNING_FINGERPRINT="/private/secure/internal-exam-release-rsa3072.fingerprint"
+zsh ops/macos/Sign-ReleaseBundle.zsh \
+  --release-path "$RELEASE_BUNDLE" \
+  --private-key "$SIGNING_PRIVATE_KEY" \
+  --public-key "$SIGNING_PUBLIC_KEY" \
+  --fingerprint "$SIGNING_FINGERPRINT" \
+  --root "$MAC_ROOT"
+
+# Sign-ReleaseBundle 对 final raw release-manifest.json 和 SHA256SUMS
+# 生成两个 detached binary PKCS#1 v1.5 SHA-256 sidecar；它们不属于
+# manifest.files 或 SHA256SUMS 的内容集合，只能按固定名称出现。
 zsh ops/macos/Test-ReleaseBundle.zsh \
-  --release-path "$RELEASE_BUNDLE"
+  --release-path "$RELEASE_BUNDLE" \
+  --root "$MAC_ROOT"
 
 zsh ops/macos/Install-Release.zsh \
   --bundle-path "$RELEASE_BUNDLE" \
   --root "$MAC_ROOT"
 ~~~
 
-`Invoke-ReleaseSecurityScan.zsh` 只在 arm64 Mac 上扫描 Build 产生的四个 `linux/arm64` 镜像，并将镜像引用、immutable ID、平台、host OS/architecture、scanner provenance 和 canonical image record digest 写入报告。`Seal-Release.zsh` 会再次核对这些绑定、freshness（默认 7 天）、blocking findings 为空及 checksum，然后替换 bundle 内的 pending security record；扫描报告或 image record 只要来自另一轮构建、另一 commit、另一架构或另一组镜像，封存就会拒绝。`Build-ReleaseImages.zsh` 使用临时 build-only 配置，永远不会执行正式 promotion；只有 Seal、Test 均成功后才能 Install，Install 后仍需进入 staging。
+`Invoke-ReleaseSecurityScan.zsh` 只在 arm64 Mac 上扫描 Build 产生的四个 `linux/arm64` 镜像，并将镜像引用、immutable ID、平台、host OS/architecture、scanner provenance 和 canonical image record digest 写入报告。`Seal-Release.zsh` 会再次核对这些绑定、freshness（默认 7 天）、blocking findings 为空及 checksum，然后替换 bundle 内的 pending security record；扫描报告或 image record 只要来自另一轮构建、另一 commit、另一架构或另一组镜像，封存就会拒绝。`Build-ReleaseImages.zsh` 使用临时 build-only 配置，永远不会执行正式 promotion；只有 Seal、离线 Sign、Test 均成功后才能 Install，Install 后仍需进入 staging。
+
+`Sign-ReleaseBundle.zsh` 只从 trusted checkout 调用 verifier，并把签名覆盖范围固定为封存后最终原始字节的 `release-manifest.json` 与 `SHA256SUMS`。manifest 的 `releaseSignature` 必须声明 `algorithm=RSA-SHA256`、SPKI fingerprint、上述两个 `signedFiles` 以及恰好两个 sidecar：`release-manifest.json.sig`、`SHA256SUMS.sig`。任何 payload、manifest、checksum 或 sidecar 变化都会使签名或 checksum 验证失败。`Test-ReleaseBundle`、`Install-Release`、`Start-Platform`、`Promote-Release`、`Rollback-Release` 和 formal preflight 都在执行 payload/Compose 前检查外部公钥、fingerprint 和两个签名；Install 不信任 bundle 中可能被替换的 verifier。正式路径没有 unsigned bypass，当前和 previous release 都必须签名。
+
+历史 release 迁移时，先在离线环境对原始 bundle 做内容复核，再用当前受信 RSA-3072 私钥签名并让 trusted checkout 的严格 Test 成功；随后才可把它作为 current/previous 写入 formal state。未签名或无法证明来源的 current/previous 必须阻断，不得在正式 Mac 上生成生产私钥或用 `--allow-signature-missing` 绕过正式操作；密钥轮换须先把新公钥和 fingerprint 通过外部正式流程安装并验证，再签发新 bundle，并保留旧公钥/验签材料直到所有旧 release 迁移或退役。
 
 ## 3. Staging 和正式 promotion
 
@@ -353,6 +375,8 @@ zsh ops/macos/Close-ExamSessions.zsh \
   --root "$HOME/Library/Application Support/InternalExam"
 ~~~
 
+`Close-ExamSessions.zsh` 在版本化 backend 容器中用 `secrets.token_bytes(32)` 生成 canonical 的 43 字符 unpadded Base64url secret，并通过原子更新只写入外部 `configuration/formal.env`（`0600`）；secret 不写入 bundle、证据、日志或终端输出。若 formal.env 不是受保护的外部文件，命令必须失败。
+
 诊断包最多采集每服务 500 行日志，脱敏并带 checksum；可以从受保护的 token 文件读取，不要把 token 写入命令行：
 
 ~~~zsh
@@ -405,7 +429,7 @@ MAC_ROOT="$HOME/Library/Application Support/InternalExam"
 zsh ops/macos/Install-LaunchAgents.zsh --root "$MAC_ROOT"
 ~~~
 
-安装脚本会渲染模板、运行 plutil、bootstrap/print 两个 LaunchAgent，并将命令路径固定为同一 release 的 ops/macos/LaunchAgent-Dispatcher.zsh；不能指向 development checkout。卸载必须有精确确认：
+安装脚本会先用 trusted checkout 验证 current release，再把 `Trusted-LaunchAgent.zsh`、`LaunchAgent-Dispatcher.zsh`、`Common.zsh` 和 `Test-ReleaseBundle.zsh` 安装到 `ROOT/state/trusted-runtime-<commit>/`；该 owner-only 运行时有精确的 `trusted-runtime.SHA256SUMS`，不属于任何 release/current/previous 目录。两个 plist 的 ProgramArguments 只允许指向这个外部 trusted launcher；launcher 在 source 任何 runtime 支持或执行 release action 前，会核对运行时清单、checksummed current state、外部公钥/fingerprint 和两个 release signature。运行时缺失、篡改、current state 不完整或签名失败都必须 fail closed。之后脚本才渲染模板、运行 plutil、bootstrap/print 两个 LaunchAgent；不能指向 development checkout 或 release bundle 内的 dispatcher。卸载必须有精确确认：
 
 ~~~zsh
 zsh ops/macos/Uninstall-LaunchAgents.zsh \

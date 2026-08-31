@@ -7,7 +7,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
-    <string>__MACOS_OPS_DIR__/LaunchAgent-Dispatcher.zsh</string>
+    <string>__TRUSTED_RUNTIME_DIR__/Trusted-LaunchAgent.zsh</string>
     <string>opportunistic-backup</string>
     <string>--root</string>
     <string>__INTERNAL_EXAM_ROOT__</string>

@@ -2,6 +2,7 @@ import { emitSessionChange } from "@/app/queryClient";
 import type { Candidate } from "@/types/candidate";
 import { clearAllAttemptSessions } from "@/lib/attemptSession";
 import { clearAllAttemptDrafts } from "@/lib/attemptDraft";
+import { clearLegacyProjectStorage } from "@/lib/legacyStorageCleanup";
 
 const STORAGE_KEY = "internal-exam-candidate";
 const REGISTRATION_KEY = "internal-exam-registration-flow";
@@ -116,7 +117,7 @@ export function clearCurrentCandidate(
   reason: "candidate-logout" | "unauthorized" = "candidate-logout",
 ) {
   window.sessionStorage.removeItem(STORAGE_KEY);
-  window.localStorage.removeItem(STORAGE_KEY);
+  clearLegacyProjectStorage();
   clearRegistrationFlow();
   clearAllAttemptSessions();
   clearAllAttemptDrafts();
@@ -161,7 +162,7 @@ export function getRegistrationFlow(): RegistrationFlow | null {
 
 export function clearRegistrationFlow(): void {
   window.sessionStorage.removeItem(REGISTRATION_KEY);
-  window.localStorage.removeItem(REGISTRATION_KEY);
+  clearLegacyProjectStorage();
 }
 
 function isRegistrationFlowExpired(flow: RegistrationFlow): boolean {

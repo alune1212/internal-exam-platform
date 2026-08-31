@@ -1,4 +1,5 @@
 from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from openpyxl import Workbook
@@ -230,6 +231,72 @@ def test_parse_workbook_accepts_rows_at_limit() -> None:
     parsed = import_service.parse_workbook(workbook, max_rows=1)
 
     assert parsed.total_count == 1
+
+
+def _central_directory_workbook(
+    *, extra_members: list[str] | None = None, include_core: bool = True
+) -> BytesIO:
+    file_obj = BytesIO()
+    with ZipFile(file_obj, "w", ZIP_DEFLATED) as archive:
+        if include_core:
+            archive.writestr("[Content_Types].xml", "<Types/>")
+            archive.writestr("xl/workbook.xml", "<workbook/>")
+        for name in extra_members or []:
+            archive.writestr(name, "x")
+    file_obj.seek(0)
+    return file_obj
+
+
+def test_parse_workbook_rejects_unsafe_xlsx_before_openpyxl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_obj = _central_directory_workbook(extra_members=["../escape"])
+    monkeypatch.setattr(import_service, "load_workbook", pytest.fail)
+
+    with pytest.raises(import_service.ImportFormatError, match="不安全"):
+        import_service.parse_workbook(file_obj)
+
+
+def test_parse_workbook_rejects_xlsx_member_limit_before_openpyxl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_obj = _central_directory_workbook(
+        extra_members=[f"xl/extra-{index}.xml" for index in range(999)]
+    )
+    monkeypatch.setattr(import_service, "load_workbook", pytest.fail)
+
+    with pytest.raises(import_service.ImportLimitError, match="不能超过 1000"):
+        import_service.parse_workbook(file_obj)
+
+
+def test_parse_workbook_rejects_high_compression_ratio_before_openpyxl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rebuilt = BytesIO()
+    with ZipFile(rebuilt, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("xl/workbook.xml", "<workbook/>")
+        archive.writestr("xl/expanded.xml", "x" * 10_000)
+    rebuilt.seek(0)
+    monkeypatch.setattr(import_service, "load_workbook", pytest.fail)
+
+    with pytest.raises(import_service.ImportLimitError, match="压缩比"):
+        import_service.parse_workbook(rebuilt)
+
+
+def test_question_import_rejects_missing_xlsx_core_without_batch(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(import_service, "load_workbook", pytest.fail)
+
+    with pytest.raises(import_service.ImportFormatError, match="必要"):
+        import_questions_from_workbook(
+            db,
+            _central_directory_workbook(include_core=False),
+            file_name="forged.xlsx",
+        )
+
+    assert db.query(ImportBatch).count() == 0
 
 
 def test_import_questions_rejects_blank_required_cells(db: Session) -> None:

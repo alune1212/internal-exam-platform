@@ -47,7 +47,7 @@ macos_read_cutover_identity
 # cross-host retirement barrier.  Cross-host recovery requires the explicit
 # Rollback/Resume state machine and a generation advance.
 macos_assert_no_pending_cutover_start 0
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$previous_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$previous_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$previous_path"
 macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT
 trap 'macos_restore_environment; macos_release_lock' EXIT

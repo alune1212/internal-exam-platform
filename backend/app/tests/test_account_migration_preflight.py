@@ -6,6 +6,7 @@ import tarfile
 from datetime import UTC, datetime, timedelta
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -19,6 +20,7 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
+    make_url,
     text,
 )
 
@@ -33,7 +35,7 @@ from app.ops.account_migration_preflight import (
 )
 
 
-def test_destructive_migration_downgrade_is_restore_only() -> None:
+def _load_account_migration_module():
     migration_path = (
         Path(__file__).parents[2]
         / "alembic"
@@ -45,9 +47,161 @@ def test_destructive_migration_downgrade_is_restore_only() -> None:
     assert spec.loader is not None
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def test_destructive_migration_downgrade_is_restore_only() -> None:
+    module = _load_account_migration_module()
 
     with pytest.raises(RuntimeError, match="paired PostgreSQL/media backup"):
         module.downgrade()
+
+
+@pytest.mark.parametrize("environment", [None, "", "   ", "staging"])
+def test_account_migration_requires_raw_recognized_environment(
+    monkeypatch: pytest.MonkeyPatch, environment: str | None
+) -> None:
+    module = _load_account_migration_module()
+    if environment is None:
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+    else:
+        monkeypatch.setenv("ENVIRONMENT", environment)
+    with pytest.raises(RuntimeError, match="explicit recognized ENVIRONMENT"):
+        module._migration_environment()
+
+
+@pytest.mark.parametrize("environment", [None, "", "unknown"])
+def test_account_migration_rejects_environment_before_bind(
+    monkeypatch: pytest.MonkeyPatch, environment: str | None
+) -> None:
+    module = _load_account_migration_module()
+    if environment is None:
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+    else:
+        monkeypatch.setenv("ENVIRONMENT", environment)
+    monkeypatch.setattr(
+        module,
+        "_bind",
+        lambda: pytest.fail("migration bound before validating ENVIRONMENT"),
+    )
+    with pytest.raises(RuntimeError, match="explicit recognized ENVIRONMENT"):
+        module.upgrade()
+
+
+def test_formal_account_migration_gate_cannot_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_account_migration_module()
+    bind = object()
+    monkeypatch.setattr(module, "_bind", lambda: bind)
+    monkeypatch.setattr(
+        module, "acquire_account_migration_advisory_lock", lambda _: None
+    )
+    monkeypatch.setattr(
+        module,
+        "run_account_migration_preflight",
+        lambda _: SimpleNamespace(blocked=False),
+    )
+    monkeypatch.setattr(
+        module,
+        "check_maintenance_gate",
+        lambda *_args, **_kwargs: SimpleNamespace(code="missing_evidence"),
+    )
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("ACCOUNT_MIGRATION_REQUIRE_GATE", "false")
+    with pytest.raises(RuntimeError, match="maintenance gate blocked"):
+        module._preflight()
+
+
+def test_development_account_migration_requires_both_flags_and_controlled_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_account_migration_module()
+    bind = SimpleNamespace(
+        engine=SimpleNamespace(
+            url=make_url(
+                "postgresql+psycopg://exam:secret@127.0.0.1:55432/internal_exam_test"
+            )
+        )
+    )
+    monkeypatch.setattr(module, "_bind", lambda: bind)
+    monkeypatch.setattr(
+        module, "acquire_account_migration_advisory_lock", lambda _: None
+    )
+    monkeypatch.setattr(
+        module,
+        "run_account_migration_preflight",
+        lambda _: SimpleNamespace(blocked=False),
+    )
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.delenv("ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT", raising=False)
+    monkeypatch.delenv("ACCOUNT_MIGRATION_DISPOSABLE_DATABASE", raising=False)
+    with pytest.raises(RuntimeError, match="both explicit disposable flags"):
+        module._preflight()
+
+    monkeypatch.setenv("ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT", "true")
+    monkeypatch.setenv("ACCOUNT_MIGRATION_DISPOSABLE_DATABASE", "true")
+    module._preflight()
+
+
+@pytest.mark.parametrize(
+    ("database_url", "allowed"),
+    [
+        (
+            "postgresql+psycopg://exam:secret@127.0.0.1:55432/internal_exam_test",
+            True,
+        ),
+        ("postgresql+psycopg://exam:secret@db:5432/internal_exam", True),
+        (
+            "postgresql+psycopg://exam_e2e:secret@db:5432/internal_exam_e2e",
+            True,
+        ),
+        ("postgresql+psycopg://exam:secret@remote:5432/internal_exam", False),
+        ("postgresql+psycopg://other:secret@db:5432/internal_exam", False),
+        ("postgresql+psycopg://exam:secret@db:5432/internal_exam_test", False),
+        ("postgresql+psycopg://exam:secret@db:55432/internal_exam", False),
+        ("postgresql://exam:secret@db:5432/internal_exam", False),
+    ],
+)
+def test_development_target_allowlist(database_url: str, allowed: bool) -> None:
+    module = _load_account_migration_module()
+    bind = SimpleNamespace(
+        engine=SimpleNamespace(url=make_url(database_url)),
+    )
+    if allowed:
+        module._assert_development_database_target(bind)
+    else:
+        with pytest.raises(RuntimeError, match="controlled PostgreSQL test target"):
+            module._assert_development_database_target(bind)
+
+
+@pytest.mark.parametrize(
+    "identity_override",
+    [
+        "host=remote.example",
+        "dbname=internal_exam",
+        "user=other",
+        "port=5432",
+        "password=other-secret",
+    ],
+)
+def test_development_target_rejects_query_identity_overrides(
+    identity_override: str,
+) -> None:
+    module = _load_account_migration_module()
+    database_url = (
+        "postgresql+psycopg://exam:secret@127.0.0.1:55432/"
+        f"internal_exam_test?{identity_override}"
+    )
+    bind = SimpleNamespace(
+        engine=SimpleNamespace(url=make_url(database_url)),
+    )
+    with pytest.raises(
+        RuntimeError, match="controlled PostgreSQL test target"
+    ) as error:
+        module._assert_development_database_target(bind)
+    assert "secret" not in str(error.value)
+    assert database_url not in str(error.value)
 
 
 @pytest.fixture

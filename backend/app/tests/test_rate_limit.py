@@ -18,13 +18,16 @@ from app.schemas.auth import AdminLoginRequest
 from app.schemas.candidate import CandidateLoginRequest
 
 
-def _request_for_ip(ip: str) -> Request:
+def _request_for_ip(ip: str, forwarded_for: str | None = None) -> Request:
+    headers = []
+    if forwarded_for is not None:
+        headers.append((b"x-forwarded-for", forwarded_for.encode()))
     return Request(
         {
             "type": "http",
             "method": "POST",
             "path": "/api/admin/login",
-            "headers": [],
+            "headers": headers,
             "client": (ip, 50000),
         }
     )
@@ -54,9 +57,28 @@ def test_public_token_rate_limit_prunes_expired_identifier_buckets(
             bucket="admin",
             identifier=f"user-{index}",
         )
-
     assert len(rate_limit._attempts) <= settings.public_token_rate_limit_max_keys
     assert ("admin", "id:old-user") not in rate_limit._attempts
+
+
+def test_public_token_rate_limit_uses_peer_ip_not_forged_forwarded_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rate_limit._attempts.clear()
+    monkeypatch.setattr(settings, "public_token_rate_limit_count", 1)
+    monkeypatch.setattr(settings, "public_token_rate_limit_window_seconds", 60)
+
+    rate_limit.check_public_token_rate_limit(
+        _request_for_ip("172.30.0.2", "198.51.100.1"),
+        bucket="candidate",
+        identifier=None,
+    )
+    with pytest.raises(rate_limit.PublicTokenRateLimitError):
+        rate_limit.check_public_token_rate_limit(
+            _request_for_ip("172.30.0.2", "198.51.100.2"),
+            bucket="candidate",
+            identifier=None,
+        )
 
 
 def test_public_token_rate_limit_hashes_identifier_key() -> None:

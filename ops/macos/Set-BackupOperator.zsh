@@ -32,7 +32,7 @@ macos_release_state "$MACOS_CURRENT_STATE"
 release_path="$MACOS_STATE_PATH"
 release_version="$MACOS_STATE_VERSION"
 release_commit="$MACOS_STATE_COMMIT"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 primary_operator="$(macos_formal_value PRIMARY_OPERATOR_USERNAME)"
 primary_password="$(macos_formal_value PRIMARY_OPERATOR_PASSWORD)"

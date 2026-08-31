@@ -46,11 +46,26 @@ export function getWrongPracticeQuestions(filters?: {
   category_1?: string;
   category_2?: string;
   mastered?: boolean;
+  limit?: number;
+  offset?: number;
+  history_limit?: number;
 }) {
   const params = new URLSearchParams();
   if (filters?.category_1) params.set("category_1", filters.category_1);
   if (filters?.category_2) params.set("category_2", filters.category_2);
   if (filters?.mastered !== undefined) params.set("mastered", String(filters.mastered));
-  const query = params.size ? `?${params.toString()}` : "";
+  const limit = Number.isFinite(filters?.limit)
+    ? Math.min(100, Math.max(1, Math.trunc(filters?.limit ?? 50)))
+    : 50;
+  const offset = Number.isFinite(filters?.offset)
+    ? Math.max(0, Math.trunc(filters?.offset ?? 0))
+    : 0;
+  const historyLimit = Number.isFinite(filters?.history_limit)
+    ? Math.min(100, Math.max(1, Math.trunc(filters?.history_limit ?? 20)))
+    : 20;
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  params.set("history_limit", String(historyLimit));
+  const query = `?${params.toString()}`;
   return apiRequest<PracticeWrongQuestion[]>(`/api/practice/wrong-questions${query}`);
 }

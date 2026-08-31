@@ -5,15 +5,23 @@ SCRIPT_DIR="${0:A:h}"
 source "$SCRIPT_DIR/Common.zsh"
 
 release_path=""
+root="${INTERNAL_EXAM_ROOT:-${HOME:?}/Library/Application Support/InternalExam}"
+signing_public_key=""
+signing_fingerprint=""
 allow_unbuilt=0
 allow_unsealed=0
+allow_signature_missing=0
 while (( $# > 0 )); do
   case "$1" in
     --release-path) (( $# >= 2 )) || macos_die "--release-path requires a path"; release_path="$2"; shift 2 ;;
+    --root) (( $# >= 2 )) || macos_die "--root requires a path"; root="$2"; shift 2 ;;
+    --signing-public-key) (( $# >= 2 )) || macos_die "--signing-public-key requires a path"; signing_public_key="$2"; shift 2 ;;
+    --signing-fingerprint) (( $# >= 2 )) || macos_die "--signing-fingerprint requires a path"; signing_fingerprint="$2"; shift 2 ;;
     --allow-unbuilt) allow_unbuilt=1; shift ;;
     --allow-unsealed) allow_unsealed=1; shift ;;
+    --allow-signature-missing) allow_signature_missing=1; shift ;;
     -h|--help)
-      print -r -- "usage: $0 --release-path ABSOLUTE_RELEASE"
+      print -r -- "usage: $0 --release-path ABSOLUTE_RELEASE [--root ROOT] [--signing-public-key PATH --signing-fingerprint PATH] [--allow-unbuilt] [--allow-unsealed] [--allow-signature-missing]"
       exit 0
       ;;
     *) macos_die "unknown argument: $1"; exit 1 ;;
@@ -38,6 +46,36 @@ git_commit="$(macos_json_get "$manifest_path" gitCommit 2>/dev/null || macos_jso
 [[ "$(macos_json_get "$manifest_path" hostOS 2>/dev/null || true)" == darwin ]] || macos_die "release host OS identity is invalid"
 [[ "$(macos_json_get "$manifest_path" architecture 2>/dev/null || true)" == arm64 ]] || macos_die "release architecture identity is invalid"
 [[ "$(macos_json_get "$manifest_path" platform 2>/dev/null || macos_json_get "$manifest_path" targetPlatform 2>/dev/null || true)" == linux/arm64 ]] || macos_die "release target platform identity is invalid"
+seal_state="$(macos_json_get "$manifest_path" sealState 2>/dev/null || true)"
+[[ "$seal_state" == sealed || $allow_unsealed -eq 1 || $allow_unbuilt -eq 1 ]] || macos_die "release bundle is unsealed; run Seal-Release after native security evaluation"
+if [[ "$seal_state" == sealed && $allow_signature_missing -eq 0 ]]; then
+  if [[ -z "$signing_public_key" && -z "$signing_fingerprint" ]]; then
+    macos_layout "$root"
+    signing_public_key="$MACOS_RELEASE_SIGNING_PUBLIC_KEY"
+    signing_fingerprint="$MACOS_RELEASE_SIGNING_FINGERPRINT"
+  elif [[ -z "$signing_public_key" || -z "$signing_fingerprint" ]]; then
+    macos_die "signing public key and fingerprint must be supplied together"
+  fi
+  macos_validate_release_signing_trust "$signing_public_key" "$signing_fingerprint"
+  signature_schema="$(macos_json_get "$manifest_path" releaseSignature.schemaVersion 2>/dev/null || true)"
+  signature_algorithm="$(macos_json_get "$manifest_path" releaseSignature.algorithm 2>/dev/null || true)"
+  signature_fingerprint="$(macos_json_get "$manifest_path" releaseSignature.keyFingerprint 2>/dev/null || true)"
+  signed_file_0="$(macos_json_get "$manifest_path" releaseSignature.signedFiles.0 2>/dev/null || true)"
+  signed_file_1="$(macos_json_get "$manifest_path" releaseSignature.signedFiles.1 2>/dev/null || true)"
+  signed_file_2="$(macos_json_get "$manifest_path" releaseSignature.signedFiles.2 2>/dev/null || true)"
+  signature_sidecar_0="$(macos_json_get "$manifest_path" releaseSignature.sidecars.0 2>/dev/null || true)"
+  signature_sidecar_1="$(macos_json_get "$manifest_path" releaseSignature.sidecars.1 2>/dev/null || true)"
+  signature_sidecar_2="$(macos_json_get "$manifest_path" releaseSignature.sidecars.2 2>/dev/null || true)"
+  expected_fingerprint="$(tr -d '[:space:]' < "$signing_fingerprint")"
+  [[ "$signature_schema" == 1 && "$signature_algorithm" == "RSA-SHA256" ]] || macos_die "release signature metadata is invalid"
+  [[ "$signature_fingerprint" =~ '^sha256:[0-9a-f]{64}$' && "$signature_fingerprint" == "$expected_fingerprint" ]] || macos_die "release signature fingerprint does not match the external trust root"
+  [[ "$signed_file_0" == release-manifest.json && "$signed_file_1" == SHA256SUMS && -z "$signed_file_2" ]] || macos_die "release signature signed-file metadata is invalid"
+  [[ "$signature_sidecar_0" == release-manifest.json.sig && "$signature_sidecar_1" == SHA256SUMS.sig && -z "$signature_sidecar_2" ]] || macos_die "release signature sidecar metadata is invalid"
+  macos_verify_release_signature "$signing_public_key" "$release_path/$MACOS_RELEASE_MANIFEST_SIGNATURE_NAME" "$manifest_path" "release manifest"
+  macos_verify_release_signature "$signing_public_key" "$release_path/$MACOS_RELEASE_CHECKSUM_SIGNATURE_NAME" "$checksums_path" "release checksum manifest"
+elif [[ "$allow_signature_missing" -eq 0 && ( -e "$release_path/$MACOS_RELEASE_MANIFEST_SIGNATURE_NAME" || -e "$release_path/$MACOS_RELEASE_CHECKSUM_SIGNATURE_NAME" ) ]]; then
+  macos_die "release signature sidecars require a sealed release"
+fi
 
 security_path="$release_path/release-evidence/security-scan.json"
 [[ -f "$security_path" ]] || macos_die "checksummed security evidence is missing"
@@ -111,9 +149,6 @@ for image_name in db backend frontend gateway; do
   fi
 done
 
-seal_state="$(macos_json_get "$manifest_path" sealState 2>/dev/null || true)"
-[[ "$seal_state" == sealed || $allow_unsealed -eq 1 || $allow_unbuilt -eq 1 ]] || macos_die "release bundle is unsealed; run Seal-Release after native security evaluation"
-
 typeset -A checksum_rows
 typeset -A manifest_rows
 checksum_count=0
@@ -136,7 +171,7 @@ while :; do
   manifest_rows[$relative]=1
   case "$relative" in
     .env.example|*/.env.example) ;;
-    .env|*/.env|.env.*|*/.env.*|*.env|*/*.env|*.pem|*/*.pem|*.key|*/*.key|*.p12|*/*.p12|*.pfx|*/*.pfx|*.jks|*/*.jks|id_rsa*|*/id_rsa*|id_ed25519*|*/id_ed25519*|credentials*|*/credentials*|credential*|*/credential*|private-key*|*/private-key*|private_key*|*/private_key*|*secret*|*/*secret*|*/backups/*|*/diagnostics/*|*/evidence/*|*/data/*|*/token*|*/otp*)
+    .env|*/.env|.env.*|*/.env.*|*.env|*/*.env|*.pem|*/*.pem|*.key|*/*.key|*.p12|*/*.p12|*.pfx|*/*.pfx|*.jks|*/*.jks|id_rsa*|*/id_rsa*|id_ed25519*|*/id_ed25519*|credentials*|*/credentials*|credential*|*/credential*|private-key*|*/private-key*|private_key*|*/private_key*|release-signing-public-key.fingerprint|*/release-signing-public-key.fingerprint|*secret*|*/*secret*|*/backups/*|*/diagnostics/*|*/evidence/*|*/data/*|*/token*|*/otp*)
       macos_die "release bundle contains a forbidden runtime or secret file"
       ;;
   esac
@@ -157,6 +192,10 @@ while IFS= read -r -d '' extra_path; do
   relative="${extra_path#$release_path/}"
   case "$relative" in
     release-manifest.json|SHA256SUMS) continue ;;
+    release-manifest.json.sig|SHA256SUMS.sig)
+      [[ "$seal_state" == sealed ]] || macos_die "release signature sidecar requires a sealed release"
+      continue
+      ;;
     *.sha256)
       sidecar_target="${relative%.sha256}"
       [[ -f "$release_path/$sidecar_target" && -n "${checksum_rows[$sidecar_target]-}" ]] || macos_die "release contains an unpaired checksum sidecar"

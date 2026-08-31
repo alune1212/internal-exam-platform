@@ -160,5 +160,5 @@ mv -f -- "$temporary_manifest" "$manifest"
 chmod 600 "$manifest"
 macos_replace_checksum_row "$release_path/SHA256SUMS" release-evidence/security-scan.json "$security_digest"
 
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
-macos_log "release_sealed version=$version commit=${commit:l} security=passed platform=linux/arm64 identity=$identity_digest next=Install-Release"
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" --allow-signature-missing >/dev/null
+macos_log "release_sealed version=$version commit=${commit:l} security=passed platform=linux/arm64 identity=$identity_digest next=Sign-ReleaseBundle"

@@ -1,6 +1,8 @@
+import binascii
+from base64 import urlsafe_b64decode, urlsafe_b64encode
 from functools import lru_cache
 from ipaddress import ip_address
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,16 +11,19 @@ REPOSITORY_SAMPLE_ADMIN_PASSWORDS = {
     "change-me",
     "local-dev-admin-password",
 }
-REPOSITORY_SAMPLE_TOKEN_SECRETS = {
-    "change-me-in-production",
-    "local-dev-token-secret-change-before-production",
-}
+REPOSITORY_SAMPLE_OPERATOR_USERNAMES = {"admin"}
 REPOSITORY_SAMPLE_DATABASE_PASSWORDS = {
     "exam",
     "local-dev-postgres-password",
 }
 VALID_ENVIRONMENTS = {"development", "internal", "production"}
 VALID_APP_ROLES = {"backend", "worker"}
+FORMAL_TOKEN_TTL_SECONDS = 4 * 60 * 60
+TOKEN_SECRET_BYTES = 32
+TOKEN_SECRET_LENGTH = 43
+TOKEN_SECRET_ALPHABET = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+)
 
 
 class Settings(BaseSettings):
@@ -43,7 +48,7 @@ class Settings(BaseSettings):
     backup_operator_username: str = ""
     backup_operator_password: str = ""
     backup_operator_enabled: bool = False
-    token_secret: str = Field(default="change-me-in-production", min_length=8)
+    token_secret: str = "change-me-in-production"
     token_ttl_seconds: int = 12 * 60 * 60
     admin_token_ttl_seconds: int = Field(default=4 * 60 * 60, ge=60)
     candidate_token_ttl_seconds: int = Field(default=4 * 60 * 60, ge=60)
@@ -158,9 +163,7 @@ class Settings(BaseSettings):
                 "CANDIDATE_LOGIN_CHALLENGE_RETENTION_SECONDS 不能小于验证码限流或注册凭据窗口"
             )
 
-        if self.environment == "internal" or (
-            self.environment == "production" and self.app_role == "worker"
-        ):
+        if self.environment in {"internal", "production"}:
             self._validate_formal_database_credentials()
 
         if self.app_role == "worker":
@@ -169,12 +172,7 @@ class Settings(BaseSettings):
         self._validate_candidate_public_base_url()
 
         if self.environment in {"internal", "production"}:
-            if self.environment == "internal":
-                self._validate_operator_configuration()
-            elif self.admin_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS:
-                raise ValueError("production 环境必须配置 ADMIN_PASSWORD")
-            if self.token_secret in REPOSITORY_SAMPLE_TOKEN_SECRETS:
-                raise ValueError(f"{self.environment} 环境必须配置 TOKEN_SECRET")
+            self._validate_formal_backend_configuration()
             if delivery_mode != "smtp":
                 raise ValueError(
                     f"{self.environment} 环境必须使用 SMTP 发送考试人登录验证码"
@@ -200,14 +198,24 @@ class Settings(BaseSettings):
             self._validate_production_cors()
         return self
 
+    def _validate_formal_backend_configuration(self) -> None:
+        if not _is_canonical_token_secret(self.token_secret):
+            raise ValueError(f"{self.environment} 环境必须配置规范的 TOKEN_SECRET")
+        if self.environment == "internal":
+            self._validate_operator_configuration()
+        else:
+            self._validate_effective_operator_configuration()
+            self._validate_formal_token_ttls()
+
     def _validate_operator_configuration(self) -> None:
         if not self.primary_operator_username.strip():
             raise ValueError(
                 f"{self.environment} 环境必须配置 PRIMARY_OPERATOR_USERNAME"
             )
         if (
-            not self.primary_operator_password
-            or self.primary_operator_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
+            not self.primary_operator_password.strip()
+            or self.primary_operator_password.strip()
+            in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
         ):
             raise ValueError(
                 f"{self.environment} 环境必须配置 PRIMARY_OPERATOR_PASSWORD"
@@ -217,23 +225,65 @@ class Settings(BaseSettings):
                 f"{self.environment} 环境必须配置 BACKUP_OPERATOR_USERNAME"
             )
         if (
-            not self.backup_operator_password
-            or self.backup_operator_password in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
+            not self.backup_operator_password.strip()
+            or self.backup_operator_password.strip()
+            in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
         ):
             raise ValueError(
                 f"{self.environment} 环境必须配置 BACKUP_OPERATOR_PASSWORD"
             )
-        if self.primary_operator_username == self.backup_operator_username:
-            raise ValueError("主操作员与备份操作员登录名必须不同")
         if (
-            self.admin_token_ttl_seconds != 4 * 60 * 60
-            or self.candidate_token_ttl_seconds != 4 * 60 * 60
+            self.primary_operator_username.strip()
+            == self.backup_operator_username.strip()
+        ):
+            raise ValueError("主操作员与备份操作员登录名必须不同")
+        self._validate_effective_operator_configuration()
+        self._validate_formal_token_ttls()
+
+    def _validate_effective_operator_configuration(self) -> None:
+        username, password = self.configured_active_operator
+        if self.backup_operator_enabled:
+            username_field = "BACKUP_OPERATOR_USERNAME"
+            password_field = "BACKUP_OPERATOR_PASSWORD"
+        elif self.primary_operator_username.strip() or self.primary_operator_password:
+            username_field = "PRIMARY_OPERATOR_USERNAME"
+            password_field = "PRIMARY_OPERATOR_PASSWORD"
+        else:
+            username_field = "ADMIN_USERNAME"
+            password_field = "ADMIN_PASSWORD"
+        if (
+            not password.strip()
+            or password.strip() in REPOSITORY_SAMPLE_ADMIN_PASSWORDS
+        ):
+            raise ValueError(f"{self.environment} 环境必须配置 {password_field}")
+        if (
+            not username.strip()
+            or username.strip() in REPOSITORY_SAMPLE_OPERATOR_USERNAMES
+        ):
+            raise ValueError(f"{self.environment} 环境必须配置 {username_field}")
+
+    def _validate_formal_token_ttls(self) -> None:
+        if (
+            self.admin_token_ttl_seconds != FORMAL_TOKEN_TTL_SECONDS
+            or self.candidate_token_ttl_seconds != FORMAL_TOKEN_TTL_SECONDS
         ):
             raise ValueError("internal/production 正式 Token 有效期必须为 4 小时")
 
     def _validate_formal_database_credentials(self) -> None:
-        password = urlparse(self.database_url).password
-        if not password or password in REPOSITORY_SAMPLE_DATABASE_PASSWORDS:
+        try:
+            parsed = urlparse(self.database_url)
+        except ValueError:
+            raise ValueError(
+                f"{self.environment} 环境必须配置安全的 DATABASE_URL"
+            ) from None
+        if parsed.query:
+            raise ValueError(f"{self.environment} 环境必须配置安全的 DATABASE_URL")
+        password = parsed.password
+        decoded_password = unquote(password) if password is not None else ""
+        if (
+            not decoded_password.strip()
+            or decoded_password.strip() in REPOSITORY_SAMPLE_DATABASE_PASSWORDS
+        ):
             raise ValueError(f"{self.environment} 环境必须配置安全的 DATABASE_URL")
 
     def _validate_internal_network_boundary(self) -> None:
@@ -333,7 +383,7 @@ class Settings(BaseSettings):
     @property
     def configured_primary_operator(self) -> tuple[str, str]:
         return (
-            self.primary_operator_username.strip() or self.admin_username,
+            self.primary_operator_username.strip() or self.admin_username.strip(),
             self.primary_operator_password or self.admin_password,
         )
 
@@ -358,6 +408,20 @@ class Settings(BaseSettings):
             for content_type in self.learning_video_allowed_content_types.split(",")
             if content_type.strip()
         }
+
+
+def _is_canonical_token_secret(value: str) -> bool:
+    if len(value) != TOKEN_SECRET_LENGTH or any(
+        character not in TOKEN_SECRET_ALPHABET for character in value
+    ):
+        return False
+    try:
+        decoded = urlsafe_b64decode(f"{value}=")
+    except (binascii.Error, ValueError):
+        return False
+    return len(decoded) == TOKEN_SECRET_BYTES and (
+        urlsafe_b64encode(decoded).decode("ascii").rstrip("=") == value
+    )
 
 
 @lru_cache

@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PracticeAnswerSubmitRequest(BaseModel):
     question_id: int
-    selected_answer: str
+    selected_answer: str = Field(max_length=32)
 
 
 class PracticeAnswerResult(BaseModel):
@@ -46,5 +46,7 @@ class PracticeWrongQuestionRead(BaseModel):
     total_attempts: int
     mastered: bool
     latest_practiced_at: datetime
+    history_total: int
+    history_truncated: bool
     history: list[PracticeAnswerHistory]
     options: list[PracticeOptionComparison]

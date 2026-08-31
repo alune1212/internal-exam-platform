@@ -21,7 +21,7 @@
 - [ ] 最终镜像 Python/npm/Trivy 扫描完成：无 Critical；High 均有具名“不可利用”理由，否则阻断。
 - [ ] `sh ops/e2e/run-capacity-gate.sh` 通过 100-client 阈值，保留 JSON 和 SHA-256；证据绑定 Mac ARM64、8 CPU/8 GiB 和 release commit。
 - [ ] `zsh -n ops/macos/*.zsh` 通过，LaunchAgent plist 通过 `plutil -lint`；正式 Compose render 只暴露应考人员 8080，其他端口 loopback。
-- [ ] 发布严格按 `New-ReleaseBundle → Build-ReleaseImages → Invoke-ReleaseSecurityScan → Seal-Release → Test-ReleaseBundle → Install-Release` 执行；不得跳过扫描/封存，或把 pending/static/synthetic evidence 当作安装或 promotion 依据。
+- [ ] 发布严格按 `New-ReleaseBundle → Build-ReleaseImages → Invoke-ReleaseSecurityScan → Seal-Release → 离线 Sign-ReleaseBundle → Test-ReleaseBundle → Install-Release` 执行；不得跳过扫描/封存/签名，或把 pending/static/synthetic evidence、未签名 current/previous release 当作安装或 promotion 依据。
 - [ ] release bundle 的 manifest、SHA-256、Git commit、migration head、image digest、ARM64 支持和安全扫描证据一致；发布包不含 `.env`、数据库、媒体、备份或诊断。
 - [ ] Mac staging 按实际接口顺序完成：`Invoke-Staging --action Up` → `Status` → `Invoke-StagingRuntimeChecks.zsh`（health/migration、exact six-service restart、route raw evidence）→ `Invoke-StagingExternalChecks.zsh --check browser|smtp|capacity`（browser 完整 E2E report、真实 SMTP、exact-image 100-client report）→ `Invoke-StagingBackupRestoreCheck.zsh`（真实独立加密第二副本 restore）→ `Invoke-Staging --action Accept`（schemaVersion=2，七份 raw evidence 全部带 checksum）→ `Down`（删除独立 project/volume，同时保留 durable evidence bundle）→ `Promote-Release`。不得手写顶层 `gates.status=passed`，不得用本机静态或 synthetic evidence 替代 browser、SMTP、capacity、backup-restore 外部门禁；staging 不得触碰 formal volume。
 - [ ] 考试窗口开始前已停止 development/staging project，只留下一个 formal writer；记录 writer generation/commit。

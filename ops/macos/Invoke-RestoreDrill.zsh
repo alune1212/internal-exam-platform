@@ -79,7 +79,7 @@ second_copy_evidence="$MACOS_LAYOUT_BACKUPS/${backup_path:t}.second-copy.json"
 macos_check_checksum "$second_copy_evidence"
 [[ "$(macos_json_get "$second_copy_evidence" status 2>/dev/null || true)" == passed ]] || macos_die "second-copy sync evidence is not passed"
 [[ "$(macos_json_get "$second_copy_evidence" artifact_id 2>/dev/null || true)" == "${backup_path:t}" ]] || macos_die "second-copy sync evidence identity does not match"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 
 macos_compose_base "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT"

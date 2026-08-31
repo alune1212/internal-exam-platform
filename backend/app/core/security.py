@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from secrets import token_urlsafe
 
+MAX_SIGNED_INT32 = 2**31 - 1
+
 
 def create_session_token(subject: str) -> str:
     issued_at = int(datetime.now(UTC).timestamp())
@@ -15,18 +17,22 @@ def create_session_token(subject: str) -> str:
 def verify_session_token(
     token: str, *, subject: str, secret: str, max_age_seconds: int | None = None
 ) -> bool:
+    if not isinstance(token, str):
+        return False
     parts = token.split(".")
     if len(parts) != 4:
         return False
     token_subject, issued_at, nonce, signature = parts
-    if token_subject != subject or not issued_at.isdigit() or not nonce:
+    issued_at_int = _parse_bounded_ascii_decimal(
+        issued_at, minimum=0, maximum=MAX_SIGNED_INT32
+    )
+    if token_subject != subject or issued_at_int is None or not nonce:
         return False
     if max_age_seconds is None:
         from app.core.config import settings
 
         max_age_seconds = settings.token_ttl_seconds
     now = int(datetime.now(UTC).timestamp())
-    issued_at_int = int(issued_at)
     if issued_at_int > now:
         return False
     if now - issued_at_int > max_age_seconds:
@@ -72,11 +78,16 @@ def parse_candidate_token(
 ) -> int | None:
     from app.core.config import settings
 
+    if not isinstance(token, str):
+        return None
     parts = token.split(".")
     if len(parts) != 4 or not parts[0].startswith("candidate:"):
         return None
     raw_id = parts[0].removeprefix("candidate:")
-    if not raw_id.isdigit():
+    candidate_id = _parse_bounded_ascii_decimal(
+        raw_id, minimum=1, maximum=MAX_SIGNED_INT32
+    )
+    if candidate_id is None:
         return None
     configured_max_age = (
         settings.candidate_token_ttl_seconds
@@ -91,7 +102,24 @@ def parse_candidate_token(
         max_age_seconds=effective_max_age,
     ):
         return None
-    return int(raw_id)
+    return candidate_id
+
+
+def _parse_bounded_ascii_decimal(
+    value: str, *, minimum: int, maximum: int
+) -> int | None:
+    if (
+        not value
+        or not value.isascii()
+        or not value.isdecimal()
+        or len(value) > len(str(maximum))
+    ):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if minimum <= parsed <= maximum else None
 
 
 def _sign(payload: str, *, secret: str | None = None) -> str:

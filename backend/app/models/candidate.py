@@ -45,6 +45,9 @@ class Candidate(TimestampMixin, Base):
 
     attempts = relationship("ExamAttempt", back_populates="candidate")
     practice_answers = relationship("PracticeAnswer", back_populates="candidate")
+    practice_answer_aggregates = relationship(
+        "PracticeAnswerAggregate", back_populates="candidate"
+    )
     learning_video_progress = relationship(
         "LearningVideoProgress",
         back_populates="candidate",

@@ -1,7 +1,9 @@
 import os
+import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import pytest
 from alembic.config import Config
@@ -11,12 +13,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from app.models import Exam, ExamAttempt
+from app.ops.postgres_test_target import assert_postgres_test_database_target
 from app.services.exam_attempts import get_attempt, get_attempt_result
 
-POSTGRES_TEST_DATABASE_URL = os.environ.get("POSTGRES_TEST_DATABASE_URL")
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 PREVIOUS_REVISION = "202608070001"
-CURRENT_REVISION = "202608110001"
+CURRENT_REVISION = "202608300001"
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -26,38 +28,70 @@ def _alembic_config(database_url: str) -> Config:
     return config
 
 
-def _assert_isolated_database(engine: Engine) -> None:
-    database_name = engine.url.database or ""
-    if not engine.url.drivername.startswith("postgresql") or not database_name.endswith(
-        "_test"
-    ):
-        raise RuntimeError(
-            "migration tests require a PostgreSQL database ending in _test"
-        )
+def _postgres_test_database_url() -> str | None:
+    return os.environ.get("POSTGRES_TEST_DATABASE_URL")
 
 
 @pytest.fixture
 def migrated_postgres() -> Iterator[tuple[Engine, sessionmaker[Session]]]:
-    if POSTGRES_TEST_DATABASE_URL is None:
+    database_url = _postgres_test_database_url()
+    if database_url is None:
         pytest.skip("POSTGRES_TEST_DATABASE_URL is required for migration tests")
-    engine = create_engine(POSTGRES_TEST_DATABASE_URL, pool_pre_ping=True)
-    _assert_isolated_database(engine)
-    config = _alembic_config(POSTGRES_TEST_DATABASE_URL)
+    assert_postgres_test_database_target(database_url)
+    engine = create_engine(database_url, pool_pre_ping=True)
+    config = _alembic_config(database_url)
     # The new migration's downgrade is intentionally restore-only and raises;
     # reset this disposable database explicitly before each upgrade test.
-    with engine.begin() as connection:
-        connection.exec_driver_sql("DROP SCHEMA IF EXISTS public CASCADE")
-        connection.exec_driver_sql("CREATE SCHEMA public")
+    _reset_postgres_schema(engine, database_url)
     command.upgrade(config, PREVIOUS_REVISION)
     try:
         yield engine, sessionmaker(bind=engine, expire_on_commit=False)
     finally:
-        with engine.begin() as connection:
-            connection.exec_driver_sql("DROP SCHEMA IF EXISTS public CASCADE")
+        _reset_postgres_schema(engine, database_url)
         engine.dispose()
 
 
-def _seed_legacy_submitted_attempt(engine: Engine) -> tuple[int, int]:
+def _reset_postgres_schema(engine: Engine, database_url: str) -> None:
+    assert_postgres_test_database_target(database_url)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP SCHEMA IF EXISTS public CASCADE")
+        connection.exec_driver_sql("CREATE SCHEMA public")
+
+
+def test_migration_schema_reset_checks_target_before_drop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    class RecordingConnection:
+        def __enter__(self) -> "RecordingConnection":
+            calls.append("begin")
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def exec_driver_sql(self, statement: str) -> None:
+            calls.append(statement.split(maxsplit=1)[0])
+
+    class RecordingEngine:
+        def begin(self) -> RecordingConnection:
+            return RecordingConnection()
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "assert_postgres_test_database_target",
+        lambda _database_url: calls.append("guard"),
+    )
+    _reset_postgres_schema(cast("Engine", RecordingEngine()), "safe-target")
+
+    assert calls == ["guard", "begin", "DROP", "CREATE"]
+
+
+def _seed_legacy_submitted_attempt(
+    engine: Engine, database_url: str
+) -> tuple[int, int]:
+    assert_postgres_test_database_target(database_url)
     now = datetime.now(UTC)
     with engine.begin() as connection:
         connection.execute(
@@ -166,8 +200,9 @@ def test_upgrade_preserves_historical_visibility_snapshots_and_submission(
     migrated_postgres: tuple[Engine, sessionmaker[Session]],
 ) -> None:
     engine, session_factory = migrated_postgres
-    exam_id, attempt_id = _seed_legacy_submitted_attempt(engine)
-    config = _alembic_config(POSTGRES_TEST_DATABASE_URL or "")
+    database_url = _postgres_test_database_url() or ""
+    exam_id, attempt_id = _seed_legacy_submitted_attempt(engine, database_url)
+    config = _alembic_config(database_url)
 
     command.upgrade(config, "head")
 

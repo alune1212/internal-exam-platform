@@ -37,7 +37,7 @@ else
   macos_acquire_lock "$MACOS_LAYOUT_STATE/.operation.lock"
 fi
 macos_assert_no_pending_cutover_start "$maintenance"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$MACOS_STATE_PATH" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$MACOS_STATE_PATH" --root "$root" >/dev/null
 macos_verify_built_image_identity "$MACOS_STATE_PATH"
 macos_assert_project_name formal "$MACOS_FORMAL_PROJECT"
 

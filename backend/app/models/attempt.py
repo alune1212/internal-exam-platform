@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -14,7 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from app.core.database import Base
 from app.models.base import TimestampMixin
@@ -145,6 +146,15 @@ class ExamAttemptAnswer(TimestampMixin, Base):
 
 class PracticeAnswer(Base):
     __tablename__ = "practice_answer"
+    __table_args__ = (
+        Index(
+            "ix_practice_answer_candidate_question_practiced",
+            "candidate_id",
+            "question_id",
+            "practiced_at",
+            "id",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     candidate_id: Mapped[int] = mapped_column(
@@ -161,3 +171,72 @@ class PracticeAnswer(Base):
 
     candidate = relationship("Candidate", back_populates="practice_answers")
     question = relationship("Question", back_populates="practice_answers")
+
+
+class PracticeAnswerAggregate(Base):
+    """All-time mastery counters for one account/question pair.
+
+    ``latest_practice_answer_id`` intentionally is not a foreign key: hot
+    detail rows may be archived later while the aggregate retains the
+    all-time latest-result evidence.
+    """
+
+    __tablename__ = "practice_answer_aggregate"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_id",
+            "question_id",
+            name="uq_practice_answer_aggregate_candidate_question",
+        ),
+        CheckConstraint(
+            "total_attempts >= 0",
+            name="ck_practice_answer_aggregate_total_attempts_nonnegative",
+        ),
+        CheckConstraint(
+            "incorrect_count >= 0",
+            name="ck_practice_answer_aggregate_incorrect_count_nonnegative",
+        ),
+        CheckConstraint(
+            "incorrect_count <= total_attempts",
+            name="ck_practice_answer_aggregate_incorrect_count_lte_total",
+        ),
+        Index(
+            "ix_practice_answer_aggregate_candidate_latest",
+            "candidate_id",
+            "latest_practiced_at",
+            "question_id",
+        ),
+        Index(
+            "ix_practice_answer_aggregate_candidate_incorrect_latest",
+            "candidate_id",
+            "incorrect_count",
+            "latest_practiced_at",
+            "question_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate.id", ondelete="CASCADE"), nullable=False
+    )
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("question.id", ondelete="CASCADE"), nullable=False
+    )
+    total_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    incorrect_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latest_selected_answer: Mapped[str] = mapped_column(Text, nullable=False)
+    latest_is_correct: Mapped[bool] = mapped_column(nullable=False)
+    latest_practiced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    latest_practice_answer_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Compatibility aliases make the detail-oriented terminology explicit to
+    # retention/read-model callers without adding duplicate storage columns.
+    latest_detail_id = synonym("latest_practice_answer_id")
+    latest_answer_id = synonym("latest_practice_answer_id")
+    latest_answer = synonym("latest_selected_answer")
+    latest_correct = synonym("latest_is_correct")
+
+    candidate = relationship("Candidate", back_populates="practice_answer_aggregates")
+    question = relationship("Question", back_populates="practice_answer_aggregates")

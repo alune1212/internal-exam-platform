@@ -36,7 +36,7 @@ macos_release_state "$MACOS_CURRENT_STATE"
 release_path="$MACOS_STATE_PATH"
 release_version="$MACOS_STATE_VERSION"
 release_commit="$MACOS_STATE_COMMIT"
-"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" >/dev/null
+"$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 macos_verify_built_image_identity "$release_path"
 primary_operator="$(macos_active_operator_subject)"
 primary_password="$(macos_active_operator_password)"
@@ -76,9 +76,9 @@ macos_compose_base "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT"
 macos_run_checked docker "${MACOS_COMPOSE_ARGS[@]}" run --rm --no-deps backend \
   uv run --no-sync python -m app.ops.operator_control check-session-closure
 
-macos_require_command openssl
-new_secret="$(openssl rand -base64 48 | tr -d '\n')"
-[[ -n "$new_secret" ]] || macos_die "unable to generate session secret"
+new_secret="$(macos_compose_capture "$release_path" "$MACOS_FORMAL_ENV" "$MACOS_FORMAL_PROJECT" run --rm --no-deps backend \
+  uv run --no-sync python -c 'import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode("ascii"), end="")')"
+[[ "$new_secret" =~ '^[A-Za-z0-9_-]{43}$' ]] || macos_die "generated session secret is not canonical"
 macos_dotenv_set_atomic "$MACOS_FORMAL_ENV" TOKEN_SECRET "$new_secret"
 macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT
 session_closed=0

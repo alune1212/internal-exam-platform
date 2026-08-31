@@ -100,6 +100,47 @@ def test_compose_project_identities_are_explicit_and_distinct() -> None:
     assert development_env["FRONTEND_LOOPBACK_PORT"] == "25173"
 
 
+def test_gateway_network_and_uvicorn_allowlist_are_static_and_split() -> None:
+    compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    development_env = _dotenv_values(REPO_ROOT / ".env.example")
+
+    assert "subnet: ${GATEWAY_SUBNET:-172.30.0.0/24}" in compose
+    assert "ip_range: ${GATEWAY_IP_RANGE:-172.30.0.128/25}" in compose
+    assert development_env["GATEWAY_SUBNET"] == "172.30.0.0/24"
+    assert development_env["GATEWAY_IP_RANGE"] == "172.30.0.128/25"
+    assert development_env["CANDIDATE_GATEWAY_IP"] == "172.30.0.2"
+    assert development_env["OPERATOR_GATEWAY_IP"] == "172.30.0.3"
+    assert (
+        "--forwarded-allow-ips=${CANDIDATE_GATEWAY_IP:-172.30.0.2},${OPERATOR_GATEWAY_IP:-172.30.0.3}"
+        in compose
+    )
+    assert "--forwarded-allow-ips='*'" not in compose
+
+    backend = _compose_service_section("backend")
+    worker = _compose_service_section("auto-submit-worker")
+    frontend = _compose_service_section("frontend")
+    candidate_gateway = _compose_service_section("nginx")
+    operator_gateway = _compose_service_section("operator-nginx")
+    assert "    ports:" not in backend
+    assert "      - business" in backend
+    assert "      - gateway" in backend
+    assert "      - business" in frontend
+    assert "      - gateway" in frontend
+    assert "      - business" in worker
+    assert "      - gateway" not in worker
+    assert "ipv4_address: ${CANDIDATE_GATEWAY_IP:-172.30.0.2}" in candidate_gateway
+    assert "ipv4_address: ${OPERATOR_GATEWAY_IP:-172.30.0.3}" in operator_gateway
+
+
+def test_e2e_gateway_subnet_is_distinct_from_development() -> None:
+    e2e_env = _dotenv_values(REPO_ROOT / "ops" / "e2e" / "e2e.env")
+    assert e2e_env["GATEWAY_SUBNET"] == "172.31.0.0/24"
+    assert e2e_env["GATEWAY_SUBNET"] != "172.30.0.0/24"
+    assert e2e_env["GATEWAY_IP_RANGE"] == "172.31.0.128/25"
+    assert e2e_env["CANDIDATE_GATEWAY_IP"] == "172.31.0.2"
+    assert e2e_env["OPERATOR_GATEWAY_IP"] == "172.31.0.3"
+
+
 def test_development_bind_mount_defaults_remain_separate_from_formal_paths() -> None:
     compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "${INTERNAL_EXAM_LIFECYCLE_HOST_DIR:-./.runtime/lifecycle}" in compose
@@ -305,6 +346,9 @@ def test_gateways_use_same_origin_csp_and_candidate_denies_admin_routes() -> Non
     ):
         assert denied_route in candidate_conf
     assert "location /docs" in operator_conf
+    for nginx_conf in (candidate_conf, operator_conf):
+        assert "proxy_set_header X-Forwarded-For $remote_addr;" in nginx_conf
+        assert "$proxy_add_x_forwarded_for" not in nginx_conf
 
 
 def test_nginx_serves_learning_media_from_named_volume() -> None:

@@ -56,3 +56,29 @@ def test_candidate_token_ttl_is_never_longer_than_four_hours(
     monkeypatch.setattr(settings, "candidate_token_ttl_seconds", 8 * 60 * 60)
 
     assert security.parse_candidate_token(token) is None
+
+
+@pytest.mark.parametrize("issued_at", ["１２３", "+123", "-1", "2147483648", "9" * 11])
+def test_session_tokens_reject_non_bounded_ascii_timestamps(issued_at: str) -> None:
+    payload = f"admin:{settings.configured_primary_operator[0]}.{issued_at}.nonce"
+    token = f"{payload}.{security._sign(payload, secret=settings.token_secret)}"
+
+    assert not security.verify_session_token(
+        token,
+        subject=f"admin:{settings.configured_primary_operator[0]}",
+        secret=settings.token_secret,
+    )
+
+
+@pytest.mark.parametrize(
+    "candidate_id",
+    ["0", "+1", "-1", "１２３", "2147483648", "9" * 11],
+)
+def test_candidate_tokens_reject_non_positive_or_out_of_range_ids(
+    candidate_id: str,
+) -> None:
+    issued_at = int(datetime.now(UTC).timestamp())
+    payload = f"candidate:{candidate_id}.{issued_at}.nonce"
+    token = f"{payload}.{security._sign(payload, secret=settings.token_secret)}"
+
+    assert security.parse_candidate_token(token) is None

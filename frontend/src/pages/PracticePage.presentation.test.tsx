@@ -5,6 +5,7 @@ import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
+import { ApiError } from "@/api/client";
 import { CandidateLayout } from "@/components/layout/CandidateLayout";
 import { setCurrentCandidate } from "@/lib/candidateSession";
 import { PracticePage } from "@/pages/PracticePage";
@@ -199,5 +200,21 @@ describe("PracticePage presentation boundary", () => {
         option_comparison: [],
       });
     });
+  });
+
+  it("explains how to recover from the practice history capacity conflict", async () => {
+    vi.mocked(submitPracticeAnswer).mockRejectedValueOnce(
+      new ApiError("练习记录已达到上限", 409, "练习记录已达到 5000 条上限。"),
+    );
+
+    const user = userEvent.setup();
+    renderPractice();
+
+    await user.click((await screen.findAllByRole("radio", { name: /选项 A：选项 A/ }))[0]);
+    await user.click(screen.getAllByRole("button", { name: "提交本题" })[0]);
+
+    expect(
+      await screen.findByText("练习记录已达到 5000 条上限，请联系管理员归档历史记录后再继续练习。"),
+    ).toBeInTheDocument();
   });
 });

@@ -51,6 +51,8 @@ _TRIVY_RESULT_CLASSES = frozenset(
         "custom",
     }
 )
+_SCAN_SEVERITIES = frozenset({"CRITICAL", "HIGH", "MEDIUM", "LOW"})
+_MISSING = object()
 
 
 class ImageIdentityError(ValueError):
@@ -69,12 +71,29 @@ class ScanInputError(ValueError):
         self.code = code
 
 
+def normalize_severity(value: object, *, source: str) -> str:
+    """Normalize the small severity vocabulary shared by all scanners."""
+
+    if value is _MISSING:
+        if source == "pip-audit":
+            return "HIGH"
+        raise ScanInputError("scan_severity_missing")
+    if not isinstance(value, str):
+        raise ScanInputError("scan_severity_invalid")
+    severity = value.strip().upper()
+    if source == "npm-audit" and severity == "MODERATE":
+        severity = "MEDIUM"
+    if severity not in _SCAN_SEVERITIES:
+        raise ScanInputError("scan_severity_invalid")
+    return severity
+
+
 def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _finding(
-    *, source: str, package: str, version: str, vulnerability_id: str, severity: str
+    *, source: str, package: str, version: str, vulnerability_id: str, severity: object
 ) -> dict[str, str]:
     return {
         "key": f"{source}:{package}:{vulnerability_id}",
@@ -82,7 +101,7 @@ def _finding(
         "package": package,
         "installed_version": version,
         "vulnerability_id": vulnerability_id,
-        "severity": severity.upper(),
+        "severity": normalize_severity(severity, source=source),
     }
 
 
@@ -95,7 +114,7 @@ def normalize_pip_audit(payload: Any) -> list[dict[str, str]]:
         package = str(dependency.get("name", "unknown"))
         version = str(dependency.get("version", "unknown"))
         for vulnerability in dependency.get("vulns", []):
-            severity = str(vulnerability.get("severity", "HIGH"))
+            severity = vulnerability.get("severity", _MISSING)
             findings.append(
                 _finding(
                     source="pip-audit",
@@ -124,7 +143,7 @@ def normalize_npm_audit(payload: Any) -> list[dict[str, str]]:
                 package=str(package),
                 version=str(vulnerability.get("range", "unknown")),
                 vulnerability_id=vulnerability_id,
-                severity=str(vulnerability.get("severity", "unknown")),
+                severity=vulnerability.get("severity", _MISSING),
             )
         )
     return findings
@@ -139,7 +158,7 @@ def normalize_trivy(payload: Any, source_name: str) -> list[dict[str, str]]:
                 package=str(vulnerability.get("PkgName", "unknown")),
                 version=str(vulnerability.get("InstalledVersion", "unknown")),
                 vulnerability_id=str(vulnerability.get("VulnerabilityID", "unknown")),
-                severity=str(vulnerability.get("Severity", "unknown")),
+                severity=vulnerability.get("Severity", _MISSING),
             )
             for vulnerability in result.get("Vulnerabilities", []) or []
         )
@@ -169,6 +188,13 @@ def validate_pip_audit(payload: Any) -> None:
             )
         ):
             raise ScanInputError("pip_audit_schema_invalid")
+        for vulnerability in dependency["vulns"]:
+            try:
+                normalize_severity(
+                    vulnerability.get("severity", _MISSING), source="pip-audit"
+                )
+            except ScanInputError:
+                raise ScanInputError("pip_audit_schema_invalid") from None
 
 
 def validate_npm_audit(payload: Any) -> None:
@@ -200,6 +226,10 @@ def validate_npm_audit(payload: Any) -> None:
             or not isinstance(vulnerability.get("via"), list)
         ):
             raise ScanInputError("npm_audit_schema_invalid")
+        try:
+            normalize_severity(vulnerability["severity"], source="npm-audit")
+        except ScanInputError:
+            raise ScanInputError("npm_audit_schema_invalid") from None
 
 
 def validate_trivy(payload: Any) -> None:
@@ -246,6 +276,11 @@ def validate_trivy(payload: Any) -> None:
             for vulnerability in vulnerabilities
         ):
             raise ScanInputError("trivy_schema_invalid")
+        for vulnerability in vulnerabilities:
+            try:
+                normalize_severity(vulnerability["Severity"], source="trivy")
+            except ScanInputError:
+                raise ScanInputError("trivy_schema_invalid") from None
 
 
 def normalize_host_identity(host_os: str, architecture: str) -> tuple[str, str]:
@@ -691,7 +726,11 @@ def evaluate(
     disposition_rows = dispositions.get("findings", {}) if dispositions else {}
     for finding in findings:
         disposition = disposition_rows.get(finding["key"])
-        severity = finding["severity"]
+        source = finding.get("source", "")
+        severity = normalize_severity(
+            finding.get("severity", _MISSING),
+            source=source if isinstance(source, str) else "",
+        )
         reason = "below_release_threshold"
         blocking = False
         if severity == "CRITICAL":

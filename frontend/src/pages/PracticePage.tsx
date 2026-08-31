@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 
 import { getPracticeQuestions, submitPracticeAnswer } from "@/api/questions";
+import { ApiError } from "@/api/client";
 import { ExamFocusMode } from "@/components/exam/ExamFocusMode";
 import { ExamNavigator } from "@/components/exam/ExamNavigator";
 import { ProgressCapsule } from "@/components/exam/ProgressCapsule";
@@ -55,6 +56,11 @@ export function PracticePage() {
       setResults((current) => ({ ...current, [result.question_id]: result }));
     },
   });
+
+  const isCapacityConflict =
+    mutation.error instanceof ApiError &&
+    mutation.error.status === 409 &&
+    /5000|容量|上限|练习记录/.test(mutation.error.detail ?? mutation.error.message);
 
   const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data ?? []), [data]);
   const total = sortedData.length;
@@ -298,6 +304,12 @@ export function PracticePage() {
       </PageActions>
 
       {staleNotice}
+
+      {isCapacityConflict ? (
+        <Alert variant="warning" role="alert" className="w-full">
+          练习记录已达到 5000 条上限，请联系管理员归档历史记录后再继续练习。
+        </Alert>
+      ) : null}
 
       <div className="hidden flex-1 grid-cols-[1fr_240px] gap-8 lg:grid">
         <div id="practice-question-focus" className="flex flex-col gap-4">

@@ -4,8 +4,11 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from io import BytesIO
 from typing import Any
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.utils.exceptions import InvalidFileException
 from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -23,7 +26,12 @@ from app.models import (
 from app.schemas.candidate import normalize_email
 from app.schemas.question import ImportFailure, QuestionImportResult
 from app.services.exam_errors import ExamFrozenError, ExamNotFoundError
-from app.services.excel_security import escape_excel_cell
+from app.services.excel_security import (
+    ExcelSecurityError,
+    ExcelSecurityLimitError,
+    escape_excel_cell,
+    preflight_xlsx,
+)
 from app.services.operational_lock_service import assert_admin_mutation_allowed
 from app.services.scoring_service import normalize_answer_set
 
@@ -56,6 +64,10 @@ class ImportLimitError(DomainError):
     status_code = 413
 
 
+class ImportFormatError(DomainError):
+    status_code = 422
+
+
 @dataclass(frozen=True)
 class ParsedWorkbook:
     rows: list[dict[str, Any]]
@@ -83,7 +95,30 @@ def parse_workbook(
     sheet_limit = max_sheets or settings.import_max_sheets
     with suppress(AttributeError, OSError):
         file_obj.seek(0)
-    workbook = load_workbook(file_obj, read_only=True, data_only=True)
+    try:
+        preflight_xlsx(file_obj)
+    except ExcelSecurityLimitError as exc:
+        raise ImportLimitError(str(exc)) from exc
+    except ExcelSecurityError as exc:
+        raise ImportFormatError(str(exc)) from exc
+    with suppress(AttributeError, OSError):
+        file_obj.seek(0)
+
+    try:
+        workbook = load_workbook(file_obj, read_only=True, data_only=True)
+    except (
+        AttributeError,
+        BadZipFile,
+        EOFError,
+        IndexError,
+        InvalidFileException,
+        KeyError,
+        OSError,
+        ParseError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise ImportFormatError("导入文件不是有效的 XLSX 工作簿") from exc
     try:
         if len(workbook.worksheets) > sheet_limit:
             raise ImportLimitError(f"导入文件不能超过 {sheet_limit} 个工作表")

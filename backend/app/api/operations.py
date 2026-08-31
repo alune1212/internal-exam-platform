@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -13,7 +13,14 @@ from app.schemas.operations import (
     RetentionPreviewRead,
     SessionClosureReadiness,
 )
-from app.services import retention_service
+from app.schemas.practice_retention import (
+    PracticeRetentionArchiveRead,
+    PracticeRetentionArchiveRequest,
+    PracticeRetentionDeleteRead,
+    PracticeRetentionDeleteRequest,
+    PracticeRetentionPreviewRead,
+)
+from app.services import practice_retention_service, retention_service
 from app.services.operational_lock_service import inspect_writer_fence
 from app.services.operations_service import get_operations_snapshot
 from app.services.session_control_service import get_session_closure_readiness
@@ -80,6 +87,67 @@ def retention_delete(
         data=retention_service.delete_retained_exams(
             db,
             exam_ids=payload.exam_ids,
+            preview_fingerprint=payload.preview_fingerprint,
+            archive_id=payload.archive_id,
+            backup_id=payload.backup_id,
+            confirmation=payload.confirmation,
+            operator_subject=operator_subject,
+        )
+    )
+
+
+@router.get(
+    "/practice-retention/preview",
+    response_model=ApiResponse[PracticeRetentionPreviewRead],
+)
+def practice_retention_preview(
+    db: Session = Depends(get_db),
+    candidate_ids: list[int] | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ApiResponse[PracticeRetentionPreviewRead]:
+    return ApiResponse(
+        data=practice_retention_service.preview_practice_retention(
+            db,
+            candidate_ids=candidate_ids,
+            limit=limit,
+            offset=offset,
+        )
+    )
+
+
+@router.post(
+    "/practice-retention/archive",
+    response_model=ApiResponse[PracticeRetentionArchiveRead],
+)
+def practice_retention_archive(
+    payload: PracticeRetentionArchiveRequest,
+    db: Session = Depends(get_db),
+    operator_subject: str = Depends(require_admin),
+) -> ApiResponse[PracticeRetentionArchiveRead]:
+    return ApiResponse(
+        data=practice_retention_service.create_practice_retention_archive(
+            db,
+            candidate_ids=payload.candidate_ids,
+            preview_fingerprint=payload.preview_fingerprint,
+            operator_subject=operator_subject,
+        )
+    )
+
+
+@router.post(
+    "/practice-retention/delete",
+    response_model=ApiResponse[PracticeRetentionDeleteRead],
+)
+def practice_retention_delete(
+    payload: PracticeRetentionDeleteRequest,
+    db: Session = Depends(get_db),
+    operator_subject: str = Depends(require_admin),
+) -> ApiResponse[PracticeRetentionDeleteRead]:
+    return ApiResponse(
+        data=practice_retention_service.delete_practice_retention(
+            db,
+            candidate_ids=payload.candidate_ids,
             preview_fingerprint=payload.preview_fingerprint,
             archive_id=payload.archive_id,
             backup_id=payload.backup_id,

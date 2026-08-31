@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
 from app.models import AdminAuditEvent
-from app.services.audit_service import record_admin_event
+from app.services.audit_service import _request_source_hash, record_admin_event
 
 
 def _request() -> Request:
@@ -86,3 +86,23 @@ def test_application_exposes_no_audit_update_or_delete_route() -> None:
     ]
 
     assert mutable_routes == []
+
+
+def test_audit_source_hash_uses_peer_ip_not_forwarded_for() -> None:
+    def request(forwarded_for: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/api/admin/login",
+                "headers": [
+                    (b"user-agent", b"audit-test"),
+                    (b"x-forwarded-for", forwarded_for.encode()),
+                ],
+                "client": ("172.30.0.2", 50000),
+            }
+        )
+
+    assert _request_source_hash(request("198.51.100.1")) == _request_source_hash(
+        request("198.51.100.2")
+    )

@@ -36,6 +36,8 @@ const wrongQuestion: PracticeWrongQuestion = {
   total_attempts: 4,
   mastered: false,
   latest_practiced_at: "2026-08-14T08:00:00Z",
+  history_total: 0,
+  history_truncated: false,
   history: [],
   options: [
     { label: "A", content: "正确选项", selected: false, correct: true },
@@ -144,7 +146,43 @@ describe("WrongQuestionReviewPage", () => {
         category_1: "安全",
         category_2: undefined,
         mastered: true,
+        limit: 50,
+        offset: 0,
+        history_limit: 20,
       }),
     );
+  });
+
+  it("loads the next bounded page without replacing the current review", async () => {
+    const nextQuestion = { ...wrongQuestion, question_id: 202, stem: "下一页错题" };
+    vi.mocked(getWrongPracticeQuestions)
+      .mockResolvedValueOnce(
+        Array.from({ length: 50 }, (_, index) => ({
+          ...wrongQuestion,
+          question_id: index + 1,
+          stem: `错题 ${index + 1}`,
+        })),
+      )
+      .mockResolvedValueOnce([nextQuestion]);
+
+    const user = userEvent.setup();
+    renderReview();
+
+    expect(await screen.findByRole("heading", { name: "错题 1" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "加载更多错题" }));
+
+    await waitFor(() =>
+      expect(getWrongPracticeQuestions).toHaveBeenLastCalledWith({
+        category_1: undefined,
+        category_2: undefined,
+        mastered: undefined,
+        limit: 50,
+        offset: 50,
+        history_limit: 20,
+      }),
+    );
+    expect(await screen.findByRole("heading", { name: "下一页错题" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "错题 1" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "加载更多错题" })).not.toBeInTheDocument();
   });
 });

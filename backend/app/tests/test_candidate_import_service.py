@@ -1,9 +1,13 @@
+import zipfile
+from io import BytesIO
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Candidate, Exam, ExamCandidateScope, ImportBatch
+from app.services import import_service
 from app.services.import_service import import_exam_roster_from_workbook
 from app.tests.conftest import build_workbook
 
@@ -126,6 +130,24 @@ def test_roster_import_rejects_deprecated_headers_before_write(db: Session) -> N
     )
     with pytest.raises(Exception, match="不支持"):
         import_exam_roster_from_workbook(db, exam.id, workbook, file_name="legacy.xlsx")
+    assert db.query(Candidate).count() == 0
+    assert db.query(ExamCandidateScope).count() == 0
+    assert db.query(ImportBatch).count() == 0
+
+
+def test_roster_import_rejects_forged_xlsx_before_scope_or_batch_write(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exam = _draft_exam(db)
+    file_obj = BytesIO()
+    with zipfile.ZipFile(file_obj, "w") as archive:
+        archive.writestr("xl/workbook.xml", "<workbook/>")
+    file_obj.seek(0)
+    monkeypatch.setattr(import_service, "load_workbook", pytest.fail)
+
+    with pytest.raises(import_service.ImportFormatError, match="必要"):
+        import_exam_roster_from_workbook(db, exam.id, file_obj, "forged.xlsx")
+
     assert db.query(Candidate).count() == 0
     assert db.query(ExamCandidateScope).count() == 0
     assert db.query(ImportBatch).count() == 0

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
 type MasteryFilter = "all" | "mastered" | "learning";
+const PAGE_SIZE = 50;
+const HISTORY_LIMIT = 20;
 
 export function WrongQuestionReviewPage() {
   const { candidate } = useOutletContext<CandidateSessionContext>();
@@ -24,13 +26,32 @@ export function WrongQuestionReviewPage() {
     category_2: category2.trim() || undefined,
     mastered: mastery === "all" ? undefined : mastery === "mastered",
   };
-  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data,
+    dataUpdatedAt,
+    isError,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ["candidate", candidate?.id ?? "anonymous", "practice-wrong", filters],
-    queryFn: () => getWrongPracticeQuestions(filters),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) =>
+      getWrongPracticeQuestions({
+        ...filters,
+        limit: PAGE_SIZE,
+        offset: pageParam,
+        history_limit: HISTORY_LIMIT,
+      }),
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.length === PAGE_SIZE ? pages.length * PAGE_SIZE : undefined,
     enabled: Boolean(candidate),
     retry: false,
   });
-  const questions = data ?? [];
+  const questions = data?.pages.flat() ?? [];
   const hasLoadError = isError && !data;
   const hasStaleError = isError && Boolean(data);
 
@@ -159,6 +180,11 @@ export function WrongQuestionReviewPage() {
               <p className="whitespace-pre-wrap text-body text-muted">
                 {item.analysis || "本题暂无解析。"}
               </p>
+              {item.history_truncated ? (
+                <p className="text-body-sm text-muted">
+                  仅显示最近 {item.history.length} 条练习记录，共 {item.history_total} 条。
+                </p>
+              ) : null}
               <div className="flex flex-wrap items-center gap-3">
                 {item.category_1 ? (
                   <span className="text-table-label text-muted">{item.category_1}</span>
@@ -179,6 +205,18 @@ export function WrongQuestionReviewPage() {
               </div>
             </article>
           ))}
+          {hasNextPage ? (
+            <div className="flex justify-center border-t border-hairline pt-6">
+              <Button
+                type="button"
+                variant="outline"
+                pending={isFetchingNextPage}
+                onClick={() => void fetchNextPage()}
+              >
+                {isFetchingNextPage ? "正在加载更多" : "加载更多错题"}
+              </Button>
+            </div>
+          ) : null}
         </PageSection>
       ) : null}
     </PageShell>

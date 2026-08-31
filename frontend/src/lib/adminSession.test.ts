@@ -20,6 +20,13 @@ describe("adminSession", () => {
     expect(window.sessionStorage.getItem("internal-exam-admin-token")).toBe("my-password");
   });
 
+  it("does not promote a legacy localStorage token", () => {
+    window.localStorage.setItem("internal-exam-admin-token", "legacy");
+
+    expect(getAdminToken()).toBeNull();
+    expect(window.localStorage.getItem("internal-exam-admin-token")).toBe("legacy");
+  });
+
   it("clear 后 get 返回 null", () => {
     setAdminToken("my-password");
     window.localStorage.setItem("internal-exam-admin-token", "legacy");

@@ -28,12 +28,18 @@ cd "$repo_root/backend"
 python3 "$repo_root/scripts/check-legacy-contracts.py"
 
 ENVIRONMENT=development \
+ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT=true \
+ACCOUNT_MIGRATION_DISPOSABLE_DATABASE=true \
 DATABASE_URL="$database_url" \
 UV_CACHE_DIR="$uv_cache_dir" \
 uv run alembic upgrade head
 
 ENVIRONMENT=development \
+ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT=true \
+ACCOUNT_MIGRATION_DISPOSABLE_DATABASE=true \
 DATABASE_URL="$database_url" \
 POSTGRES_TEST_DATABASE_URL="$database_url" \
+POSTGRES_TEST_DATABASE_DISPOSABLE=true \
+POSTGRES_TEST_DATABASE_PORT=55432 \
 UV_CACHE_DIR="$uv_cache_dir" \
 uv run pytest "$@"
