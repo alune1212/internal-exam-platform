@@ -45,7 +45,7 @@
 
 - [x] 6.1 Run backend format, lint, type, unit, migration, and disposable PostgreSQL gates; record only commands that complete successfully on the implementation HEAD.
 - [x] 6.2 Run frontend format, unit, lint, build, and offline gates; record only commands that complete successfully on the implementation HEAD.
-- [ ] 6.3 Run legacy-contract, strict OpenSpec, Compose render, macOS shell syntax, browser E2E, and capacity gates; distinguish automated passes from unavailable external infrastructure.
+- [x] 6.3 Run legacy-contract, strict OpenSpec, Compose render, macOS shell syntax, browser E2E, and capacity gates; distinguish automated passes from unavailable external infrastructure.
 - [ ] 6.4 On the same clean HEAD confirm every remote CI job and release security gate using real pip-audit, npm audit, and Trivy evidence; leave this task open until remote evidence exists.
 - [ ] 6.5 Complete Mac release signature/tamper/rollback, forged-XFF gateway, credential/token rotation, and practice archive/backup/delete operational drills; leave this task open for any missing external or maintenance-window evidence.
 - [ ] 6.6 Run a fresh complete repository Codex Security standard scan with no deferred coverage, close all 15 original finding identities, and verify every separately tracked implementation-review finding is closed; leave this task open until the final clean scan exists.
