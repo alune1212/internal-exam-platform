@@ -2,6 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
+self_release_path="${SCRIPT_DIR:h:h}"
+if [[ -f "$self_release_path/release-manifest.json" ]]; then
+  [[ "${INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED:-}" == 1 && "${INTERNAL_EXAM_TRUSTED_RELEASE_PATH:-}" == "$self_release_path" ]] || {
+    print -u2 -- "macOS operation failed: bundled installer requires prior external trusted-runtime verification"
+    exit 1
+  }
+fi
 source "$SCRIPT_DIR/Common.zsh"
 
 bundle_path=""

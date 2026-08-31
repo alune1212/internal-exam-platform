@@ -29,7 +29,7 @@ const video: LearningVideo = {
   uploaded_at: "2026-07-02T00:00:00Z",
   created_at: "2026-07-02T00:00:00Z",
   updated_at: "2026-07-02T00:00:00Z",
-  playback_url: "/media/learning/safety-storage.mp4",
+  playback_url: "",
 };
 
 const reportRow: LearningReportRow = {

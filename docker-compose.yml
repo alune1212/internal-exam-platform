@@ -91,7 +91,6 @@ services:
       IMPORT_MAX_ROWS: ${IMPORT_MAX_ROWS:-5000}
       IMPORT_MAX_SHEETS: ${IMPORT_MAX_SHEETS:-1}
       LEARNING_MEDIA_STORAGE_DIR: ${LEARNING_MEDIA_STORAGE_DIR:-/app/learning-media}
-      LEARNING_MEDIA_PUBLIC_PATH: ${LEARNING_MEDIA_PUBLIC_PATH:-/media/learning}
       LEARNING_VIDEO_MAX_UPLOAD_BYTES: ${LEARNING_VIDEO_MAX_UPLOAD_BYTES:-524288000}
       LEARNING_VIDEO_ALLOWED_CONTENT_TYPES: ${LEARNING_VIDEO_ALLOWED_CONTENT_TYPES:-video/mp4,video/webm}
       LIFECYCLE_ARCHIVE_DIR: ${LIFECYCLE_ARCHIVE_DIR:-/app/lifecycle/archives}
@@ -181,7 +180,6 @@ services:
       - "${INTERNAL_LAN_BIND_IP:-127.0.0.1}:${CANDIDATE_GATEWAY_PORT:-28080}:80"
     volumes:
       - ./nginx/candidate.conf:/etc/nginx/conf.d/default.conf:ro
-      - learning_media:/var/lib/nginx/learning-media:ro
     networks:
       gateway:
         ipv4_address: ${CANDIDATE_GATEWAY_IP:-172.30.0.2}
@@ -201,7 +199,6 @@ services:
       - "127.0.0.1:${OPERATOR_GATEWAY_PORT:-28081}:80"
     volumes:
       - ./nginx/operator.conf:/etc/nginx/conf.d/default.conf:ro
-      - learning_media:/var/lib/nginx/learning-media:ro
     networks:
       gateway:
         ipv4_address: ${OPERATOR_GATEWAY_IP:-172.30.0.3}

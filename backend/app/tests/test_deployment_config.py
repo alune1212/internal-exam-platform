@@ -141,6 +141,33 @@ def test_e2e_gateway_subnet_is_distinct_from_development() -> None:
     assert e2e_env["OPERATOR_GATEWAY_IP"] == "172.31.0.3"
 
 
+def test_browser_e2e_ships_tests_without_host_docker_daemon_access() -> None:
+    compose = (REPO_ROOT / "ops" / "e2e" / "docker-compose.e2e.yml").read_text(
+        encoding="utf-8"
+    )
+    dockerfile = (REPO_ROOT / "frontend" / "Dockerfile.browser-e2e").read_text(
+        encoding="utf-8"
+    )
+    dockerignore = (REPO_ROOT / "frontend" / ".dockerignore").read_text(
+        encoding="utf-8"
+    )
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    browser_job = workflow.split("  browser-e2e:", 1)[1].split("  capacity-gate:", 1)[0]
+    browser_service = compose.split("  browser-e2e:", 1)[1]
+
+    assert "/var/run/docker.sock" not in compose
+    assert "e2e/" not in dockerignore.splitlines()
+    assert "docker-cli" not in dockerfile
+    assert "/usr/local/bin/docker" not in dockerfile
+    assert "E2E_REPOSITORY_ROOT" not in browser_service
+    assert "E2E_RUNTIME_DIR" not in browser_service
+    assert browser_service.count(":/workspace/e2e-output:rw") == 1
+    assert "permissions:\n      contents: read" in browser_job
+    assert "persist-credentials: false" in browser_job
+
+
 def test_development_bind_mount_defaults_remain_separate_from_formal_paths() -> None:
     compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "${INTERNAL_EXAM_LIFECYCLE_HOST_DIR:-./.runtime/lifecycle}" in compose
@@ -351,7 +378,7 @@ def test_gateways_use_same_origin_csp_and_candidate_denies_admin_routes() -> Non
         assert "$proxy_add_x_forwarded_for" not in nginx_conf
 
 
-def test_nginx_serves_learning_media_from_named_volume() -> None:
+def test_nginx_keeps_learning_media_private_behind_backend() -> None:
     compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     candidate_conf = (REPO_ROOT / "nginx" / "candidate.conf").read_text(
         encoding="utf-8"
@@ -359,10 +386,11 @@ def test_nginx_serves_learning_media_from_named_volume() -> None:
     operator_conf = (REPO_ROOT / "nginx" / "operator.conf").read_text(encoding="utf-8")
 
     assert "learning_media:/app/learning-media" in compose
-    assert "learning_media:/var/lib/nginx/learning-media:ro" in compose
+    assert "/var/lib/nginx/learning-media" not in compose
     for nginx_conf in (candidate_conf, operator_conf):
-        assert "location /media/learning/" in nginx_conf
-        assert "alias /var/lib/nginx/learning-media/" in nginx_conf
+        assert "location ^~ /media/learning/" in nginx_conf
+        assert "return 404;" in nginx_conf
+        assert "alias /var/lib/nginx/learning-media/" not in nginx_conf
     assert "client_max_body_size 10m" in candidate_conf
     assert "client_max_body_size 500m" in operator_conf
 

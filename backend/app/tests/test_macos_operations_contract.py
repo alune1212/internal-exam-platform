@@ -238,6 +238,90 @@ def test_macos_release_signing_uses_trusted_rsa_sidecars_and_verifier() -> None:
     assert "next=Sign-ReleaseBundle" in seal
 
 
+def test_macos_seal_recomputes_raw_scanner_evidence_with_trusted_evaluator() -> None:
+    common = (MACOS_OPS / "Common.zsh").read_text(encoding="utf-8")
+    invoke = (MACOS_OPS / "Invoke-ReleaseSecurityScan.zsh").read_text(encoding="utf-8")
+    seal = (MACOS_OPS / "Seal-Release.zsh").read_text(encoding="utf-8")
+    verifier = (MACOS_OPS / "Test-ReleaseBundle.zsh").read_text(encoding="utf-8")
+    installer = RELEASE_INSTALLER.read_text(encoding="utf-8")
+
+    assert "macos_verify_scanner_evidence" in seal
+    assert (
+        '  "$release_path" "$scanner_evidence_dir" "$security_evidence" "$identity" "$image_record" \\'
+        in seal
+    )
+    assert '  "$SCRIPT_DIR/../security/evaluate_scans.py"' in seal
+    assert 'command_args=(\n    /usr/bin/python3 "$evaluator_path"' in common
+    assert '--verify-evidence-dir "$evidence_dir"' in common
+    assert '--report "$report_path"' in common
+    assert '--repository "$release_path"' in common
+    assert '--built-image-identity "$identity_path"' in common
+    assert '--image-record "$expected_image_record"' in common
+
+    assert (
+        "--evidence-manifest /evidence/scanner-evidence/scanner-evidence-manifest.json"
+        in invoke
+    )
+    assert 'macos_check_checksum "$raw_manifest"' in invoke
+    assert (
+        '"$(macos_json_get "$security_report" scannerEvidenceManifestSha256' in invoke
+    )
+    assert "macos_verify_scanner_evidence" in seal
+    assert '"$SCRIPT_DIR/Test-ReleaseBundle.zsh"' in seal
+    assert '"$release_path/ops/macos/Test-ReleaseBundle.zsh"' not in seal
+    assert '"$temporary_target/ops/macos/Test-ReleaseBundle.zsh"' not in installer
+    assert '"$release_path/ops/macos/Test-ReleaseBundle.zsh"' not in verifier
+
+
+def test_trusted_runtime_release_verifier_rechecks_retained_raw_evidence() -> None:
+    launcher = (MACOS_OPS / "Trusted-LaunchAgent.zsh").read_text(encoding="utf-8")
+    verifier = (MACOS_OPS / "Test-ReleaseBundle.zsh").read_text(encoding="utf-8")
+    installer = (MACOS_OPS / "Install-LaunchAgents.zsh").read_text(encoding="utf-8")
+
+    assert (
+        "Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh "
+        "Test-ReleaseBundle.zsh evaluate_scans.py" in launcher
+    )
+    assert 'trusted_evaluator="$SCRIPT_DIR/evaluate_scans.py"' in verifier
+    assert 'trusted_evaluator="$SCRIPT_DIR/../security/evaluate_scans.py"' in verifier
+    assert "macos_verify_scanner_evidence" in verifier
+    assert (
+        'scanner_evidence_dir="$release_path/release-evidence/scanner-evidence"'
+        in verifier
+    )
+    assert 'macos_json_get "$security_path" scannerEvidence.path' in verifier
+    assert 'macos_json_get "$manifest_path" scannerEvidence.path' in verifier
+    assert 'for binding_path in "$security_path" "$manifest_path"; do' in verifier
+    assert "macos_verify_scanner_evidence \\" in verifier
+    assert "scanner evidence verifier must be outside the release bundle" in verifier
+    assert "release contains an unlisted checksum sidecar" in verifier
+    assert '"/ops/macos/Test-ReleaseBundle.zsh"' not in verifier
+    assert 'macos_sha256 "$trusted_runtime/$runtime_file"' in installer
+    assert 'macos_sha256 "$source_file"' in installer
+
+
+def test_bundled_lifecycle_entries_require_external_verification_before_source() -> (
+    None
+):
+    for name in (
+        "Test-ReleaseBundle.zsh",
+        "Install-Release.zsh",
+        "Start-Platform.zsh",
+        "Promote-Release.zsh",
+        "Rollback-Release.zsh",
+    ):
+        script = (MACOS_OPS / name).read_text(encoding="utf-8")
+        assert script.index("INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED") < script.index(
+            'source "$SCRIPT_DIR/Common.zsh"'
+        )
+        assert "INTERNAL_EXAM_TRUSTED_RELEASE_PATH" in script
+
+    launcher = (MACOS_OPS / "Trusted-LaunchAgent.zsh").read_text(encoding="utf-8")
+    dispatcher = (MACOS_OPS / "LaunchAgent-Dispatcher.zsh").read_text(encoding="utf-8")
+    assert 'export INTERNAL_EXAM_TRUSTED_RELEASE_PATH="$selected_release"' in launcher
+    assert '"$INTERNAL_EXAM_TRUSTED_RELEASE_PATH" == "$release_path"' in dispatcher
+
+
 def test_launchagent_templates_are_valid_and_write_to_bounded_paths() -> None:
     launch_agents = _launch_agent_files()
     if not launch_agents:
@@ -273,6 +357,7 @@ def test_trusted_launchagent_rejects_runtime_support_tamper_before_dispatch() ->
         "LaunchAgent-Dispatcher.zsh",
         "Common.zsh",
         "Test-ReleaseBundle.zsh",
+        "evaluate_scans.py",
     )
     launcher_source = MACOS_OPS / "Trusted-LaunchAgent.zsh"
     with tempfile.TemporaryDirectory(
@@ -285,7 +370,11 @@ def test_trusted_launchagent_rejects_runtime_support_tamper_before_dispatch() ->
             destination.mkdir(mode=0o700)
             destination.chmod(0o700)
             for name in runtime_files:
-                source = MACOS_OPS / name
+                source = (
+                    MACOS_OPS / name
+                    if name != "evaluate_scans.py"
+                    else REPO_ROOT / "ops/security/evaluate_scans.py"
+                )
                 target = destination / name
                 shutil.copy2(source, target)
                 target.chmod(0o700)

@@ -35,3 +35,22 @@ The deployment MUST overwrite client-supplied forwarded-address headers at both 
 #### Scenario: Proxy topology is unsafe or ambiguous
 - **WHEN** the gateway subnet overlaps another active network, static gateway addresses are missing or inconsistent, the forwarding allowlist is wildcard/broad, or the backend is published directly
 - **THEN** deployment configuration or formal preflight fails closed
+
+### Requirement: Isolated Pull-Request Browser Gate
+The pull-request browser gate MUST orchestrate disposable services from the trusted job context and MUST NOT expose the host Docker socket or Docker client to PR-controlled browser code. Its job token MUST be read-only and checkout credentials MUST NOT persist in the workspace.
+
+#### Scenario: Browser tests execute pull-request code
+- **WHEN** the browser E2E job builds and runs a pull-request checkout
+- **THEN** the browser container has only the fixed candidate/operator network endpoints and artifact directory it needs
+- **AND** it has no Docker socket, Docker CLI, privileged mode, or persisted checkout credential
+
+### Requirement: Recomputed Release Scanner Evidence
+A macOS release security report MUST be bound to an exact retained set of raw pip-audit, npm-audit, Trivy, disposition, and image-identity inputs. Trusted sealing and bundle verification MUST recompute the canonical scanner-evidence digest from those inputs and fail closed on missing, extra, linked, malformed, tampered, or mismatched evidence.
+
+#### Scenario: Caller supplies a self-authored passing report
+- **WHEN** a caller provides a `passed` report and matching checksum sidecar without the exact raw evidence that recomputes to its claimed digest
+- **THEN** sealing fails before the report enters the release or receives an offline signature
+
+#### Scenario: Signed bundle contains retained scanner evidence
+- **WHEN** Test, Install, Start, Promote, or Rollback verifies a signed release
+- **THEN** trusted code validates exact raw-evidence membership and recomputes the report binding before trusting the release

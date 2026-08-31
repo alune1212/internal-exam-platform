@@ -12,6 +12,7 @@ source "$SCRIPT_DIR/Common.zsh"
 release_path=""
 security_evidence=""
 image_record=""
+scanner_evidence_dir=""
 confirmation=""
 root="${INTERNAL_EXAM_ROOT:-${HOME:?}/Library/Application Support/InternalExam}"
 while (( $# > 0 )); do
@@ -19,10 +20,11 @@ while (( $# > 0 )); do
     --release-path|--release) (( $# >= 2 )) || macos_die "$1 requires a path"; release_path="$2"; shift 2 ;;
     --security-evidence|--scanner-evidence) (( $# >= 2 )) || macos_die "$1 requires a path"; security_evidence="$2"; shift 2 ;;
     --image-record|--final-image-record) (( $# >= 2 )) || macos_die "$1 requires a path"; image_record="$2"; shift 2 ;;
+    --scanner-evidence-dir|--evidence-dir) (( $# >= 2 )) || macos_die "$1 requires a path"; scanner_evidence_dir="$2"; shift 2 ;;
     --confirmation) (( $# >= 2 )) || macos_die "--confirmation requires exact text"; confirmation="$2"; shift 2 ;;
     --root) (( $# >= 2 )) || macos_die "--root requires a path"; root="$2"; shift 2 ;;
     -h|--help)
-      print -r -- "usage: $0 --release-path PATH --security-evidence CHECKSUMMED_SCANNER_JSON --image-record CHECKSUMMED_FINAL_IMAGES_JSON --confirmation 'SEAL RELEASE VERSION' [--root ROOT]"
+      print -r -- "usage: $0 --release-path PATH --security-evidence CHECKSUMMED_SCANNER_JSON --image-record CHECKSUMMED_FINAL_IMAGES_JSON --scanner-evidence-dir CHECKSUMMED_RAW_EVIDENCE_DIR --confirmation 'SEAL RELEASE VERSION' [--root ROOT]"
       exit 0
       ;;
     *) macos_die "unknown argument: $1"; exit 1 ;;
@@ -39,8 +41,14 @@ trap macos_release_lock EXIT
 release_path="$(macos_resolve_path "$release_path")"
 security_evidence="$(macos_resolve_path "$security_evidence")"
 image_record="$(macos_resolve_path "$image_record")"
+if [[ -z "$scanner_evidence_dir" ]]; then
+  scanner_evidence_relative="$(macos_json_get "$security_evidence" scannerEvidence.path 2>/dev/null || true)"
+  [[ -n "$scanner_evidence_relative" && "$scanner_evidence_relative" != /* && "$scanner_evidence_relative" != *'..'* && "$scanner_evidence_relative" != *$'\n'* ]] || macos_die "raw scanner evidence directory is required"
+  scanner_evidence_dir="${security_evidence:h}/$scanner_evidence_relative"
+fi
+scanner_evidence_dir="$(macos_resolve_path "$scanner_evidence_dir")"
 [[ -d "$release_path" ]] || macos_die "release directory is missing"
-[[ "$security_evidence" != "$release_path"/* && "$image_record" != "$release_path"/* ]] || macos_die "scanner inputs must be outside the release being sealed"
+[[ "$security_evidence" != "$release_path"/* && "$image_record" != "$release_path"/* && "$scanner_evidence_dir" != "$release_path"/* ]] || macos_die "scanner inputs must be outside the release being sealed"
 "$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --allow-unbuilt --allow-unsealed >/dev/null
 macos_verify_built_image_identity "$release_path"
 
@@ -113,7 +121,34 @@ for image_name in db backend frontend gateway; do
   done
   (( found == 1 )) || macos_die "final scanner image record does not match built ${image_name} linux/arm64 image"
 done
+
+# Recompute the evaluator result from the retained raw evidence.  A caller
+# supplied report and a self-generated .sha256 sidecar are not evidence of
+# scanner authenticity; the trusted evaluator must bind every raw input to
+# this exact release before any raw member is copied into it.
+macos_verify_scanner_evidence \
+  "$release_path" "$scanner_evidence_dir" "$security_evidence" "$identity" "$image_record" \
+  "$SCRIPT_DIR/../security/evaluate_scans.py"
+raw_manifest="$scanner_evidence_dir/scanner-evidence-manifest.json"
+raw_manifest_digest="$(macos_sha256 "$raw_manifest")"
+raw_scanner_digest="$(macos_json_get "$security_evidence" scannerEvidenceSha256)"
+raw_image_manifest_digest="$(macos_sha256 "$scanner_evidence_dir/image-digests.json")"
+raw_platform_support_digest="$(macos_sha256 "$scanner_evidence_dir/platform-support.json")"
+
 security_path="$release_path/release-evidence/security-scan.json"
+sealed_scanner_evidence_dir="$release_path/release-evidence/scanner-evidence"
+[[ ! -e "$sealed_scanner_evidence_dir" ]] || macos_die "release already contains retained scanner evidence"
+mkdir -p -- "$sealed_scanner_evidence_dir"
+chmod 700 "$sealed_scanner_evidence_dir"
+for scanner_member in \
+  pip-audit.json npm-audit.json trivy-db.json trivy-backend.json \
+  trivy-frontend.json trivy-gateway.json dispositions.json image-record.json \
+  image-digests.json platform-support.json scanner-evidence-manifest.json \
+  scanner-evidence-manifest.json.sha256; do
+  [[ -f "$scanner_evidence_dir/$scanner_member" && ! -L "$scanner_evidence_dir/$scanner_member" ]] || macos_die "raw scanner evidence member is missing: $scanner_member"
+  cp -p -- "$scanner_evidence_dir/$scanner_member" "$sealed_scanner_evidence_dir/$scanner_member"
+  chmod 600 "$sealed_scanner_evidence_dir/$scanner_member"
+done
 temporary_security="${security_path}.sealing-$$"
 cp -p -- "$security_evidence" "$temporary_security"
 chmod 600 "$temporary_security"
@@ -124,6 +159,9 @@ for field in sealedAt sealState; do
 done
 plutil -insert sealedAt -string "$(macos_now_iso)" -- "$temporary_security"
 plutil -insert sealState -string sealed -- "$temporary_security"
+scanner_binding="{\"path\":\"release-evidence/scanner-evidence\",\"manifestSha256\":\"$raw_manifest_digest\",\"scannerEvidenceSha256\":\"$raw_scanner_digest\",\"imageRecordSha256\":\"$image_record_digest\",\"imageManifestSha256\":\"$raw_image_manifest_digest\",\"platformSupportSha256\":\"$raw_platform_support_digest\"}"
+plutil -remove scannerEvidence -- "$temporary_security" >/dev/null 2>&1 || true
+plutil -insert scannerEvidence -json "$scanner_binding" -- "$temporary_security" >/dev/null 2>&1 || macos_die "unable to bind retained scanner evidence"
 plutil -convert json -o - -- "$temporary_security" >/dev/null 2>&1 || macos_die "sealed security evidence is invalid JSON"
 mv -f -- "$temporary_security" "$security_path"
 temporary_security=""
@@ -147,18 +185,46 @@ plutil -replace sealedAt -string "$(macos_now_iso)" -- "$temporary_manifest" 2>/
 plutil -replace securityEvidence.sha256 -string "$security_digest" -- "$temporary_manifest"
 plutil -replace securityEvidence.checkedAt -string "$scanner_checked_at" -- "$temporary_manifest"
 plutil -replace securityEvidence.status -string passed -- "$temporary_manifest" 2>/dev/null || plutil -insert securityEvidence.status -string passed -- "$temporary_manifest"
-for index in 0 1 2 3 4 5 6 7 8 9; do
+scanner_manifest_binding="{\"path\":\"release-evidence/scanner-evidence/scanner-evidence-manifest.json\",\"sha256\":\"$raw_manifest_digest\",\"scannerEvidenceSha256\":\"$raw_scanner_digest\",\"imageRecordSha256\":\"$image_record_digest\",\"imageManifestSha256\":\"$raw_image_manifest_digest\",\"platformSupportSha256\":\"$raw_platform_support_digest\"}"
+plutil -remove scannerEvidence -- "$temporary_manifest" >/dev/null 2>&1 || true
+plutil -insert scannerEvidence -json "$scanner_manifest_binding" -- "$temporary_manifest" >/dev/null 2>&1 || macos_die "unable to bind scanner evidence to release manifest"
+manifest_index=0
+while :; do
+  relative="$(macos_json_get "$temporary_manifest" "files.$manifest_index.path" 2>/dev/null || true)"
+  [[ -n "$relative" ]] || break
+  (( manifest_index += 1 ))
+done
+for scanner_member in \
+  pip-audit.json npm-audit.json trivy-db.json trivy-backend.json \
+  trivy-frontend.json trivy-gateway.json dispositions.json image-record.json \
+  image-digests.json platform-support.json scanner-evidence-manifest.json; do
+  scanner_relative="release-evidence/scanner-evidence/$scanner_member"
+  scanner_digest="$(macos_sha256 "$sealed_scanner_evidence_dir/$scanner_member")"
+  scanner_row="{\"path\":\"$scanner_relative\",\"sha256\":\"$scanner_digest\"}"
+  plutil -insert "files.$manifest_index" -json "$scanner_row" -- "$temporary_manifest" >/dev/null 2>&1 || macos_die "unable to add scanner evidence to release manifest"
+  (( manifest_index += 1 ))
+done
+index=0
+while :; do
   relative="$(macos_json_get "$temporary_manifest" "files.$index.path" 2>/dev/null || true)"
-  [[ -n "$relative" ]] || continue
+  [[ -n "$relative" ]] || break
   if [[ "$relative" == release-evidence/security-scan.json ]]; then
     plutil -replace "files.$index.sha256" -string "$security_digest" -- "$temporary_manifest"
     break
   fi
+  (( index += 1 ))
 done
 plutil -convert json -o - -- "$temporary_manifest" >/dev/null 2>&1 || macos_die "sealed release manifest is invalid JSON"
 mv -f -- "$temporary_manifest" "$manifest"
 chmod 600 "$manifest"
 macos_replace_checksum_row "$release_path/SHA256SUMS" release-evidence/security-scan.json "$security_digest"
+for scanner_member in \
+  pip-audit.json npm-audit.json trivy-db.json trivy-backend.json \
+  trivy-frontend.json trivy-gateway.json dispositions.json image-record.json \
+  image-digests.json platform-support.json scanner-evidence-manifest.json; do
+  scanner_relative="release-evidence/scanner-evidence/$scanner_member"
+  macos_append_checksum_row "$release_path/SHA256SUMS" "$scanner_relative" "$(macos_sha256 "$sealed_scanner_evidence_dir/$scanner_member")"
+done
 
 "$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" --allow-signature-missing >/dev/null
 macos_log "release_sealed version=$version commit=${commit:l} security=passed platform=linux/arm64 identity=$identity_digest next=Sign-ReleaseBundle"

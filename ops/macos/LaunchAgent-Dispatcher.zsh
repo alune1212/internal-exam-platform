@@ -8,7 +8,7 @@ SCRIPT_DIR="${0:A:h}"
 # dispatcher sources any runtime support.  LaunchAgent plists point at that
 # launcher, while this fallback keeps the dispatcher fail-closed when called
 # manually or from an older installed release.
-if [[ "${INTERNAL_EXAM_TRUSTED_RUNTIME_DIR:-}" != "$SCRIPT_DIR" || "${INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED:-}" != 1 ]]; then
+if [[ "${INTERNAL_EXAM_TRUSTED_RUNTIME_DIR:-}" != "$SCRIPT_DIR" || "${INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED:-}" != 1 || -z "${INTERNAL_EXAM_TRUSTED_RELEASE_PATH:-}" ]]; then
   trusted_launcher="$SCRIPT_DIR/Trusted-LaunchAgent.zsh"
   [[ -f "$trusted_launcher" && ! -L "$trusted_launcher" && -x "$trusted_launcher" ]] || {
     print -u2 -- "trusted macOS LaunchAgent failed: dispatcher requires Trusted-LaunchAgent.zsh"
@@ -42,6 +42,7 @@ macos_secure_path "$MACOS_CURRENT_STATE.sha256"
 macos_check_checksum "$MACOS_CURRENT_STATE"
 macos_release_state "$MACOS_CURRENT_STATE"
 [[ "$MACOS_STATE_PATH" == "$release_path" ]] || macos_die "formal current release state changed after trusted verification"
+[[ "$INTERNAL_EXAM_TRUSTED_RELEASE_PATH" == "$release_path" ]] || macos_die "trusted release path changed after external verification"
 [[ "$release_path" == "$MACOS_LAYOUT_RELEASES"/* && ! -L "$release_path" && -d "$release_path" ]] || macos_die "trusted release path is outside the protected releases directory"
 "$SCRIPT_DIR/Test-ReleaseBundle.zsh" --release-path "$release_path" --root "$root" >/dev/null
 mkdir -p -- "$MACOS_LAYOUT_DIAGNOSTICS" "$MACOS_LAYOUT_STATE"

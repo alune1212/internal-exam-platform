@@ -33,13 +33,7 @@ rm -rf -- "$browser_output_dir"
 mkdir -p "$browser_output_dir"
 cp "$env_template" "$env_file"
 {
-  printf '%s\n' "E2E_REPOSITORY_ROOT=$repository_root"
-  printf '%s\n' "E2E_RUNTIME_DIR=$runtime_dir"
   printf '%s\n' "E2E_BROWSER_OUTPUT_HOST_DIR=$browser_output_dir"
-  printf '%s\n' "E2E_COMPOSE_FILE=$compose_file"
-  printf '%s\n' "E2E_COMPOSE_OVERRIDE=$e2e_compose_file"
-  printf '%s\n' "E2E_ENV_FILE=$env_file"
-  printf '%s\n' "E2E_PROJECT_NAME=$project_name"
 } >> "$env_file"
 chmod 600 "$env_file"
 compose down --volumes --remove-orphans

@@ -1,8 +1,53 @@
+from threading import Event, Thread
+
+import pytest
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from app.models import AdminAuditEvent, Candidate, Exam, ExamCandidateScope
 from app.services import invitation_service
+
+
+def test_missing_exam_does_not_allocate_invitation_rate_limit_key(db) -> None:
+    invitation_service.clear_invitation_rate_limiter()
+
+    with pytest.raises(invitation_service.ExamNotFoundError):
+        invitation_service.claim_invitations(
+            db, 999_999, mode="initial", operator_subject="admin"
+        )
+
+    assert not invitation_service._admin_action_events
+
+
+def test_invitation_rate_limiter_bounds_unique_keys(monkeypatch) -> None:
+    invitation_service.clear_invitation_rate_limiter()
+    monkeypatch.setattr(settings, "public_token_rate_limit_max_keys", 2)
+
+    for exam_id in (1, 2, 3):
+        invitation_service.check_invitation_admin_rate_limit(
+            operator_subject="admin", exam_id=exam_id, mode="initial", now=1.0
+        )
+
+    assert [key[1] for key in invitation_service._admin_action_events] == [2, 3]
+
+
+def test_invitation_rate_limiter_serializes_mutations() -> None:
+    invitation_service.clear_invitation_rate_limiter()
+    finished = Event()
+
+    def check_limit() -> None:
+        invitation_service.check_invitation_admin_rate_limit(
+            operator_subject="admin", exam_id=1, mode="initial", now=1.0
+        )
+        finished.set()
+
+    with invitation_service._admin_action_lock:
+        worker = Thread(target=check_limit)
+        worker.start()
+        assert not finished.wait(0.05)
+    worker.join(timeout=1)
+
+    assert finished.is_set()
 
 
 def _published_scope(db):

@@ -17,6 +17,11 @@ An exam retention archive used to authorize destructive deletion MUST use schema
 - **WHEN** an archive is schema version 1, incomplete, checksum-invalid, source-mismatched, or paired with an older or invalid backup
 - **THEN** the deletion operation fails without removing source data
 
+#### Scenario: Backup identifier escapes the configured root
+- **WHEN** an exam-retention deletion supplies an absolute, traversal, separator-containing, or symlinked backup identifier
+- **THEN** the request fails before reading the backup or deleting source data
+- **AND** only a strict backup name resolving beneath the configured backup root can satisfy the paired-backup gate
+
 ### Requirement: Formula-Safe Lifecycle Workbooks
 Every lifecycle workbook MUST encode untrusted string values as literal spreadsheet text so that formula-leading and control-character-leading content cannot execute when an operator opens the workbook. Machine-readable JSON MUST retain original values for audit and reconstruction.
 

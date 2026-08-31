@@ -1,12 +1,12 @@
 ## Context
 
-See `proposal.md` and the five delta specs. The current single-backend controlled-LAN platform already has formal runtime profiles, immutable practice details, guarded exam retention, paired backups, macOS release sealing, and two Nginx gateways. The security findings arise where those existing controls are incomplete or applied after unsafe parsing/expansion. The implementation must reuse those boundaries and keep routes thin.
+See `proposal.md` and the seven delta specs. The current single-backend controlled-LAN platform already has formal runtime profiles, immutable practice details, guarded exam retention, paired backups, macOS release sealing, and two Nginx gateways. The security findings arise where those existing controls are incomplete or applied after unsafe parsing/expansion. The implementation must reuse those boundaries and keep routes thin.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Close all fifteen scan paths at their narrowest shared configuration, parser, service, archive, release, or proxy boundary.
+- Close all fifteen original scan paths and the separately identified implementation-review paths at their narrowest shared configuration, parser, service, archive, release, CI, media, or proxy boundary.
 - Keep normal development, current exam semantics, candidate isolation, and first-phase operations compatible except for the explicitly selected secret rotation, persistent browser-state purge, bounded practice history, and signed-release gates.
 - Leave runnable regression evidence for every negative path and a clean-HEAD full scan.
 
@@ -60,6 +60,14 @@ Nginx overwrites `X-Forwarded-For` with `$remote_addr`. A dedicated gateway netw
 ### 8. Normalize scanner policy before evaluation
 
 A single severity normalizer trims and canonicalizes the four accepted values and maps npm `moderate` to `MEDIUM`. Explicit invalid values raise `ScanInputError`; pip-audit absence retains the existing conservative `HIGH` fallback. `evaluate()` independently rejects noncanonical findings to prevent future validator bypass.
+
+### 9. Close re-scan findings at existing boundaries
+
+The tracked question-bank XLSX is rebuilt without producer-local OOXML metadata and gains a compact-ZIP/parsed-metadata regression check. The invitation burst guard remains in-process, but validates the exam before allocation, caps keys using the existing limit, and serializes its compound update with a standard-library lock. Exam-retention backup IDs reuse the existing strict backup-name rule and resolve beneath the configured root before validation.
+
+Candidate learning detail responses mint five-minute HMAC playback credentials bound to candidate and video IDs. The playback endpoint rechecks active/published state and contained storage before `FileResponse`; both gateways deny the legacy static path and no longer mount the media volume.
+
+The browser E2E container no longer receives Docker CLI or the host Docker socket because host-side orchestration already provides the required services. The pull-request job is read-only and does not persist checkout credentials. macOS sealing retains a fixed raw scanner-evidence set and invokes trusted evaluator code to recompute the canonical scanner digest before sealing and again from the signed bundle; a report plus self-authored sidecar is insufficient.
 
 ## Risks / Trade-offs
 

@@ -884,6 +884,41 @@ macos_checksummed_json() {
   macos_write_checksum "$json_path"
 }
 
+macos_append_checksum_row() {
+  local sums_path="${1:-}" relative="${2:-}" digest="${3:-}" temporary
+  [[ -f "$sums_path" && "$relative" != /* && "$relative" != *'..'* ]] || macos_die "checksum append input is invalid"
+  [[ "$digest" =~ '^[0-9a-fA-F]{64}$' ]] || macos_die "checksum append digest is invalid"
+  if grep -F -- "  $relative" "$sums_path" >/dev/null 2>&1; then
+    macos_die "duplicate release checksum row: $relative"
+  fi
+  temporary="${sums_path}.append-$$"
+  cp -p -- "$sums_path" "$temporary"
+  print -r -- "$digest  $relative" >> "$temporary"
+  chmod 600 "$temporary"
+  mv -f -- "$temporary" "$sums_path"
+  chmod 600 "$sums_path"
+}
+
+macos_verify_scanner_evidence() {
+  local release_path="${1:-}" evidence_dir="${2:-}" report_path="${3:-}" identity_path="${4:-}" expected_image_record="${5:-}" evaluator_path="${6:-}"
+  [[ -d "$release_path" && -d "$evidence_dir" && -f "$report_path" && -f "$identity_path" ]] || macos_die "scanner evidence verification inputs are missing" || return 1
+  [[ -n "$evaluator_path" ]] || evaluator_path="$release_path/ops/security/evaluate_scans.py"
+  [[ -f "$evaluator_path" && ! -L "$evaluator_path" ]] || macos_die "trusted scanner evidence verifier is missing" || return 1
+  [[ -x /usr/bin/python3 ]] || macos_die "trusted scanner evidence verifier runtime is missing" || return 1
+  local -a command_args
+  command_args=(
+    /usr/bin/python3 "$evaluator_path"
+    --verify-evidence-dir "$evidence_dir"
+    --report "$report_path"
+    --repository "$release_path"
+    --built-image-identity "$identity_path"
+  )
+  if [[ -n "$expected_image_record" ]]; then
+    command_args+=(--image-record "$expected_image_record")
+  fi
+  macos_run_checked "${command_args[@]}"
+}
+
 macos_write_evidence() {
   local directory="${1:-}" name="${2:-}" json="${3:-}" evidence_path attempt=0
   [[ -d "$directory" ]] || mkdir -p -- "$directory"

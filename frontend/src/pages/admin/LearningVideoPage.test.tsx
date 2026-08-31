@@ -31,7 +31,7 @@ const draftVideo: LearningVideo = {
   uploaded_at: "2026-07-02T00:00:00Z",
   created_at: "2026-07-02T00:00:00Z",
   updated_at: "2026-07-02T00:00:00Z",
-  playback_url: "/media/learning/draft-storage.mp4",
+  playback_url: "",
 };
 
 const publishedVideo: LearningVideo = {
@@ -41,7 +41,7 @@ const publishedVideo: LearningVideo = {
   original_filename: "published.mp4",
   storage_key: "published-storage.mp4",
   status: "published",
-  playback_url: "/media/learning/published-storage.mp4",
+  playback_url: "",
 };
 
 function mockMediaQuery(matches = true) {

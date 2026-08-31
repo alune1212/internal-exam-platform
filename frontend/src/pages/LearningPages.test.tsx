@@ -49,7 +49,7 @@ const video: CandidateLearningVideo = {
   uploaded_at: "2026-07-02T00:00:00Z",
   created_at: "2026-07-02T00:00:00Z",
   updated_at: "2026-07-02T00:00:00Z",
-  playback_url: "/media/learning/opaque.mp4",
+  playback_url: "/api/learning/videos/9/playback?playback_token=short-lived",
   progress: {
     last_position_seconds: 0,
     watched_seconds: 0,
@@ -250,6 +250,7 @@ describe("Learning pages", () => {
     const player = (await screen.findByTestId("learning-video-shell")).querySelector(
       "video",
     ) as HTMLVideoElement;
+    expect(player).toHaveAttribute("src", video.playback_url);
     expect(screen.getByTestId("learning-video-shell")).toHaveAttribute("data-density", "calm");
     Object.defineProperty(player, "currentTime", { configurable: true, value: 0 });
     fireEvent.play(player);

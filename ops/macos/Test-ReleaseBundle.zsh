@@ -2,6 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
+self_release_path="${SCRIPT_DIR:h:h}"
+if [[ -f "$self_release_path/release-manifest.json" ]]; then
+  [[ "${INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED:-}" == 1 && "${INTERNAL_EXAM_TRUSTED_RELEASE_PATH:-}" == "$self_release_path" ]] || {
+    print -u2 -- "macOS operation failed: bundled verifier requires prior external trusted-runtime verification"
+    exit 1
+  }
+fi
 source "$SCRIPT_DIR/Common.zsh"
 
 release_path=""
@@ -77,6 +84,70 @@ elif [[ "$allow_signature_missing" -eq 0 && ( -e "$release_path/$MACOS_RELEASE_M
   macos_die "release signature sidecars require a sealed release"
 fi
 
+# Verify the signed inventory before parsing any release payload.  A tampered
+# raw JSON file must fail its recorded digest before trusted evaluator code
+# reads it.
+typeset -A checksum_rows
+typeset -A manifest_rows
+checksum_count=0
+while IFS= read -r checksum_line || [[ -n "$checksum_line" ]]; do
+  [[ "$checksum_line" =~ '^([0-9a-fA-F]{64})[[:space:]][[:space:]](.+)$' ]] || macos_die "invalid SHA256SUMS row"
+  digest="${match[1]}"
+  relative="${match[2]}"
+  [[ "$relative" != /* && "$relative" != *'..'* ]] || macos_die "unsafe release path in checksum manifest"
+  [[ -z "${checksum_rows[$relative]-}" ]] || macos_die "duplicate release checksum row"
+  checksum_rows[$relative]="$digest"
+  (( checksum_count += 1 ))
+done < "$checksums_path"
+
+manifest_count=0
+while :; do
+  relative="$(macos_json_get "$manifest_path" "files.$manifest_count.path" 2>/dev/null || true)"
+  [[ -n "$relative" ]] || break
+  [[ "$relative" != /* && "$relative" != *'..'* ]] || macos_die "unsafe release path in manifest"
+  [[ -z "${manifest_rows[$relative]-}" ]] || macos_die "duplicate release manifest row"
+  manifest_rows[$relative]=1
+  case "$relative" in
+    .env.example|*/.env.example) ;;
+    .env|*/.env|.env.*|*/.env.*|*.env|*/*.env|*.pem|*/*.pem|*.key|*/*.key|*.p12|*/*.p12|*.pfx|*/*.pfx|*.jks|*/*.jks|id_rsa*|*/id_rsa*|id_ed25519*|*/id_ed25519*|credentials*|*/credentials*|credential*|*/credential*|private-key*|*/private-key*|private_key*|*/private_key*|release-signing-public-key.fingerprint|*/release-signing-public-key.fingerprint|*secret*|*/*secret*|*/backups/*|*/diagnostics/*|*/evidence/*|*/data/*|*/token*|*/otp*)
+      macos_die "release bundle contains a forbidden runtime or secret file"
+      ;;
+  esac
+  full_path="$release_path/$relative"
+  [[ -f "$full_path" && ! -L "$full_path" ]] || macos_die "release file is missing or linked: $relative"
+  expected="${checksum_rows[$relative]-}"
+  [[ -n "$expected" ]] || macos_die "release file is absent from SHA256SUMS: $relative"
+  actual="$(macos_sha256 "$full_path")"
+  [[ "$expected" == "$actual" ]] || macos_die "release checksum failed: $relative"
+  (( manifest_count += 1 ))
+done
+(( manifest_count > 0 && manifest_count == checksum_count )) || macos_die "manifest and checksum file counts differ"
+
+while IFS= read -r -d '' extra_path; do
+  relative="${extra_path#$release_path/}"
+  case "$relative" in
+    release-manifest.json|SHA256SUMS) continue ;;
+    release-manifest.json.sig|SHA256SUMS.sig)
+      [[ "$seal_state" == sealed ]] || macos_die "release signature sidecar requires a sealed release"
+      continue
+      ;;
+    *.sha256)
+      [[ -n "${checksum_rows[$relative]-}" ]] && continue
+      case "$relative" in
+        release-evidence/security-scan.json.sha256|ops/release/built-image-identity.json.sha256|release-evidence/scanner-evidence/scanner-evidence-manifest.json.sha256) ;;
+        *) macos_die "release contains an unlisted checksum sidecar" ;;
+      esac
+      sidecar_target="${relative%.sha256}"
+      [[ -f "$release_path/$sidecar_target" && -n "${checksum_rows[$sidecar_target]-}" ]] || macos_die "release contains an unpaired checksum sidecar"
+      continue
+      ;;
+  esac
+  [[ -n "${checksum_rows[$relative]-}" ]] || macos_die "release contains an unlisted file"
+done < <(find "$release_path" -type f -print0)
+while IFS= read -r -d '' link_path; do
+  macos_die "release bundle contains a symlink"
+done < <(find "$release_path" -type l -print0)
+
 security_path="$release_path/release-evidence/security-scan.json"
 [[ -f "$security_path" ]] || macos_die "checksummed security evidence is missing"
 macos_check_checksum "$security_path"
@@ -135,6 +206,37 @@ if [[ "$identity_status" == passed && "$security_status" == passed ]]; then
     security_image_reference="$(macos_json_get "$security_path" "imageReferences.$image_name" 2>/dev/null || true)"
     [[ "$security_image_reference" == "$(macos_json_get "$built_identity" "images.$image_name.reference")" ]] || macos_die "security evidence image reference does not match built image identity"
   done
+
+  scanner_evidence_dir="$release_path/release-evidence/scanner-evidence"
+  scanner_evidence_manifest="$scanner_evidence_dir/scanner-evidence-manifest.json"
+  if [[ -n "${INTERNAL_EXAM_TRUSTED_RUNTIME_DIR:-}" ]]; then
+    trusted_evaluator="$INTERNAL_EXAM_TRUSTED_RUNTIME_DIR/evaluate_scans.py"
+  elif [[ -f "$SCRIPT_DIR/evaluate_scans.py" ]]; then
+    trusted_evaluator="$SCRIPT_DIR/evaluate_scans.py"
+  else
+    trusted_evaluator="$SCRIPT_DIR/../security/evaluate_scans.py"
+  fi
+  trusted_evaluator="$(macos_resolve_path "$trusted_evaluator")"
+  [[ "$trusted_evaluator" != "$release_path" && "$trusted_evaluator" != "$release_path"/* ]] || macos_die "scanner evidence verifier must be outside the release bundle"
+  [[ "$(macos_json_get "$security_path" scannerEvidence.path 2>/dev/null || true)" == release-evidence/scanner-evidence ]] || macos_die "security evidence raw scanner path is invalid"
+  [[ "$(macos_json_get "$manifest_path" scannerEvidence.path 2>/dev/null || true)" == release-evidence/scanner-evidence/scanner-evidence-manifest.json ]] || macos_die "release manifest raw scanner path is invalid"
+  macos_verify_scanner_evidence \
+    "$release_path" "$scanner_evidence_dir" "$security_path" "$built_identity" "" \
+    "$trusted_evaluator"
+
+  scanner_manifest_digest="$(macos_sha256 "$scanner_evidence_manifest")"
+  scanner_digest="$(macos_json_get "$scanner_evidence_manifest" scannerEvidenceSha256)"
+  scanner_image_record_digest="$(macos_sha256 "$scanner_evidence_dir/image-record.json")"
+  scanner_image_manifest_digest="$(macos_sha256 "$scanner_evidence_dir/image-digests.json")"
+  scanner_platform_digest="$(macos_sha256 "$scanner_evidence_dir/platform-support.json")"
+  for binding_path in "$security_path" "$manifest_path"; do
+    [[ "$(macos_json_get "$binding_path" scannerEvidence.scannerEvidenceSha256 2>/dev/null || true)" == "$scanner_digest" ]] || macos_die "raw scanner digest binding is invalid"
+    [[ "$(macos_json_get "$binding_path" scannerEvidence.imageRecordSha256 2>/dev/null || true)" == "$scanner_image_record_digest" ]] || macos_die "raw scanner image record binding is invalid"
+    [[ "$(macos_json_get "$binding_path" scannerEvidence.imageManifestSha256 2>/dev/null || true)" == "$scanner_image_manifest_digest" ]] || macos_die "raw scanner image manifest binding is invalid"
+    [[ "$(macos_json_get "$binding_path" scannerEvidence.platformSupportSha256 2>/dev/null || true)" == "$scanner_platform_digest" ]] || macos_die "raw scanner platform binding is invalid"
+  done
+  [[ "$(macos_json_get "$security_path" scannerEvidence.manifestSha256 2>/dev/null || true)" == "$scanner_manifest_digest" ]] || macos_die "security evidence raw scanner manifest binding is invalid"
+  [[ "$(macos_json_get "$manifest_path" scannerEvidence.sha256 2>/dev/null || true)" == "$scanner_manifest_digest" ]] || macos_die "release manifest raw scanner manifest binding is invalid"
 fi
 for image_name in db backend frontend gateway; do
   image_reference="$(macos_json_get "$built_identity" "images.$image_name.reference" 2>/dev/null || true)"
@@ -148,64 +250,5 @@ for image_name in db backend frontend gateway; do
     [[ "$(macos_json_get "$manifest_path" "imageDigests.$image_name" 2>/dev/null || true)" == "$image_reference" ]] || macos_die "final image identity does not match built image identity"
   fi
 done
-
-typeset -A checksum_rows
-typeset -A manifest_rows
-checksum_count=0
-while IFS= read -r checksum_line || [[ -n "$checksum_line" ]]; do
-  [[ "$checksum_line" =~ '^([0-9a-fA-F]{64})[[:space:]][[:space:]](.+)$' ]] || macos_die "invalid SHA256SUMS row"
-  digest="${match[1]}"
-  relative="${match[2]}"
-  [[ "$relative" != /* && "$relative" != *'..'* ]] || macos_die "unsafe release path in checksum manifest"
-  [[ -z "${checksum_rows[$relative]-}" ]] || macos_die "duplicate release checksum row"
-  checksum_rows[$relative]="$digest"
-  (( checksum_count += 1 ))
-done < "$checksums_path"
-
-manifest_count=0
-while :; do
-  relative="$(macos_json_get "$manifest_path" "files.$manifest_count.path" 2>/dev/null || true)"
-  [[ -n "$relative" ]] || break
-  [[ "$relative" != /* && "$relative" != *'..'* ]] || macos_die "unsafe release path in manifest"
-  [[ -z "${manifest_rows[$relative]-}" ]] || macos_die "duplicate release manifest row"
-  manifest_rows[$relative]=1
-  case "$relative" in
-    .env.example|*/.env.example) ;;
-    .env|*/.env|.env.*|*/.env.*|*.env|*/*.env|*.pem|*/*.pem|*.key|*/*.key|*.p12|*/*.p12|*.pfx|*/*.pfx|*.jks|*/*.jks|id_rsa*|*/id_rsa*|id_ed25519*|*/id_ed25519*|credentials*|*/credentials*|credential*|*/credential*|private-key*|*/private-key*|private_key*|*/private_key*|release-signing-public-key.fingerprint|*/release-signing-public-key.fingerprint|*secret*|*/*secret*|*/backups/*|*/diagnostics/*|*/evidence/*|*/data/*|*/token*|*/otp*)
-      macos_die "release bundle contains a forbidden runtime or secret file"
-      ;;
-  esac
-  full_path="$release_path/$relative"
-  [[ -f "$full_path" ]] || macos_die "release file is missing: $relative"
-  expected="${checksum_rows[$relative]-}"
-  [[ -n "$expected" ]] || macos_die "release file is absent from SHA256SUMS: $relative"
-  actual="$(macos_sha256 "$full_path")"
-  [[ "$expected" == "$actual" ]] || macos_die "release checksum failed: $relative"
-  (( manifest_count += 1 ))
-done
-(( manifest_count > 0 && manifest_count == checksum_count )) || macos_die "manifest and checksum file counts differ"
-
-# No post-build injection is allowed: every regular file must be named by the
-# manifest/checksum set.  Manifest/SHA files and their explicit checksum
-# sidecars are the only metadata exceptions; symlinks are never accepted.
-while IFS= read -r -d '' extra_path; do
-  relative="${extra_path#$release_path/}"
-  case "$relative" in
-    release-manifest.json|SHA256SUMS) continue ;;
-    release-manifest.json.sig|SHA256SUMS.sig)
-      [[ "$seal_state" == sealed ]] || macos_die "release signature sidecar requires a sealed release"
-      continue
-      ;;
-    *.sha256)
-      sidecar_target="${relative%.sha256}"
-      [[ -f "$release_path/$sidecar_target" && -n "${checksum_rows[$sidecar_target]-}" ]] || macos_die "release contains an unpaired checksum sidecar"
-      continue
-      ;;
-  esac
-  [[ -n "${checksum_rows[$relative]-}" ]] || macos_die "release contains an unlisted file"
-done < <(find "$release_path" -type f -print0)
-while IFS= read -r -d '' link_path; do
-  macos_die "release bundle contains a symlink"
-done < <(find "$release_path" -type l -print0)
 
 macos_log "release_bundle_valid version=$application_version commit=$git_commit architecture=arm64"

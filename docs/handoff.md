@@ -39,7 +39,7 @@ Implemented foundations:
 - Digest-pinned, locally patched Docker Compose images for PostgreSQL, backend, frontend, and the shared candidate/operator Nginx gateway.
 - Time-based auto-submit background check with an atomic heartbeat and container healthcheck; successful zero-result scans also refresh health, failed scans do not.
 - Ranking, exam-filterable admin report SQL queries, and multi-sheet Excel report export.
-- Learning media served through Nginx `/media/learning/` from the `learning_media` volume.
+- Learning media is served by the backend through short-lived candidate/video-bound playback credentials; both gateways deny the legacy `/media/learning/` path.
 - Candidate OTP delivery supports mutually exclusive STARTTLS and implicit SSL transports, retries transient SMTP/network failures with short bounded backoff, stops on permanent failures, and logs challenge/attempt/error type without recipient or OTP data.
 - Paired backup tooling creates a PostgreSQL custom dump and `learning_media` archive with manifest, SHA-256 checksums, and a last-written `SUCCESS`; restore verification only accepts disposable Compose project names and validates migration head, representative table counts, media count, and non-empty samples.
 - Formal attempts use one active device credential, monotonic answer revisions, session-scoped offline drafts, fresh-OTP takeover, terminal voiding, one-time result-detail release, and audited preview-first bulk retakes without changing saved question/answer/score snapshots.

@@ -231,6 +231,100 @@ def test_retention_delete_fails_without_current_preview_archive_and_backup(
     assert db.get(Exam, exam.id) is not None
 
 
+@pytest.mark.parametrize(
+    "backup_id", ["../backup-outside", "/var/lib/internal-exam/backup-outside"]
+)
+def test_retention_delete_rejects_backup_path_before_validation(
+    db: Session,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backup_id: str,
+) -> None:
+    now = datetime(2026, 7, 21, 8, tzinfo=UTC)
+    exam, _ = _old_exam_graph(db, now=now)
+    archive_root = tmp_path / "archives"
+    backup_root = tmp_path / "backups"
+    monkeypatch.setattr(settings, "lifecycle_archive_dir", str(archive_root))
+    monkeypatch.setattr(settings, "backup_storage_dir", str(backup_root))
+    preview = retention_service.preview_retention(db, now=now)
+    archive = retention_service.create_retention_archive(
+        db,
+        exam_ids=[exam.id],
+        preview_fingerprint=preview.fingerprint,
+        operator_subject="primary-operator",
+        now=now,
+    )
+
+    monkeypatch.setattr(
+        retention_service,
+        "validate_backup",
+        lambda _path: pytest.fail("路径校验失败后不应读取配对备份"),
+    )
+    with pytest.raises(
+        retention_service.RetentionSafeguardError, match="配对备份标识无效"
+    ):
+        retention_service.delete_retained_exams(
+            db,
+            exam_ids=[exam.id],
+            preview_fingerprint=preview.fingerprint,
+            archive_id=archive.artifact_id,
+            backup_id=backup_id,
+            confirmation=f"DELETE EXAMS {exam.id}",
+            operator_subject="primary-operator",
+            now=now + timedelta(minutes=2),
+        )
+    assert db.get(Exam, exam.id) is not None
+
+
+def test_retention_delete_rejects_backup_symlink_before_validation(
+    db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = datetime(2026, 7, 21, 8, tzinfo=UTC)
+    exam, _ = _old_exam_graph(db, now=now)
+    archive_root = tmp_path / "archives"
+    backup_root = tmp_path / "backups"
+    backup_root.mkdir()
+    outside_root = tmp_path / "outside"
+    outside_root.mkdir()
+    try:
+        (backup_root / "backup-escaped").symlink_to(
+            outside_root, target_is_directory=True
+        )
+    except OSError as exc:
+        pytest.skip(f"当前环境不支持 symlink：{exc}")
+
+    monkeypatch.setattr(settings, "lifecycle_archive_dir", str(archive_root))
+    monkeypatch.setattr(settings, "backup_storage_dir", str(backup_root))
+    preview = retention_service.preview_retention(db, now=now)
+    archive = retention_service.create_retention_archive(
+        db,
+        exam_ids=[exam.id],
+        preview_fingerprint=preview.fingerprint,
+        operator_subject="primary-operator",
+        now=now,
+    )
+    monkeypatch.setattr(
+        retention_service,
+        "validate_backup",
+        lambda _path: pytest.fail("symlink 路径校验失败后不应读取配对备份"),
+    )
+
+    with pytest.raises(
+        retention_service.RetentionSafeguardError, match="配对备份标识无效"
+    ):
+        retention_service.delete_retained_exams(
+            db,
+            exam_ids=[exam.id],
+            preview_fingerprint=preview.fingerprint,
+            archive_id=archive.artifact_id,
+            backup_id="backup-escaped",
+            confirmation=f"DELETE EXAMS {exam.id}",
+            operator_subject="primary-operator",
+            now=now + timedelta(minutes=2),
+        )
+    assert db.get(Exam, exam.id) is not None
+
+
 def test_retention_archive_escapes_workbook_strings_but_keeps_json_raw(
     db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

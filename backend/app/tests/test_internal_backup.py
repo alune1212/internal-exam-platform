@@ -273,7 +273,7 @@ def test_create_backup_writes_paired_artifacts_and_success_marker(
             return (
                 "candidate=2\nquestion=50\nexam=1\nexam_attempt=2\nlearning_video=1\n"
             )
-        if "find /var/lib/nginx/learning-media" in rendered:
+        if "find /app/learning-media" in rendered:
             return "1\n"
         raise AssertionError(rendered)
 
@@ -293,7 +293,17 @@ def test_create_backup_writes_paired_artifacts_and_success_marker(
     assert backup_dir.name == "backup-20260710T000000Z"
     assert internal_backup.validate_backup(backup_dir)["media_file_count"] == 1
     assert any("pg_dump" in command for command in writes)
-    assert any("tar" in command for command in writes)
+    assert any(
+        "backend" in command
+        and any("/app/learning-media" in argument for argument in command)
+        for command in captures
+    )
+    assert any(
+        "backend" in command
+        and "tar" in command
+        and any("/app/learning-media" in argument for argument in command)
+        for command in writes
+    )
 
 
 def test_create_backup_failure_never_writes_success_marker(
@@ -307,7 +317,7 @@ def test_create_backup_failure_never_writes_success_marker(
             return "202607210001\n"
         if "candidate=" in rendered:
             return "candidate=0\nquestion=0\nexam=0\nexam_attempt=0\nlearning_video=0\n"
-        if "find /var/lib/nginx/learning-media" in rendered:
+        if "find /app/learning-media" in rendered:
             return "0\n"
         raise AssertionError(rendered)
 

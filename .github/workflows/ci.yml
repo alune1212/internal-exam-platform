@@ -197,8 +197,12 @@ jobs:
 
   browser-e2e:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Run disposable Compose browser gate
         run: sh ops/e2e/run-browser-gate.sh
       - name: Upload browser failure evidence

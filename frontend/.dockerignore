@@ -1,7 +1,7 @@
 node_modules
 dist
-# Executable browser fixtures and specs stay out of the production image.
-e2e/
+# Browser specs are needed by Dockerfile.browser-e2e; the production image
+# only copies the built dist directory from its builder stage.
 playwright-report
 test-results
 .env

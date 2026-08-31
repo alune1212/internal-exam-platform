@@ -39,6 +39,7 @@ from app.schemas.operations import (
 from app.services.audit_service import record_admin_event
 from app.services.excel_security import escape_excel_cell
 from app.services.operational_lock_service import assert_admin_mutation_allowed
+from app.services.practice_retention_service import BACKUP_ID_PATTERN
 
 RETENTION_MONTHS = 12
 RETENTION_DAYS = 365
@@ -65,6 +66,33 @@ ROSTER_WORKBOOK_HEADERS = [
 
 class RetentionSafeguardError(DomainError):
     status_code = 409
+
+
+def _validated_backup_path(backup_id: str) -> Path:
+    """Resolve a backup ID without allowing it to leave the configured root."""
+
+    if (
+        not isinstance(backup_id, str)
+        or BACKUP_ID_PATTERN.fullmatch(backup_id) is None
+        or "/" in backup_id
+        or "\\" in backup_id
+        or ".." in backup_id
+    ):
+        raise RetentionSafeguardError("配对备份标识无效。")
+
+    backup_root = Path(settings.backup_storage_dir)
+    backup_path = backup_root / backup_id
+    try:
+        resolved_root = backup_root.resolve()
+        resolved_backup = backup_path.resolve()
+        if backup_path.is_symlink():
+            raise RetentionSafeguardError("配对备份标识无效。")
+        resolved_backup.relative_to(resolved_root)
+    except RetentionSafeguardError:
+        raise
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise RetentionSafeguardError("配对备份标识无效。") from exc
+    return resolved_backup
 
 
 def _fingerprint(cutoff_at: datetime, exams: list[RetentionExamPreview]) -> str:
@@ -720,8 +748,9 @@ def delete_retained_exams(
         raise RetentionSafeguardError("归档产物与当前预览或所选考试不匹配。")
     _validate_current_roster(db, archive_payload, preview, normalized_ids)
     _validate_roster_workbook(archive_payload, archive_members["archive.xlsx"])
+    backup_path = _validated_backup_path(backup_id)
     try:
-        backup_manifest = validate_backup(Path(settings.backup_storage_dir) / backup_id)
+        backup_manifest = validate_backup(backup_path)
     except BackupValidationError as exc:
         raise RetentionSafeguardError("配对备份未通过校验。") from exc
     try:

@@ -2,12 +2,18 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import UploadFile
 from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.exceptions import DomainError
+from app.core.security import (
+    create_learning_playback_token,
+    parse_learning_playback_token,
+)
 from app.models import Candidate, LearningVideo, LearningVideoProgress
 from app.models.learning import LearningVideoStatus
 from app.schemas.learning import (
@@ -20,8 +26,8 @@ from app.schemas.learning import (
 )
 from app.services.excel_security import escape_excel_cell
 from app.services.learning_storage import (
-    build_public_media_url,
     inspect_upload_size,
+    resolve_video_storage_path,
     save_video_upload,
 )
 from app.services.operational_lock_service import (
@@ -60,6 +66,13 @@ class LearningCandidateNotFoundError(DomainError):
 
 class LearningVideoValidationError(DomainError):
     status_code = 400
+
+
+class LearningPlaybackUnauthorizedError(DomainError):
+    status_code = 401
+
+    def __init__(self) -> None:
+        super().__init__("视频播放凭据无效或已失效")
 
 
 def list_admin_videos(db: Session) -> list[LearningVideoRead]:
@@ -143,7 +156,7 @@ def list_candidate_videos(
         db, candidate_id, [video.id for video in videos]
     )
     return [
-        _candidate_video_read(video, progress_by_video.get(video.id))
+        _candidate_video_read(video, candidate_id, progress_by_video.get(video.id))
         for video in videos
     ]
 
@@ -163,7 +176,45 @@ def get_candidate_video(
     if video is None:
         raise LearningVideoNotFoundError(video_id)
     progress = _get_progress(db, candidate_id, video_id)
-    return _candidate_video_read(video, progress)
+    return _candidate_video_read(video, candidate_id, progress)
+
+
+def get_candidate_video_playback(
+    db: Session, video_id: int, playback_token: str | None
+) -> tuple[Path, str]:
+    token_binding = parse_learning_playback_token(playback_token or "")
+    if token_binding is None or token_binding[1] != video_id:
+        raise LearningPlaybackUnauthorizedError()
+
+    candidate_id, _bound_video_id = token_binding
+    try:
+        _get_active_candidate(db, candidate_id)
+    except LearningCandidateNotFoundError:
+        raise LearningPlaybackUnauthorizedError() from None
+
+    video = (
+        db.query(LearningVideo)
+        .filter(
+            LearningVideo.id == video_id,
+            LearningVideo.status == LearningVideoStatus.published.value,
+        )
+        .one_or_none()
+    )
+    if video is None:
+        raise LearningVideoNotFoundError(video_id)
+    if video.content_type not in settings.learning_video_allowed_content_type_set:
+        raise LearningVideoNotFoundError(video_id)
+
+    media_path = resolve_video_storage_path(video.storage_key)
+    if media_path is None:
+        raise LearningVideoNotFoundError(video_id)
+    try:
+        exists_as_file = media_path.is_file()
+    except (OSError, ValueError):
+        exists_as_file = False
+    if not exists_as_file:
+        raise LearningVideoNotFoundError(video_id)
+    return media_path, video.content_type
 
 
 def update_progress(
@@ -387,15 +438,20 @@ def _progress_by_video(
 
 
 def _candidate_video_read(
-    video: LearningVideo, progress: LearningVideoProgress | None
+    video: LearningVideo,
+    candidate_id: int,
+    progress: LearningVideoProgress | None,
 ) -> CandidateLearningVideoRead:
     return CandidateLearningVideoRead(
-        **_video_read(video).model_dump(),
+        **_video_read(
+            video,
+            playback_url=_build_candidate_playback_url(candidate_id, video.id),
+        ).model_dump(),
         progress=_progress_read(progress),
     )
 
 
-def _video_read(video: LearningVideo) -> LearningVideoRead:
+def _video_read(video: LearningVideo, *, playback_url: str = "") -> LearningVideoRead:
     return LearningVideoRead(
         id=video.id,
         title=video.title,
@@ -410,7 +466,15 @@ def _video_read(video: LearningVideo) -> LearningVideoRead:
         uploaded_at=video.uploaded_at,
         created_at=video.created_at,
         updated_at=video.updated_at,
-        playback_url=build_public_media_url(video.storage_key),
+        playback_url=playback_url,
+    )
+
+
+def _build_candidate_playback_url(candidate_id: int, video_id: int) -> str:
+    token = create_learning_playback_token(candidate_id, video_id)
+    return (
+        f"/api/learning/videos/{video_id}/playback?playback_token="
+        f"{quote(token, safe='')}"
     )
 
 

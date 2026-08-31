@@ -14,10 +14,11 @@ import logging
 import smtplib
 import ssl
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.message import EmailMessage
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -78,7 +79,8 @@ invitation_email_outbox: deque[InvitationEmail] = deque(
 # Invitation actions are administrator mutations and use a separate bounded
 # limiter from public OTP quotas.  The in-memory window is intentionally only
 # a burst guard; row claims remain the concurrency authority in the database.
-_admin_action_events: dict[tuple[str, int, str], deque[float]] = {}
+_admin_action_events: OrderedDict[tuple[str, int, str], deque[float]] = OrderedDict()
+_admin_action_lock = Lock()
 
 
 def clear_invitation_email_outbox() -> None:
@@ -86,7 +88,8 @@ def clear_invitation_email_outbox() -> None:
 
 
 def clear_invitation_rate_limiter() -> None:
-    _admin_action_events.clear()
+    with _admin_action_lock:
+        _admin_action_events.clear()
 
 
 def check_invitation_admin_rate_limit(
@@ -96,12 +99,18 @@ def check_invitation_admin_rate_limit(
     window = int(_setting("invitation_admin_rate_limit_window_seconds", 60))
     checked = now if now is not None else time.monotonic()
     key = (operator_subject, exam_id, mode)
-    events = _admin_action_events.setdefault(key, deque())
-    while events and checked - events[0] >= window:
-        events.popleft()
-    if len(events) >= max(1, limit):
-        raise InvitationMutationError("邀请操作过于频繁，请稍后重试。")
-    events.append(checked)
+    with _admin_action_lock:
+        if key in _admin_action_events:
+            _admin_action_events.move_to_end(key)
+        events = _admin_action_events.setdefault(key, deque())
+        while events and checked - events[0] >= window:
+            events.popleft()
+        if len(events) >= max(1, limit):
+            raise InvitationMutationError("邀请操作过于频繁，请稍后重试。")
+        events.append(checked)
+        max_keys = max(2, int(_setting("public_token_rate_limit_max_keys", 10_000)))
+        while len(_admin_action_events) > max_keys:
+            _admin_action_events.popitem(last=False)
 
 
 def _setting(name: str, default: object) -> Any:
@@ -314,15 +323,15 @@ def claim_invitations(
     if mode not in {"initial", "resend"}:
         raise ValueError("invitation mode must be initial or resend")
     assert_admin_mutation_allowed(db)
-    if operator_subject:
-        check_invitation_admin_rate_limit(
-            operator_subject=operator_subject, exam_id=exam_id, mode=mode
-        )
     exam = db.get(Exam, exam_id)
     if exam is None:
         raise ExamNotFoundError(exam_id)
     if exam.status != "active":
         raise InvitationMutationError("只有已发布考试可以发送邀请")
+    if operator_subject:
+        check_invitation_admin_rate_limit(
+            operator_subject=operator_subject, exam_id=exam_id, mode=mode
+        )
     owner = claim_owner or uuid4().hex
     checked_at = now or datetime.now(UTC)
     scopes = (

@@ -40,9 +40,15 @@ cleanup_trusted_runtime() {
 }
 trap cleanup_trusted_runtime EXIT
 typeset -a trusted_runtime_files
-trusted_runtime_files=(Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh Test-ReleaseBundle.zsh)
+trusted_runtime_files=(Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh Test-ReleaseBundle.zsh evaluate_scans.py)
 if [[ -e "$trusted_runtime" ]]; then
   [[ -d "$trusted_runtime" && ! -L "$trusted_runtime" ]] || macos_die "trusted runtime is not a directory"
+  for runtime_file in "${trusted_runtime_files[@]}"; do
+    source_file="$SCRIPT_DIR/$runtime_file"
+    [[ "$runtime_file" == evaluate_scans.py ]] && source_file="$SCRIPT_DIR/../security/evaluate_scans.py"
+    [[ -f "$source_file" && ! -L "$source_file" && -f "$trusted_runtime/$runtime_file" && ! -L "$trusted_runtime/$runtime_file" ]] || macos_die "trusted runtime does not match the trusted checkout: $runtime_file"
+    [[ "$(macos_sha256 "$trusted_runtime/$runtime_file")" == "$(macos_sha256 "$source_file")" ]] || macos_die "trusted runtime does not match the trusted checkout: $runtime_file"
+  done
   "$trusted_runtime/Trusted-LaunchAgent.zsh" --validate-only >/dev/null
 else
   trusted_runtime_staging="${trusted_runtime}.installing-$$"
@@ -51,6 +57,7 @@ else
   chmod 700 "$trusted_runtime_staging"
   for runtime_file in "${trusted_runtime_files[@]}"; do
     source_file="$SCRIPT_DIR/$runtime_file"
+    [[ "$runtime_file" == evaluate_scans.py ]] && source_file="$SCRIPT_DIR/../security/evaluate_scans.py"
     [[ -f "$source_file" && ! -L "$source_file" ]] || macos_die "trusted runtime source is missing or a symlink: $runtime_file"
     cp -p -- "$source_file" "$trusted_runtime_staging/$runtime_file"
     chmod 700 "$trusted_runtime_staging/$runtime_file"

@@ -88,7 +88,6 @@ cp backend/.env.example backend/.env
 | `IMPORT_MAX_SHEETS` | `1` | Excel 导入工作表数量上限 |
 | `PUBLIC_TOKEN_RATE_LIMIT_MAX_KEYS` | `10000` | 公开 token 限流字典容量上限 |
 | `LEARNING_MEDIA_STORAGE_DIR` | `/app/learning-media` | 学习视频落盘目录（容器内） |
-| `LEARNING_MEDIA_PUBLIC_PATH` | `/media/learning` | 学习视频对外 URL 前缀（由 Nginx 暴露） |
 | `LEARNING_VIDEO_MAX_UPLOAD_BYTES` | `524288000` | 学习视频上传体积上限（默认 500 MiB） |
 | `LEARNING_VIDEO_ALLOWED_CONTENT_TYPES` | `video/mp4,video/webm` | 学习视频允许的 MIME 类型（逗号分隔） |
 

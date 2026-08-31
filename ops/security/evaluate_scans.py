@@ -13,6 +13,19 @@ from typing import Any, cast
 
 IMAGE_NAMES = ("db", "backend", "frontend", "gateway")
 IMAGE_PLATFORM = "linux/arm64"
+SCANNER_EVIDENCE_MANIFEST_NAME = "scanner-evidence-manifest.json"
+SCANNER_EVIDENCE_FILE_NAMES = (
+    "pip-audit.json",
+    "npm-audit.json",
+    "trivy-db.json",
+    "trivy-backend.json",
+    "trivy-frontend.json",
+    "trivy-gateway.json",
+    "dispositions.json",
+    "image-record.json",
+    "image-digests.json",
+    "platform-support.json",
+)
 _IMAGE_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _IMAGE_REFERENCE_RE = re.compile(
     r"^[a-z0-9][a-z0-9._/-]{0,254}:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
@@ -65,6 +78,14 @@ class ImageIdentityError(ValueError):
 
 class ScanInputError(ValueError):
     """A safe, non-sensitive scan input validation error."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+class EvidenceIntegrityError(ValueError):
+    """A safe, stable error for a retained scanner evidence directory."""
 
     def __init__(self, code: str) -> None:
         super().__init__(code)
@@ -329,8 +350,18 @@ def scanner_evidence_digest(
     npm_payload: Any,
     trivy_payloads: list[tuple[str, Any]],
     dispositions: dict[str, Any],
+    *,
+    image_record: Any = _MISSING,
+    image_manifest: Any = _MISSING,
+    platform_support: Any = _MISSING,
+    built_image_identity: Any = _MISSING,
 ) -> str:
-    """Hash canonical validated scan payloads without hashing the report itself."""
+    """Hash canonical validated scan inputs without hashing the report itself.
+
+    The optional release-identity inputs are used by the macOS retained raw
+    evidence contract.  Keeping them optional preserves the legacy CI report
+    digest contract for callers that do not retain a release evidence dir.
+    """
 
     canonical_payload = {
         "pip_audit": pip_payload,
@@ -341,6 +372,18 @@ def scanner_evidence_digest(
         ],
         "dispositions": dispositions,
     }
+    canonical_payload.update(
+        {
+            name: value
+            for name, value in (
+                ("image_record", image_record),
+                ("image_manifest", image_manifest),
+                ("platform_support", platform_support),
+                ("built_image_identity", built_image_identity),
+            )
+            if value is not _MISSING
+        }
+    )
     serialized = json.dumps(
         canonical_payload,
         ensure_ascii=False,
@@ -841,19 +884,371 @@ def _write_checksummed(path: Path, payload: dict[str, Any]) -> None:
     )
 
 
+def _file_sha256(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except (OSError, UnicodeError):
+        raise EvidenceIntegrityError("evidence_file_unreadable") from None
+
+
+def _validate_evidence_file(path: Path, expected_name: str) -> None:
+    if path.name != expected_name or path.is_symlink() or not path.is_file():
+        raise EvidenceIntegrityError("evidence_file_invalid")
+
+
+def write_scanner_evidence_manifest(
+    manifest_path: Path,
+    *,
+    pip_audit: Path,
+    npm_audit: Path,
+    trivy: dict[str, Path],
+    dispositions: Path,
+    image_record: Path,
+    image_manifest: Path,
+    platform_support: Path,
+    scanner_evidence_sha256: str,
+    built_image_identity_sha256: str | None = None,
+) -> str:
+    """Write the fixed, checksummed raw scanner evidence directory manifest."""
+
+    evidence_dir = manifest_path.parent
+    if manifest_path.name != SCANNER_EVIDENCE_MANIFEST_NAME:
+        raise EvidenceIntegrityError("evidence_manifest_name_invalid")
+    if not evidence_dir.is_dir() or evidence_dir.is_symlink():
+        raise EvidenceIntegrityError("evidence_directory_invalid")
+    paths = {
+        "pip-audit.json": pip_audit,
+        "npm-audit.json": npm_audit,
+        "trivy-db.json": trivy.get("db", Path()),
+        "trivy-backend.json": trivy.get("backend", Path()),
+        "trivy-frontend.json": trivy.get("frontend", Path()),
+        "trivy-gateway.json": trivy.get("gateway", Path()),
+        "dispositions.json": dispositions,
+        "image-record.json": image_record,
+        "image-digests.json": image_manifest,
+        "platform-support.json": platform_support,
+    }
+    if set(paths) != set(SCANNER_EVIDENCE_FILE_NAMES):
+        raise EvidenceIntegrityError("evidence_file_set_invalid")
+    rows: list[dict[str, Any]] = []
+    for name in SCANNER_EVIDENCE_FILE_NAMES:
+        path = paths[name]
+        try:
+            if path.parent != evidence_dir:
+                raise EvidenceIntegrityError("evidence_file_location_invalid")
+        except (OSError, ValueError):
+            raise EvidenceIntegrityError("evidence_file_location_invalid") from None
+        _validate_evidence_file(path, name)
+        rows.append(
+            {
+                "path": name,
+                "sha256": _file_sha256(path),
+                "size": path.stat().st_size,
+            }
+        )
+    payload: dict[str, Any] = {
+        "schemaVersion": 1,
+        "kind": "release-scanner-evidence",
+        "files": rows,
+        "scannerEvidenceSha256": scanner_evidence_sha256,
+        "imageRecordSha256": next(
+            row["sha256"] for row in rows if row["path"] == "image-record.json"
+        ),
+        "imageManifestSha256": next(
+            row["sha256"] for row in rows if row["path"] == "image-digests.json"
+        ),
+        "platformSupportSha256": next(
+            row["sha256"] for row in rows if row["path"] == "platform-support.json"
+        ),
+    }
+    if built_image_identity_sha256 is not None:
+        payload["builtImageIdentitySha256"] = built_image_identity_sha256
+    _write_checksummed(manifest_path, payload)
+    return _file_sha256(manifest_path)
+
+
+def _verify_checksum_sidecar(path: Path) -> str:
+    sidecar = path.with_name(path.name + ".sha256")
+    try:
+        text = sidecar.read_text(encoding="ascii").strip()
+    except (OSError, UnicodeError):
+        raise EvidenceIntegrityError("evidence_manifest_checksum_missing") from None
+    match = _CHECKSUM_RE.fullmatch(text)
+    actual = _file_sha256(path)
+    if match is None or match.group(2) != path.name or match.group(1).lower() != actual:
+        raise EvidenceIntegrityError("evidence_manifest_checksum_invalid")
+    return actual
+
+
+def _load_evidence_json(path: Path, code: str) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise EvidenceIntegrityError(code) from None
+
+
+def _assert_report_field(report: dict[str, Any], key: str, expected: Any) -> None:
+    if report.get(key) != expected:
+        raise EvidenceIntegrityError(f"evidence_report_{key}_mismatch")
+
+
+def verify_scanner_evidence_directory(
+    evidence_dir: Path,
+    *,
+    report_path: Path,
+    repository: Path,
+    built_image_identity: Path,
+    expected_image_record: Path | None = None,
+) -> dict[str, Any]:
+    """Verify retained raw scanner evidence and its evaluator report.
+
+    This is intentionally read-only.  It recomputes every security-relevant
+    report field from the fixed raw members, then compares the result with the
+    report and the release's immutable image manifests.
+    """
+
+    if evidence_dir.is_symlink() or not evidence_dir.is_dir():
+        raise EvidenceIntegrityError("evidence_directory_invalid")
+    manifest_path = evidence_dir / SCANNER_EVIDENCE_MANIFEST_NAME
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise EvidenceIntegrityError("evidence_manifest_missing")
+    manifest_digest = _verify_checksum_sidecar(manifest_path)
+    entries = list(evidence_dir.iterdir())
+    allowed = set(SCANNER_EVIDENCE_FILE_NAMES) | {
+        SCANNER_EVIDENCE_MANIFEST_NAME,
+        f"{SCANNER_EVIDENCE_MANIFEST_NAME}.sha256",
+    }
+    if {entry.name for entry in entries} != allowed or any(
+        entry.is_symlink() or not entry.is_file() for entry in entries
+    ):
+        raise EvidenceIntegrityError("evidence_directory_members_invalid")
+    manifest = _load_evidence_json(manifest_path, "evidence_manifest_invalid")
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schemaVersion") != 1
+        or manifest.get("kind") != "release-scanner-evidence"
+        or not isinstance(manifest.get("files"), list)
+    ):
+        raise EvidenceIntegrityError("evidence_manifest_schema_invalid")
+    rows = manifest["files"]
+    if len(rows) != len(SCANNER_EVIDENCE_FILE_NAMES):
+        raise EvidenceIntegrityError("evidence_manifest_file_count_invalid")
+    by_name: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if (
+            not isinstance(row, dict)
+            or not isinstance(row.get("path"), str)
+            or row["path"] not in SCANNER_EVIDENCE_FILE_NAMES
+            or row["path"] in by_name
+            or not isinstance(row.get("sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
+            or not isinstance(row.get("size"), int)
+            or isinstance(row.get("size"), bool)
+            or row["size"] < 0
+        ):
+            raise EvidenceIntegrityError("evidence_manifest_schema_invalid")
+        by_name[row["path"]] = row
+    if set(by_name) != set(SCANNER_EVIDENCE_FILE_NAMES):
+        raise EvidenceIntegrityError("evidence_manifest_file_set_invalid")
+    for name in SCANNER_EVIDENCE_FILE_NAMES:
+        path = evidence_dir / name
+        actual = _file_sha256(path)
+        if (
+            actual != by_name[name]["sha256"]
+            or path.stat().st_size != by_name[name]["size"]
+        ):
+            raise EvidenceIntegrityError("evidence_file_checksum_mismatch")
+
+    pip_payload = _load_evidence_json(
+        evidence_dir / "pip-audit.json", "evidence_pip_audit_invalid"
+    )
+    npm_payload = _load_evidence_json(
+        evidence_dir / "npm-audit.json", "evidence_npm_audit_invalid"
+    )
+    trivy_payloads: list[tuple[str, Any]] = []
+    for image_name in IMAGE_NAMES:
+        source = f"trivy:trivy-{image_name}"
+        payload = _load_evidence_json(
+            evidence_dir / f"trivy-{image_name}.json", "evidence_trivy_invalid"
+        )
+        trivy_payloads.append((source, payload))
+    dispositions = _load_evidence_json(
+        evidence_dir / "dispositions.json", "evidence_dispositions_invalid"
+    )
+    image_record_payload = _load_evidence_json(
+        evidence_dir / "image-record.json", "evidence_image_record_invalid"
+    )
+    image_manifest_payload = _load_evidence_json(
+        evidence_dir / "image-digests.json", "evidence_image_manifest_invalid"
+    )
+    platform_support_payload = _load_evidence_json(
+        evidence_dir / "platform-support.json", "evidence_platform_support_invalid"
+    )
+    try:
+        validate_pip_audit(pip_payload)
+        validate_npm_audit(npm_payload)
+        for _source, payload in trivy_payloads:
+            validate_trivy(payload)
+        dispositions = validate_dispositions(dispositions)
+    except ScanInputError as error:
+        raise EvidenceIntegrityError(error.code) from None
+
+    identity = validate_built_image_identity(built_image_identity)
+    scan_binding_errors = validate_scan_inputs(trivy_payloads, identity)
+    if scan_binding_errors:
+        raise EvidenceIntegrityError(scan_binding_errors[0])
+    try:
+        final_image_record = validate_image_record(image_record_payload, identity)
+    except ImageIdentityError as error:
+        raise EvidenceIntegrityError(error.code) from None
+    if (
+        expected_image_record is not None
+        and _file_sha256(expected_image_record)
+        != by_name["image-record.json"]["sha256"]
+    ):
+        raise EvidenceIntegrityError("evidence_external_image_record_mismatch")
+
+    for name, relative in (
+        ("dispositions.json", "ops/security/dispositions.json"),
+        ("image-digests.json", "ops/release/image-digests.json"),
+        ("platform-support.json", "ops/release/platform-support.json"),
+    ):
+        source_path = repository / relative
+        if source_path.is_symlink() or not source_path.is_file():
+            raise EvidenceIntegrityError("evidence_repository_input_missing")
+        if _file_sha256(source_path) != by_name[name]["sha256"]:
+            raise EvidenceIntegrityError("evidence_repository_input_mismatch")
+
+    expected_digest = scanner_evidence_digest(
+        pip_payload,
+        npm_payload,
+        trivy_payloads,
+        dispositions,
+        image_record=image_record_payload,
+        image_manifest=image_manifest_payload,
+        platform_support=platform_support_payload,
+        built_image_identity=_load_evidence_json(
+            built_image_identity, "evidence_identity_invalid"
+        ),
+    )
+    if manifest.get("scannerEvidenceSha256") != expected_digest:
+        raise EvidenceIntegrityError("evidence_manifest_scanner_digest_mismatch")
+    if manifest.get("imageRecordSha256") != by_name["image-record.json"]["sha256"]:
+        raise EvidenceIntegrityError("evidence_manifest_image_record_mismatch")
+    if manifest.get("imageManifestSha256") != by_name["image-digests.json"]["sha256"]:
+        raise EvidenceIntegrityError("evidence_manifest_image_manifest_mismatch")
+    if (
+        manifest.get("platformSupportSha256")
+        != by_name["platform-support.json"]["sha256"]
+    ):
+        raise EvidenceIntegrityError("evidence_manifest_platform_support_mismatch")
+    if manifest.get("builtImageIdentitySha256") != identity["sha256"]:
+        raise EvidenceIntegrityError("evidence_manifest_identity_mismatch")
+
+    report = _load_evidence_json(report_path, "evidence_report_invalid")
+    if not isinstance(report, dict):
+        raise EvidenceIntegrityError("evidence_report_schema_invalid")
+    findings: list[dict[str, str]] = []
+    findings.extend(normalize_pip_audit(pip_payload))
+    findings.extend(normalize_npm_audit(npm_payload))
+    for source, payload in trivy_payloads:
+        findings.extend(normalize_trivy(payload, source))
+    reviewed, blockers = evaluate(findings, dispositions)
+    _assert_report_field(report, "status", "passed")
+    _assert_report_field(report, "finding_count", len(reviewed))
+    _assert_report_field(report, "blocking_keys", blockers)
+    _assert_report_field(report, "findings", reviewed)
+    _assert_report_field(report, "binding_errors", [])
+    _assert_report_field(report, "security_errors", [])
+    _assert_report_field(report, "scannerMode", "identity-bound")
+    _assert_report_field(report, "hostOS", "darwin")
+    _assert_report_field(report, "architecture", "arm64")
+    _assert_report_field(report, "imagePlatform", IMAGE_PLATFORM)
+    _assert_report_field(report, "builtImageIdentitySha256", identity["sha256"])
+    _assert_report_field(
+        report, "imageRecordSha256", by_name["image-record.json"]["sha256"]
+    )
+    _assert_report_field(report, "scannerEvidenceSha256", expected_digest)
+    _assert_report_field(report, "scannerEvidenceManifestSha256", manifest_digest)
+    _assert_report_field(
+        report, "imageManifestSha256", by_name["image-digests.json"]["sha256"]
+    )
+    _assert_report_field(
+        report, "platformSupportSha256", by_name["platform-support.json"]["sha256"]
+    )
+    _assert_report_field(report, "finalImageRecord", final_image_record)
+    _assert_report_field(
+        report,
+        "imageIds",
+        {name: identity["images"][name]["id"] for name in IMAGE_NAMES},
+    )
+    _assert_report_field(
+        report,
+        "imageReferences",
+        {name: identity["images"][name]["reference"] for name in IMAGE_NAMES},
+    )
+    return {
+        "scannerEvidenceSha256": expected_digest,
+        "scannerEvidenceManifestSha256": manifest_digest,
+        "imageRecordSha256": by_name["image-record.json"]["sha256"],
+        "imageManifestSha256": by_name["image-digests.json"]["sha256"],
+        "platformSupportSha256": by_name["platform-support.json"]["sha256"],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", type=Path, default=Path.cwd())
-    parser.add_argument("--pip-audit", type=Path, required=True)
-    parser.add_argument("--npm-audit", type=Path, required=True)
+    parser.add_argument("--pip-audit", type=Path)
+    parser.add_argument("--npm-audit", type=Path)
     parser.add_argument("--trivy", type=Path, action="append", default=[])
     parser.add_argument("--dispositions", type=Path)
     parser.add_argument("--image-record", type=Path)
     parser.add_argument("--built-image-identity", type=Path)
+    parser.add_argument("--image-manifest", type=Path)
+    parser.add_argument("--platform-support", type=Path)
+    parser.add_argument("--evidence-manifest", type=Path)
+    parser.add_argument("--verify-evidence-dir", type=Path)
+    parser.add_argument("--report", type=Path)
     parser.add_argument("--host-os")
     parser.add_argument("--host-architecture")
-    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
+
+    if args.verify_evidence_dir is not None:
+        if (
+            args.report is None
+            or args.built_image_identity is None
+            or args.repository is None
+        ):
+            parser.error(
+                "--verify-evidence-dir requires --report and --built-image-identity"
+            )
+        try:
+            result = verify_scanner_evidence_directory(
+                args.verify_evidence_dir,
+                report_path=args.report,
+                repository=args.repository,
+                built_image_identity=args.built_image_identity,
+                expected_image_record=args.image_record,
+            )
+        except (EvidenceIntegrityError, ImageIdentityError) as error:
+            sys.stderr.write(f"scanner evidence verification failed: {error.code}\n")
+            return 1
+        sys.stdout.write(json.dumps({"status": "passed", **result}, sort_keys=True))
+        sys.stdout.write("\n")
+        return 0
+
+    if args.pip_audit is None or args.npm_audit is None or args.output_dir is None:
+        parser.error("scan mode requires --pip-audit, --npm-audit, and --output-dir")
+    if args.evidence_manifest is not None and (
+        args.image_manifest is None
+        or args.platform_support is None
+        or args.dispositions is None
+        or args.image_record is None
+        or args.built_image_identity is None
+    ):
+        parser.error("--evidence-manifest requires all release identity inputs")
 
     findings: list[dict[str, str]] = []
     security_errors: list[str] = []
@@ -1016,19 +1411,39 @@ def main() -> int:
         binding_errors.append("image_record_missing")
 
     scanner_evidence_sha256: str | None = None
+    image_manifest_payload: Any = _MISSING
+    platform_support_payload: Any = _MISSING
+    built_image_identity_payload: Any = _MISSING
     if not security_errors and pip_loaded and npm_loaded:
-        scanner_evidence_sha256 = scanner_evidence_digest(
-            pip_payload,
-            npm_payload,
-            [
-                (
-                    _canonical_scan_source(f"trivy:{trivy_path.stem}"),
-                    trivy_payload,
-                )
-                for trivy_path, trivy_payload in trivy_payloads
-            ],
-            dispositions,
-        )
+        digest_inputs: dict[str, Any] = {}
+        if args.evidence_manifest:
+            try:
+                image_manifest_payload = _load_json(args.image_manifest)
+                platform_support_payload = _load_json(args.platform_support)
+                built_image_identity_payload = _load_json(args.built_image_identity)
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                security_errors.append("release_identity_input_unreadable")
+            else:
+                digest_inputs = {
+                    "image_record": image_record_payload,
+                    "image_manifest": image_manifest_payload,
+                    "platform_support": platform_support_payload,
+                    "built_image_identity": built_image_identity_payload,
+                }
+        if not security_errors:
+            scanner_evidence_sha256 = scanner_evidence_digest(
+                pip_payload,
+                npm_payload,
+                [
+                    (
+                        _canonical_scan_source(f"trivy:{trivy_path.stem}"),
+                        trivy_payload,
+                    )
+                    for trivy_path, trivy_payload in trivy_payloads
+                ],
+                dispositions,
+                **digest_inputs,
+            )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")  # noqa: UP017
@@ -1071,6 +1486,35 @@ def main() -> int:
                 ),
             }
         )
+    if args.evidence_manifest and scanner_evidence_sha256 and not security_errors:
+        try:
+            manifest_digest = write_scanner_evidence_manifest(
+                args.evidence_manifest,
+                pip_audit=args.pip_audit,
+                npm_audit=args.npm_audit,
+                trivy={
+                    _scan_image_name(f"trivy:{trivy_path.stem}") or "": trivy_path
+                    for trivy_path, _payload in trivy_payloads
+                },
+                dispositions=args.dispositions,
+                image_record=args.image_record,
+                image_manifest=args.image_manifest,
+                platform_support=args.platform_support,
+                scanner_evidence_sha256=scanner_evidence_sha256,
+                built_image_identity_sha256=identity["sha256"] if identity else None,
+            )
+        except EvidenceIntegrityError as error:
+            security_errors.append(error.code)
+            report["status"] = "failed"
+            report["security_errors"] = sorted(set(security_errors))
+        else:
+            report.update(
+                {
+                    "scannerEvidenceManifestSha256": manifest_digest,
+                    "imageManifestSha256": _file_sha256(args.image_manifest),
+                    "platformSupportSha256": _file_sha256(args.platform_support),
+                }
+            )
     _write_checksummed(args.output_dir / f"security-scan-{timestamp}.json", report)
     _write_checksummed(
         args.output_dir / f"dependency-image-manifest-{timestamp}.json",

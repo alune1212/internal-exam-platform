@@ -157,4 +157,4 @@ GET  /api/admin/learning/reports/export?video_id={id}&status=completed
 - `/api/admin/learning/videos` 上传接口使用 multipart form，字段为 `title`、可选 `description`、`duration_seconds` 和 `file`；当前允许 `video/mp4` 与 `video/webm`，默认最大 500 MiB。
 - 学习视频上传后为 `draft`；发布后 active 用户可见，归档后用户不可见。管理员仍可在列表和学习报表中看到视频状态。
 - 学习报表按 active 用户账号和学习视频生成行，可用 `video_id` 与 `status=not_started|in_progress|completed` 过滤，并支持 Excel 导出。
-- 本地视频文件通过 Nginx `/media/learning/` 提供播放，API 只返回播放 URL 和元数据，不把原始文件名作为存储路径。
+- 候选人通过五分钟、账号与视频绑定的 `/api/learning/videos/{video_id}/playback` 凭据播放本地视频；每次请求重新校验账号、发布状态和受控存储路径，旧 `/media/learning/` 静态路径固定返回 404。

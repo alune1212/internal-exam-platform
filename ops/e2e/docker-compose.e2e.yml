@@ -58,19 +58,11 @@ services:
       E2E_CANDIDATE_URL: http://nginx
       E2E_OPERATOR_URL: http://operator-nginx
       E2E_SMTP_CAPTURE_URL: http://fake-smtp:8025
-      E2E_COMPOSE_FILE: ${E2E_COMPOSE_FILE:?run-browser-gate must set E2E_COMPOSE_FILE}
-      E2E_COMPOSE_OVERRIDE: ${E2E_COMPOSE_OVERRIDE:?run-browser-gate must set E2E_COMPOSE_OVERRIDE}
-      E2E_ENV_FILE: ${E2E_ENV_FILE:?run-browser-gate must set E2E_ENV_FILE}
-      E2E_PROJECT_NAME: ${E2E_PROJECT_NAME:?run-browser-gate must set E2E_PROJECT_NAME}
       PLAYWRIGHT_OUTPUT_DIR: /workspace/e2e-output/test-results/playwright
       PLAYWRIGHT_REPORT_DIR: /workspace/e2e-output/playwright-report
     shm_size: 1gb
     volumes:
-      - ${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}:${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}:ro
-      - ${E2E_RUNTIME_DIR:?run-browser-gate must set E2E_RUNTIME_DIR}:${E2E_RUNTIME_DIR:?run-browser-gate must set E2E_RUNTIME_DIR}:rw
       - ${E2E_BROWSER_OUTPUT_HOST_DIR:?run-browser-gate must set E2E_BROWSER_OUTPUT_HOST_DIR}:/workspace/e2e-output:rw
-      - ${E2E_REPOSITORY_ROOT:?run-browser-gate must set E2E_REPOSITORY_ROOT}/frontend/e2e:/workspace/frontend/e2e:ro
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - business
       - gateway

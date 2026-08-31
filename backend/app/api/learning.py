@@ -1,8 +1,8 @@
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -40,6 +40,25 @@ def get_learning_video(
 ) -> ApiResponse[CandidateLearningVideoRead]:
     return ApiResponse(
         data=learning_service.get_candidate_video(db, candidate_id, video_id)
+    )
+
+
+@router.get("/videos/{video_id}/playback")
+def playback_learning_video(
+    video_id: int,
+    playback_token: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    media_path, content_type = learning_service.get_candidate_video_playback(
+        db, video_id, playback_token
+    )
+    return FileResponse(
+        media_path,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 

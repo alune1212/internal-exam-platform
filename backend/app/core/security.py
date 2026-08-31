@@ -5,6 +5,7 @@ from hashlib import sha256
 from secrets import token_urlsafe
 
 MAX_SIGNED_INT32 = 2**31 - 1
+LEARNING_PLAYBACK_TOKEN_TTL_SECONDS = 5 * 60
 
 
 def create_session_token(subject: str) -> str:
@@ -43,6 +44,10 @@ def verify_session_token(
 
 def create_candidate_token(candidate_id: int) -> str:
     return create_session_token(f"candidate:{candidate_id}")
+
+
+def create_learning_playback_token(candidate_id: int, video_id: int) -> str:
+    return create_session_token(f"learning:{candidate_id}:{video_id}")
 
 
 def create_admin_token(operator_username: str) -> str:
@@ -103,6 +108,35 @@ def parse_candidate_token(
     ):
         return None
     return candidate_id
+
+
+def parse_learning_playback_token(token: str) -> tuple[int, int] | None:
+    from app.core.config import settings
+
+    if not isinstance(token, str):
+        return None
+    parts = token.split(".")
+    if len(parts) != 4:
+        return None
+    subject_parts = parts[0].split(":")
+    if len(subject_parts) != 3 or subject_parts[0] != "learning":
+        return None
+    candidate_id = _parse_bounded_ascii_decimal(
+        subject_parts[1], minimum=1, maximum=MAX_SIGNED_INT32
+    )
+    video_id = _parse_bounded_ascii_decimal(
+        subject_parts[2], minimum=1, maximum=MAX_SIGNED_INT32
+    )
+    if candidate_id is None or video_id is None:
+        return None
+    if not verify_session_token(
+        token,
+        subject=parts[0],
+        secret=settings.token_secret,
+        max_age_seconds=LEARNING_PLAYBACK_TOKEN_TTL_SECONDS,
+    ):
+        return None
+    return candidate_id, video_id
 
 
 def _parse_bounded_ascii_decimal(

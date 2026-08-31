@@ -1,16 +1,17 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, update
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
 from app.core.database import Base, get_db
-from app.core.security import create_candidate_token, create_session_token
+from app.core.security import _sign, create_candidate_token, create_session_token
 from app.main import create_app
 from app.models import Candidate, ExamAttempt, ExamCandidateScope, LearningVideo
 from app.services.operational_lock_service import acquire_backup_write_freeze
@@ -77,7 +78,7 @@ def test_admin_upload_learning_video_generates_storage_key() -> None:
     assert video["completion_threshold_percent"] == 90
     assert video["status"] == "draft"
     assert video["storage_key"] != "training.mp4"
-    assert video["playback_url"].startswith("/media/learning/")
+    assert video["playback_url"] == ""
     assert (db.query(LearningVideo).one()).storage_key == video["storage_key"]
 
 
@@ -197,6 +198,146 @@ def test_candidate_sees_only_published_learning_videos() -> None:
     assert titles == ["公开视频"]
     assert draft["title"] not in titles
     assert archived["title"] not in titles
+
+
+def test_candidate_playback_uses_short_lived_bound_token_and_supports_ranges() -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习人员", status="active")
+    video = _upload_video(client)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish",
+        headers=_admin_headers(),
+    )
+
+    detail = client.get(
+        f"/api/learning/videos/{video['id']}",
+        headers=_candidate_headers(candidate.id),
+    )
+    playback_url = detail.json()["data"]["playback_url"]
+    parsed = urlsplit(playback_url)
+    playback_token = parse_qs(parsed.query)["playback_token"][0]
+
+    assert parsed.path == f"/api/learning/videos/{video['id']}/playback"
+    assert playback_token
+    assert "/media/learning/" not in playback_url
+
+    playback = client.get(playback_url)
+    ranged = client.get(playback_url, headers={"Range": "bytes=0-4"})
+
+    assert playback.status_code == 200
+    assert playback.content == b"video-bytes"
+    assert playback.headers["cache-control"] == "private, no-store"
+    assert playback.headers["accept-ranges"] == "bytes"
+    assert ranged.status_code == 206
+    assert ranged.content == b"video"
+    assert ranged.headers["content-range"] == "bytes 0-4/11"
+
+
+def test_candidate_playback_rejects_missing_expired_tampered_or_mismatched_tokens() -> (
+    None
+):
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习人员", status="active")
+    video = _upload_video(client)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish",
+        headers=_admin_headers(),
+    )
+    detail = client.get(
+        f"/api/learning/videos/{video['id']}",
+        headers=_candidate_headers(candidate.id),
+    )
+    playback_url = detail.json()["data"]["playback_url"]
+    playback_token = parse_qs(urlsplit(playback_url).query)["playback_token"][0]
+    tampered_token = f"{playback_token[:-1]}{'A' if playback_token[-1] != 'A' else 'B'}"
+    expired_issued_at = int((datetime.now(UTC) - timedelta(minutes=6)).timestamp())
+    expired_payload = f"learning:{candidate.id}:{video['id']}.{expired_issued_at}.nonce"
+    expired_token = f"{expired_payload}.{_sign(expired_payload)}"
+
+    missing = client.get(f"/api/learning/videos/{video['id']}/playback")
+    tampered = client.get(
+        f"/api/learning/videos/{video['id']}/playback",
+        params={"playback_token": tampered_token},
+    )
+    expired = client.get(
+        f"/api/learning/videos/{video['id']}/playback",
+        params={"playback_token": expired_token},
+    )
+    mismatched = client.get(
+        f"/api/learning/videos/{video['id'] + 1}/playback",
+        params={"playback_token": playback_token},
+    )
+
+    assert missing.status_code == 401
+    assert tampered.status_code == 401
+    assert expired.status_code == 401
+    assert mismatched.status_code == 401
+
+
+def test_candidate_playback_rechecks_account_and_video_lifecycle() -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习人员", status="active")
+    video = _upload_video(client)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish",
+        headers=_admin_headers(),
+    )
+    detail = client.get(
+        f"/api/learning/videos/{video['id']}",
+        headers=_candidate_headers(candidate.id),
+    )
+    playback_url = detail.json()["data"]["playback_url"]
+
+    db.execute(
+        update(Candidate).where(Candidate.id == candidate.id).values(status="inactive")
+    )
+    db.commit()
+    inactive = client.get(playback_url)
+
+    db.execute(
+        update(Candidate).where(Candidate.id == candidate.id).values(status="active")
+    )
+    db.commit()
+    archived = client.post(
+        f"/api/admin/learning/videos/{video['id']}/archive",
+        headers=_admin_headers(),
+    )
+    after_archive = client.get(playback_url)
+
+    assert inactive.status_code == 401
+    assert archived.status_code == 200
+    assert after_archive.status_code == 404
+
+
+def test_candidate_playback_rejects_unsafe_or_missing_storage_paths() -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习人员", status="active")
+    video = _upload_video(client)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish",
+        headers=_admin_headers(),
+    )
+    detail = client.get(
+        f"/api/learning/videos/{video['id']}",
+        headers=_candidate_headers(candidate.id),
+    )
+    playback_url = detail.json()["data"]["playback_url"]
+
+    video_row = db.get(LearningVideo, video["id"])
+    assert video_row is not None
+    video_row.storage_key = "../outside.mp4"
+    db.commit()
+    traversal = client.get(playback_url)
+
+    video_row.storage_key = "missing.mp4"
+    db.commit()
+    missing = client.get(playback_url)
+
+    old_static_path = client.get(f"/media/learning/{video['storage_key']}")
+
+    assert traversal.status_code == 404
+    assert missing.status_code == 404
+    assert old_static_path.status_code == 404
 
 
 def test_learning_progress_completion_skips_jumps_and_deduplicates_intervals() -> None:

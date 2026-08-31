@@ -1,11 +1,13 @@
 import hashlib
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 from ops.security.evaluate_scans import (  # ty: ignore[unresolved-import]
+    EvidenceIntegrityError,
     ImageIdentityError,
     ScanInputError,
     evaluate,
@@ -23,6 +25,8 @@ from ops.security.evaluate_scans import (  # ty: ignore[unresolved-import]
     validate_pip_audit,
     validate_scan_inputs,
     validate_trivy,
+    verify_scanner_evidence_directory,
+    write_scanner_evidence_manifest,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -52,6 +56,275 @@ def _identity_and_records() -> tuple[dict[str, Any], list[dict[str, Any]]]:
     identity = validate_built_image_identity(_built_identity_path())
     records = json.loads(_image_record_path().read_text(encoding="utf-8"))
     return identity, records
+
+
+def _write_checksum(path: Path) -> None:
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    path.with_suffix(path.suffix + ".sha256").write_text(
+        f"{digest}  {path.name}\n", encoding="ascii"
+    )
+
+
+def _prepare_retained_scanner_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, Path, Path, Path, Path]:
+    evidence_dir = tmp_path / "scanner-evidence"
+    evidence_dir.mkdir()
+    output_dir = tmp_path / "evaluator-output"
+    output_dir.mkdir()
+    repository = tmp_path / "repository"
+    for relative in ("ops/security", "ops/release"):
+        (repository / relative).mkdir(parents=True)
+
+    source_files = {
+        "pip-audit.json": SECURITY_FIXTURES / "empty-pip-audit.json",
+        "npm-audit.json": SECURITY_FIXTURES / "empty-npm-audit.json",
+        "trivy-db.json": SECURITY_FIXTURES / "trivy-database.json",
+        "trivy-backend.json": SECURITY_FIXTURES / "trivy-backend.json",
+        "trivy-frontend.json": SECURITY_FIXTURES / "trivy-frontend.json",
+        "trivy-gateway.json": SECURITY_FIXTURES / "trivy-gateway.json",
+        "dispositions.json": REPO_ROOT / "ops/security/dispositions.json",
+        "image-record.json": _image_record_path(),
+        "image-digests.json": REPO_ROOT / "ops/release/image-digests.json",
+        "platform-support.json": REPO_ROOT / "ops/release/platform-support.json",
+    }
+    for name, source in source_files.items():
+        shutil.copy2(source, evidence_dir / name)
+    for relative in (
+        "ops/security/dispositions.json",
+        "ops/release/image-digests.json",
+        "ops/release/platform-support.json",
+    ):
+        shutil.copy2(REPO_ROOT / relative, repository / relative)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "evaluate_scans.py",
+            "--repository",
+            str(REPO_ROOT),
+            "--pip-audit",
+            str(evidence_dir / "pip-audit.json"),
+            "--npm-audit",
+            str(evidence_dir / "npm-audit.json"),
+            "--trivy",
+            str(evidence_dir / "trivy-db.json"),
+            "--trivy",
+            str(evidence_dir / "trivy-backend.json"),
+            "--trivy",
+            str(evidence_dir / "trivy-frontend.json"),
+            "--trivy",
+            str(evidence_dir / "trivy-gateway.json"),
+            "--dispositions",
+            str(evidence_dir / "dispositions.json"),
+            "--image-record",
+            str(evidence_dir / "image-record.json"),
+            "--built-image-identity",
+            str(_built_identity_path()),
+            "--image-manifest",
+            str(evidence_dir / "image-digests.json"),
+            "--platform-support",
+            str(evidence_dir / "platform-support.json"),
+            "--evidence-manifest",
+            str(evidence_dir / "scanner-evidence-manifest.json"),
+            "--host-os",
+            "macos",
+            "--host-architecture",
+            "aarch64",
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+    assert main() == 0
+    reports = list(output_dir.glob("security-scan-*.json"))
+    assert len(reports) == 1
+    return (
+        evidence_dir,
+        reports[0],
+        repository,
+        _built_identity_path(),
+        evidence_dir / "image-record.json",
+    )
+
+
+def _verify_retained_scanner_evidence(
+    evidence_dir: Path,
+    report: Path,
+    repository: Path,
+    identity: Path,
+    image_record: Path,
+) -> dict[str, Any]:
+    return verify_scanner_evidence_directory(
+        evidence_dir,
+        report_path=report,
+        repository=repository,
+        built_image_identity=identity,
+        expected_image_record=image_record,
+    )
+
+
+def test_retained_scanner_evidence_accepts_canonical_evaluator_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evidence_dir, report, repository, identity, image_record = (
+        _prepare_retained_scanner_evidence(tmp_path, monkeypatch)
+    )
+
+    _write_checksum(report)
+    report_digest = hashlib.sha256(report.read_bytes()).hexdigest()
+    assert report.with_suffix(report.suffix + ".sha256").read_text(
+        encoding="ascii"
+    ).strip().split() == [report_digest, report.name]
+    result = _verify_retained_scanner_evidence(
+        evidence_dir, report, repository, identity, image_record
+    )
+
+    assert set(result) == {
+        "scannerEvidenceSha256",
+        "scannerEvidenceManifestSha256",
+        "imageRecordSha256",
+        "imageManifestSha256",
+        "platformSupportSha256",
+    }
+    assert (
+        result["imageRecordSha256"]
+        == hashlib.sha256(image_record.read_bytes()).hexdigest()
+    )
+
+
+def test_retained_scanner_evidence_rejects_forged_passed_report_with_valid_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evidence_dir, report, repository, identity, image_record = (
+        _prepare_retained_scanner_evidence(tmp_path, monkeypatch)
+    )
+    forged_report = tmp_path / "forged-security-scan.json"
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    payload["finding_count"] = 1
+    forged_report.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+    )
+    _write_checksum(forged_report)
+
+    with pytest.raises(EvidenceIntegrityError) as error:
+        _verify_retained_scanner_evidence(
+            evidence_dir, forged_report, repository, identity, image_record
+        )
+
+    assert error.value.code == "evidence_report_finding_count_mismatch"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        ("missing", "evidence_directory_members_invalid"),
+        ("extra", "evidence_directory_members_invalid"),
+        ("tampered", "evidence_file_checksum_mismatch"),
+        ("manifest", "evidence_manifest_scanner_digest_mismatch"),
+        ("repository", "evidence_repository_input_mismatch"),
+    ],
+)
+def test_retained_scanner_evidence_rejects_untrusted_raw_inputs(
+    mutation: str,
+    expected_code: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence_dir, report, repository, identity, image_record = (
+        _prepare_retained_scanner_evidence(tmp_path, monkeypatch)
+    )
+
+    if mutation == "missing":
+        (evidence_dir / "trivy-db.json").unlink()
+    elif mutation == "extra":
+        (evidence_dir / "unexpected.json").write_text("{}", encoding="utf-8")
+    elif mutation == "tampered":
+        (evidence_dir / "pip-audit.json").write_text(
+            '{"dependencies":[{"name":"unexpected","version":"1","vulns":[]}]}',
+            encoding="utf-8",
+        )
+    elif mutation == "manifest":
+        manifest_path = evidence_dir / "scanner-evidence-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["scannerEvidenceSha256"] = "0" * 64
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+        )
+        _write_checksum(manifest_path)
+    else:
+        source = repository / "ops/release/image-digests.json"
+        source.write_bytes(source.read_bytes() + b"\n")
+
+    with pytest.raises(EvidenceIntegrityError) as error:
+        _verify_retained_scanner_evidence(
+            evidence_dir, report, repository, identity, image_record
+        )
+
+    assert error.value.code == expected_code
+
+
+def test_retained_scanner_evidence_rejects_self_consistent_wrong_image_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    evidence_dir, report, repository, identity_path, image_record = (
+        _prepare_retained_scanner_evidence(tmp_path, monkeypatch)
+    )
+    trivy_path = evidence_dir / "trivy-db.json"
+    trivy_payload = json.loads(trivy_path.read_text(encoding="utf-8"))
+    trivy_payload["ArtifactName"] = "unrelated.example/image:latest"
+    trivy_path.write_text(
+        json.dumps(trivy_payload, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+    )
+
+    load = lambda name: json.loads(  # noqa: E731
+        (evidence_dir / name).read_text(encoding="utf-8")
+    )
+    trivy_payloads = [
+        (f"trivy:{name}", load(f"trivy-{name}.json"))
+        for name in ("db", "backend", "frontend", "gateway")
+    ]
+    scanner_digest = scanner_evidence_digest(
+        load("pip-audit.json"),
+        load("npm-audit.json"),
+        trivy_payloads,
+        load("dispositions.json"),
+        image_record=load("image-record.json"),
+        image_manifest=load("image-digests.json"),
+        platform_support=load("platform-support.json"),
+        built_image_identity=json.loads(identity_path.read_text(encoding="utf-8")),
+    )
+    manifest_digest = write_scanner_evidence_manifest(
+        evidence_dir / "scanner-evidence-manifest.json",
+        pip_audit=evidence_dir / "pip-audit.json",
+        npm_audit=evidence_dir / "npm-audit.json",
+        trivy={
+            name: evidence_dir / f"trivy-{name}.json"
+            for name in ("db", "backend", "frontend", "gateway")
+        },
+        dispositions=evidence_dir / "dispositions.json",
+        image_record=image_record,
+        image_manifest=evidence_dir / "image-digests.json",
+        platform_support=evidence_dir / "platform-support.json",
+        scanner_evidence_sha256=scanner_digest,
+        built_image_identity_sha256=validate_built_image_identity(identity_path)[
+            "sha256"
+        ],
+    )
+    report_payload = json.loads(report.read_text(encoding="utf-8"))
+    report_payload["scannerEvidenceSha256"] = scanner_digest
+    report_payload["scannerEvidenceManifestSha256"] = manifest_digest
+    report.write_text(
+        json.dumps(report_payload, ensure_ascii=False, sort_keys=True), encoding="utf-8"
+    )
+    _write_checksum(report)
+
+    with pytest.raises(EvidenceIntegrityError) as error:
+        _verify_retained_scanner_evidence(
+            evidence_dir, report, repository, identity_path, image_record
+        )
+
+    assert error.value.code == "scan_target_reference_mismatch"
 
 
 def test_critical_and_unreviewed_high_block_release_evidence() -> None:

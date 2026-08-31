@@ -1,8 +1,10 @@
 from io import BytesIO
+from pathlib import Path
+from xml.etree.ElementTree import fromstring
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -35,6 +37,83 @@ QUESTION_HEADERS = [
     "source_no",
     "remark",
 ]
+
+
+def test_tracked_question_bank_fixture_has_no_local_ooxml_metadata() -> None:
+    fixture_path = (
+        Path(__file__).resolve().parents[3] / "安全知识竞赛题库_标准化题库.xlsx"
+    )
+    raw_archive = fixture_path.read_bytes()
+    with ZipFile(fixture_path) as archive:
+        infos = archive.infolist()
+        assert len(infos) == len({info.filename for info in infos})
+        assert archive.comment == b""
+        assert all(not info.extra and not info.flag_bits & 0x08 for info in infos)
+
+        metadata_values: list[str] = []
+        for info in infos:
+            if not info.filename.endswith((".xml", ".rels")):
+                continue
+            root = fromstring(archive.read(info))  # noqa: S314 - tracked test fixture
+            for element in root.iter():
+                assert element.tag.rsplit("}", 1)[-1] not in {
+                    "absPath",
+                    "creator",
+                    "lastModifiedBy",
+                }
+                metadata_values.extend(element.attrib.values())
+                if element.text:
+                    metadata_values.append(element.text)
+
+        end_of_local_files = 0
+        for info in sorted(infos, key=lambda item: item.header_offset):
+            assert info.header_offset == end_of_local_files
+            assert (
+                raw_archive[info.header_offset : info.header_offset + 4]
+                == b"PK\x03\x04"
+            )
+            name_length = int.from_bytes(
+                raw_archive[info.header_offset + 26 : info.header_offset + 28],
+                "little",
+            )
+            extra_length = int.from_bytes(
+                raw_archive[info.header_offset + 28 : info.header_offset + 30],
+                "little",
+            )
+            end_of_local_files = (
+                info.header_offset
+                + 30
+                + name_length
+                + extra_length
+                + info.compress_size
+            )
+        end_record = raw_archive.rfind(b"PK\x05\x06")
+        assert end_record >= 0
+        assert end_record + 22 == len(raw_archive)
+        assert end_of_local_files == int.from_bytes(
+            raw_archive[end_record + 16 : end_record + 20], "little"
+        )
+
+    normalized_metadata = "\n".join(metadata_values).lower()
+    for marker in (
+        "/users/",
+        "\\users\\",
+        "xwechat_files",
+        "wxid_",
+    ):
+        assert marker not in normalized_metadata
+
+    workbook = load_workbook(fixture_path, read_only=True, data_only=True)
+    try:
+        populated_cells = sum(
+            cell.value is not None
+            for worksheet in workbook.worksheets
+            for row in worksheet.iter_rows()
+            for cell in row
+        )
+        assert populated_cells > 0
+    finally:
+        workbook.close()
 
 
 def test_import_questions_persists_valid_rows_and_import_batch(db: Session) -> None:

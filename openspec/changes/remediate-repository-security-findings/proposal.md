@@ -1,6 +1,6 @@
 ## Why
 
-The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` identified fifteen reachable configuration, parsing, resource, archival, release, and proxy weaknesses. They must be closed before the next formal internal release without expanding the first-phase architecture or weakening the controlled-LAN operating boundary.
+The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` identified fifteen reachable configuration, parsing, resource, archival, release, and proxy weaknesses. The implementation review also found separate tracked-workbook metadata, invitation-limiter, learning-media, CI Docker-socket, and macOS scanner-evidence paths. They must be closed before the next formal internal release without expanding the first-phase architecture or weakening the controlled-LAN operating boundary.
 
 ## What Changes
 
@@ -11,7 +11,10 @@ The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` 
 - Inspect XLSX ZIP metadata before `openpyxl`, preserve frozen roster identity in schema-v2 lifecycle archives, and escape every untrusted XLSX cell.
 - Authenticate sealed macOS release bundles with offline RSA-3072 signatures and external pinned public-key fingerprints.
 - Replace spoofable forwarded-header trust with Nginx overwrite semantics and exact static gateway peer allowlists.
-- Add regression tests, deployment contracts, operations guidance, and a clean-HEAD security re-scan gate for all fifteen findings.
+- Remove local metadata from the tracked question-bank workbook, bound invitation limiter state atomically, and keep retention backup IDs beneath the configured root.
+- Replace public learning-media aliases with short-lived candidate/video-bound playback URLs that recheck current lifecycle state.
+- Remove the host Docker socket and Docker CLI from PR-controlled browser tests, and bind macOS release reports to retained raw scanner evidence that trusted code recomputes.
+- Add regression tests, deployment contracts, operations guidance, and a clean-HEAD security re-scan gate for the fifteen original findings plus separately tracked implementation-review findings.
 
 ## Non-goals
 
@@ -30,11 +33,13 @@ The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` 
 - `admin-security`: Strengthens formal credential/session configuration, token parsing, legacy browser-state cleanup, destructive migration gates, and safe PostgreSQL test targeting.
 - `candidate-access`: Bounds practice writes and wrong-question reads while retaining all-time mastery/count semantics and guarded access to archived detail.
 - `admin-imports`: Rejects oversized or malformed XLSX archives before workbook expansion.
+- `exam-invitations`: Keeps public invitation limiter state bounded and atomic after validating the target exam.
 - `internal-deployment-readiness`: Makes scanner severity fail closed, authenticates macOS release bundles, and restricts proxy-header trust to the two configured gateways.
+- `video-learning`: Requires authorized, revocable candidate playback instead of a public static media alias.
 
 ## Impact
 
 - Backend settings, token helpers, practice models/services/schemas/routes, Alembic revisions, retention/import services, operations APIs, backup fingerprints, and focused tests.
 - Frontend session helpers, practice API types, wrong-question pagination, error handling, and tests.
-- Docker Compose networking, Nginx headers, CI/test database environment contracts, macOS release scripts, environment examples, and operations documentation.
+- Docker Compose networking and media mounts, Nginx headers, CI/test database environment contracts, macOS release scripts/evidence, environment examples, and operations documentation.
 - One additive practice aggregate migration plus a guarded maintenance workflow; no new runtime dependency or external service.

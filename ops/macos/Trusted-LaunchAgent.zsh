@@ -53,19 +53,19 @@ runtime_validate() {
     (( row_count += 1 ))
   done < "$runtime_manifest"
 
-  (( row_count == 4 )) || runtime_die "trusted runtime manifest must contain exactly four files"
-  for name in Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh Test-ReleaseBundle.zsh; do
+  (( row_count == 5 )) || runtime_die "trusted runtime manifest must contain exactly five files"
+  for name in Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh Test-ReleaseBundle.zsh evaluate_scans.py; do
     digest="${expected[$name]-}"
     [[ -n "$digest" ]] || runtime_die "trusted runtime manifest is missing: $name"
     runtime_secure_path "$runtime_dir/$name"
     actual="$(runtime_sha256 "$runtime_dir/$name")"
     [[ "$actual" == "$digest" ]] || runtime_die "trusted runtime hash validation failed: $name"
-    [[ -x "$runtime_dir/$name" ]] || runtime_die "trusted runtime operation is not executable: $name"
+    [[ "$name" == evaluate_scans.py || -x "$runtime_dir/$name" ]] || runtime_die "trusted runtime operation is not executable: $name"
   done
 
   while IFS= read -r -d '' entry_path; do
     case "${entry_path#$runtime_dir/}" in
-      Trusted-LaunchAgent.zsh|LaunchAgent-Dispatcher.zsh|Common.zsh|Test-ReleaseBundle.zsh|trusted-runtime.SHA256SUMS) ;;
+      Trusted-LaunchAgent.zsh|LaunchAgent-Dispatcher.zsh|Common.zsh|Test-ReleaseBundle.zsh|evaluate_scans.py|trusted-runtime.SHA256SUMS) ;;
       *) runtime_die "trusted runtime contains an unlisted file: ${entry_path#$runtime_dir/}" ;;
     esac
   done < <(/usr/bin/find "$runtime_dir" -mindepth 1 -type f -print0)
@@ -125,4 +125,5 @@ esac
 
 export INTERNAL_EXAM_TRUSTED_RUNTIME_DIR="$runtime_dir"
 export INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED=1
+export INTERNAL_EXAM_TRUSTED_RELEASE_PATH="$selected_release"
 exec "$runtime_dir/LaunchAgent-Dispatcher.zsh" "$action" --root "$root" --release-path "$selected_release"

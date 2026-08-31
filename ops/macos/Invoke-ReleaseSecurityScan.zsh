@@ -55,6 +55,9 @@ backend_ref="$(macos_json_get "$identity" images.backend.reference)"
 [[ "$backend_ref" == *":${commit:l}" ]] || macos_die "security scan backend image does not match release commit"
 work="$(mktemp -d /private/tmp/internal-exam-security-scan.XXXXXX)"
 chmod 700 "$work"
+scanner_evidence_work="$work/scanner-evidence"
+mkdir -p -- "$scanner_evidence_work"
+chmod 700 "$scanner_evidence_work"
 trivy_cache="$work/trivy-cache"
 mkdir -p -- "$trivy_cache"
 chmod 700 "$trivy_cache"
@@ -93,6 +96,21 @@ macos_run_to_file "$work/final-images.json" docker image inspect \
   "${image_refs[db]}" "${image_refs[backend]}" "${image_refs[frontend]}" "${image_refs[gateway]}"
 macos_write_checksum "$work/final-images.json"
 
+# Retain only the exact, small raw inputs consumed by the evaluator.  The
+# complete Docker inspect output and Trivy cache remain private to this run.
+for evidence_name in dispositions.json image-digests.json platform-support.json; do
+  case "$evidence_name" in
+    dispositions.json) evidence_source="$release_path/ops/security/dispositions.json" ;;
+    image-digests.json) evidence_source="$release_path/ops/release/image-digests.json" ;;
+    platform-support.json) evidence_source="$release_path/ops/release/platform-support.json" ;;
+  esac
+  [[ -f "$evidence_source" && ! -L "$evidence_source" ]] || macos_die "scanner evidence source is missing: $evidence_name"
+  cp -p -- "$evidence_source" "$scanner_evidence_work/$evidence_name"
+  chmod 600 "$scanner_evidence_work/$evidence_name"
+done
+cp -p -- "$work/canonical-images.json" "$scanner_evidence_work/image-record.json"
+chmod 600 "$scanner_evidence_work/image-record.json"
+
 # Trivy reads the exact local image IDs through the Docker socket; it does not
 # rebuild a mutable tag.  The scanner reference itself must be digest pinned.
 for image_name in db backend frontend gateway; do
@@ -100,17 +118,17 @@ for image_name in db backend frontend gateway; do
     --volume /var/run/docker.sock:/var/run/docker.sock \
     --volume "$work:/evidence" "$trivy_image" image --exit-code 0 --format json \
     --cache-dir /evidence/trivy-cache \
-    --output "/evidence/trivy-${image_name}.json" "${image_refs[$image_name]}"
+    --output "/evidence/scanner-evidence/trivy-${image_name}.json" "${image_refs[$image_name]}"
 done
 
 # Dependency scans run inside pinned/containerized runtimes; the macOS host
 # never needs Python, Node, npm, or PostgreSQL for release security evidence.
 macos_run_checked docker run --rm --platform linux/arm64 \
   --volume "$release_path:/workspace:ro" --volume "$work:/evidence" "$backend_ref" \
-  sh -c 'uv export --project /workspace/backend --frozen --no-dev --format requirements-txt --output-file /evidence/python-requirements.txt && uvx --from pip-audit==2.9.0 pip-audit --disable-pip --require-hashes --requirement /evidence/python-requirements.txt --format json --output /evidence/pip-audit.json || test -s /evidence/pip-audit.json'
+  sh -c 'uv export --project /workspace/backend --frozen --no-dev --format requirements-txt --output-file /evidence/python-requirements.txt && uvx --from pip-audit==2.9.0 pip-audit --disable-pip --require-hashes --requirement /evidence/python-requirements.txt --format json --output /evidence/scanner-evidence/pip-audit.json || test -s /evidence/scanner-evidence/pip-audit.json'
 macos_run_checked docker run --rm --platform linux/arm64 \
   --volume "$release_path/frontend:/workspace:ro" --volume "$work:/evidence" "$node_image" \
-  sh -c 'cd /workspace && npm audit --omit=dev --json > /evidence/npm-audit.json || test -s /evidence/npm-audit.json'
+  sh -c 'cd /workspace && npm audit --omit=dev --json > /evidence/scanner-evidence/npm-audit.json || test -s /evidence/scanner-evidence/npm-audit.json'
 
 # Run the checked-in evaluator inside the selected release backend image in
 # identity mode.  It must emit the binding fields itself; this adapter never
@@ -121,11 +139,14 @@ if docker run --rm --platform linux/arm64 \
   --volume "$release_path:/workspace:ro" --volume "$work:/evidence" "$backend_ref" \
   uv run --no-sync python /workspace/ops/security/evaluate_scans.py \
   --repository /workspace \
-  --pip-audit /evidence/pip-audit.json --npm-audit /evidence/npm-audit.json \
-  --trivy /evidence/trivy-db.json --trivy /evidence/trivy-backend.json \
-  --trivy /evidence/trivy-frontend.json --trivy /evidence/trivy-gateway.json \
-  --dispositions /workspace/ops/security/dispositions.json \
-  --image-record /evidence/canonical-images.json \
+  --pip-audit /evidence/scanner-evidence/pip-audit.json --npm-audit /evidence/scanner-evidence/npm-audit.json \
+  --trivy /evidence/scanner-evidence/trivy-db.json --trivy /evidence/scanner-evidence/trivy-backend.json \
+  --trivy /evidence/scanner-evidence/trivy-frontend.json --trivy /evidence/scanner-evidence/trivy-gateway.json \
+  --dispositions /evidence/scanner-evidence/dispositions.json \
+  --image-record /evidence/scanner-evidence/image-record.json \
+  --image-manifest /evidence/scanner-evidence/image-digests.json \
+  --platform-support /evidence/scanner-evidence/platform-support.json \
+  --evidence-manifest /evidence/scanner-evidence/scanner-evidence-manifest.json \
   --built-image-identity /workspace/ops/release/built-image-identity.json \
   --host-os darwin --host-architecture arm64 \
   --output-dir /evidence > "$evaluator_output" 2> "$evaluator_error"; then
@@ -169,8 +190,17 @@ macos_check_checksum "$security_report"
 [[ "$(macos_json_get "$security_report" imagePlatform 2>/dev/null || true)" == linux/arm64 && "$(macos_json_get "$security_report" scannerMode 2>/dev/null || true)" == identity-bound ]] || macos_die "security evaluator did not emit native identity mode"
 security_json="$(plutil -convert json -o - -- "$security_report")"
 [[ "$security_json" =~ '"binding_errors"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]' ]] || macos_die "security evaluator emitted image binding errors"
-image_record_digest="$(macos_sha256 "$work/canonical-images.json")"
+raw_manifest="$scanner_evidence_work/scanner-evidence-manifest.json"
+[[ -f "$raw_manifest" && -f "$raw_manifest.sha256" ]] || macos_die "security evaluator did not retain a checksummed raw evidence manifest"
+macos_check_checksum "$raw_manifest"
+raw_manifest_digest="$(macos_sha256 "$raw_manifest")"
+[[ "$(macos_json_get "$security_report" scannerEvidenceManifestSha256 2>/dev/null || true)" == "$raw_manifest_digest" ]] || macos_die "security evaluator raw evidence manifest binding is stale"
+image_record_digest="$(macos_sha256 "$scanner_evidence_work/image-record.json")"
 [[ "$(macos_json_get "$security_report" imageRecordSha256 2>/dev/null || true)" == "$image_record_digest" ]] || macos_die "security evaluator image record binding is stale"
+image_manifest_digest="$(macos_sha256 "$scanner_evidence_work/image-digests.json")"
+platform_support_digest="$(macos_sha256 "$scanner_evidence_work/platform-support.json")"
+[[ "$(macos_json_get "$security_report" imageManifestSha256 2>/dev/null || true)" == "$image_manifest_digest" ]] || macos_die "security evaluator image manifest binding is stale"
+[[ "$(macos_json_get "$security_report" platformSupportSha256 2>/dev/null || true)" == "$platform_support_digest" ]] || macos_die "security evaluator platform support binding is stale"
 for image_name in db backend frontend gateway; do
   image_id="$(macos_json_get "$identity" "images.$image_name.id")"
   image_ref="${image_refs[$image_name]}"
@@ -182,9 +212,26 @@ timestamp="$(macos_timestamp)"
 final_report="$output_dir/security-scan-${timestamp}.json"
 cp -p -- "$security_report" "$final_report"
 chmod 600 "$final_report"
+raw_output_dir="$output_dir/scanner-evidence-${timestamp}"
+[[ ! -e "$raw_output_dir" ]] || macos_die "scanner evidence output already exists"
+mkdir -p -- "$raw_output_dir"
+chmod 700 "$raw_output_dir"
+for evidence_name in \
+  pip-audit.json npm-audit.json trivy-db.json trivy-backend.json \
+  trivy-frontend.json trivy-gateway.json dispositions.json image-record.json \
+  image-digests.json platform-support.json scanner-evidence-manifest.json \
+  scanner-evidence-manifest.json.sha256; do
+  [[ -f "$scanner_evidence_work/$evidence_name" && ! -L "$scanner_evidence_work/$evidence_name" ]] || macos_die "scanner evidence member is missing: $evidence_name"
+  cp -p -- "$scanner_evidence_work/$evidence_name" "$raw_output_dir/$evidence_name"
+  chmod 600 "$raw_output_dir/$evidence_name"
+done
+plutil -remove scannerEvidence -- "$final_report" >/dev/null 2>&1 || true
+scanner_binding="{\"path\":\"${raw_output_dir:t}\",\"manifestSha256\":\"$raw_manifest_digest\",\"scannerEvidenceSha256\":\"$(macos_json_get "$security_report" scannerEvidenceSha256)\",\"imageRecordSha256\":\"$image_record_digest\",\"imageManifestSha256\":\"$image_manifest_digest\",\"platformSupportSha256\":\"$platform_support_digest\"}"
+plutil -insert scannerEvidence -json "$scanner_binding" -- "$final_report" >/dev/null 2>&1 || macos_die "unable to bind retained scanner evidence"
+plutil -convert json -o - -- "$final_report" >/dev/null 2>&1 || macos_die "final security evidence is invalid JSON"
 macos_write_checksum "$final_report"
 final_record="$output_dir/canonical-images-${timestamp}.json"
-cp -p -- "$work/canonical-images.json" "$final_record"
+cp -p -- "$scanner_evidence_work/image-record.json" "$final_record"
 chmod 600 "$final_record"
 macos_write_checksum "$final_record"
-macos_log "release_security_scan status=passed commit=${commit:l} platform=linux/arm64 report=${final_report:t} image_record=${final_record:t} next=Seal-Release"
+macos_log "release_security_scan status=passed commit=${commit:l} platform=linux/arm64 report=${final_report:t} raw_evidence=${raw_output_dir:t} image_record=${final_record:t} next=Seal-Release"

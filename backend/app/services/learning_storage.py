@@ -64,6 +64,22 @@ def save_video_upload(file: UploadFile) -> tuple[str, int, str]:
     return storage_key, size, file.content_type or "application/octet-stream"
 
 
-def build_public_media_url(storage_key: str) -> str:
-    public_path = settings.learning_media_public_path.rstrip("/")
-    return f"{public_path}/{storage_key}"
+def resolve_video_storage_path(storage_key: str) -> Path | None:
+    """Resolve a generated storage key without allowing path traversal."""
+
+    if (
+        not isinstance(storage_key, str)
+        or not storage_key
+        or storage_key in {".", ".."}
+        or "/" in storage_key
+        or "\\" in storage_key
+        or Path(storage_key).name != storage_key
+    ):
+        return None
+    try:
+        storage_root = Path(settings.learning_media_storage_dir).resolve()
+        resolved = (storage_root / storage_key).resolve()
+        resolved.relative_to(storage_root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return resolved

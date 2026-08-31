@@ -106,9 +106,11 @@ zsh ops/macos/Install-Release.zsh \
   --root "$MAC_ROOT"
 ~~~
 
-`Invoke-ReleaseSecurityScan.zsh` 只在 arm64 Mac 上扫描 Build 产生的四个 `linux/arm64` 镜像，并将镜像引用、immutable ID、平台、host OS/architecture、scanner provenance 和 canonical image record digest 写入报告。`Seal-Release.zsh` 会再次核对这些绑定、freshness（默认 7 天）、blocking findings 为空及 checksum，然后替换 bundle 内的 pending security record；扫描报告或 image record 只要来自另一轮构建、另一 commit、另一架构或另一组镜像，封存就会拒绝。`Build-ReleaseImages.zsh` 使用临时 build-only 配置，永远不会执行正式 promotion；只有 Seal、离线 Sign、Test 均成功后才能 Install，Install 后仍需进入 staging。
+`Invoke-ReleaseSecurityScan.zsh` 只在 arm64 Mac 上扫描 Build 产生的四个 `linux/arm64` 镜像，并保留 evaluator 实际消费的固定原始集合：pip-audit、npm audit、四份 Trivy、dispositions、canonical image record、image manifest 与 platform support。`Seal-Release.zsh` 先用 trusted checkout 的 evaluator 从该集合重新计算 finding、镜像绑定和 canonical digest，再把原始集合及 checksummed manifest 封入 bundle；`Test-ReleaseBundle` 会在签名验证后再次重算。报告、sidecar 或原始输入只要来自另一轮构建、另一 commit、另一架构或另一组镜像，封存和后续使用都会拒绝。`Build-ReleaseImages.zsh` 使用临时 build-only 配置，永远不会执行正式 promotion；只有 Seal、离线 Sign、Test 均成功后才能 Install，Install 后仍需进入 staging。
 
 `Sign-ReleaseBundle.zsh` 只从 trusted checkout 调用 verifier，并把签名覆盖范围固定为封存后最终原始字节的 `release-manifest.json` 与 `SHA256SUMS`。manifest 的 `releaseSignature` 必须声明 `algorithm=RSA-SHA256`、SPKI fingerprint、上述两个 `signedFiles` 以及恰好两个 sidecar：`release-manifest.json.sig`、`SHA256SUMS.sig`。任何 payload、manifest、checksum 或 sidecar 变化都会使签名或 checksum 验证失败。`Test-ReleaseBundle`、`Install-Release`、`Start-Platform`、`Promote-Release`、`Rollback-Release` 和 formal preflight 都在执行 payload/Compose 前检查外部公钥、fingerprint 和两个签名；Install 不信任 bundle 中可能被替换的 verifier。正式路径没有 unsigned bypass，当前和 previous release 都必须签名。
+
+人工生命周期命令必须从 trusted checkout 调用；bundle 内的 Test/Install/Start/Promote/Rollback 副本只有在外部 trusted runtime 已验证且传入的 release path 精确匹配时才允许继续，不能作为自验证入口。
 
 历史 release 迁移时，先在离线环境对原始 bundle 做内容复核，再用当前受信 RSA-3072 私钥签名并让 trusted checkout 的严格 Test 成功；随后才可把它作为 current/previous 写入 formal state。未签名或无法证明来源的 current/previous 必须阻断，不得在正式 Mac 上生成生产私钥或用 `--allow-signature-missing` 绕过正式操作；密钥轮换须先把新公钥和 fingerprint 通过外部正式流程安装并验证，再签发新 bundle，并保留旧公钥/验签材料直到所有旧 release 迁移或退役。
 
@@ -429,7 +431,7 @@ MAC_ROOT="$HOME/Library/Application Support/InternalExam"
 zsh ops/macos/Install-LaunchAgents.zsh --root "$MAC_ROOT"
 ~~~
 
-安装脚本会先用 trusted checkout 验证 current release，再把 `Trusted-LaunchAgent.zsh`、`LaunchAgent-Dispatcher.zsh`、`Common.zsh` 和 `Test-ReleaseBundle.zsh` 安装到 `ROOT/state/trusted-runtime-<commit>/`；该 owner-only 运行时有精确的 `trusted-runtime.SHA256SUMS`，不属于任何 release/current/previous 目录。两个 plist 的 ProgramArguments 只允许指向这个外部 trusted launcher；launcher 在 source 任何 runtime 支持或执行 release action 前，会核对运行时清单、checksummed current state、外部公钥/fingerprint 和两个 release signature。运行时缺失、篡改、current state 不完整或签名失败都必须 fail closed。之后脚本才渲染模板、运行 plutil、bootstrap/print 两个 LaunchAgent；不能指向 development checkout 或 release bundle 内的 dispatcher。卸载必须有精确确认：
+安装脚本会先用 trusted checkout 验证 current release，再把 `Trusted-LaunchAgent.zsh`、`LaunchAgent-Dispatcher.zsh`、`Common.zsh`、`Test-ReleaseBundle.zsh` 和 `evaluate_scans.py` 安装到 `ROOT/state/trusted-runtime-<commit>/`；该 owner-only 运行时有精确的 `trusted-runtime.SHA256SUMS`，不属于任何 release/current/previous 目录。两个 plist 的 ProgramArguments 只允许指向这个外部 trusted launcher；launcher 在 source 任何 runtime 支持或执行 release action 前，会核对运行时清单、checksummed current state、外部公钥/fingerprint、原始 scanner evidence 和两个 release signature。运行时缺失、篡改、current state 不完整或签名失败都必须 fail closed。之后脚本才渲染模板、运行 plutil、bootstrap/print 两个 LaunchAgent；不能指向 development checkout 或 release bundle 内的 dispatcher。卸载必须有精确确认：
 
 ~~~zsh
 zsh ops/macos/Uninstall-LaunchAgents.zsh \
