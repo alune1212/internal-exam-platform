@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id
+from app.core.rate_limit import check_public_token_rate_limit
 from app.schemas.common import ApiResponse
 from app.schemas.practice import (
     PracticeAnswerResult,
@@ -17,11 +18,19 @@ router = APIRouter(prefix="/practice", tags=["practice"])
 
 @router.get("/questions", response_model=ApiResponse[list[PracticeQuestionRead]])
 def list_practice_questions(
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=2**31 - 1),
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[list[PracticeQuestionRead]]:
-    practice_service.get_active_practice_candidate(db, candidate_id)
-    questions = question_service.list_active_questions(db)
+    candidate = practice_service.get_active_practice_candidate(db, candidate_id)
+    check_public_token_rate_limit(
+        request,
+        bucket="practice-questions",
+        identifier=f"candidate:{candidate.id}",
+    )
+    questions = question_service.list_active_questions(db, limit=limit, offset=offset)
     return ApiResponse(
         data=[PracticeQuestionRead.model_validate(question) for question in questions]
     )

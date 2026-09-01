@@ -40,6 +40,11 @@
 - [x] 5.8 Replace public learning-media aliases with five-minute candidate/video-bound playback credentials that recheck active/published state and contained storage; verify Range playback, tamper/expiry, lifecycle revocation, legacy-path denial, and removal of gateway media mounts.
 - [x] 5.9 Remove Docker CLI and the host Docker socket from PR-controlled browser E2E, restrict the job to read-only contents, and disable checkout credential persistence; verify deployment contracts and the browser gate.
 - [x] 5.10 Bind macOS sealing and verification to an exact retained raw scanner-evidence set whose canonical digest is recomputed by trusted evaluator code; verify fabricated reports, missing/extra/tampered inputs, and valid evaluator output.
+- [x] 5.11 Bound candidate exam answer-save payloads by answer count, answer length, question identity, duplicate IDs, and revision range before any mutation; verify malformed, oversized, duplicate, and unknown-question requests leave attempts unchanged.
+- [x] 5.12 Reject XLSX worksheets with sparse or inflated logical dimensions before row iteration, while retaining the existing ZIP and row bounds; verify wide-dimension input returns 413 without invoking iteration or creating an import batch.
+- [x] 5.13 Paginate active practice-catalog reads with a maximum page size and apply the existing candidate token rate limit; verify stable offsets, bounded SQL loading, and rate-limit responses.
+- [x] 5.14 Make every pull-request workflow checkout read-only by disabling credential persistence and constraining the workflow token to `contents: read`; verify all checkout steps satisfy the contract.
+- [x] 5.15 Release the acquired backup freeze after any ordinary post-acquisition failure, preserve the original exception, and keep successful backup/evidence semantics unchanged; verify a generic failure cannot strand the lock.
 
 ## 6. Automated Verification and Operational Acceptance
 

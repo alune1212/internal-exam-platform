@@ -51,6 +51,7 @@ ROSTER_REQUIRED_HEADERS = {"email", "candidate_name"}
 ROSTER_OPTIONAL_HEADERS = {"department", "position", "exam_group", "remark"}
 ROSTER_TEXT_MAX_LENGTH = 100
 ROSTER_REMARK_MAX_LENGTH = 2000
+IMPORT_MAX_COLUMNS = 32
 
 
 class ImportBatchNotFoundError(DomainError):
@@ -124,7 +125,17 @@ def parse_workbook(
             raise ImportLimitError(f"导入文件不能超过 {sheet_limit} 个工作表")
 
         sheet = workbook.active
-        it = sheet.iter_rows(values_only=True)
+        if sheet.max_column is None or sheet.max_row is None:
+            raise ImportFormatError("导入工作表缺少有效的尺寸信息")
+        if sheet.max_column > IMPORT_MAX_COLUMNS:
+            raise ImportLimitError(f"导入工作表不能超过 {IMPORT_MAX_COLUMNS} 列")
+        it = sheet.iter_rows(
+            min_row=1,
+            max_row=row_limit + 2,
+            min_col=1,
+            max_col=sheet.max_column,
+            values_only=True,
+        )
         headers_row = next(it, None)
         if headers_row is None:
             return ParsedWorkbook(rows=[], total_count=0, headers=[])

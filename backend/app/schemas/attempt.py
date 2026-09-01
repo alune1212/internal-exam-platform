@@ -39,13 +39,13 @@ class AttemptRead(ORMModel):
 
 
 class AnswerSaveItem(BaseModel):
-    attempt_question_id: int
-    selected_answer: str | None
+    attempt_question_id: int = Field(gt=0)
+    selected_answer: str | None = Field(max_length=32)
 
 
 class AnswerSaveRequest(BaseModel):
-    answers: list[AnswerSaveItem]
-    answer_revision: int = 0
+    answers: list[AnswerSaveItem] = Field(max_length=5000)
+    answer_revision: int = Field(default=0, ge=0, le=2**31 - 1)
 
 
 class AnswerSaveResponse(BaseModel):

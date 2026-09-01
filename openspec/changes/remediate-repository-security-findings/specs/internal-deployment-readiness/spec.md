@@ -37,12 +37,26 @@ The deployment MUST overwrite client-supplied forwarded-address headers at both 
 - **THEN** deployment configuration or formal preflight fails closed
 
 ### Requirement: Isolated Pull-Request Browser Gate
-The pull-request browser gate MUST orchestrate disposable services from the trusted job context and MUST NOT expose the host Docker socket or Docker client to PR-controlled browser code. Its job token MUST be read-only and checkout credentials MUST NOT persist in the workspace.
+The pull-request browser gate MUST orchestrate disposable services from the trusted job context and MUST NOT expose the host Docker socket or Docker client to PR-controlled browser code. Its job token MUST be read-only and checkout credentials MUST NOT persist in the workspace. Every `actions/checkout` step in the pull-request workflow MUST explicitly set `persist-credentials: false`.
 
 #### Scenario: Browser tests execute pull-request code
 - **WHEN** the browser E2E job builds and runs a pull-request checkout
 - **THEN** the browser container has only the fixed candidate/operator network endpoints and artifact directory it needs
 - **AND** it has no Docker socket, Docker CLI, privileged mode, or persisted checkout credential
+
+#### Scenario: Any pull-request job checks out source
+- **WHEN** a pull-request workflow job checks out repository source
+- **THEN** the job uses a read-only `contents: read` workflow token
+- **AND** that checkout explicitly disables credential persistence
+
+### Requirement: Recoverable Backup Freeze
+Backup operations MUST release an owned backup-write freeze after any ordinary exception raised following lock acquisition, while preserving and propagating the original failure. Successful backup, evidence, and audit semantics MUST remain unchanged.
+
+#### Scenario: Post-acquisition backup work fails
+- **GIVEN** a backup operation has acquired the write freeze
+- **WHEN** fingerprinting, backup creation, verification, pruning, or evidence finalization raises an ordinary exception
+- **THEN** the operation releases its owned freeze before returning the failure
+- **AND** it propagates the original exception without leaving a stranded lock
 
 ### Requirement: Recomputed Release Scanner Evidence
 A macOS release security report MUST be bound to an exact retained set of raw pip-audit, npm-audit, Trivy, disposition, and image-identity inputs. Trusted sealing and bundle verification MUST recompute the canonical scanner-evidence digest from those inputs and fail closed on missing, extra, linked, malformed, tampered, or mismatched evidence.

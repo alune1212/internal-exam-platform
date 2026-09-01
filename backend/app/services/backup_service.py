@@ -401,7 +401,7 @@ def run_paired_backup(
             pruned = prune_verified_local_backups(output_root, keep=3)
             status = "passed"
             reason = "verified"
-    except (OSError, BackupError) as exc:
+    except Exception as exc:
         caught_error = exc
 
     try:
@@ -414,12 +414,14 @@ def run_paired_backup(
             backup_id=backup_id,
             fence_boundary=fence_boundary,
         )
-    except OSError:
+    except Exception as evidence_error:
         # Filesystem evidence is written while the lock is still held.  If
         # the evidence path is unavailable, do not strand the backup freeze.
         db.rollback()
         _release_owned_backup_lock(db, owner=owner)
         db.commit()
+        if caught_error is not None:
+            raise caught_error from evidence_error
         raise
     if fence_boundary is None:
         try:
@@ -473,10 +475,12 @@ def run_paired_backup(
                     backup_id=backup_id,
                     fence_boundary=fence_boundary,
                 )
-        except Exception:
+        except Exception as finalization_error:
             db.rollback()
             _release_owned_backup_lock(db, owner=owner)
             db.commit()
+            if caught_error is not None:
+                raise caught_error from finalization_error
             raise
     else:
         try:
@@ -491,10 +495,12 @@ def run_paired_backup(
                 )
             _release_owned_backup_lock(db, owner=owner)
             db.commit()
-        except Exception:
+        except Exception as finalization_error:
             db.rollback()
             _release_owned_backup_lock(db, owner=owner)
             db.commit()
+            if caught_error is not None:
+                raise caught_error from finalization_error
             raise
     if caught_error is not None:
         raise caught_error

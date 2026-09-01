@@ -14,6 +14,7 @@ The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` 
 - Remove local metadata from the tracked question-bank workbook, bound invitation limiter state atomically, and keep retention backup IDs beneath the configured root.
 - Replace public learning-media aliases with short-lived candidate/video-bound playback URLs that recheck current lifecycle state.
 - Remove the host Docker socket and Docker CLI from PR-controlled browser tests, and bind macOS release reports to retained raw scanner evidence that trusted code recomputes.
+- Bound candidate exam answer-save payloads and XLSX logical worksheet dimensions, paginate and rate-limit the practice catalog, isolate checkout credentials in every pull-request job, and release the backup freeze after ordinary post-acquisition failures.
 - Add regression tests, deployment contracts, operations guidance, and a clean-HEAD security re-scan gate for the fifteen original findings plus separately tracked implementation-review findings.
 
 ## Non-goals

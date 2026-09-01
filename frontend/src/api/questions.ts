@@ -7,8 +7,15 @@ import type {
   QuestionPayload,
 } from "@/types/question";
 
-export function getPracticeQuestions() {
-  return apiRequest<PracticeQuestion[]>("/api/practice/questions");
+export function getPracticeQuestions(pagination?: { limit?: number; offset?: number }) {
+  const limit = Number.isFinite(pagination?.limit)
+    ? Math.min(100, Math.max(1, Math.trunc(pagination?.limit ?? 100)))
+    : 100;
+  const offset = Number.isFinite(pagination?.offset)
+    ? Math.max(0, Math.trunc(pagination?.offset ?? 0))
+    : 0;
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiRequest<PracticeQuestion[]>(`/api/practice/questions?${params.toString()}`);
 }
 
 export function getAdminQuestions() {

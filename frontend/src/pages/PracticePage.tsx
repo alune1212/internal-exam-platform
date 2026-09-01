@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { CheckCircle2, List, RotateCcw, Send, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
@@ -33,19 +33,33 @@ import type { PracticeAnswerResult, PracticeQuestion } from "@/types/question";
 
 type AnswerMap = Record<number, string>;
 type ResultMap = Record<number, PracticeAnswerResult>;
+const PAGE_SIZE = 100;
 
 export function PracticePage() {
   const { candidate } = useOutletContext<CandidateSessionContext>();
   const { requestPresentationMode } = useCandidatePresentationMode();
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [results, setResults] = useState<ResultMap>({});
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeQuestionId, setActiveQuestionId] = useState<number | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [searchParams] = useSearchParams();
 
-  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data: queryData,
+    dataUpdatedAt,
+    isError,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ["candidate", candidate?.id ?? "anonymous", "practice-questions"],
-    queryFn: getPracticeQuestions,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => getPracticeQuestions({ limit: PAGE_SIZE, offset: pageParam }),
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.length === PAGE_SIZE ? pages.length * PAGE_SIZE : undefined,
     enabled: Boolean(candidate),
     retry: false,
   });
@@ -62,10 +76,11 @@ export function PracticePage() {
     mutation.error.status === 409 &&
     /5000|容量|上限|练习记录/.test(mutation.error.detail ?? mutation.error.message);
 
-  const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data ?? []), [data]);
+  const data = useMemo<PracticeQuestion[]>(() => queryData?.pages.flat() ?? [], [queryData]);
+  const sortedData = useMemo<PracticeQuestion[]>(() => sortByType(data), [data]);
   const total = sortedData.length;
-  const hasLoadError = isError && !data;
-  const hasStaleError = isError && Boolean(data);
+  const hasLoadError = isError && !queryData;
+  const hasStaleError = isError && Boolean(queryData);
   const staleNotice = hasStaleError ? (
     <PageStaleNotice
       lastSuccessfulAt={dataUpdatedAt}
@@ -73,6 +88,11 @@ export function PracticePage() {
       retrying={isFetching}
     />
   ) : null;
+  const activeIndex = useMemo(() => {
+    if (activeQuestionId === null) return 0;
+    const index = sortedData.findIndex((question) => question.id === activeQuestionId);
+    return index >= 0 ? index : 0;
+  }, [activeQuestionId, sortedData]);
   const activeQuestion: PracticeQuestion | undefined = sortedData[activeIndex];
   const isActivePracticeWorkspace = Boolean(
     candidate && !isLoading && !hasLoadError && total > 0 && activeQuestion,
@@ -106,7 +126,7 @@ export function PracticePage() {
     const requestedId = Number(searchParams.get("questionId"));
     if (!requestedId) return;
     const requestedIndex = sortedData.findIndex((question) => question.id === requestedId);
-    if (requestedIndex >= 0) setActiveIndex(requestedIndex);
+    if (requestedIndex >= 0) setActiveQuestionId(sortedData[requestedIndex].id);
   }, [searchParams, sortedData]);
 
   function handleSingleChange(question: PracticeQuestion, label: string) {
@@ -139,11 +159,22 @@ export function PracticePage() {
     setAnswers((current) => ({ ...current, [question.id]: "" }));
   }
 
-  const goPrev = useCallback(() => setActiveIndex((index) => Math.max(0, index - 1)), []);
-  const goNext = useCallback(
-    () => setActiveIndex((index) => Math.min(sortedData.length - 1, index + 1)),
-    [sortedData.length],
-  );
+  const goPrev = useCallback(() => {
+    setActiveQuestionId((currentId) => {
+      const currentIndex =
+        currentId === null ? 0 : sortedData.findIndex((question) => question.id === currentId);
+      const nextIndex = Math.max(0, currentIndex - 1);
+      return sortedData[nextIndex]?.id ?? currentId;
+    });
+  }, [sortedData]);
+  const goNext = useCallback(() => {
+    setActiveQuestionId((currentId) => {
+      const currentIndex =
+        currentId === null ? 0 : sortedData.findIndex((question) => question.id === currentId);
+      const nextIndex = Math.min(sortedData.length - 1, currentIndex + 1);
+      return sortedData[nextIndex]?.id ?? currentId;
+    });
+  }, [sortedData]);
 
   useEffect(() => {
     function handleKeydown(event: KeyboardEvent) {
@@ -255,7 +286,7 @@ export function PracticePage() {
   const jumpToQuestion = (id: number) => {
     const nextIndex = sortedData.findIndex((question) => question.id === id);
     if (nextIndex >= 0) {
-      setActiveIndex(nextIndex);
+      setActiveQuestionId(sortedData[nextIndex].id);
     }
   };
 
@@ -434,6 +465,19 @@ export function PracticePage() {
           </SheetContent>
         </Sheet>
       </div>
+
+      {hasNextPage ? (
+        <div className="flex justify-center border-t border-hairline pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            pending={isFetchingNextPage}
+            onClick={() => void fetchNextPage()}
+          >
+            {isFetchingNextPage ? "正在加载更多" : "加载更多练习题"}
+          </Button>
+        </div>
+      ) : null}
     </PageShell>
   );
 }

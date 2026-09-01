@@ -4,12 +4,24 @@ const { apiRequest } = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 
 vi.mock("@/api/client", () => ({ apiRequest }));
 
-import { getWrongPracticeQuestions } from "@/api/questions";
+import { getPracticeQuestions, getWrongPracticeQuestions } from "@/api/questions";
 
 describe("practice question API", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiRequest.mockResolvedValue([]);
+  });
+
+  it("sends bounded practice-question pagination defaults", async () => {
+    await getPracticeQuestions();
+
+    expect(apiRequest).toHaveBeenCalledWith("/api/practice/questions?limit=100&offset=0");
+  });
+
+  it("clamps practice-question page size and offset", async () => {
+    await getPracticeQuestions({ limit: 101, offset: -2 });
+
+    expect(apiRequest).toHaveBeenCalledWith("/api/practice/questions?limit=100&offset=0");
   });
 
   it("sends bounded pagination defaults", async () => {

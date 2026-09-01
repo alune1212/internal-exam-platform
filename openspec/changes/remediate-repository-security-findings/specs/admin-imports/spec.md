@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Bounded Import Validation
-The system MUST enforce compressed upload size, ZIP member count, per-member and total uncompressed size, compression ratio, worksheet count, and row count limits before persisting valid import rows. ZIP structure and expansion limits MUST be evaluated before the workbook parser expands XML content.
+The system MUST enforce compressed upload size, ZIP member count, per-member and total uncompressed size, compression ratio, worksheet count, logical worksheet dimensions, and row count limits before persisting valid import rows. ZIP structure and expansion limits MUST be evaluated before the workbook parser expands XML content. A worksheet MUST declare a usable logical dimension, and its logical column dimension MUST NOT exceed 32 columns; either violation MUST be rejected before row iteration.
 
 #### Scenario: Import file exceeds configured limits
 - **GIVEN** an import file exceeds the configured upload, ZIP expansion, row, or worksheet limits
@@ -18,6 +18,18 @@ The system MUST enforce compressed upload size, ZIP member count, per-member and
 - **GIVEN** an upload is not a structurally valid unencrypted XLSX archive, contains duplicate or unsafe paths, or lacks required workbook parts
 - **WHEN** the administrator submits the import
 - **THEN** the system returns the stable format-validation response before invoking the workbook parser
+- **AND** it creates no import batch or imported row
+
+#### Scenario: XLSX worksheet has a sparse or inflated logical width
+- **GIVEN** an otherwise valid XLSX declares a worksheet dimension wider than 32 columns, including a sparse declaration that does not contain values in the extra columns
+- **WHEN** the administrator submits the import
+- **THEN** the system returns the stable payload-too-large response before iterating worksheet rows
+- **AND** it creates no import batch or imported row
+
+#### Scenario: XLSX worksheet omits its logical dimension
+- **GIVEN** an otherwise valid XLSX worksheet omits the logical dimension required to bound streaming reads
+- **WHEN** the administrator submits the import
+- **THEN** the system returns the stable format-validation response before iterating worksheet rows
 - **AND** it creates no import batch or imported row
 
 #### Scenario: Import contains mixed valid and invalid rows

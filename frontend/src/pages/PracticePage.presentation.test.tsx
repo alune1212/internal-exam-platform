@@ -202,6 +202,35 @@ describe("PracticePage presentation boundary", () => {
     });
   });
 
+  it("loads more practice questions without replacing answers, results, or navigation", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      ...question,
+      id: question.id + index,
+      stem: `练习题 ${index + 1}`,
+    }));
+    const nextQuestion = { ...question, id: 301, stem: "下一页练习题" };
+    vi.mocked(getPracticeQuestions)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([nextQuestion]);
+
+    const user = userEvent.setup();
+    renderPractice();
+
+    expect(await screen.findAllByRole("heading", { name: "练习题 1" })).not.toHaveLength(0);
+    await user.click((await screen.findAllByRole("radio", { name: /选项 A：选项 A/ }))[0]);
+    await user.click(screen.getAllByRole("button", { name: "提交本题" })[0]);
+    expect(await screen.findAllByText("回答正确")).not.toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "加载更多练习题" }));
+
+    await waitFor(() =>
+      expect(getPracticeQuestions).toHaveBeenLastCalledWith({ limit: 100, offset: 100 }),
+    );
+    expect(screen.getAllByRole("heading", { name: "练习题 1" })).not.toHaveLength(0);
+    expect(screen.getAllByText("回答正确")).not.toHaveLength(0);
+    expect(screen.getAllByRole("button", { name: "跳转到第 101 题" })).not.toHaveLength(0);
+  });
+
   it("explains how to recover from the practice history capacity conflict", async () => {
     vi.mocked(submitPracticeAnswer).mockRejectedValueOnce(
       new ApiError("练习记录已达到上限", 409, "练习记录已达到 5000 条上限。"),

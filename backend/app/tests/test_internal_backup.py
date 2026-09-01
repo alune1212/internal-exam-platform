@@ -7,8 +7,10 @@ from pathlib import Path
 import pytest
 from sqlalchemy.orm import Session
 
+from app.models import OperationalLock
 from app.ops import internal_backup
 from app.services import backup_service
+from app.services.operational_lock_service import BACKUP_WRITE_FREEZE
 
 
 def _manifest() -> dict[str, object]:
@@ -449,6 +451,43 @@ def test_opportunistic_backup_runs_on_change_then_skips_and_releases_lock(
     assert second.reason == "no-data-change"
     assert len(created) == 1
     assert first.evidence_path.with_suffix(".json.sha256").is_file()
+
+
+def test_generic_post_acquisition_error_releases_lock_and_propagates(
+    db: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    calls = 0
+
+    def fingerprint(_db: Session, _media_root: Path) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("locked fingerprint failed")
+        return "initial-fingerprint"
+
+    def fail_evidence(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("evidence failure")
+
+    monkeypatch.setattr(backup_service, "data_change_fingerprint", fingerprint)
+    monkeypatch.setattr(backup_service, "_write_evidence", fail_evidence)
+
+    with pytest.raises(RuntimeError, match="locked fingerprint failed"):
+        backup_service.run_paired_backup(
+            db,
+            output_root=tmp_path,
+            media_root=media_root,
+            create_backup=lambda _fingerprint: pytest.fail(
+                "backup creation should not run after fingerprint failure"
+            ),
+            owner="daily-backup",
+            opportunistic=False,
+        )
+
+    backup_lock = db.get(OperationalLock, BACKUP_WRITE_FREEZE)
+    assert backup_lock is not None
+    assert backup_lock.released_at is not None
 
 
 def test_local_pruning_keeps_latest_three_verified_only(tmp_path: Path) -> None:

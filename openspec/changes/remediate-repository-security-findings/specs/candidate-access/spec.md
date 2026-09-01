@@ -57,3 +57,25 @@ The system MUST keep at most 5000 hot practice-answer detail rows per account an
 - **WHEN** an administrator confirms deletion against an unchanged preview fingerprint
 - **THEN** the system deletes only the archived detail identifiers
 - **AND** preserves the account-question aggregate and unarchived hot rows
+
+### Requirement: Bounded Candidate Exam Answer Saves
+Candidate exam answer-save requests MUST use bounded positive attempt-question identifiers, a maximum selected-answer length of 32 characters, at most 5000 answer items, and a non-negative 32-bit answer revision. The service MUST reject duplicate question identifiers and payloads that exceed the persisted questions in the attempt before mutating answers or the attempt revision.
+
+#### Scenario: Candidate submits an oversized or malformed answer payload
+- **GIVEN** an active candidate attempt
+- **WHEN** the candidate submits an answer payload with an invalid identifier, overlong answer, too many items, duplicate question identifier, out-of-range revision, or more items than the attempt contains
+- **THEN** the system returns a stable validation response before persisting any answer or revision change
+
+### Requirement: Bounded Practice Catalog Reads
+Authenticated practice-catalog reads MUST use stable ID-ordered pagination with a page size no greater than 100 and a non-negative 32-bit offset, MUST recheck active status when loading the selected page, and MUST apply the existing candidate token rate limit before querying the active question catalog.
+
+#### Scenario: Candidate reads the practice catalog in pages
+- **GIVEN** a valid candidate token for an active account
+- **WHEN** the candidate requests a practice page with a valid limit and offset
+- **THEN** the system returns no more than 100 active questions in stable ID order
+- **AND** the query loads only the requested page and its required options
+
+#### Scenario: Candidate exceeds the practice catalog rate limit
+- **GIVEN** a valid candidate token for an active account
+- **WHEN** repeated catalog requests exceed the existing candidate token rate limit
+- **THEN** the system returns the stable rate-limit response before loading the question catalog

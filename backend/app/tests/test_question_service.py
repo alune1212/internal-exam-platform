@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Query, Session
 
 from app.core.exceptions import DomainError
 from app.models import Question, QuestionOption
@@ -94,3 +94,47 @@ def test_delete_question_removes_question_and_options(db: Session) -> None:
         ).all()
         == []
     )
+
+
+def test_list_active_questions_paginates_stably_with_options(db: Session) -> None:
+    questions = [
+        question_service.create_question(db, _single_payload(f"题目 {index}"))
+        for index in range(3)
+    ]
+    question_service.create_question(
+        db,
+        _single_payload("停用题目").model_copy(update={"status": "inactive"}),
+    )
+
+    page = question_service.list_active_questions(db, limit=2, offset=1)
+
+    assert [question.id for question in page] == [questions[1].id, questions[2].id]
+    assert all(
+        [option.label for option in question.options] == ["A", "B"] for question in page
+    )
+
+
+def test_list_active_questions_rechecks_status_for_loaded_page(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = question_service.create_question(db, _single_payload("第一题"))
+    second = question_service.create_question(db, _single_payload("第二题"))
+    original_all = Query.all
+    calls = 0
+
+    def all_with_deactivation(query: Query) -> list[object]:
+        nonlocal calls
+        result = original_all(query)
+        calls += 1
+        if calls == 1:
+            db.query(Question).filter(Question.id == first.id).update(
+                {Question.status: "inactive"}, synchronize_session=False
+            )
+            db.flush()
+        return result
+
+    monkeypatch.setattr(Query, "all", all_with_deactivation)
+
+    page = question_service.list_active_questions(db, limit=2)
+
+    assert [question.id for question in page] == [second.id]

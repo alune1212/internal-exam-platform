@@ -2,6 +2,8 @@
 
 See `proposal.md` and the seven delta specs. The current single-backend controlled-LAN platform already has formal runtime profiles, immutable practice details, guarded exam retention, paired backups, macOS release sealing, and two Nginx gateways. The security findings arise where those existing controls are incomplete or applied after unsafe parsing/expansion. The implementation must reuse those boundaries and keep routes thin.
 
+The final implementation review also covered five narrower paths: unbounded candidate answer-save payloads, sparse or inflated XLSX worksheet dimensions, eager practice-catalog reads, credential persistence in non-browser pull-request jobs, and backup freezes stranded by ordinary post-acquisition failures.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -68,6 +70,10 @@ The tracked question-bank XLSX is rebuilt without producer-local OOXML metadata 
 Candidate learning detail responses mint five-minute HMAC playback credentials bound to candidate and video IDs. The playback endpoint rechecks active/published state and contained storage before `FileResponse`; both gateways deny the legacy static path and no longer mount the media volume.
 
 The browser E2E container no longer receives Docker CLI or the host Docker socket because host-side orchestration already provides the required services. The pull-request job is read-only and does not persist checkout credentials. macOS sealing retains a fixed raw scanner-evidence set and invokes trusted evaluator code to recompute the canonical scanner digest before sealing and again from the signed bundle; a report plus self-authored sidecar is insufficient.
+
+### 10. Bound remaining resource and cleanup paths
+
+Exam answer saves validate payload shape and attempt membership before mutation. XLSX import rejects logical worksheet widths before row iteration. Practice catalog reads use stable, bounded pages and the existing candidate limiter. Every pull-request checkout disables credential persistence under a read-only workflow token. Backup finalization catches ordinary post-acquisition failures long enough to release the owned freeze, then re-raises the original error.
 
 ## Risks / Trade-offs
 

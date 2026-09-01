@@ -29,16 +29,38 @@ class QuestionFrozenError(DomainError):
         super().__init__("题目已被 active 已发布考试题池引用，不能修改或删除。")
 
 
-def list_questions(db: Session, *, status: str | None = None) -> list[QuestionRead]:
-    query = db.query(Question).options(selectinload(Question.options))
+def list_questions(
+    db: Session,
+    *,
+    status: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[QuestionRead]:
+    id_query = db.query(Question.id)
+    if status is not None:
+        id_query = id_query.filter(Question.status == status)
+    id_query = id_query.order_by(Question.id).offset(offset)
+    if limit is not None:
+        id_query = id_query.limit(limit)
+    question_ids = [question_id for (question_id,) in id_query.all()]
+    if not question_ids:
+        return []
+
+    query = (
+        db.query(Question)
+        .options(selectinload(Question.options))
+        .filter(Question.id.in_(question_ids))
+    )
     if status is not None:
         query = query.filter(Question.status == status)
     questions = query.order_by(Question.id).all()
     return [_read_loaded_question(question) for question in questions]
 
 
-def list_active_questions(db: Session) -> list[QuestionRead]:
-    return list_questions(db, status="active")
+def list_active_questions(
+    db: Session, *, limit: int | None = None, offset: int = 0
+) -> list[QuestionRead]:
+    return list_questions(db, status="active", limit=limit, offset=offset)
 
 
 def create_question(db: Session, payload: QuestionCreate) -> QuestionRead:

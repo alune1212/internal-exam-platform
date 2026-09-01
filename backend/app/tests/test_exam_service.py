@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,7 +20,7 @@ from app.models import (
 )
 from app.schemas.attempt import AnswerSaveItem, AnswerSaveRequest
 from app.schemas.exam import ExamCreate, ExamUpdate
-from app.services import exam_service, question_service
+from app.services import exam_attempts, exam_service, question_service
 from app.services.exam_service import (
     AttemptAlreadySubmittedError,
     AttemptNotFoundError,
@@ -1038,6 +1039,79 @@ def test_get_attempt_not_found(db: Session) -> None:
 
 
 # --- answer save / submit 测试 ---
+
+
+def test_answer_save_request_enforces_resource_and_range_bounds() -> None:
+    with pytest.raises(ValidationError):
+        AnswerSaveItem(attempt_question_id=0, selected_answer=None)
+    with pytest.raises(ValidationError):
+        AnswerSaveItem(attempt_question_id=1, selected_answer="x" * 33)
+    with pytest.raises(ValidationError):
+        AnswerSaveRequest(
+            answers=[AnswerSaveItem(attempt_question_id=1, selected_answer=None)] * 5001
+        )
+    with pytest.raises(ValidationError):
+        AnswerSaveRequest(answers=[], answer_revision=-1)
+    with pytest.raises(ValidationError):
+        AnswerSaveRequest(answers=[], answer_revision=2**31)
+
+
+def test_save_answers_rejects_duplicate_and_oversized_payloads_before_mutation(
+    db: Session,
+) -> None:
+    exam = create_exam(db)
+    candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
+    create_question_with_options(db)
+    create_question_with_options(db, stem="第二道题")
+    start_result = exam_service.start_exam(db, exam.id, candidate.id)
+    attempt_question_ids = [question.id for question in start_result.questions]
+    attempt_question_id = attempt_question_ids[0]
+
+    duplicate_payload = AnswerSaveRequest(
+        answers=[
+            AnswerSaveItem(
+                attempt_question_id=attempt_question_id, selected_answer="A"
+            ),
+            AnswerSaveItem(
+                attempt_question_id=attempt_question_id, selected_answer="B"
+            ),
+        ]
+    )
+    with pytest.raises(exam_attempts.AttemptAnswerValidationError):
+        exam_service.save_answers(db, start_result.attempt_id, duplicate_payload)
+
+    oversized_payload = AnswerSaveRequest(
+        answers=[
+            AnswerSaveItem(
+                attempt_question_id=attempt_question_ids[0], selected_answer="A"
+            ),
+            AnswerSaveItem(
+                attempt_question_id=attempt_question_ids[1], selected_answer="B"
+            ),
+            AnswerSaveItem(attempt_question_id=999999, selected_answer="A"),
+        ]
+    )
+    with pytest.raises(exam_attempts.AttemptAnswerValidationError):
+        exam_service.save_answers(db, start_result.attempt_id, oversized_payload)
+
+    unknown_payload = AnswerSaveRequest(
+        answers=[
+            AnswerSaveItem(
+                attempt_question_id=attempt_question_ids[0], selected_answer="A"
+            ),
+            AnswerSaveItem(attempt_question_id=999999, selected_answer="A"),
+        ]
+    )
+    with pytest.raises(exam_attempts.AttemptQuestionNotFoundError):
+        exam_service.save_answers(db, start_result.attempt_id, unknown_payload)
+
+    assert db.query(ExamAttemptAnswer).count() == 0
+    db.rollback()
+    attempt = db.get(ExamAttempt, start_result.attempt_id)
+    assert attempt is not None
+    assert attempt.answer_revision == 0
+    assert db.query(ExamAttemptAnswer).count() == 0
 
 
 def test_save_answers_persists_selected_answer(db: Session) -> None:

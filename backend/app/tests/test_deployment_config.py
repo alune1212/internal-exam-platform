@@ -168,6 +168,25 @@ def test_browser_e2e_ships_tests_without_host_docker_daemon_access() -> None:
     assert "persist-credentials: false" in browser_job
 
 
+def test_pull_request_workflow_uses_read_only_checkout_credentials() -> None:
+    workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    checkout_blocks = re.findall(
+        r"(?m)^      - uses: actions/checkout@[^\n]+\n((?:        .*\n)*)",
+        workflow,
+    )
+
+    assert re.search(r"(?m)^permissions:\n  contents: read$", workflow)
+    assert len(checkout_blocks) == 5
+    assert all("persist-credentials: false" in block for block in checkout_blocks)
+
+    maintenance_workflow = (
+        REPO_ROOT / ".github" / "workflows" / "security-maintenance.yml"
+    ).read_text(encoding="utf-8")
+    assert "persist-credentials: false" in maintenance_workflow
+
+
 def test_development_bind_mount_defaults_remain_separate_from_formal_paths() -> None:
     compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "${INTERNAL_EXAM_LIFECYCLE_HOST_DIR:-./.runtime/lifecycle}" in compose

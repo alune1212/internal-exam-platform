@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.exceptions import DomainError
 from app.core.time import ensure_aware
 from app.models import (
     Candidate,
@@ -56,6 +57,10 @@ from app.services.exam_paper import (
 from app.services.exam_results import build_attempt_result
 from app.services.operational_lock_service import assert_backup_write_allowed
 from app.services.scoring_service import score_answer
+
+
+class AttemptAnswerValidationError(DomainError):
+    status_code = 422
 
 
 def _find_unused_retake_grant(
@@ -540,6 +545,16 @@ def save_answers(
     _ensure_attempt_scope(db, attempt)
     if attempt.status != "in_progress":
         raise AttemptAlreadySubmittedError(attempt_id)
+    questions_by_id = {question.id: question for question in attempt.questions}
+    if len(payload.answers) > len(questions_by_id):
+        raise AttemptAnswerValidationError("答案数量不能超过本次考试题目数量")
+    seen_question_ids: set[int] = set()
+    for item in payload.answers:
+        if item.attempt_question_id in seen_question_ids:
+            raise AttemptAnswerValidationError("不能重复提交同一道考试题目")
+        if item.attempt_question_id not in questions_by_id:
+            raise AttemptQuestionNotFoundError(item.attempt_question_id)
+        seen_question_ids.add(item.attempt_question_id)
     if datetime.now(UTC) >= ensure_aware(attempt.ends_at):
         submit_attempt(db, attempt_id, "auto")
         raise AttemptAlreadySubmittedError(attempt_id)
@@ -548,12 +563,9 @@ def save_answers(
         and payload.answer_revision != attempt.answer_revision
     ):
         raise AttemptRevisionConflictError(attempt.answer_revision)
-    questions_by_id = {question.id: question for question in attempt.questions}
     now = datetime.now(UTC)
     for item in payload.answers:
-        question = questions_by_id.get(item.attempt_question_id)
-        if question is None:
-            raise AttemptQuestionNotFoundError(item.attempt_question_id)
+        question = questions_by_id[item.attempt_question_id]
         if question.answer is None:
             question.answer = ExamAttemptAnswer(
                 attempt_question_id=question.id,

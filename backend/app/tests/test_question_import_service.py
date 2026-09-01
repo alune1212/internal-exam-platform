@@ -312,6 +312,65 @@ def test_parse_workbook_accepts_rows_at_limit() -> None:
     assert parsed.total_count == 1
 
 
+def test_parse_workbook_rejects_sparse_wide_dimension_before_iteration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workbook = build_workbook(QUESTION_HEADERS, [{"stem": "题目"}])
+    rebuilt = BytesIO()
+    with ZipFile(workbook) as source, ZipFile(rebuilt, "w", ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            content = source.read(info.filename)
+            if info.filename == "xl/worksheets/sheet1.xml":
+                assert b'ref="A1:R2"' in content
+                content = content.replace(b'ref="A1:R2"', b'ref="A1:XFD1048576"')
+            target.writestr(info.filename, content)
+    rebuilt.seek(0)
+
+    from openpyxl.worksheet._read_only import ReadOnlyWorksheet
+
+    monkeypatch.setattr(
+        ReadOnlyWorksheet,
+        "iter_rows",
+        lambda *_args, **_kwargs: pytest.fail(
+            "wide worksheet must be rejected before row iteration"
+        ),
+    )
+
+    with pytest.raises(import_service.ImportLimitError, match="不能超过 32 列"):
+        import_service.parse_workbook(rebuilt)
+
+
+def test_question_import_rejects_missing_dimension_without_batch(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workbook = build_workbook(QUESTION_HEADERS, [{"stem": "题目"}])
+    rebuilt = BytesIO()
+    with ZipFile(workbook) as source, ZipFile(rebuilt, "w", ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            content = source.read(info.filename)
+            if info.filename == "xl/worksheets/sheet1.xml":
+                dimension_start = content.index(b"<dimension")
+                dimension_end = content.index(b"/>", dimension_start) + 2
+                content = content[:dimension_start] + content[dimension_end:]
+            target.writestr(info.filename, content)
+    rebuilt.seek(0)
+
+    from openpyxl.worksheet._read_only import ReadOnlyWorksheet
+
+    monkeypatch.setattr(
+        ReadOnlyWorksheet,
+        "iter_rows",
+        lambda *_args, **_kwargs: pytest.fail(
+            "missing worksheet dimension must be rejected before row iteration"
+        ),
+    )
+
+    with pytest.raises(import_service.ImportFormatError, match="尺寸信息"):
+        import_questions_from_workbook(db, rebuilt, file_name="missing-dimension.xlsx")
+
+    assert db.query(ImportBatch).count() == 0
+
+
 def _central_directory_workbook(
     *, extra_members: list[str] | None = None, include_core: bool = True
 ) -> BytesIO:
