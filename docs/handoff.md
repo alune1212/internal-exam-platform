@@ -650,9 +650,9 @@ Current local verification:
   current AC-power sleep setting is zero.
 
 Real SMTP receipt, physical-device acceptance, and whole-Mac restart recovery
-remain pending until observed. Container restart checks do not close the last
-item. Host deployment results are retained separately in the protected deployment
-directory's `evidence/` so the tested source snapshot can remain fixed.
+were subsequently confirmed by the operator; the final results are recorded
+below. Host deployment results are retained separately in the protected
+deployment directory's `evidence/` so the tested source snapshot remains fixed.
 
 Deployment completed on this Mac from commit
 `47b4c17cd7fce30447786a33a63b357b1f4f875d`, using image tag
@@ -668,6 +668,30 @@ persisted admin audit rows remained present. The exported report currently has
 no exam data because this is a fresh formal database.
 
 The protected `evidence/internal-exam-minimal-live.json` records the runtime
-results and outstanding physical-device/mailbox/whole-host checks. No connected
+results and the physical-device/mailbox/whole-host checks. No connected
 computer-use browser was available for a live GUI inspection; the 7 successful
 isolated browser scenarios remain separate evidence. No remote push was made.
+
+### Final scoped acceptance, 2026-09-08
+
+The operator confirmed successful real-email receipt, followed by iPhone 16 Pro
+Max / Safari acceptance: login, saved answers after refresh, offline-answer
+synchronization after reconnecting, manual submission, and timed automatic
+submission all passed, with no page or button issues.
+
+The operator then restarted and logged into this Mac. Docker started
+automatically; the platform recovered within approximately a few minutes without
+manual startup commands. Both candidate and operator pages worked, and prior
+scores remained visible. The recovery duration was operator-reported, not timed.
+
+Post-restart live checks found all six services running; PostgreSQL, backend,
+and auto-submit worker were healthy, and the worker's explicit heartbeat check
+passed. Candidate health and loopback readiness returned HTTP 200. The database
+remained at `202608300001`, with both test attempts persisted as `submitted`:
+exam 1 / attempt 1 scored 40/100, and exam 2 / attempt 2 scored 20/100. Timed
+submission behavior is confirmed by the operator; these persisted statuses alone
+do not distinguish frontend timed submission from background-worker submission.
+
+The selected minimal scope (steps 1, 2, and 4) is complete. Release signing,
+backups, second copies, and restore drills remain explicitly excluded; the
+historical full-release gates have not been declared passed.
