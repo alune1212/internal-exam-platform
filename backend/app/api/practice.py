@@ -29,6 +29,7 @@ def list_practice_questions(
         request,
         bucket="practice-questions",
         identifier=f"candidate:{candidate.id}",
+        include_client_ip=False,
     )
     questions = question_service.list_active_questions(db, limit=limit, offset=offset)
     return ApiResponse(
@@ -54,15 +55,22 @@ def save_practice_answer(
     "/wrong-questions", response_model=ApiResponse[list[PracticeWrongQuestionRead]]
 )
 def list_wrong_questions(
+    request: Request,
     category_1: str | None = None,
     category_2: str | None = None,
     mastered: bool | None = None,
     limit: int = Query(default=50, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=2**31 - 1),
     history_limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[list[PracticeWrongQuestionRead]]:
+    check_public_token_rate_limit(
+        request,
+        bucket="practice-wrong-questions",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     return ApiResponse(
         data=practice_service.list_wrong_questions(
             db,

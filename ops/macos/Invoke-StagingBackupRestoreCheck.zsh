@@ -40,6 +40,7 @@ macos_assert_macos
 macos_assert_outside_worktree "$root" >/dev/null
 macos_layout "$root"
 macos_assert_protected_configuration "$root"
+macos_assert_staging_env "$MACOS_STAGING_ENV"
 macos_read_cutover_identity
 macos_docker_ready
 

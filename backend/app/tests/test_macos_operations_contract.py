@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import platform
 import plistlib
 import re
@@ -282,8 +283,12 @@ def test_trusted_runtime_release_verifier_rechecks_retained_raw_evidence() -> No
         "Trusted-LaunchAgent.zsh LaunchAgent-Dispatcher.zsh Common.zsh "
         "Test-ReleaseBundle.zsh evaluate_scans.py" in launcher
     )
+    assert "--verify-release" in launcher
+    assert "export INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED" not in launcher
+    assert "export INTERNAL_EXAM_TRUSTED_RELEASE_PATH" not in launcher
     assert 'trusted_evaluator="$SCRIPT_DIR/evaluate_scans.py"' in verifier
     assert 'trusted_evaluator="$SCRIPT_DIR/../security/evaluate_scans.py"' in verifier
+    assert "INTERNAL_EXAM_TRUSTED_RUNTIME_DIR" not in verifier
     assert "macos_verify_scanner_evidence" in verifier
     assert (
         'scanner_evidence_dir="$release_path/release-evidence/scanner-evidence"'
@@ -300,9 +305,7 @@ def test_trusted_runtime_release_verifier_rechecks_retained_raw_evidence() -> No
     assert 'macos_sha256 "$source_file"' in installer
 
 
-def test_bundled_lifecycle_entries_require_external_verification_before_source() -> (
-    None
-):
+def test_bundled_lifecycle_entries_require_runtime_verification_before_source() -> None:
     for name in (
         "Test-ReleaseBundle.zsh",
         "Install-Release.zsh",
@@ -311,15 +314,74 @@ def test_bundled_lifecycle_entries_require_external_verification_before_source()
         "Rollback-Release.zsh",
     ):
         script = (MACOS_OPS / name).read_text(encoding="utf-8")
-        assert script.index("INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED") < script.index(
+        assert "INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED" not in script
+        assert "INTERNAL_EXAM_TRUSTED_RELEASE_PATH" not in script
+        assert script.index("trusted-runtime-") < script.index(
             'source "$SCRIPT_DIR/Common.zsh"'
         )
-        assert "INTERNAL_EXAM_TRUSTED_RELEASE_PATH" in script
+        assert "--verify-release" in script
 
     launcher = (MACOS_OPS / "Trusted-LaunchAgent.zsh").read_text(encoding="utf-8")
     dispatcher = (MACOS_OPS / "LaunchAgent-Dispatcher.zsh").read_text(encoding="utf-8")
-    assert 'export INTERNAL_EXAM_TRUSTED_RELEASE_PATH="$selected_release"' in launcher
-    assert '"$INTERNAL_EXAM_TRUSTED_RELEASE_PATH" == "$release_path"' in dispatcher
+    assert "export INTERNAL_EXAM_TRUSTED_RELEASE_PATH" not in launcher
+    assert "INTERNAL_EXAM_TRUSTED_RELEASE_PATH" not in dispatcher
+    assert '"$trusted_launcher" --validate-only' in dispatcher
+
+
+def test_bundled_lifecycle_rejects_forged_environment_before_bundle_common(
+    tmp_path: Path,
+) -> None:
+    zsh = _require_macos_zsh()
+    release = tmp_path / "release"
+    operations = release / "ops" / "macos"
+    operations.mkdir(parents=True)
+    (release / "release-manifest.json").write_text("{}\n", encoding="utf-8")
+    marker = tmp_path / "bundle-common-executed"
+    (operations / "Common.zsh").write_text(
+        f'print -r -- pwned > "{marker}"\n', encoding="utf-8"
+    )
+
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "INTERNAL_EXAM_ROOT": str(tmp_path / "formal-root"),
+            "INTERNAL_EXAM_TRUSTED_RUNTIME_DIR": str(tmp_path / "fake-runtime"),
+            "INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED": "1",
+            "INTERNAL_EXAM_TRUSTED_RELEASE_PATH": str(release),
+        }
+    )
+    for name in (
+        "Test-ReleaseBundle.zsh",
+        "Install-Release.zsh",
+        "Start-Platform.zsh",
+        "Promote-Release.zsh",
+        "Rollback-Release.zsh",
+    ):
+        target = operations / name
+        shutil.copy2(MACOS_OPS / name, target)
+        result = subprocess.run(  # noqa: S603
+            [zsh, str(target), "--root", str(tmp_path / "formal-root")],
+            cwd=REPO_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0, name
+        assert not marker.exists(), (
+            f"forged environment sourced bundle Common.zsh: {name}"
+        )
+
+    dispatcher = operations / "LaunchAgent-Dispatcher.zsh"
+    shutil.copy2(MACOS_OPS / "LaunchAgent-Dispatcher.zsh", dispatcher)
+    result = subprocess.run(  # noqa: S603
+        [zsh, str(dispatcher), "bootstrap", "--root", str(tmp_path / "formal-root")],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert not marker.exists()
 
 
 def test_launchagent_templates_are_valid_and_write_to_bounded_paths() -> None:
@@ -389,9 +451,20 @@ def test_trusted_launchagent_rejects_runtime_support_tamper_before_dispatch() ->
             manifest.chmod(0o600)
 
         install_runtime(base)
+        forged_environment = os.environ.copy()
+        forged_environment.update(
+            {
+                "INTERNAL_EXAM_TRUSTED_RUNTIME_DIR": str(Path(temporary) / "fake"),
+                "INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED": "1",
+                "INTERNAL_EXAM_TRUSTED_RELEASE_PATH": str(
+                    Path(temporary) / "fake-release"
+                ),
+            }
+        )
         valid = subprocess.run(  # noqa: S603
             [zsh, str(base / launcher_source.name), "--validate-only"],
             cwd=REPO_ROOT,
+            env=forged_environment,
             capture_output=True,
             text=True,
         )
@@ -959,3 +1032,522 @@ macos_json_replace_atomic "$current" datasetId '"dataset-tampered"'; macos_write
             text=True,
         )
         assert result.returncode == 0, result.stderr
+
+
+def _write_staging_env_fixture(
+    path: Path, root: Path, *, token_secret: str = "A" * 43
+) -> str:
+    database_value = "staging-postgres-password-unique"
+    smtp_value = "staging-smtp-password-unique"
+    values = {
+        "ENVIRONMENT": "development",
+        "POSTGRES_PASSWORD": database_value,
+        "DATABASE_URL": f"postgresql+psycopg://exam:{database_value}@db:5432/internal_exam",
+        "ADMIN_USERNAME": "staging-admin",
+        "ADMIN_PASSWORD": "staging-admin-password-unique",
+        "PRIMARY_OPERATOR_USERNAME": "staging-primary",
+        "PRIMARY_OPERATOR_PASSWORD": "staging-primary-password-unique",
+        "BACKUP_OPERATOR_USERNAME": "staging-backup",
+        "BACKUP_OPERATOR_PASSWORD": "staging-backup-password-unique",
+        "BACKUP_OPERATOR_ENABLED": "false",
+        "TOKEN_SECRET": token_secret,
+        "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE": "smtp",
+        "CANDIDATE_LOGIN_EMAIL_FROM": "staging@example.test",
+        "CANDIDATE_LOGIN_SMTP_HOST": "smtp.example.test",
+        "CANDIDATE_LOGIN_SMTP_PORT": "587",
+        "CANDIDATE_LOGIN_SMTP_USERNAME": "staging-smtp",
+        "CANDIDATE_LOGIN_SMTP_PASSWORD": smtp_value,
+        "CANDIDATE_LOGIN_SMTP_USE_TLS": "true",
+        "CANDIDATE_LOGIN_SMTP_USE_SSL": "false",
+        "CANDIDATE_LOGIN_TEST_OTP": "",
+        "CANDIDATE_PUBLIC_BASE_URL": "http://127.0.0.1:18080",
+        "CORS_ORIGINS": "http://127.0.0.1:18080",
+        "ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT": "true",
+        "ACCOUNT_MIGRATION_DISPOSABLE_DATABASE": "true",
+        "INTERNAL_EXAM_LIFECYCLE_HOST_DIR": str(root / "lifecycle"),
+        "INTERNAL_EXAM_BACKUP_HOST_DIR": str(root / "backups"),
+        "INTERNAL_EXAM_EVIDENCE_HOST_DIR": str(root / "evidence"),
+        "INTERNAL_LAN_BIND_IP": "127.0.0.1",
+        "CANDIDATE_GATEWAY_PORT": "18080",
+        "OPERATOR_GATEWAY_PORT": "18081",
+        "POSTGRES_LOOPBACK_PORT": "15432",
+        "FRONTEND_LOOPBACK_PORT": "15173",
+        "GATEWAY_SUBNET": "172.31.0.0/24",
+        "GATEWAY_IP_RANGE": "172.31.0.128/25",
+        "CANDIDATE_GATEWAY_IP": "172.31.0.2",
+        "OPERATOR_GATEWAY_IP": "172.31.0.3",
+    }
+    path.write_text(
+        "".join(f"{name}={value}\n" for name, value in values.items()),
+        encoding="utf-8",
+    )
+    path.chmod(0o600)
+    return database_value
+
+
+def test_staging_environment_is_explicit_and_checked_before_docker() -> None:
+    common = (MACOS_OPS / "Common.zsh").read_text(encoding="utf-8")
+    initialize = (MACOS_OPS / "Initialize-InternalExamHost.zsh").read_text(
+        encoding="utf-8"
+    )
+    for name in (
+        "Invoke-Staging.zsh",
+        "Invoke-StagingRuntimeChecks.zsh",
+        "Invoke-StagingExternalChecks.zsh",
+        "Invoke-StagingBackupRestoreCheck.zsh",
+        "Promote-Release.zsh",
+    ):
+        staging = (MACOS_OPS / name).read_text(encoding="utf-8")
+        guard = 'macos_assert_staging_env "$MACOS_STAGING_ENV"'
+        assert guard in staging, name
+        assert staging.index(guard) < staging.index("macos_docker_ready"), name
+
+    assert 'macos_assert_staging_env "$env_file" true' in common
+    assert "set_staging_value ENVIRONMENT development" in initialize
+    assert "set_staging_value CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE smtp" in initialize
+    assert 'set_staging_value CANDIDATE_LOGIN_TEST_OTP ""' in initialize
+    assert "openssl rand -base64 32" in initialize
+    assert "staging DATABASE_URL must target the isolated Compose database" in common
+
+
+def test_empty_staging_environment_fails_before_any_docker_call(tmp_path: Path) -> None:
+    zsh = _require_macos_zsh()
+    root = tmp_path / "formal-root"
+    initialized = subprocess.run(  # noqa: S603
+        [zsh, str(MACOS_OPS / "Initialize-InternalExamHost.zsh"), "--root", str(root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert initialized.returncode == 0, initialized.stderr
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    marker = tmp_path / "docker-called"
+    fake_docker = fake_bin / "docker"
+    fake_docker.write_text(
+        f'#!/bin/zsh\nprint -r -- called > "{marker}"\n', encoding="utf-8"
+    )
+    fake_docker.chmod(0o700)
+    environment = os.environ.copy()
+    environment["PATH"] = f"{fake_bin}:/usr/bin:/bin"
+    result = subprocess.run(  # noqa: S603
+        [
+            zsh,
+            str(MACOS_OPS / "Invoke-Staging.zsh"),
+            "--action",
+            "Up",
+            "--release-path",
+            str(root / "releases" / "1.0.0"),
+            "--root",
+            str(root),
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "staging configuration field is missing: ENVIRONMENT" in result.stderr
+    assert not marker.exists(), "empty staging.env reached Docker readiness"
+
+
+def test_staging_sync_copies_formal_credentials_without_logging_them(
+    tmp_path: Path,
+) -> None:
+    zsh = _require_macos_zsh()
+    root = tmp_path / "formal-root"
+    initialized = subprocess.run(  # noqa: S603
+        [zsh, str(MACOS_OPS / "Initialize-InternalExamHost.zsh"), "--root", str(root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert initialized.returncode == 0, initialized.stderr
+    formal = root / "configuration" / "formal.env"
+    database_value = _write_staging_env_fixture(formal, root)
+    smtp_value = "staging-smtp-password-unique"
+
+    required_fields = (
+        "ENVIRONMENT",
+        "POSTGRES_PASSWORD",
+        "DATABASE_URL",
+        "ADMIN_USERNAME",
+        "ADMIN_PASSWORD",
+        "PRIMARY_OPERATOR_USERNAME",
+        "PRIMARY_OPERATOR_PASSWORD",
+        "BACKUP_OPERATOR_USERNAME",
+        "BACKUP_OPERATOR_PASSWORD",
+        "BACKUP_OPERATOR_ENABLED",
+        "TOKEN_SECRET",
+        "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE",
+        "CANDIDATE_LOGIN_EMAIL_FROM",
+        "CANDIDATE_LOGIN_SMTP_HOST",
+        "CANDIDATE_LOGIN_SMTP_PORT",
+        "CANDIDATE_LOGIN_SMTP_USE_TLS",
+        "CANDIDATE_LOGIN_SMTP_USE_SSL",
+        "CANDIDATE_PUBLIC_BASE_URL",
+        "CORS_ORIGINS",
+        "ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT",
+        "ACCOUNT_MIGRATION_DISPOSABLE_DATABASE",
+        "INTERNAL_EXAM_LIFECYCLE_HOST_DIR",
+        "INTERNAL_EXAM_BACKUP_HOST_DIR",
+        "INTERNAL_EXAM_EVIDENCE_HOST_DIR",
+        "INTERNAL_LAN_BIND_IP",
+        "CANDIDATE_GATEWAY_PORT",
+        "OPERATOR_GATEWAY_PORT",
+        "POSTGRES_LOOPBACK_PORT",
+        "FRONTEND_LOOPBACK_PORT",
+        "GATEWAY_SUBNET",
+        "GATEWAY_IP_RANGE",
+        "CANDIDATE_GATEWAY_IP",
+        "OPERATOR_GATEWAY_IP",
+    )
+    environment = os.environ.copy()
+    for field in required_fields:
+        environment.pop(field, None)
+    result = subprocess.run(  # noqa: S603
+        [
+            zsh,
+            str(MACOS_OPS / "Initialize-InternalExamHost.zsh"),
+            "--root",
+            str(root),
+            "--sync-staging-env",
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert database_value not in result.stdout
+    assert database_value not in result.stderr
+
+    staging = root / "configuration" / "staging.env"
+    assert staging.stat().st_mode & 0o777 == 0o600
+    rendered = dict(
+        line.split("=", 1)
+        for line in staging.read_text(encoding="utf-8").splitlines()
+        if "=" in line
+    )
+    assert re.fullmatch(r"[A-Za-z0-9_-]{43}", rendered["TOKEN_SECRET"])
+    assert rendered["TOKEN_SECRET"] != "A" * 43
+    assert rendered["TOKEN_SECRET"] not in result.stdout + result.stderr
+    assert rendered["POSTGRES_PASSWORD"] == database_value
+    assert rendered["CANDIDATE_LOGIN_SMTP_PASSWORD"] == smtp_value
+    assert rendered["ENVIRONMENT"] == "development"
+    assert rendered["CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE"] == "smtp"
+    assert rendered["CANDIDATE_LOGIN_TEST_OTP"] == ""
+    assert rendered["INTERNAL_LAN_BIND_IP"] == "127.0.0.1"
+    assert rendered["CANDIDATE_GATEWAY_PORT"] == "18080"
+    assert rendered["OPERATOR_GATEWAY_PORT"] == "18081"
+    assert rendered["POSTGRES_LOOPBACK_PORT"] == "15432"
+    assert rendered["FRONTEND_LOOPBACK_PORT"] == "15173"
+
+    repeated = subprocess.run(  # noqa: S603
+        [
+            zsh,
+            str(MACOS_OPS / "Initialize-InternalExamHost.zsh"),
+            "--root",
+            str(root),
+            "--sync-staging-env",
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert repeated.returncode == 0, repeated.stderr
+    repeated_secret = next(
+        line.split("=", 1)[1]
+        for line in staging.read_text(encoding="utf-8").splitlines()
+        if line.startswith("TOKEN_SECRET=")
+    )
+    assert re.fullmatch(r"[A-Za-z0-9_-]{43}", repeated_secret)
+    assert repeated_secret != rendered["TOKEN_SECRET"]
+    assert repeated_secret != "A" * 43
+    assert repeated_secret not in repeated.stdout + repeated.stderr
+
+
+@pytest.mark.parametrize("formal_token_secret", [None, "A" * 43])
+def test_staging_formal_token_secret_is_required_and_never_reused_for_docker(
+    tmp_path: Path, formal_token_secret: str | None
+) -> None:
+    zsh = _require_macos_zsh()
+    root = tmp_path / "formal-root"
+    initialized = subprocess.run(  # noqa: S603
+        [zsh, str(MACOS_OPS / "Initialize-InternalExamHost.zsh"), "--root", str(root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert initialized.returncode == 0, initialized.stderr
+
+    formal = root / "configuration" / "formal.env"
+    staging = root / "configuration" / "staging.env"
+    _write_staging_env_fixture(formal, root)
+    _write_staging_env_fixture(
+        staging,
+        root,
+        token_secret=formal_token_secret or "B" * 43,
+    )
+    if formal_token_secret is None:
+        formal.write_text(
+            formal.read_text(encoding="utf-8").replace(
+                f"TOKEN_SECRET={'A' * 43}\n", ""
+            ),
+            encoding="utf-8",
+        )
+        formal.chmod(0o600)
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    marker = tmp_path / "docker-called"
+    fake_docker = fake_bin / "docker"
+    fake_docker.write_text(
+        f'#!/bin/zsh\nprint -r -- called > "{marker}"\n', encoding="utf-8"
+    )
+    fake_docker.chmod(0o700)
+    environment = os.environ.copy()
+    environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
+    for name in (
+        "ENVIRONMENT",
+        "POSTGRES_PASSWORD",
+        "DATABASE_URL",
+        "ADMIN_USERNAME",
+        "ADMIN_PASSWORD",
+        "PRIMARY_OPERATOR_USERNAME",
+        "PRIMARY_OPERATOR_PASSWORD",
+        "BACKUP_OPERATOR_USERNAME",
+        "BACKUP_OPERATOR_PASSWORD",
+        "BACKUP_OPERATOR_ENABLED",
+        "TOKEN_SECRET",
+        "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE",
+        "CANDIDATE_LOGIN_EMAIL_FROM",
+        "CANDIDATE_LOGIN_SMTP_HOST",
+        "CANDIDATE_LOGIN_SMTP_PORT",
+        "CANDIDATE_LOGIN_SMTP_USERNAME",
+        "CANDIDATE_LOGIN_SMTP_PASSWORD",
+        "CANDIDATE_LOGIN_SMTP_USE_TLS",
+        "CANDIDATE_LOGIN_SMTP_USE_SSL",
+        "CANDIDATE_PUBLIC_BASE_URL",
+        "CORS_ORIGINS",
+        "ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT",
+        "ACCOUNT_MIGRATION_DISPOSABLE_DATABASE",
+        "INTERNAL_EXAM_LIFECYCLE_HOST_DIR",
+        "INTERNAL_EXAM_BACKUP_HOST_DIR",
+        "INTERNAL_EXAM_EVIDENCE_HOST_DIR",
+        "INTERNAL_LAN_BIND_IP",
+        "CANDIDATE_GATEWAY_PORT",
+        "OPERATOR_GATEWAY_PORT",
+        "POSTGRES_LOOPBACK_PORT",
+        "FRONTEND_LOOPBACK_PORT",
+        "GATEWAY_SUBNET",
+        "GATEWAY_IP_RANGE",
+        "CANDIDATE_GATEWAY_IP",
+        "OPERATOR_GATEWAY_IP",
+    ):
+        environment.pop(name, None)
+    result = subprocess.run(  # noqa: S603
+        [
+            zsh,
+            str(MACOS_OPS / "Invoke-Staging.zsh"),
+            "--action",
+            "Up",
+            "--release-path",
+            str(root / "releases" / "1.0.0"),
+            "--root",
+            str(root),
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    if formal_token_secret is None:
+        assert "formal TOKEN_SECRET is missing" in result.stderr
+    else:
+        assert (
+            "staging TOKEN_SECRET must differ from formal TOKEN_SECRET" in result.stderr
+        )
+    assert not marker.exists(), "invalid staging TOKEN_SECRET reached Docker readiness"
+    assert "A" * 43 not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    ("target_name", "replacement", "append"),
+    [
+        ("formal", 'TOKEN_SECRET="{stage}"', False),
+        ("formal", "TOKEN_SECRET='{stage}'", False),
+        ("formal", "TOKEN_SECRET={stage}", True),
+        ("staging", "TOKEN_SECRET={formal}", True),
+        ("staging", "export TOKEN_SECRET={formal}", True),
+        ("staging", "TOKEN_SECRET: {formal}", True),
+        ("staging", "OTHER='hidden\nFAKE=value\nCLOSE='", True),
+        ("staging", 'OTHER="hidden\\"\nFAKE=value\nCLOSE="', True),
+    ],
+)
+def test_staging_rejects_ambiguous_effective_signing_keys(
+    tmp_path: Path, target_name: str, replacement: str, append: bool
+) -> None:
+    zsh = _require_macos_zsh()
+    root = tmp_path / "formal-root"
+    configuration = root / "configuration"
+    configuration.mkdir(parents=True)
+    root.chmod(0o700)
+    configuration.chmod(0o700)
+    formal = configuration / "formal.env"
+    staging = configuration / "staging.env"
+    _write_staging_env_fixture(formal, root)
+    _write_staging_env_fixture(staging, root, token_secret="B" * 43)
+    target = formal if target_name == "formal" else staging
+    content = target.read_text(encoding="utf-8")
+    altered = replacement.format(formal="A" * 43, stage="B" * 43)
+    if append:
+        content += altered + "\n"
+    else:
+        content = content.replace("TOKEN_SECRET=" + "A" * 43, altered)
+    target.write_text(content, encoding="utf-8")
+    shell = (
+        'source "$1/Common.zsh"; macos_layout "$3"; '
+        'if macos_assert_staging_env "$2"; then exit 0; else exit 7; fi'
+    )
+    result = subprocess.run(  # noqa: S603
+        [zsh, "-c", shell, "contract", str(MACOS_OPS), str(staging), str(root)],
+        cwd=REPO_ROOT,
+        env={"PATH": os.environ["PATH"]},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 7
+    assert "canonical" in result.stderr or "duplicate field" in result.stderr
+    assert "A" * 43 not in result.stdout + result.stderr
+    assert "B" * 43 not in result.stdout + result.stderr
+
+
+def test_staging_shell_environment_override_is_rejected_without_secret_output(
+    tmp_path: Path,
+) -> None:
+    zsh = _require_macos_zsh()
+    root = tmp_path / "formal-root"
+    configuration = root / "configuration"
+    configuration.mkdir(parents=True)
+    formal = configuration / "formal.env"
+    staging = configuration / "staging.env"
+    database_value = _write_staging_env_fixture(formal, root)
+    _write_staging_env_fixture(staging, root, token_secret="B" * 43)
+    configuration.chmod(0o700)
+    root.chmod(0o700)
+
+    environment = os.environ.copy()
+    for line in staging.read_text(encoding="utf-8").splitlines():
+        environment.pop(line.partition("=")[0], None)
+    environment["CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE"] = "memory"
+    result = subprocess.run(  # noqa: S603
+        [
+            zsh,
+            "-c",
+            'source "$1/Common.zsh"; macos_assert_staging_env "$2"',
+            "contract",
+            str(MACOS_OPS),
+            str(staging),
+        ],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE" in result.stderr
+    assert "memory" not in result.stderr
+    assert database_value not in result.stdout + result.stderr
+
+
+def test_staging_runtime_path_exports_are_scoped_and_allowed_by_compose_recheck(
+    tmp_path: Path,
+) -> None:
+    zsh = _require_macos_zsh()
+    root = tmp_path / "formal-root"
+    configuration = root / "configuration"
+    configuration.mkdir(parents=True)
+    formal = configuration / "formal.env"
+    staging = configuration / "staging.env"
+    _write_staging_env_fixture(formal, root)
+    _write_staging_env_fixture(staging, root, token_secret="B" * 43)
+    configuration.chmod(0o700)
+    root.chmod(0o700)
+    staging_root = root / "staging" / "abcdef123456"
+    for directory in (
+        staging_root,
+        staging_root / "lifecycle",
+        staging_root / "backups",
+        staging_root / "evidence",
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+        directory.chmod(0o700)
+
+    required_fields = (
+        "ENVIRONMENT",
+        "POSTGRES_PASSWORD",
+        "DATABASE_URL",
+        "ADMIN_USERNAME",
+        "ADMIN_PASSWORD",
+        "PRIMARY_OPERATOR_USERNAME",
+        "PRIMARY_OPERATOR_PASSWORD",
+        "BACKUP_OPERATOR_USERNAME",
+        "BACKUP_OPERATOR_PASSWORD",
+        "BACKUP_OPERATOR_ENABLED",
+        "TOKEN_SECRET",
+        "CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE",
+        "CANDIDATE_LOGIN_EMAIL_FROM",
+        "CANDIDATE_LOGIN_SMTP_HOST",
+        "CANDIDATE_LOGIN_SMTP_PORT",
+        "CANDIDATE_LOGIN_SMTP_USE_TLS",
+        "CANDIDATE_LOGIN_SMTP_USE_SSL",
+        "CANDIDATE_PUBLIC_BASE_URL",
+        "CORS_ORIGINS",
+        "ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT",
+        "ACCOUNT_MIGRATION_DISPOSABLE_DATABASE",
+        "INTERNAL_LAN_BIND_IP",
+        "CANDIDATE_GATEWAY_PORT",
+        "OPERATOR_GATEWAY_PORT",
+        "POSTGRES_LOOPBACK_PORT",
+        "FRONTEND_LOOPBACK_PORT",
+        "GATEWAY_SUBNET",
+        "GATEWAY_IP_RANGE",
+        "CANDIDATE_GATEWAY_IP",
+        "OPERATOR_GATEWAY_IP",
+    )
+    environment = os.environ.copy()
+    for field in required_fields:
+        environment.pop(field, None)
+    environment.update(
+        {
+            "INTERNAL_EXAM_LIFECYCLE_HOST_DIR": str(staging_root / "lifecycle"),
+            "INTERNAL_EXAM_BACKUP_HOST_DIR": str(staging_root / "backups"),
+            "INTERNAL_EXAM_EVIDENCE_HOST_DIR": str(staging_root / "evidence"),
+        }
+    )
+    shell = (
+        'source "$1/Common.zsh"; macos_layout "$3"; macos_assert_staging_env "$2" true'
+    )
+    result = subprocess.run(  # noqa: S603
+        [zsh, "-c", shell, "contract", str(MACOS_OPS), str(staging), str(root)],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+    environment["INTERNAL_EXAM_EVIDENCE_HOST_DIR"] = str(tmp_path / "outside")
+    rejected = subprocess.run(  # noqa: S603
+        [zsh, "-c", shell, "contract", str(MACOS_OPS), str(staging), str(root)],
+        cwd=REPO_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    assert rejected.returncode != 0
+    assert "outside the protected staging root" in rejected.stderr

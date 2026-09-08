@@ -68,7 +68,6 @@ DISPOSABLE_PROJECT_PATTERN = re.compile(
 MAX_MEDIA_ARCHIVE_MEMBERS = 100_000
 MAX_MEDIA_ARCHIVE_BYTES = 512 * 1024 * 1024
 
-IN_PROGRESS_SQL = "SELECT count(*) FROM exam_attempt WHERE status = 'in_progress'"
 MIGRATION_HEAD_SQL = "SELECT version_num FROM alembic_version"
 TABLE_COUNTS_SQL = " UNION ALL ".join(
     f"SELECT '{table_name}=' || count(*) FROM {table_name}"  # noqa: S608
@@ -112,20 +111,6 @@ def _run_command(command: list[str]) -> None:
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise BackupCommandError("运维命令执行失败，未输出命令参数或凭据。") from exc
-
-
-def _run_to_file(command: list[str], destination: Path) -> None:
-    try:
-        with destination.open("wb") as output:
-            subprocess.run(  # noqa: S603
-                command,
-                cwd=REPO_ROOT,
-                check=True,
-                stdout=output,
-                stderr=subprocess.PIPE,
-            )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise BackupCommandError("备份产物创建失败，未输出命令参数或凭据。") from exc
 
 
 def _run_to_file_env(
@@ -588,109 +573,6 @@ def validate_cutover_backup(
     return manifest
 
 
-def create_backup(
-    output_root: Path,
-    env_file: Path,
-    now: datetime | None = None,
-    *,
-    dataset_id: str | None = None,
-    writer_generation: int | None = None,
-    source_host_id: str | None = None,
-) -> Path:
-    """Create a consistent paired backup during a declared maintenance window."""
-
-    created_at = (now or datetime.now(UTC)).astimezone(UTC)
-    backup_dir = output_root.expanduser().resolve() / created_at.strftime(
-        "backup-%Y%m%dT%H%M%SZ"
-    )
-    backup_dir.mkdir(parents=True, exist_ok=False)
-    compose = _compose_command(env_file.expanduser().resolve())
-
-    in_progress = _parse_non_negative_integer(
-        _run_capture(_database_capture_command(compose, IN_PROGRESS_SQL)),
-        "in-progress exam count",
-    )
-    if in_progress:
-        raise BackupValidationError(
-            "维护窗口无效：仍有进行中的考试，拒绝创建配对备份。"
-        )
-
-    migration_head = _run_capture(
-        _database_capture_command(compose, MIGRATION_HEAD_SQL)
-    ).strip()
-    if not migration_head:
-        raise BackupValidationError("无法读取数据库迁移版本。")
-    table_counts = _parse_table_counts(
-        _run_capture(_database_capture_command(compose, TABLE_COUNTS_SQL))
-    )
-    media_file_count = _parse_non_negative_integer(
-        _run_capture(
-            [
-                *compose,
-                "exec",
-                "-T",
-                "backend",
-                "sh",
-                "-c",
-                "find /app/learning-media -type f | wc -l",
-            ]
-        ),
-        "media file count",
-    )
-
-    _run_to_file(
-        [
-            *compose,
-            "exec",
-            "-T",
-            "db",
-            "pg_dump",
-            "-U",
-            "exam",
-            "-d",
-            "internal_exam",
-            "--format=custom",
-        ],
-        backup_dir / DATABASE_DUMP_NAME,
-    )
-    _run_to_file(
-        [
-            *compose,
-            "exec",
-            "-T",
-            "backend",
-            "tar",
-            "-C",
-            "/app/learning-media",
-            "-czf",
-            "-",
-            ".",
-        ],
-        backup_dir / MEDIA_ARCHIVE_NAME,
-    )
-    manifest: dict[str, object] = {
-        "format_version": 1,
-        "created_at": created_at.isoformat(),
-        "migration_head": migration_head,
-        "table_counts": table_counts,
-        "media_file_count": media_file_count,
-    }
-    manifest.update(
-        {
-            name: value
-            for name, value in (
-                ("dataset_id", dataset_id),
-                ("writer_generation", writer_generation),
-                ("source_host_id", source_host_id),
-            )
-            if value is not None
-        }
-    )
-    finalize_backup(backup_dir, manifest)
-    validate_backup(backup_dir)
-    return backup_dir
-
-
 def create_container_backup(
     *,
     db: Session,
@@ -1047,13 +929,6 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="内部部署配对备份与恢复校验")
     subparsers = parser.add_subparsers(dest="action", required=True)
 
-    backup_parser = subparsers.add_parser("backup", help="创建配对备份")
-    backup_parser.add_argument("--output-root", type=Path, default=Path("backups"))
-    backup_parser.add_argument("--env-file", type=Path, default=Path(".env"))
-    backup_parser.add_argument("--dataset-id")
-    backup_parser.add_argument("--writer-generation", type=int)
-    backup_parser.add_argument("--source-host-id")
-
     container_parser = subparsers.add_parser(
         "container-backup", help="在版本化一次性容器中创建配对备份"
     )
@@ -1127,16 +1002,7 @@ def _validate_container_backup_identity(args: argparse.Namespace) -> None:
 def main() -> int:
     args = _build_parser().parse_args()
     try:
-        if args.action == "backup":
-            backup_dir = create_backup(
-                args.output_root,
-                args.env_file,
-                dataset_id=args.dataset_id,
-                writer_generation=args.writer_generation,
-                source_host_id=args.source_host_id,
-            )
-            sys.stdout.write(f"配对备份已创建并校验：{backup_dir}\n")
-        elif args.action == "container-backup":
+        if args.action == "container-backup":
             _validate_container_backup_identity(args)
             from app.core.config import settings
             from app.core.database import SessionLocal

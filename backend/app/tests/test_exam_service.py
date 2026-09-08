@@ -415,6 +415,7 @@ def test_start_exam_exam_not_found(db: Session) -> None:
 def test_start_exam_exam_not_active(db: Session) -> None:
     exam = create_exam(db, status="draft")
     candidate = create_candidate(db)
+    add_exam_candidate_scope(db, exam.id, candidate.id)
     with pytest.raises(ExamNotActiveError):
         exam_service.start_exam(db, exam.id, candidate.id)
 
@@ -430,7 +431,7 @@ def test_start_exam_rejects_candidate_outside_exam_scope(db: Session) -> None:
     candidate = create_candidate(db)
     create_question_with_options(db)
 
-    with pytest.raises(CandidateNotEligibleError):
+    with pytest.raises(ExamNotFoundError):
         exam_service.start_exam(db, exam.id, candidate.id)
 
 

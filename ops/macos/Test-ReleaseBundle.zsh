@@ -4,8 +4,22 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 self_release_path="${SCRIPT_DIR:h:h}"
 if [[ -f "$self_release_path/release-manifest.json" ]]; then
-  [[ "${INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED:-}" == 1 && "${INTERNAL_EXAM_TRUSTED_RELEASE_PATH:-}" == "$self_release_path" ]] || {
-    print -u2 -- "macOS operation failed: bundled verifier requires prior external trusted-runtime verification"
+  typeset -a trusted_argv=("$@")
+  trusted_root="${INTERNAL_EXAM_ROOT:-${HOME:?}/Library/Application Support/InternalExam}"
+  for (( trusted_index = 1; trusted_index <= ${#trusted_argv[@]}; trusted_index += 1 )); do
+    if [[ "${trusted_argv[trusted_index]}" == --root ]]; then
+      (( trusted_index < ${#trusted_argv[@]} )) || { print -u2 -- "macOS operation failed: bundled verifier root is missing"; exit 1; }
+      trusted_root="${trusted_argv[trusted_index + 1]}"
+      (( trusted_index += 1 ))
+    fi
+  done
+  trusted_state="$trusted_root/state/current-release.json"
+  trusted_commit="$(/usr/bin/plutil -extract gitCommit raw -o - -- "$trusted_state" 2>/dev/null || true)"
+  [[ "$trusted_commit" =~ '^[0-9a-fA-F]{40}$' ]] || { print -u2 -- "macOS operation failed: bundled verifier cannot locate trusted runtime"; exit 1; }
+  trusted_runtime="$trusted_root/state/trusted-runtime-${trusted_commit:l}"
+  [[ -d "$trusted_runtime" && ! -L "$trusted_runtime" && -x "$trusted_runtime/Trusted-LaunchAgent.zsh" && ! -L "$trusted_runtime/Trusted-LaunchAgent.zsh" ]] || { print -u2 -- "macOS operation failed: bundled verifier trusted runtime is missing"; exit 1; }
+  "$trusted_runtime/Trusted-LaunchAgent.zsh" --verify-release --release-path "$self_release_path" --root "$trusted_root" >/dev/null || {
+    print -u2 -- "macOS operation failed: bundled verifier requires external signature verification"
     exit 1
   }
 fi
@@ -209,9 +223,7 @@ if [[ "$identity_status" == passed && "$security_status" == passed ]]; then
 
   scanner_evidence_dir="$release_path/release-evidence/scanner-evidence"
   scanner_evidence_manifest="$scanner_evidence_dir/scanner-evidence-manifest.json"
-  if [[ -n "${INTERNAL_EXAM_TRUSTED_RUNTIME_DIR:-}" ]]; then
-    trusted_evaluator="$INTERNAL_EXAM_TRUSTED_RUNTIME_DIR/evaluate_scans.py"
-  elif [[ -f "$SCRIPT_DIR/evaluate_scans.py" ]]; then
+  if [[ -f "$SCRIPT_DIR/evaluate_scans.py" ]]; then
     trusted_evaluator="$SCRIPT_DIR/evaluate_scans.py"
   else
     trusted_evaluator="$SCRIPT_DIR/../security/evaluate_scans.py"

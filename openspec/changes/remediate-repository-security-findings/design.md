@@ -4,6 +4,8 @@ See `proposal.md` and the seven delta specs. The current single-backend controll
 
 The final implementation review also covered five narrower paths: unbounded candidate answer-save payloads, sparse or inflated XLSX worksheet dimensions, eager practice-catalog reads, credential persistence in non-browser pull-request jobs, and backup freezes stranded by ordinary post-acquisition failures.
 
+The sealed follow-up Standard scan `64dd55a5-63dd-476f-9d45-354b5ff7182a` at revision `94261ef3c4a6d753ba429bf92661e1b37b307a73` kept those original fifteen plus five review paths closed and reported nine distinct follow-up identities. They remain separately tracked as 5.16–5.24 until their implementation and verification are complete; the 6.4/6.5/6.6 gates remain independent evidence requirements.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -75,6 +77,16 @@ The browser E2E container no longer receives Docker CLI or the host Docker socke
 
 Exam answer saves validate payload shape and attempt membership before mutation. XLSX import rejects logical worksheet widths before row iteration. Practice catalog reads use stable, bounded pages and the existing candidate limiter. Every pull-request checkout disables credential persistence under a read-only workflow token. Backup finalization catches ordinary post-acquisition failures long enough to release the owned freeze, then re-raises the original error.
 
+### 11. Track the follow-up scan at shared boundaries
+
+The public limiter caps rejected-key state before allocation. Candidate mutation routes rate-limit before advisory or row locks, while read-only attempt retrieval avoids mutation locks. Learning progress caps watched intervals and catalog responses use stable pages no larger than 100. Retention schemas and services share one target-ID cap. Background invitation delivery reacquires the writer/backup guard, all paired-backup entrypoints use the frozen path, and bundled macOS lifecycle scripts validate the external release trust root before sourcing bundle code.
+
+### 12. Keep first commissioning and staging explicit
+
+Restore the existing generation-1 evidence model through one trusted-checkout `Initialize-FormalWriter.zsh` entrypoint. `Prepare` creates only checksummed pending identity/current state and fresh volume names; `Activate` may clear `bootstrapPending` only after binding the exact signed release, accepted staging bundle, paired backup, restore drill, formal preflight, browser smoke, privileged network/time, and Docker-settings evidence under the writer fence. Interrupted runs remain pending and resumable; operators never synthesize current state by hand.
+
+`staging.env` is an owner-only snapshot synchronized from the protected formal configuration, then narrowed to a fixed loopback-only disposable project with its own random canonical signing key. Its development profile is explicit because the fresh staging database needs the existing disposable-migration acknowledgements; real SMTP, no fixed test OTP, canonical secrets, exact ports, and a dedicated gateway network remain mandatory. Every staging entrypoint validates the snapshot and rejects empty fields, missing formal signing keys, shared formal/staging signing keys, or conflicting caller environment values before Docker runs. Independent keys isolate candidate, admin, and playback subjects without adding a token protocol or changing formal sessions.
+
 ## Risks / Trade-offs
 
 - [Strict token-secret validation prevents a new release from starting with the old secret] → Rotate to a compliant secret on the old compatible release during a write-frozen maintenance window, then install the strict signed release; keep the new secret across rollback.
@@ -83,6 +95,7 @@ Exam answer saves validate payload shape and attempt membership before mutation.
 - [Signed release enforcement can strand an unsigned rollback version] → Revalidate and sign both current and previous before enabling strict install/start gates; do not add a long-lived bypass.
 - [Static Docker subnets can conflict with local VPN/Docker networks] → Require operator-selected formal/staging values and block preflight on overlap rather than widening trust.
 - [Offset pagination can shift while new practice rows arrive] → Stable `(last_practiced_at DESC, question_id DESC)` ordering and first-phase read-only page UX are accepted; cursor pagination is deferred until measured need.
+- [Staging uses the development application profile for a disposable fresh database] → Generate it only from protected formal configuration, require real SMTP and canonical credentials, pin loopback/network values, and fail before Docker on missing or inherited overrides.
 
 ## Migration Plan
 

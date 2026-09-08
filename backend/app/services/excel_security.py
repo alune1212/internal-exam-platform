@@ -5,6 +5,7 @@ import re
 import stat
 import zipfile
 from typing import Any
+from xml.parsers import expat
 from zipfile import BadZipFile
 
 from app.core.exceptions import DomainError
@@ -17,6 +18,7 @@ MAX_XLSX_MEMBER_BYTES = 20 * 1024 * 1024
 MAX_XLSX_TOTAL_BYTES = 50 * 1024 * 1024
 MAX_XLSX_COMPRESSION_RATIO = 100
 REQUIRED_XLSX_MEMBERS = frozenset({"[Content_Types].xml", "xl/workbook.xml"})
+_XML_SCAN_CHUNK_BYTES = 64 * 1024
 _WINDOWS_DRIVE_PATH = re.compile(r"^[A-Za-z]:")
 
 
@@ -33,11 +35,12 @@ class ExcelSecurityLimitError(ExcelSecurityError):
 
 
 def preflight_xlsx(file_obj: Any) -> None:
-    """Validate XLSX ZIP metadata without reading any member contents.
+    """Validate XLSX ZIP metadata and XML parser behavior before openpyxl.
 
     The workbook parser must only see packages whose central directory has
-    already passed these bounds.  This keeps ZIP expansion limits independent
-    of whichever parser is used by an importer.
+    already passed these bounds and whose bounded members contain no DTD.
+    Streaming each member through Expat keeps this guard independent of XML
+    part names and whichever parser is used by an importer.
     """
 
     try:
@@ -48,48 +51,58 @@ def preflight_xlsx(file_obj: Any) -> None:
                 raise ExcelSecurityLimitError(
                     f"XLSX 压缩包不能超过 {MAX_XLSX_MEMBERS} 个文件"
                 )
+            names: set[str] = set()
+            total_size = 0
+            for member in members:
+                name = member.filename
+                if name in names:
+                    raise ExcelSecurityError("XLSX 压缩包包含重复文件名")
+                names.add(name)
+                _validate_member_name(name, member)
+
+                compressed_size = member.compress_size
+                expanded_size = member.file_size
+                if (
+                    not isinstance(compressed_size, int)
+                    or not isinstance(expanded_size, int)
+                    or compressed_size < 0
+                    or expanded_size < 0
+                ):
+                    raise ExcelSecurityError("XLSX 压缩包文件大小元数据无效")
+                if compressed_size == 0 and expanded_size > 0:
+                    raise ExcelSecurityError("XLSX 压缩包包含无效的零压缩文件")
+                if expanded_size > MAX_XLSX_MEMBER_BYTES:
+                    raise ExcelSecurityLimitError(
+                        f"XLSX 压缩包单个文件不能超过 {MAX_XLSX_MEMBER_BYTES} 字节"
+                    )
+                total_size += expanded_size
+                if total_size > MAX_XLSX_TOTAL_BYTES:
+                    raise ExcelSecurityLimitError(
+                        f"XLSX 压缩包展开后不能超过 {MAX_XLSX_TOTAL_BYTES} 字节"
+                    )
+                if (
+                    compressed_size
+                    and expanded_size > compressed_size * MAX_XLSX_COMPRESSION_RATIO
+                ):
+                    raise ExcelSecurityLimitError("XLSX 压缩包文件压缩比不能超过 100:1")
+
+            missing = REQUIRED_XLSX_MEMBERS.difference(names)
+            if missing:
+                raise ExcelSecurityError("XLSX 压缩包缺少必要的 Office 文件")
+
             _validate_local_headers(archive, members)
-    except (AttributeError, OSError, ValueError, zipfile.BadZipFile) as exc:
+            _validate_xml_members(archive, members)
+    except (
+        AttributeError,
+        EOFError,
+        OSError,
+        NotImplementedError,
+        RuntimeError,
+        UnicodeError,
+        ValueError,
+        zipfile.BadZipFile,
+    ) as exc:
         raise ExcelSecurityError("导入文件不是有效的 XLSX 压缩包") from exc
-
-    names: set[str] = set()
-    total_size = 0
-    for member in members:
-        name = member.filename
-        if name in names:
-            raise ExcelSecurityError("XLSX 压缩包包含重复文件名")
-        names.add(name)
-        _validate_member_name(name, member)
-
-        compressed_size = member.compress_size
-        expanded_size = member.file_size
-        if (
-            not isinstance(compressed_size, int)
-            or not isinstance(expanded_size, int)
-            or compressed_size < 0
-            or expanded_size < 0
-        ):
-            raise ExcelSecurityError("XLSX 压缩包文件大小元数据无效")
-        if compressed_size == 0 and expanded_size > 0:
-            raise ExcelSecurityError("XLSX 压缩包包含无效的零压缩文件")
-        if expanded_size > MAX_XLSX_MEMBER_BYTES:
-            raise ExcelSecurityLimitError(
-                f"XLSX 压缩包单个文件不能超过 {MAX_XLSX_MEMBER_BYTES} 字节"
-            )
-        total_size += expanded_size
-        if total_size > MAX_XLSX_TOTAL_BYTES:
-            raise ExcelSecurityLimitError(
-                f"XLSX 压缩包展开后不能超过 {MAX_XLSX_TOTAL_BYTES} 字节"
-            )
-        if (
-            compressed_size
-            and expanded_size > compressed_size * MAX_XLSX_COMPRESSION_RATIO
-        ):
-            raise ExcelSecurityLimitError("XLSX 压缩包文件压缩比不能超过 100:1")
-
-    missing = REQUIRED_XLSX_MEMBERS.difference(names)
-    if missing:
-        raise ExcelSecurityError("XLSX 压缩包缺少必要的 Office 文件")
 
 
 def _validate_member_name(name: str, member: zipfile.ZipInfo) -> None:
@@ -123,6 +136,32 @@ def _validate_local_headers(
             handle.close()
     except (BadZipFile, NotImplementedError, RuntimeError, UnicodeError) as exc:
         raise ExcelSecurityError("XLSX 压缩包本地文件头无效") from exc
+
+
+def _reject_doctype(
+    _doctype_name: str,
+    _system_id: str | None,
+    _public_id: str | None,
+    _has_internal_subset: int,
+) -> None:
+    raise ExcelSecurityError("XLSX XML 内容禁止 DOCTYPE")
+
+
+def _validate_xml_members(
+    archive: zipfile.ZipFile, members: list[zipfile.ZipInfo]
+) -> None:
+    """Reject DTDs while tolerating non-XML ZIP members."""
+
+    for member in members:
+        parser = expat.ParserCreate()
+        parser.StartDoctypeDeclHandler = _reject_doctype
+        try:
+            with archive.open(member) as source:
+                while chunk := source.read(_XML_SCAN_CHUNK_BYTES):
+                    parser.Parse(chunk, False)
+            parser.Parse(b"", True)
+        except expat.ExpatError:
+            continue
 
 
 def escape_excel_cell(value: object) -> object:

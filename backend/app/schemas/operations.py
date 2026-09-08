@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+MAX_RETENTION_SELECTION_IDS = 5_000
+
 
 class SessionClosureReadiness(BaseModel):
     ready: bool
@@ -33,7 +35,7 @@ class RetentionPreviewRead(BaseModel):
 
 
 class RetentionArchiveRequest(BaseModel):
-    exam_ids: list[int]
+    exam_ids: list[int] = Field(min_length=1, max_length=MAX_RETENTION_SELECTION_IDS)
     preview_fingerprint: str
 
 
@@ -46,7 +48,7 @@ class RetentionArchiveRead(BaseModel):
 
 
 class RetentionDeleteRequest(BaseModel):
-    exam_ids: list[int]
+    exam_ids: list[int] = Field(min_length=1, max_length=MAX_RETENTION_SELECTION_IDS)
     preview_fingerprint: str
     archive_id: str
     backup_id: str

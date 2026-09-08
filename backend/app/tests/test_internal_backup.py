@@ -123,6 +123,9 @@ def test_cutover_backup_kind_requires_identity_and_is_retention_safe(
 
 def test_container_backup_cutover_kind_requires_explicit_fence_flag() -> None:
     parser = internal_backup._build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["backup"])
+
     missing_flag = parser.parse_args(
         [
             "container-backup",
@@ -256,94 +259,6 @@ def test_validate_cross_host_backup_rejects_media_size_limit(
 def test_restore_project_name_must_be_disposable(project_name: str) -> None:
     with pytest.raises(internal_backup.BackupValidationError, match="disposable"):
         internal_backup.assert_disposable_project_name(project_name)
-
-
-def test_create_backup_writes_paired_artifacts_and_success_marker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    captures: list[list[str]] = []
-    writes: list[list[str]] = []
-
-    def capture(command: list[str]) -> str:
-        captures.append(command)
-        rendered = " ".join(command)
-        if "status = 'in_progress'" in rendered:
-            return "0\n"
-        if "alembic_version" in rendered:
-            return "202607210001\n"
-        if "candidate=" in rendered:
-            return (
-                "candidate=2\nquestion=50\nexam=1\nexam_attempt=2\nlearning_video=1\n"
-            )
-        if "find /app/learning-media" in rendered:
-            return "1\n"
-        raise AssertionError(rendered)
-
-    def write_command(command: list[str], destination: Path) -> None:
-        writes.append(command)
-        destination.write_bytes(" ".join(command).encode())
-
-    monkeypatch.setattr(internal_backup, "_run_capture", capture)
-    monkeypatch.setattr(internal_backup, "_run_to_file", write_command)
-
-    backup_dir = internal_backup.create_backup(
-        output_root=tmp_path,
-        env_file=tmp_path / ".env",
-        now=datetime(2026, 7, 10, tzinfo=UTC),
-    )
-
-    assert backup_dir.name == "backup-20260710T000000Z"
-    assert internal_backup.validate_backup(backup_dir)["media_file_count"] == 1
-    assert any("pg_dump" in command for command in writes)
-    assert any(
-        "backend" in command
-        and any("/app/learning-media" in argument for argument in command)
-        for command in captures
-    )
-    assert any(
-        "backend" in command
-        and "tar" in command
-        and any("/app/learning-media" in argument for argument in command)
-        for command in writes
-    )
-
-
-def test_create_backup_failure_never_writes_success_marker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def capture(command: list[str]) -> str:
-        rendered = " ".join(command)
-        if "status = 'in_progress'" in rendered:
-            return "0\n"
-        if "alembic_version" in rendered:
-            return "202607210001\n"
-        if "candidate=" in rendered:
-            return "candidate=0\nquestion=0\nexam=0\nexam_attempt=0\nlearning_video=0\n"
-        if "find /app/learning-media" in rendered:
-            return "0\n"
-        raise AssertionError(rendered)
-
-    calls = 0
-
-    def fail_second_artifact(_command: list[str], destination: Path) -> None:
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            raise internal_backup.BackupCommandError("media backup failed")
-        destination.write_bytes(b"database")
-
-    monkeypatch.setattr(internal_backup, "_run_capture", capture)
-    monkeypatch.setattr(internal_backup, "_run_to_file", fail_second_artifact)
-
-    with pytest.raises(internal_backup.BackupCommandError):
-        internal_backup.create_backup(
-            output_root=tmp_path,
-            env_file=tmp_path / ".env",
-            now=datetime(2026, 7, 10, tzinfo=UTC),
-        )
-
-    backup_dir = tmp_path / "backup-20260710T000000Z"
-    assert not (backup_dir / internal_backup.SUCCESS_MARKER_NAME).exists()
 
 
 def test_verify_restore_uses_disposable_resources_and_cleans_up(

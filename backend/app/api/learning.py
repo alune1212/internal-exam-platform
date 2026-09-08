@@ -1,12 +1,13 @@
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id
+from app.core.rate_limit import check_public_token_rate_limit
 from app.schemas.common import ApiResponse
 from app.schemas.learning import (
     CandidateLearningVideoRead,
@@ -24,10 +25,23 @@ admin_router = APIRouter(prefix="/admin/learning", tags=["admin-learning"])
 
 @router.get("/videos", response_model=ApiResponse[list[CandidateLearningVideoRead]])
 def list_learning_videos(
+    request: Request,
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=2**31 - 1),
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[list[CandidateLearningVideoRead]]:
-    return ApiResponse(data=learning_service.list_candidate_videos(db, candidate_id))
+    check_public_token_rate_limit(
+        request,
+        bucket="learning-videos",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
+    return ApiResponse(
+        data=learning_service.list_candidate_videos(
+            db, candidate_id, limit=limit, offset=offset
+        )
+    )
 
 
 @router.get(
@@ -69,9 +83,16 @@ def playback_learning_video(
 def update_learning_progress(
     video_id: int,
     payload: LearningProgressUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[LearningVideoProgressRead]:
+    check_public_token_rate_limit(
+        request,
+        bucket="learning-progress",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     return ApiResponse(
         data=learning_service.update_progress(db, candidate_id, video_id, payload)
     )

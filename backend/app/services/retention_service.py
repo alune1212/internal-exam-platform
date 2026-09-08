@@ -31,6 +31,7 @@ from app.models import (
 )
 from app.ops.internal_backup import BackupValidationError, validate_backup
 from app.schemas.operations import (
+    MAX_RETENTION_SELECTION_IDS,
     RetentionArchiveRead,
     RetentionDeleteRead,
     RetentionExamPreview,
@@ -207,12 +208,21 @@ def preview_retention(
     )
 
 
-def _eligible_rows(
-    preview: RetentionPreviewRead, exam_ids: list[int], fingerprint: str
-) -> list[RetentionExamPreview]:
+def _normalize_exam_ids(exam_ids: list[int]) -> list[int]:
+    if len(exam_ids) > MAX_RETENTION_SELECTION_IDS:
+        raise RetentionSafeguardError(
+            f"一次最多选择 {MAX_RETENTION_SELECTION_IDS} 个考试。"
+        )
     normalized_ids = sorted(set(exam_ids))
     if not normalized_ids or normalized_ids != sorted(exam_ids):
         raise RetentionSafeguardError("必须提供非空、唯一且有序的考试 ID。")
+    return normalized_ids
+
+
+def _eligible_rows(
+    preview: RetentionPreviewRead, exam_ids: list[int], fingerprint: str
+) -> list[RetentionExamPreview]:
+    normalized_ids = _normalize_exam_ids(exam_ids)
     if preview.fingerprint != fingerprint:
         raise RetentionSafeguardError("保留预览已过期，请重新预览。")
     rows_by_id = {row.exam_id: row for row in preview.exams}
@@ -380,6 +390,7 @@ def create_retention_archive(
     operator_subject: str,
     now: datetime | None = None,
 ) -> RetentionArchiveRead:
+    _normalize_exam_ids(exam_ids)
     assert_admin_mutation_allowed(db)
     created_at = to_utc(now or datetime.now(UTC))
     preview = preview_retention(db, now=created_at)
@@ -730,6 +741,7 @@ def delete_retained_exams(
     operator_subject: str,
     now: datetime | None = None,
 ) -> RetentionDeleteRead:
+    _normalize_exam_ids(exam_ids)
     assert_admin_mutation_allowed(db)
     deleted_at = to_utc(now or datetime.now(UTC))
     preview = preview_retention(db, now=deleted_at)

@@ -42,3 +42,16 @@ A practice-detail archive MUST bind exact immutable answer rows, affected aggreg
 #### Scenario: Practice archive deletion races with new state
 - **WHEN** the preview fingerprint, archived row content, aggregate state, account lock, archive checksum, or paired backup no longer matches
 - **THEN** deletion fails closed and leaves every source detail and aggregate unchanged
+
+### Requirement: Bounded Retention Target Selection
+Synchronous exam and practice-retention operations MUST accept no more than the shared maximum of 5000 target identifiers, and the same bound MUST be enforced when services normalize direct calls. The bound MUST be checked before sorting identifiers, querying source rows, or constructing an archive.
+
+#### Scenario: Retention request contains too many target identifiers
+- **GIVEN** an administrator submits more than 5000 exam or candidate identifiers
+- **WHEN** the retention operation validates the request
+- **THEN** it returns the stable validation response before sorting, querying, or archiving
+
+#### Scenario: Retention request is exactly at the maximum
+- **GIVEN** an administrator submits exactly 5000 valid target identifiers
+- **WHEN** the retention operation validates the request
+- **THEN** the request passes the selection-size guard and proceeds to normal authorization and preview checks

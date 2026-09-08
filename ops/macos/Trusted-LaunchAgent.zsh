@@ -85,14 +85,31 @@ fi
 
 action="${1:-}"
 shift || true
+[[ "$action" == --verify-release ]] && action=verify-release
 root="${INTERNAL_EXAM_ROOT:-${HOME:?}/Library/Application Support/InternalExam}"
+verify_release_path=""
 while (( $# > 0 )); do
   case "$1" in
+    --verify-release) action=verify-release; shift ;;
+    --release-path) (( $# >= 2 )) || runtime_die "--release-path requires a path"; verify_release_path="$2"; shift 2 ;;
     --root) (( $# >= 2 )) || runtime_die "--root requires a path"; root="$2"; shift 2 ;;
     *) runtime_die "unknown trusted launcher argument: $1"; exit 1 ;;
   esac
 done
-[[ "$action" == bootstrap || "$action" == opportunistic-backup ]] || runtime_die "unsupported LaunchAgent action"
+[[ "$action" == bootstrap || "$action" == opportunistic-backup || "$action" == verify-release ]] || runtime_die "unsupported LaunchAgent action"
+
+if [[ "$action" == verify-release ]]; then
+  [[ -n "$verify_release_path" ]] || runtime_die "--release-path is required"
+  source "$runtime_dir/Common.zsh"
+  macos_assert_macos
+  macos_assert_outside_worktree "$root" >/dev/null
+  macos_assert_protected_configuration "$root"
+  macos_layout "$root"
+  verify_release_path="$(macos_resolve_path "$verify_release_path")"
+  [[ -d "$verify_release_path" && ! -L "$verify_release_path" ]] || macos_die "release directory is missing or a symlink"
+  "$runtime_dir/Test-ReleaseBundle.zsh" --release-path "$verify_release_path" --root "$root" >/dev/null
+  exit 0
+fi
 
 # Runtime support is now hash-validated.  All release and state handling below
 # is performed by this trusted copy of Common.zsh and Test-ReleaseBundle.zsh.
@@ -123,7 +140,4 @@ case "$action" in
 esac
 [[ -f "$action_script" && ! -L "$action_script" && -x "$action_script" ]] || macos_die "selected release LaunchAgent action is missing or not executable"
 
-export INTERNAL_EXAM_TRUSTED_RUNTIME_DIR="$runtime_dir"
-export INTERNAL_EXAM_TRUSTED_RELEASE_VERIFIED=1
-export INTERNAL_EXAM_TRUSTED_RELEASE_PATH="$selected_release"
 exec "$runtime_dir/LaunchAgent-Dispatcher.zsh" "$action" --root "$root" --release-path "$selected_release"

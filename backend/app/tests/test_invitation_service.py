@@ -6,6 +6,11 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.models import AdminAuditEvent, Candidate, Exam, ExamCandidateScope
 from app.services import invitation_service
+from app.services.operational_lock_service import (
+    BACKUP_WRITE_FREEZE,
+    acquire_backup_write_freeze,
+    release_lock,
+)
 
 
 def test_missing_exam_does_not_allocate_invitation_rate_limit_key(db) -> None:
@@ -100,6 +105,44 @@ def test_failed_invitation_persists_sanitized_class_and_resend_targets_failed(
     )
     db.expire_all()
     assert db.get(ExamCandidateScope, scope.id).invitation_status == "sent"
+
+
+def test_invitation_delivery_honors_backup_freeze_and_keeps_claim(
+    db, monkeypatch
+) -> None:
+    exam, scope = _published_scope(db)
+    invitation_service.clear_invitation_rate_limiter()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    scheduled = invitation_service.claim_invitations(
+        db, exam.id, mode="initial", operator_subject="admin"
+    )
+    acquire_backup_write_freeze(db, owner="test-invitation-backup", ttl_seconds=600)
+    db.commit()
+    sent: list[bool] = []
+    monkeypatch.setattr(
+        invitation_service,
+        "send_invitation_email",
+        lambda **_kwargs: sent.append(True),
+    )
+
+    try:
+        result = invitation_service.deliver_claimed_invitations(
+            scheduled.scope_ids, scheduled.claim_owner, session_factory=factory
+        )
+        db.expire_all()
+        persisted = db.get(ExamCandidateScope, scope.id)
+        assert result == {"sent": 0, "failed": 0}
+        assert sent == []
+        assert persisted is not None
+        assert persisted.invitation_status == "not_sent"
+        assert persisted.invitation_claim_owner == scheduled.claim_owner
+    finally:
+        release_lock(
+            db,
+            name=BACKUP_WRITE_FREEZE,
+            owner="test-invitation-backup",
+        )
+        db.commit()
 
 
 def test_invitation_link_contains_only_same_origin_exam_path(monkeypatch) -> None:

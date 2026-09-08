@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.operations import MAX_RETENTION_SELECTION_IDS
 
 
 class PracticeRetentionAnswerRead(BaseModel):
@@ -37,7 +39,9 @@ class PracticeRetentionPreviewRead(BaseModel):
 
 
 class PracticeRetentionArchiveRequest(BaseModel):
-    candidate_ids: list[int]
+    candidate_ids: list[int] = Field(
+        min_length=1, max_length=MAX_RETENTION_SELECTION_IDS
+    )
     preview_fingerprint: str
 
 
@@ -51,7 +55,9 @@ class PracticeRetentionArchiveRead(BaseModel):
 
 
 class PracticeRetentionDeleteRequest(BaseModel):
-    candidate_ids: list[int]
+    candidate_ids: list[int] = Field(
+        min_length=1, max_length=MAX_RETENTION_SELECTION_IDS
+    )
     preview_fingerprint: str
     archive_id: str
     backup_id: str

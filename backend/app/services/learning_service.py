@@ -38,6 +38,11 @@ from app.services.storage_service import assert_storage_reserve
 
 COMPLETION_THRESHOLD_PERCENT = 90
 MAX_WATCHED_INTERVAL_SECONDS = 30
+# ponytail: fixed 1024-interval ceiling keeps rows bounded; raise only with
+# measured storage/CPU evidence and a replacement compact representation.
+MAX_WATCHED_INTERVALS = 1024
+MAX_CANDIDATE_VIDEO_PAGE_SIZE = 100
+MAX_CANDIDATE_VIDEO_OFFSET = 2**31 - 1
 LEARNING_STATUS_LABELS = {
     "not_started": "未开始",
     "in_progress": "学习中",
@@ -66,6 +71,13 @@ class LearningCandidateNotFoundError(DomainError):
 
 class LearningVideoValidationError(DomainError):
     status_code = 400
+
+
+class LearningProgressCapacityError(DomainError):
+    status_code = 409
+
+    def __init__(self) -> None:
+        super().__init__(f"学习进度观看区间已达到 {MAX_WATCHED_INTERVALS} 条上限。")
 
 
 class LearningPlaybackUnauthorizedError(DomainError):
@@ -143,13 +155,21 @@ def archive_video(db: Session, video_id: int) -> LearningVideoRead:
 
 
 def list_candidate_videos(
-    db: Session, candidate_id: int
+    db: Session,
+    candidate_id: int,
+    *,
+    limit: int = MAX_CANDIDATE_VIDEO_PAGE_SIZE,
+    offset: int = 0,
 ) -> list[CandidateLearningVideoRead]:
     _get_active_candidate(db, candidate_id)
+    limit = min(max(limit, 1), MAX_CANDIDATE_VIDEO_PAGE_SIZE)
+    offset = min(max(offset, 0), MAX_CANDIDATE_VIDEO_OFFSET)
     videos = (
         db.query(LearningVideo)
         .filter(LearningVideo.status == LearningVideoStatus.published.value)
-        .order_by(LearningVideo.created_at.desc())
+        .order_by(LearningVideo.created_at.desc(), LearningVideo.id.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     progress_by_video = _progress_by_video(
@@ -236,22 +256,27 @@ def update_progress(
     if video is None:
         raise LearningVideoNotFoundError(video_id)
 
-    progress = _get_or_create_progress(db, candidate_id, video_id)
-    now = datetime.now(UTC)
-    progress.last_position_seconds = min(
-        payload.current_position_seconds, video.duration_seconds
-    )
-    progress.last_heartbeat_at = now
-
     start, end = _normalize_interval(
         payload.watched_start_seconds,
         payload.watched_end_seconds,
         video.duration_seconds,
     )
+    progress = _get_progress(db, candidate_id, video_id)
+    intervals = _read_intervals(progress.watched_intervals if progress else None)
+    if len(intervals) > MAX_WATCHED_INTERVALS:
+        raise LearningProgressCapacityError()
     if end > start:
-        intervals = _merge_intervals(
-            [*_read_intervals(progress.watched_intervals), (start, end)]
-        )
+        intervals = _merge_intervals([*intervals, (start, end)])
+        if len(intervals) > MAX_WATCHED_INTERVALS:
+            raise LearningProgressCapacityError()
+
+    progress = progress or _get_or_create_progress(db, candidate_id, video_id)
+    now = datetime.now(UTC)
+    progress.last_position_seconds = min(
+        payload.current_position_seconds, video.duration_seconds
+    )
+    progress.last_heartbeat_at = now
+    if end > start:
         progress.watched_intervals = [
             {"start": interval_start, "end": interval_end}
             for interval_start, interval_end in intervals

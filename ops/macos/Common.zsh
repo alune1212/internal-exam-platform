@@ -251,7 +251,7 @@ macos_compose_base() {
   macos_secure_path "$env_file"
   case "$project" in
     "$MACOS_FORMAL_PROJECT"|"$MACOS_DEV_PROJECT") ;;
-    internal-exam-staging-*) macos_assert_project_name staging "$project" ;;
+    internal-exam-staging-*) macos_assert_project_name staging "$project"; macos_assert_staging_env "$env_file" true ;;
     internal-exam-restore-verify-*) macos_assert_project_name restore "$project" ;;
     *) macos_die "unsafe or ambiguous Compose project name: $project"; return 1 ;;
   esac
@@ -677,6 +677,31 @@ macos_claim_cutover_state() {
   macos_secure_path "$checksum_path"
 }
 
+macos_assert_dotenv_canonical() {
+  local env_path="${1:-}" line key value
+  typeset -A seen_keys=()
+  [[ -f "$env_path" && ! -L "$env_path" ]] || macos_die "environment file is missing or a symlink" || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    [[ "$line" =~ '^[[:space:]]*#' ]] && continue
+    [[ "$line" =~ '^[A-Z][A-Z0-9_]*=.*$' ]] || macos_die "environment file contains a non-canonical entry" || return 1
+    key="${line%%=*}"
+    value="${line#*=}"
+    # Accept one-line literal quoting only; multiline values can hide another
+    # assignment from Compose while the host validator still sees that key.
+    if [[ "$value" == \"* ]]; then
+      [[ "$value" =~ '^"[^"\\]*"$' ]] || macos_die "environment field must use canonical single-line quoting: $key" || return 1
+    elif [[ "$value" == \'* ]]; then
+      [[ "$value" =~ "^'[^'\\\\]*'$" ]] || macos_die "environment field must use canonical single-line quoting: $key" || return 1
+    else
+      [[ "$value" != *[\'\"]* ]] || macos_die "environment field contains non-canonical quoting: $key" || return 1
+    fi
+    [[ -z "${seen_keys[$key]:-}" ]] || macos_die "environment file contains duplicate field: $key" || return 1
+    seen_keys[$key]=1
+  done < "$env_path"
+}
+
 macos_dotenv_get() {
   local env_path="${1:-}" name="${2:-}" line key value
   [[ -f "$env_path" ]] || return 1
@@ -695,6 +720,151 @@ macos_dotenv_get() {
     return 0
   done < "$env_path"
   return 1
+}
+
+macos_assert_staging_env() {
+  # Staging is a disposable development-profile runtime, but its Compose
+  # inputs must still be explicit.  In particular, an empty env file would
+  # otherwise inherit Compose's development/memory defaults and can also
+  # inherit caller-supplied values that take precedence over --env-file.
+  local env_path="${1:-${MACOS_STAGING_ENV:-}}" allow_runtime_paths="${2:-false}" name value shell_value
+  local postgres_password admin_password primary_username primary_password backup_username backup_password backup_enabled database_url token_secret formal_token_secret formal_env_path token_file token_size
+  local sample_postgres_password='local-dev-postgres-''password' sample_admin_password='local-dev-admin-''password'
+  local smtp_port smtp_tls smtp_ssl smtp_username smtp_password
+  [[ -n "$env_path" && -f "$env_path" && ! -L "$env_path" ]] || macos_die "staging environment file is missing or a symlink" || return 1
+  [[ "$allow_runtime_paths" == true || "$allow_runtime_paths" == false ]] || macos_die "staging environment validation mode is invalid" || return 1
+  macos_secure_path "$env_path"
+
+  formal_env_path="${MACOS_FORMAL_ENV:-${env_path:h}/formal.env}"
+  [[ -f "$formal_env_path" && ! -L "$formal_env_path" ]] || macos_die "formal environment file is missing or a symlink" || return 1
+  macos_secure_path "$formal_env_path"
+  macos_assert_dotenv_canonical "$env_path" || return 1
+  macos_assert_dotenv_canonical "$formal_env_path" || return 1
+
+  typeset -a required_fields
+  required_fields=(
+    ENVIRONMENT
+    POSTGRES_PASSWORD
+    DATABASE_URL
+    ADMIN_USERNAME
+    ADMIN_PASSWORD
+    PRIMARY_OPERATOR_USERNAME
+    PRIMARY_OPERATOR_PASSWORD
+    BACKUP_OPERATOR_USERNAME
+    BACKUP_OPERATOR_PASSWORD
+    BACKUP_OPERATOR_ENABLED
+    TOKEN_SECRET
+    CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE
+    CANDIDATE_LOGIN_EMAIL_FROM
+    CANDIDATE_LOGIN_SMTP_HOST
+    CANDIDATE_LOGIN_SMTP_PORT
+    CANDIDATE_LOGIN_SMTP_USE_TLS
+    CANDIDATE_LOGIN_SMTP_USE_SSL
+    CANDIDATE_PUBLIC_BASE_URL
+    CORS_ORIGINS
+    ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT
+    ACCOUNT_MIGRATION_DISPOSABLE_DATABASE
+    INTERNAL_EXAM_LIFECYCLE_HOST_DIR
+    INTERNAL_EXAM_BACKUP_HOST_DIR
+    INTERNAL_EXAM_EVIDENCE_HOST_DIR
+    INTERNAL_LAN_BIND_IP
+    CANDIDATE_GATEWAY_PORT
+    OPERATOR_GATEWAY_PORT
+    POSTGRES_LOOPBACK_PORT
+    FRONTEND_LOOPBACK_PORT
+    GATEWAY_SUBNET
+    GATEWAY_IP_RANGE
+    CANDIDATE_GATEWAY_IP
+    OPERATOR_GATEWAY_IP
+  )
+  for name in "${required_fields[@]}"; do
+    value="$(macos_dotenv_get "$env_path" "$name" 2>/dev/null || true)"
+    [[ -n "${value//[[:space:]]/}" ]] || macos_die "staging configuration field is missing: $name" || return 1
+    # Compose gives the caller's environment precedence over --env-file.  A
+    # mismatching exported value is therefore an unsafe alternate config.
+    if [[ -v "$name" ]]; then
+      shell_value="${(P)name}"
+      if [[ "$allow_runtime_paths" == true ]]; then
+        case "$name" in
+          INTERNAL_EXAM_LIFECYCLE_HOST_DIR)
+            [[ "$shell_value" == "$MACOS_LAYOUT_ROOT"/staging/*/lifecycle ]] || macos_die "staging runtime lifecycle path is outside the protected staging root" || return 1
+            continue
+            ;;
+          INTERNAL_EXAM_BACKUP_HOST_DIR)
+            [[ "$shell_value" == "$MACOS_LAYOUT_ROOT"/staging/*/backups ]] || macos_die "staging runtime backup path is outside the protected staging root" || return 1
+            continue
+            ;;
+          INTERNAL_EXAM_EVIDENCE_HOST_DIR)
+            [[ "$shell_value" == "$MACOS_LAYOUT_ROOT"/staging/*/evidence ]] || macos_die "staging runtime evidence path is outside the protected staging root" || return 1
+            continue
+            ;;
+        esac
+      fi
+      [[ "$shell_value" == "$value" ]] || macos_die "shell environment overrides staging field: $name" || return 1
+    fi
+  done
+
+  [[ "$(macos_dotenv_get "$env_path" ENVIRONMENT)" == development ]] || macos_die "staging ENVIRONMENT must explicitly be development" || return 1
+  [[ "$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE)" == smtp ]] || macos_die "staging email delivery must explicitly use smtp" || return 1
+  [[ -z "$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_TEST_OTP 2>/dev/null || true)" ]] || macos_die "staging CANDIDATE_LOGIN_TEST_OTP must be empty" || return 1
+  [[ "$(macos_dotenv_get "$env_path" ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT)" == true && "$(macos_dotenv_get "$env_path" ACCOUNT_MIGRATION_DISPOSABLE_DATABASE)" == true ]] || macos_die "staging account migration must explicitly target a disposable database" || return 1
+  [[ "$(macos_dotenv_get "$env_path" INTERNAL_LAN_BIND_IP)" == 127.0.0.1 ]] || macos_die "staging bind IP must be loopback" || return 1
+  [[ "$(macos_dotenv_get "$env_path" CANDIDATE_GATEWAY_PORT)" == "$MACOS_STAGE_PORT_CANDIDATE" && "$(macos_dotenv_get "$env_path" OPERATOR_GATEWAY_PORT)" == "$MACOS_STAGE_PORT_OPERATOR" && "$(macos_dotenv_get "$env_path" POSTGRES_LOOPBACK_PORT)" == "$MACOS_STAGE_PORT_DATABASE" && "$(macos_dotenv_get "$env_path" FRONTEND_LOOPBACK_PORT)" == "$MACOS_STAGE_PORT_FRONTEND" ]] || macos_die "staging service ports must be the fixed isolated ports" || return 1
+  [[ "$(macos_dotenv_get "$env_path" CORS_ORIGINS)" == "http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}" ]] || macos_die "staging CORS_ORIGINS must match the loopback candidate endpoint" || return 1
+  [[ "$(macos_dotenv_get "$env_path" CANDIDATE_PUBLIC_BASE_URL)" == "http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}" ]] || macos_die "staging CANDIDATE_PUBLIC_BASE_URL must match the loopback candidate endpoint" || return 1
+  for name in INTERNAL_EXAM_LIFECYCLE_HOST_DIR INTERNAL_EXAM_BACKUP_HOST_DIR INTERNAL_EXAM_EVIDENCE_HOST_DIR; do
+    value="$(macos_dotenv_get "$env_path" "$name")"
+    [[ "$value" == /* ]] || macos_die "staging host path must be absolute: $name" || return 1
+    [[ "$value" == "$MACOS_LAYOUT_ROOT"/* ]] || macos_die "staging host path must remain under the protected root: $name" || return 1
+  done
+  database_url="$(macos_dotenv_get "$env_path" DATABASE_URL)"
+  [[ "$database_url" == postgresql+psycopg://*:?*@db:5432/internal_exam ]] || macos_die "staging DATABASE_URL must target the isolated Compose database" || return 1
+  postgres_password="$(macos_dotenv_get "$env_path" POSTGRES_PASSWORD)"
+  [[ "$postgres_password" != exam && "$postgres_password" != "$sample_postgres_password" ]] || macos_die "staging PostgreSQL password must not use a repository sample" || return 1
+  [[ "$database_url" != *":exam@db:5432/internal_exam" && "$database_url" != *":${sample_postgres_password}@db:5432/internal_exam" ]] || macos_die "staging DATABASE_URL must not use a repository sample" || return 1
+  admin_password="$(macos_dotenv_get "$env_path" ADMIN_PASSWORD)"
+  primary_username="$(macos_dotenv_get "$env_path" PRIMARY_OPERATOR_USERNAME)"
+  primary_password="$(macos_dotenv_get "$env_path" PRIMARY_OPERATOR_PASSWORD)"
+  backup_username="$(macos_dotenv_get "$env_path" BACKUP_OPERATOR_USERNAME)"
+  backup_password="$(macos_dotenv_get "$env_path" BACKUP_OPERATOR_PASSWORD)"
+  backup_enabled="$(macos_dotenv_get "$env_path" BACKUP_OPERATOR_ENABLED)"
+  [[ "$backup_enabled" == true || "$backup_enabled" == false ]] || macos_die "staging backup operator enablement is invalid" || return 1
+  [[ "$primary_username" != "$backup_username" ]] || macos_die "staging primary and backup operators must differ" || return 1
+  for value in "$admin_password" "$primary_password" "$backup_password"; do
+    [[ "$value" != change-me && "$value" != "$sample_admin_password" ]] || macos_die "staging operator password must not use a repository sample" || return 1
+  done
+  for value in "$postgres_password" "$admin_password" "$primary_password" "$backup_password"; do
+    (( ${#value} >= 16 )) || macos_die "staging operator/database credentials must be at least 16 characters" || return 1
+  done
+  token_secret="$(macos_dotenv_get "$env_path" TOKEN_SECRET)"
+  [[ "$token_secret" =~ '^[A-Za-z0-9_-]{43}$' ]] || macos_die "staging TOKEN_SECRET is missing or not canonical" || return 1
+  formal_token_secret="$(macos_dotenv_get "$formal_env_path" TOKEN_SECRET 2>/dev/null || true)"
+  [[ -n "$formal_token_secret" ]] || macos_die "formal TOKEN_SECRET is missing" || return 1
+  [[ "$formal_token_secret" =~ '^[A-Za-z0-9_-]{43}$' ]] || macos_die "formal TOKEN_SECRET is missing or not canonical" || return 1
+  [[ "$token_secret" != "$formal_token_secret" ]] || macos_die "staging TOKEN_SECRET must differ from formal TOKEN_SECRET" || return 1
+  macos_require_command openssl
+  token_file="$(macos_mktemp internal-exam-staging-token.XXXXXX)"
+  if ! print -r -- "${token_secret}=" | tr '_-' '/+' | openssl base64 -d -A > "$token_file" 2>/dev/null; then
+    rm -f -- "$token_file"
+    macos_die "staging TOKEN_SECRET is not valid Base64url" || return 1
+  fi
+  token_size="$(stat -f '%z' -- "$token_file")"
+  rm -f -- "$token_file"
+  [[ "$token_size" == 32 ]] || macos_die "staging TOKEN_SECRET must decode to 32 bytes" || return 1
+  smtp_port="$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_SMTP_PORT)"
+  smtp_tls="$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_SMTP_USE_TLS)"
+  smtp_ssl="$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_SMTP_USE_SSL)"
+  smtp_username="$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_SMTP_USERNAME 2>/dev/null || true)"
+  smtp_password="$(macos_dotenv_get "$env_path" CANDIDATE_LOGIN_SMTP_PASSWORD 2>/dev/null || true)"
+  [[ "$smtp_port" =~ '^[1-9][0-9]{0,4}$' && "$smtp_port" -le 65535 ]] || macos_die "staging SMTP port is invalid" || return 1
+  [[ "$smtp_tls" == true || "$smtp_tls" == false ]] || macos_die "staging SMTP TLS setting is invalid" || return 1
+  [[ "$smtp_ssl" == true || "$smtp_ssl" == false ]] || macos_die "staging SMTP SSL setting is invalid" || return 1
+  [[ ! ( "$smtp_tls" == true && "$smtp_ssl" == true ) ]] || macos_die "staging SMTP TLS and SSL cannot both be enabled" || return 1
+  [[ "$smtp_tls" == true || "$smtp_ssl" == true ]] || macos_die "staging SMTP must enable TLS or SSL" || return 1
+  if [[ ( -n "$smtp_username" && -z "$smtp_password" ) || ( -z "$smtp_username" && -n "$smtp_password" ) ]]; then
+    macos_die "staging SMTP username/password must be paired"
+    return 1
+  fi
 }
 
 macos_dotenv_set_atomic() {
@@ -1085,6 +1255,10 @@ macos_assert_formal_writer_ready() {
       fi
       [[ "$(macos_json_get "$current_path" bootstrapPending 2>/dev/null || true)" == false && "$(macos_json_get "$current_path" activationReady 2>/dev/null || true)" == true ]] || macos_die "formal writer current state is not public-ready; public start is blocked" || return 1
       [[ "$generation" == 1 || "$generation" =~ '^[2-9][0-9]*$' ]] || macos_die "formal writer activation terminal generation is invalid" || return 1
+      if [[ "$generation" == 1 ]]; then
+        current_digest="$(macos_sha256 "$current_path")"
+        [[ "$(macos_json_get "$terminal_path" currentStateSha256 2>/dev/null || true)" == "$current_digest" ]] || macos_die "formal writer activation terminal current-state binding is stale; public start is blocked" || return 1
+      fi
     fi
   fi
 }

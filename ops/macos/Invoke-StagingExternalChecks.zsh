@@ -66,8 +66,9 @@ macos_assert_macos
 macos_assert_outside_worktree "$root" >/dev/null
 macos_layout "$root"
 macos_assert_protected_configuration "$root"
+macos_assert_staging_env "$MACOS_STAGING_ENV"
 macos_acquire_lock "$MACOS_LAYOUT_STATE/.operation.lock"
-macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT CANDIDATE_PUBLIC_BASE_URL
+macos_save_environment APP_VERSION_TAG APP_VERSION GIT_COMMIT INTERNAL_EXAM_LIFECYCLE_HOST_DIR INTERNAL_EXAM_BACKUP_HOST_DIR INTERNAL_EXAM_EVIDENCE_HOST_DIR INTERNAL_LAN_BIND_IP CANDIDATE_GATEWAY_PORT CANDIDATE_PUBLIC_BASE_URL OPERATOR_GATEWAY_PORT POSTGRES_LOOPBACK_PORT FRONTEND_LOOPBACK_PORT
 cleanup_external_checks() {
   macos_restore_environment
   macos_release_lock
@@ -102,6 +103,7 @@ manifest_commit="$(macos_json_get "$release_path/release-manifest.json" gitCommi
 [[ "$run_kind" == staging-run && "$run_status" == started ]] || macos_die "staging run identity is not a started schema-2 record"
 [[ "$run_id" =~ '^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$' ]] || macos_die "staging run ID is invalid"
 [[ "$run_commit" == "${manifest_commit:l}" && "$run_commit" =~ '^[0-9a-fA-F]{40}$' ]] || macos_die "staging run commit does not match the installed release"
+[[ "$output_dir" == "$MACOS_LAYOUT_ROOT/staging/${run_commit[1,12]}/evidence" ]] || macos_die "staging evidence directory does not match the run commit"
 [[ "$run_host_id" == "$MACOS_HOST_ID" && "$run_host_os" == darwin && "$run_architecture" == arm64 && "$run_platform" == linux/arm64 ]] || macos_die "staging run host identity is not this ARM64 macOS host"
 [[ "$run_built_digest" == "$run_identity_digest" ]] || macos_die "staging run image identity digest does not match the release"
 [[ "$run_project" =~ '^internal-exam-staging-[0-9a-fA-F]{12}$' ]] || macos_die "staging Compose project name is invalid"
@@ -113,7 +115,16 @@ macos_secure_path "$output_dir"
 export APP_VERSION_TAG="${run_commit:l}"
 export APP_VERSION="$(macos_json_get "$release_path/release-manifest.json" applicationVersion)"
 export GIT_COMMIT="${run_commit:l}"
+staging_root="$MACOS_LAYOUT_ROOT/staging/${run_commit[1,12]}"
+export INTERNAL_EXAM_LIFECYCLE_HOST_DIR="$staging_root/lifecycle"
+export INTERNAL_EXAM_BACKUP_HOST_DIR="$staging_root/backups"
+export INTERNAL_EXAM_EVIDENCE_HOST_DIR="$output_dir"
+export INTERNAL_LAN_BIND_IP=127.0.0.1
+export CANDIDATE_GATEWAY_PORT="$MACOS_STAGE_PORT_CANDIDATE"
 export CANDIDATE_PUBLIC_BASE_URL="http://127.0.0.1:${MACOS_STAGE_PORT_CANDIDATE}"
+export OPERATOR_GATEWAY_PORT="$MACOS_STAGE_PORT_OPERATOR"
+export POSTGRES_LOOPBACK_PORT="$MACOS_STAGE_PORT_DATABASE"
+export FRONTEND_LOOPBACK_PORT="$MACOS_STAGE_PORT_FRONTEND"
 
 [[ -n "$smtp_output" ]] || smtp_output="$output_dir/staging-check-smtp-${run_id}.json"
 [[ -n "$browser_output" ]] || browser_output="$output_dir/staging-check-browser-${run_id}.json"
@@ -160,7 +171,7 @@ run_smtp() {
   chmod 600 "$result_file"
   # The selected backend image owns SMTP transport, TLS, and authentication.
   # Host code supplies only the non-secret recipient and records redacted data.
-  staging_compose_capture exec -T backend uv run --no-sync python -m app.ops.preflight smtp --recipient "$recipient" > "$result_file"
+  staging_compose_capture exec -T backend uv run --no-sync python -m app.ops.preflight smtp --staging --recipient "$recipient" > "$result_file"
   result="$(cat "$result_file")"
   rm -f -- "$result_file"
   probe_status="$(print -r -- "$result" | /usr/bin/python3 -c 'import json,sys; x=json.load(sys.stdin); print(x.get("status", ""))')"

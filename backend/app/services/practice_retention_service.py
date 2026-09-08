@@ -21,6 +21,7 @@ from app.core.time import to_utc
 from app.models import Candidate, PracticeAnswer, PracticeAnswerAggregate
 from app.ops.internal_backup import BackupValidationError, validate_backup
 from app.schemas.practice_retention import (
+    MAX_RETENTION_SELECTION_IDS,
     PracticeRetentionArchiveRead,
     PracticeRetentionCandidatePreview,
     PracticeRetentionDeleteRead,
@@ -138,6 +139,10 @@ def _fingerprint(
 
 
 def _normalize_candidate_ids(candidate_ids: list[int]) -> list[int]:
+    if len(candidate_ids) > MAX_RETENTION_SELECTION_IDS:
+        raise PracticeRetentionSafeguardError(
+            f"一次最多选择 {MAX_RETENTION_SELECTION_IDS} 个考试人。"
+        )
     if not candidate_ids or any(
         isinstance(candidate_id, bool) or candidate_id < 1
         for candidate_id in candidate_ids
@@ -455,9 +460,9 @@ def create_practice_retention_archive(
     operator_subject: str,
     now: datetime | None = None,
 ) -> PracticeRetentionArchiveRead:
+    normalized_ids = _normalize_candidate_ids(candidate_ids)
     assert_admin_mutation_allowed(db)
     try:
-        normalized_ids = _normalize_candidate_ids(candidate_ids)
         created_at = to_utc(now or datetime.now(UTC))
         preview = preview_practice_retention(
             db,
@@ -727,9 +732,9 @@ def delete_practice_retention(
     operator_subject: str,
     now: datetime | None = None,
 ) -> PracticeRetentionDeleteRead:
+    normalized_ids = _normalize_candidate_ids(candidate_ids)
     assert_admin_mutation_allowed(db)
     try:
-        normalized_ids = _normalize_candidate_ids(candidate_ids)
         payload, manifest, _archive_sha256 = _load_archive(archive_id)
         if (
             manifest.get("candidate_ids") != normalized_ids

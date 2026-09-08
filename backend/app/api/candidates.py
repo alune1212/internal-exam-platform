@@ -131,9 +131,16 @@ def get_account_profile(
 @account_router.patch("/profile", response_model=ApiResponse[AccountProfileRead])
 def update_account_profile(
     payload: CandidateProfileUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[AccountProfileRead]:
+    check_public_token_rate_limit(
+        request,
+        bucket="account-profile",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     return ApiResponse(
         data=candidate_service.update_account_profile(db, candidate_id, payload)
     )

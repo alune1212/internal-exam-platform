@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.core.dependencies import require_admin
 from app.schemas.common import ApiResponse
 from app.schemas.operations import (
+    MAX_RETENTION_SELECTION_IDS,
     OperationsSnapshotRead,
     RetentionArchiveRead,
     RetentionArchiveRequest,
@@ -102,7 +103,11 @@ def retention_delete(
 )
 def practice_retention_preview(
     db: Session = Depends(get_db),
-    candidate_ids: list[int] | None = Query(default=None),
+    candidate_ids: list[int] | None = Query(
+        default=None,
+        min_length=1,
+        max_length=MAX_RETENTION_SELECTION_IDS,
+    ),
     limit: int = Query(default=100, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> ApiResponse[PracticeRetentionPreviewRead]:

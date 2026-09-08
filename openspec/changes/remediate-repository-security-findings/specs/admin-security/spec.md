@@ -76,3 +76,12 @@ Any automated test that drops schemas or truncates PostgreSQL data MUST verify a
 - **WHEN** any required target attribute is missing or differs from the documented disposable test identity
 - **THEN** the test aborts before opening a destructive connection
 - **AND** the error does not expose the password or complete connection string
+
+### Requirement: Bounded Public Rate-Limit Rejection State
+The shared public-token rate limiter MUST enforce its configured maximum key count before recording rejected requests, so unique unauthenticated verification identifiers cannot bypass eviction. Accepted and rejected requests MUST both retain only bounded limiter state.
+
+#### Scenario: Unique rejected identifiers exhaust a source quota
+- **GIVEN** one source has reached its public-token quota and the limiter has a configured key cap
+- **WHEN** the source submits many unique challenge or verification identifiers that are rejected
+- **THEN** the limiter returns the normal rate-limit response
+- **AND** retained limiter buckets never exceed the configured key cap

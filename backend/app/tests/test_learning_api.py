@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 from sqlalchemy import create_engine, update
@@ -13,7 +14,14 @@ from app.core.config import settings
 from app.core.database import Base, get_db
 from app.core.security import _sign, create_candidate_token, create_session_token
 from app.main import create_app
-from app.models import Candidate, ExamAttempt, ExamCandidateScope, LearningVideo
+from app.models import (
+    Candidate,
+    ExamAttempt,
+    ExamCandidateScope,
+    LearningVideo,
+    LearningVideoProgress,
+)
+from app.services.learning_service import MAX_WATCHED_INTERVALS
 from app.services.operational_lock_service import acquire_backup_write_freeze
 from app.tests.conftest import (
     create_candidate,
@@ -198,6 +206,126 @@ def test_candidate_sees_only_published_learning_videos() -> None:
     assert titles == ["公开视频"]
     assert draft["title"] not in titles
     assert archived["title"] not in titles
+
+
+def test_candidate_learning_videos_paginate_and_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习分页人员")
+    videos = [_upload_video(client, title=f"公开视频 {index}") for index in range(3)]
+    for video in videos:
+        client.post(
+            f"/api/admin/learning/videos/{video['id']}/publish",
+            headers=_admin_headers(),
+        )
+    monkeypatch.setattr(settings, "public_token_rate_limit_count", 1)
+
+    page = client.get(
+        "/api/learning/videos",
+        params={"limit": 1, "offset": 1},
+        headers=_candidate_headers(candidate.id),
+    )
+    limited = client.get(
+        "/api/learning/videos",
+        params={"limit": 1, "offset": 1},
+        headers=_candidate_headers(candidate.id),
+    )
+
+    assert page.status_code == 200
+    assert [item["id"] for item in page.json()["data"]] == [videos[1]["id"]]
+    assert limited.status_code == 429
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"limit": 0}, {"limit": 101}, {"offset": -1}, {"offset": 2**31}],
+)
+def test_candidate_learning_videos_reject_invalid_pagination(
+    params: dict[str, int],
+) -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习分页校验人员")
+
+    response = client.get(
+        "/api/learning/videos",
+        params=params,
+        headers=_candidate_headers(candidate.id),
+    )
+
+    assert response.status_code == 422
+
+
+def test_learning_progress_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习限流人员")
+    video = _upload_video(client, duration_seconds=100)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish", headers=_admin_headers()
+    )
+    monkeypatch.setattr(settings, "public_token_rate_limit_count", 1)
+    payload = {
+        "current_position_seconds": 10,
+        "watched_start_seconds": 0,
+        "watched_end_seconds": 10,
+    }
+
+    first = client.post(
+        f"/api/learning/videos/{video['id']}/progress",
+        headers=_candidate_headers(candidate.id),
+        json=payload,
+    )
+    limited = client.post(
+        f"/api/learning/videos/{video['id']}/progress",
+        headers=_candidate_headers(candidate.id),
+        json=payload,
+    )
+
+    assert first.status_code == 200
+    assert limited.status_code == 429
+
+
+def test_learning_progress_rejects_over_interval_cap_without_mutating_row() -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db, name="学习区间上限人员")
+    duration = MAX_WATCHED_INTERVALS * 2 + 2
+    video = _upload_video(client, duration_seconds=duration)
+    client.post(
+        f"/api/admin/learning/videos/{video['id']}/publish", headers=_admin_headers()
+    )
+    intervals = [
+        {"start": index * 2, "end": index * 2 + 1}
+        for index in range(MAX_WATCHED_INTERVALS)
+    ]
+    progress = LearningVideoProgress(
+        candidate_id=candidate.id,
+        video_id=video["id"],
+        last_position_seconds=7,
+        watched_seconds=MAX_WATCHED_INTERVALS,
+        completion_percent=1,
+        watched_intervals=intervals,
+    )
+    db.add(progress)
+    db.commit()
+    progress_id = progress.id
+    original_intervals = list(progress.watched_intervals)
+
+    response = client.post(
+        f"/api/learning/videos/{video['id']}/progress",
+        headers=_candidate_headers(candidate.id),
+        json={
+            "current_position_seconds": duration - 1,
+            "watched_start_seconds": duration - 2,
+            "watched_end_seconds": duration - 1,
+        },
+    )
+
+    persisted = db.query(LearningVideoProgress).filter_by(id=progress_id).one()
+    assert response.status_code == 409
+    assert "上限" in response.json()["detail"]
+    assert persisted.last_position_seconds == 7
+    assert persisted.watched_seconds == MAX_WATCHED_INTERVALS
+    assert persisted.watched_intervals == original_intervals
 
 
 def test_candidate_playback_uses_short_lived_bound_token_and_supports_ranges() -> None:

@@ -22,7 +22,7 @@
 </p>
 
 > [!IMPORTANT]
-> **当前状态：**业务闭环与本地工程门禁已实现；正式 Mac 宿主验收尚未完成，不能据此批准开考。缺失证据与下一步以 [`docs/handoff.md`](docs/handoff.md) 为准。
+> **当前部署范围（2026-09-08）：**当前 Mac 使用固定内网地址 `192.168.2.225`，按[本机最小部署](docs/minimal-macos-deployment.md)直接运行固定版本的 Compose 镜像。此次不使用发布包签名，不执行备份、第二副本和恢复演练。真实邮件、设备及整机重启的验收结果以 [`docs/handoff.md`](docs/handoff.md) 最新条目为准；历史 rc.3 门禁不等于当前版本已验收。
 
 <p align="center">
   <img src="./assets/readme/zhishi-frozen-record.webp" width="360" alt="知试概念海报：一份带答题格、计时条与红色封存章的考试记录，象征冻结题池和作答快照">
@@ -180,9 +180,11 @@ sh ops/e2e/run-capacity-gate.sh
 
 ## 正式运行
 
+当前选择的是[本机最小部署](docs/minimal-macos-deployment.md)，正式入口为 `http://192.168.2.225:8080`，管理入口为本机 `http://127.0.0.1:8081/admin/login`。以下签名发布包流程保留给原有完整运维路径，不作为此次最小部署步骤。
+
 当前正式目标是 **Apple Silicon macOS + Docker Desktop + Docker Compose**。正式根目录默认位于工作树外的 `${HOME}/Library/Application Support/InternalExam`；考试窗口内停止 development / staging，任何时刻只允许一个 formal writer。容器健康或 LaunchAgent 恢复都不等于批准开考，最终决定必须由操作员完成预检后人工给出。
 
-正式宿主当前仍待完成 LAN 地址预留与批准、版本化 release 安装、正式 staging / promotion、正式宿主 SMTP、桌面/手机 UAT、LaunchAgent 恢复，以及独立加密第二副本恢复；这些都是阻断验收项，不是已通过证据。
+正式主机仍需完成 LAN 地址预留与批准、签名发布包安装、首次正式初始化（`Initialize-FormalWriter.zsh Prepare` → staging 验收 → `Activate`）、正式邮件与真实桌面/手机设备验收、同一提交的远程 CI 验证、LaunchAgent 恢复，以及独立加密第二副本恢复。这些验收项尚未通过。
 
 正式 LAN 地址目前必须写作 `<FORMAL_LAN_IP>`，直到网络管理员完成未占用地址的 DHCP reservation。不要复用历史文档或本地 UAT 中出现过的临时地址。地址获批后，入口合同为：
 
@@ -194,6 +196,16 @@ sh ops/e2e/run-capacity-gate.sh
 `internal` 模式通过共享办公 LAN 使用 HTTP，候选 token、题目、答案与结果不具备传输加密；其使用范围和补偿控制必须持续满足已接受的安全例外。未来 Windows Docker Desktop + WSL2 只是迁移目标，必须重新完成 native AMD64 staging、配对备份恢复、网络、SMTP、浏览器、容量与人工 promotion，不能复用 Mac 证据。
 
 正式操作从以下文档进入：
+
+首次正式 writer 前，使用受保护的 `formal.env` 同步并校验 disposable `staging.env`（不会输出 secrets）：
+
+```bash
+zsh ops/macos/Initialize-InternalExamHost.zsh \
+  --root "$HOME/Library/Application Support/InternalExam" \
+  --sync-staging-env
+```
+
+首次 writer 只按 `Initialize-FormalWriter.zsh Prepare`（显式空数据集）→ 完整 staging acceptance → `Initialize-FormalWriter.zsh Activate` 执行；具体证据参数和顺序见下列运维文档，不在 README 重复 runbook。
 
 - [macOS 宿主准备](docs/macos-host-guide.md)
 - [macOS release、staging、promotion、备份与恢复](docs/macos-deployment-operations.md)

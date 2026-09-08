@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from openpyxl import load_workbook
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,6 +20,11 @@ from app.models import (
     ExamCandidateScope,
 )
 from app.ops import internal_backup
+from app.schemas.operations import (
+    MAX_RETENTION_SELECTION_IDS,
+    RetentionArchiveRequest,
+    RetentionDeleteRequest,
+)
 from app.services import retention_service
 
 
@@ -488,3 +494,67 @@ def test_retention_preview_explains_active_and_recent_exclusions(db: Session) ->
     assert preview.exams[0].eligible is False
     assert "考试尚未归档" in preview.exams[0].reasons
     assert "最终活动距今未满 12 个月" in preview.exams[0].reasons
+
+
+def test_retention_selection_limit_is_enforced_before_database_access(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        retention_service,
+        "assert_admin_mutation_allowed",
+        lambda _db: pytest.fail("selection limit must run before database access"),
+    )
+    oversized_ids = list(range(1, MAX_RETENTION_SELECTION_IDS + 2))
+
+    with pytest.raises(ValidationError):
+        RetentionArchiveRequest(
+            exam_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+        )
+    with pytest.raises(ValidationError):
+        RetentionDeleteRequest(
+            exam_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+            archive_id="retention-20260721t080000z-aaaaaaaaaaaa",
+            backup_id="backup-retention-test",
+            confirmation="DELETE EXAMS 1",
+        )
+
+    with pytest.raises(retention_service.RetentionSafeguardError, match="最多"):
+        retention_service.create_retention_archive(
+            db,
+            exam_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+            operator_subject="primary-operator",
+        )
+    with pytest.raises(retention_service.RetentionSafeguardError, match="最多"):
+        retention_service.delete_retained_exams(
+            db,
+            exam_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+            archive_id="retention-20260721t080000z-aaaaaaaaaaaa",
+            backup_id="backup-retention-test",
+            confirmation="DELETE EXAMS 1",
+            operator_subject="primary-operator",
+        )
+
+
+def test_retention_selection_limit_accepts_exact_boundary() -> None:
+    exam_ids = list(range(1, MAX_RETENTION_SELECTION_IDS + 1))
+    assert retention_service._normalize_exam_ids(exam_ids) == exam_ids
+    assert (
+        RetentionArchiveRequest(
+            exam_ids=exam_ids, preview_fingerprint="fingerprint"
+        ).exam_ids
+        == exam_ids
+    )
+    assert (
+        RetentionDeleteRequest(
+            exam_ids=exam_ids,
+            preview_fingerprint="fingerprint",
+            archive_id="retention-20260721t080000z-aaaaaaaaaaaa",
+            backup_id="backup-retention-test",
+            confirmation="DELETE EXAMS 1",
+        ).exam_ids
+        == exam_ids
+    )

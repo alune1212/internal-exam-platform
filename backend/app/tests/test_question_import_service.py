@@ -385,6 +385,49 @@ def _central_directory_workbook(
     return file_obj
 
 
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-16"])
+@pytest.mark.parametrize(
+    "member_name",
+    [
+        "xl/workbook.xml",
+        "xl/sharedStrings.xml",
+        "xl/worksheets/sheet1.xml",
+        "_rels/.rels",
+        "xl/extensionless",
+    ],
+)
+def test_import_rejects_doctype_before_openpyxl(
+    db: Session, monkeypatch: pytest.MonkeyPatch, encoding: str, member_name: str
+) -> None:
+    workbook = build_workbook(QUESTION_HEADERS, [{"stem": "普通题目"}])
+    rebuilt = BytesIO()
+    xml = (
+        f'<?xml version="1.0" encoding="{encoding}"?>'
+        '<!DOCTYPE root [<!ENTITY sample "bounded test">]><root>&sample;</root>'
+    ).encode(encoding)
+    with ZipFile(workbook) as source, ZipFile(rebuilt, "w", ZIP_DEFLATED) as target:
+        for member in source.infolist():
+            if member.filename != member_name:
+                target.writestr(member, source.read(member))
+        target.writestr(member_name, xml)
+    rebuilt.seek(0)
+    monkeypatch.setattr(import_service, "load_workbook", pytest.fail)
+    with pytest.raises(import_service.ImportFormatError, match="DOCTYPE"):
+        import_questions_from_workbook(db, rebuilt, file_name="entities.xlsx")
+    assert db.query(ImportBatch).count() == 0
+
+
+def test_import_preflight_accepts_ordinary_workbook_with_binary_media() -> None:
+    workbook = build_workbook(QUESTION_HEADERS, [{"stem": "普通题目"}])
+    rebuilt = BytesIO()
+    with ZipFile(workbook) as source, ZipFile(rebuilt, "w", ZIP_DEFLATED) as target:
+        for member in source.infolist():
+            target.writestr(member, source.read(member))
+        target.writestr("xl/media/image.png", b"\x89PNG\r\n\x1a\n\x00binary")
+    rebuilt.seek(0)
+    assert import_service.parse_workbook(rebuilt).rows[0]["stem"] == "普通题目"
+
+
 def test_parse_workbook_rejects_unsafe_xlsx_before_openpyxl(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

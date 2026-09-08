@@ -71,3 +71,32 @@ def test_practice_questions_reject_invalid_pagination(
     )
 
     assert response.status_code == 422
+
+
+def test_wrong_questions_paginate_and_rate_limit(
+    practice_client: TestClient,
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate = create_candidate(db)
+    headers = {"X-Candidate-Token": create_candidate_token(candidate.id)}
+    monkeypatch.setattr(settings, "public_token_rate_limit_count", 1)
+
+    response = practice_client.get("/api/practice/wrong-questions", headers=headers)
+    limited = practice_client.get("/api/practice/wrong-questions", headers=headers)
+
+    assert response.status_code == 200
+    assert limited.status_code == 429
+
+
+def test_wrong_questions_reject_offset_above_signed_integer(
+    practice_client: TestClient, db: Session
+) -> None:
+    candidate = create_candidate(db)
+    response = practice_client.get(
+        "/api/practice/wrong-questions",
+        params={"offset": 2**31},
+        headers={"X-Candidate-Token": create_candidate_token(candidate.id)},
+    )
+
+    assert response.status_code == 422

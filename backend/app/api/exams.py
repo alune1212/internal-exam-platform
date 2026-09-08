@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id, require_admin
+from app.core.rate_limit import check_public_token_rate_limit
 from app.models import Exam
 from app.schemas.attempt import AttemptIncidentRead, AttemptVoidRequest
 from app.schemas.common import ApiResponse
@@ -47,9 +48,16 @@ def list_active_exams(
 @router.post("/{exam_id}/start", response_model=ApiResponse[ExamStartResponse])
 def start_exam(
     exam_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[ExamStartResponse]:
+    check_public_token_rate_limit(
+        request,
+        bucket="exam-start",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     return ApiResponse(data=exam_service.start_exam(db, exam_id, candidate_id))
 
 

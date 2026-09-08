@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from openpyxl import load_workbook
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -13,6 +14,11 @@ from app.core.database import get_db
 from app.core.security import create_admin_token
 from app.models import PracticeAnswer, PracticeAnswerAggregate
 from app.ops import internal_backup
+from app.schemas.operations import MAX_RETENTION_SELECTION_IDS
+from app.schemas.practice_retention import (
+    PracticeRetentionArchiveRequest,
+    PracticeRetentionDeleteRequest,
+)
 from app.services import backup_service, practice_retention_service
 from app.tests.conftest import create_candidate, create_question_with_options
 
@@ -522,6 +528,96 @@ def test_practice_retention_routes_require_admin_and_expose_preview(
     )
     assert response.status_code == 200
     assert response.json()["data"]["candidates"] == []
+
+    candidate_ids_parameter = next(
+        parameter
+        for parameter in app.openapi()["paths"][
+            "/api/admin/operations/practice-retention/preview"
+        ]["get"]["parameters"]
+        if parameter["name"] == "candidate_ids"
+    )
+    candidate_ids_schema = candidate_ids_parameter["schema"]["anyOf"][0]
+    assert candidate_ids_schema["minItems"] == 1
+    assert candidate_ids_schema["maxItems"] == MAX_RETENTION_SELECTION_IDS
+
+
+def test_practice_retention_selection_limit_is_enforced_before_database_access(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        practice_retention_service,
+        "assert_admin_mutation_allowed",
+        lambda _db: pytest.fail("selection limit must run before database access"),
+    )
+    oversized_ids = list(range(1, MAX_RETENTION_SELECTION_IDS + 2))
+
+    with pytest.raises(
+        practice_retention_service.PracticeRetentionSafeguardError, match="最多"
+    ):
+        practice_retention_service.preview_practice_retention(
+            db,
+            candidate_ids=oversized_ids,
+        )
+
+    with pytest.raises(ValidationError):
+        PracticeRetentionArchiveRequest(
+            candidate_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+        )
+    with pytest.raises(ValidationError):
+        PracticeRetentionDeleteRequest(
+            candidate_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+            archive_id="practice-retention-20260830t120000z-aaaaaaaaaaaa",
+            backup_id="backup-practice-retention-test",
+            confirmation="DELETE PRACTICE ANSWERS 1",
+        )
+
+    with pytest.raises(
+        practice_retention_service.PracticeRetentionSafeguardError, match="最多"
+    ):
+        practice_retention_service.create_practice_retention_archive(
+            db,
+            candidate_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+            operator_subject="admin",
+        )
+    with pytest.raises(
+        practice_retention_service.PracticeRetentionSafeguardError, match="最多"
+    ):
+        practice_retention_service.delete_practice_retention(
+            db,
+            candidate_ids=oversized_ids,
+            preview_fingerprint="fingerprint",
+            archive_id="practice-retention-20260830t120000z-aaaaaaaaaaaa",
+            backup_id="backup-practice-retention-test",
+            confirmation="DELETE PRACTICE ANSWERS 1",
+            operator_subject="admin",
+        )
+
+
+def test_practice_retention_selection_limit_accepts_exact_boundary() -> None:
+    candidate_ids = list(range(1, MAX_RETENTION_SELECTION_IDS + 1))
+    assert (
+        practice_retention_service._normalize_candidate_ids(candidate_ids)
+        == candidate_ids
+    )
+    assert (
+        PracticeRetentionArchiveRequest(
+            candidate_ids=candidate_ids, preview_fingerprint="fingerprint"
+        ).candidate_ids
+        == candidate_ids
+    )
+    assert (
+        PracticeRetentionDeleteRequest(
+            candidate_ids=candidate_ids,
+            preview_fingerprint="fingerprint",
+            archive_id="practice-retention-20260830t120000z-aaaaaaaaaaaa",
+            backup_id="backup-practice-retention-test",
+            confirmation="DELETE PRACTICE ANSWERS 1",
+        ).candidate_ids
+        == candidate_ids
+    )
 
 
 def test_practice_aggregate_changes_backup_data_fingerprint(

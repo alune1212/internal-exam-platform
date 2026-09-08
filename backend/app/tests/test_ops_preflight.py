@@ -71,6 +71,28 @@ def test_smtp_probe_rejects_non_formal_profile(monkeypatch: pytest.MonkeyPatch) 
         preflight.send_smtp_probe("operator@example.com")
 
 
+def test_smtp_probe_allows_only_explicit_development_staging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deliveries: list[dict[str, object]] = []
+    monkeypatch.setattr(preflight.settings, "environment", "development")
+    monkeypatch.setattr(
+        preflight.settings, "candidate_login_email_delivery_mode", "smtp"
+    )
+    monkeypatch.setattr(
+        preflight,
+        "send_candidate_login_otp",
+        lambda **kwargs: deliveries.append(kwargs),
+    )
+
+    result = preflight.send_smtp_probe(
+        "operator@example.com", allow_development_staging=True
+    )
+
+    assert result["status"] == "passed"
+    assert deliveries[0]["otp"] == "000000"
+
+
 def test_smtp_probe_sends_redacted_formal_probe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

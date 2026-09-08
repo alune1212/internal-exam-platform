@@ -13,7 +13,7 @@ from app.core.database import Base, get_db
 from app.core.security import _sign, create_candidate_token
 from app.main import create_app
 from app.models import ExamAttempt, ExamAttemptAnswer, ExamCandidateScope
-from app.services import exam_service
+from app.services import exam_attempts, exam_service
 from app.tests.conftest import (
     create_candidate,
     create_exam,
@@ -44,6 +44,20 @@ def test_attempt_routes_require_candidate_header() -> None:
     resp = client.get("/api/attempts/1")
     assert resp.status_code == 401
     assert "detail" in resp.json()
+
+
+def test_uninvited_start_does_not_disclose_exam_state() -> None:
+    client, db = _build_client()
+    candidate = create_candidate(db)
+    headers = {"X-Candidate-Token": create_candidate_token(candidate.id)}
+    exams = [
+        create_exam(db, status=status) for status in ("draft", "active", "archived")
+    ]
+    for exam_id in [exam.id for exam in exams] + [999]:
+        response = client.post(f"/api/exams/{exam_id}/start", headers=headers)
+        assert response.status_code == 404
+        assert response.json() == {"detail": f"考试 #{exam_id} 不存在"}
+    assert db.query(ExamAttempt).count() == 0
 
 
 def test_attempt_routes_accept_candidate_token() -> None:
@@ -198,6 +212,28 @@ def test_attempt_read_requires_current_device_session_credential() -> None:
     assert persisted is not None
     assert persisted.attempt_session_hash != credential
     assert len(persisted.attempt_session_hash or "") == 64
+
+
+def test_attempt_read_does_not_lock_attempt_rows(monkeypatch) -> None:
+    client, db = _build_client()
+    attempt_id, _candidate_id, token, credential = _started_attempt(db)
+    load_modes: list[bool] = []
+    original_loader = exam_attempts._load_attempt_with_snapshots
+
+    def capture_loader(
+        db: Session, attempt_id: int, *, for_update: bool = False
+    ) -> ExamAttempt:
+        load_modes.append(for_update)
+        return original_loader(db, attempt_id, for_update=for_update)
+
+    monkeypatch.setattr(exam_attempts, "_load_attempt_with_snapshots", capture_loader)
+    response = client.get(
+        f"/api/attempts/{attempt_id}",
+        headers={"X-Candidate-Token": token, "X-Attempt-Session": credential},
+    )
+
+    assert response.status_code == 200
+    assert load_modes == [False, False]
 
 
 def test_revisioned_save_rejects_stale_device_without_overwrite() -> None:

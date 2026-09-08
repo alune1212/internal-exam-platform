@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_candidate_id, get_fresh_candidate_id
+from app.core.rate_limit import check_public_token_rate_limit
 from app.schemas.attempt import (
     AnswerSaveRequest,
     AnswerSaveResponse,
@@ -43,11 +44,20 @@ def _verify_attempt_ownership(db: Session, attempt_id: int, candidate_id: int) -
 @router.get("/{attempt_id}", response_model=ApiResponse[AttemptRead])
 def get_attempt(
     attempt_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
     attempt_session: str | None = Header(None, alias="X-Attempt-Session"),
 ) -> ApiResponse[AttemptRead]:
-    exam_service.verify_attempt_session(db, attempt_id, candidate_id, attempt_session)
+    check_public_token_rate_limit(
+        request,
+        bucket="attempt-read",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
+    exam_service.verify_attempt_session(
+        db, attempt_id, candidate_id, attempt_session, for_update=False
+    )
     return ApiResponse(data=exam_service.get_attempt(db, attempt_id))
 
 
@@ -57,10 +67,17 @@ def get_attempt(
 def save_answers(
     attempt_id: int,
     payload: AnswerSaveRequest,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
     attempt_session: str | None = Header(None, alias="X-Attempt-Session"),
 ) -> ApiResponse[AnswerSaveResponse]:
+    check_public_token_rate_limit(
+        request,
+        bucket="attempt-write",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     exam_service.verify_attempt_session(db, attempt_id, candidate_id, attempt_session)
     return ApiResponse(data=exam_service.save_answers(db, attempt_id, payload))
 
@@ -69,10 +86,17 @@ def save_answers(
 def submit_attempt(
     attempt_id: int,
     payload: SubmitRequest,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
     attempt_session: str | None = Header(None, alias="X-Attempt-Session"),
 ) -> ApiResponse[AttemptResultRead]:
+    check_public_token_rate_limit(
+        request,
+        bucket="attempt-write",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     exam_service.verify_attempt_session(db, attempt_id, candidate_id, attempt_session)
     return ApiResponse(
         data=exam_service.submit_attempt(db, attempt_id, payload.submit_type)
@@ -85,9 +109,16 @@ def submit_attempt(
 )
 def takeover_attempt_session(
     attempt_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_fresh_candidate_id),
 ) -> ApiResponse[AttemptSessionTakeoverResponse]:
+    check_public_token_rate_limit(
+        request,
+        bucket="attempt-write",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     return ApiResponse(
         data=exam_service.takeover_attempt_session(db, attempt_id, candidate_id)
     )
@@ -96,8 +127,15 @@ def takeover_attempt_session(
 @router.get("/{attempt_id}/result", response_model=ApiResponse[AttemptResultRead])
 def get_attempt_result(
     attempt_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     candidate_id: int = Depends(get_current_candidate_id),
 ) -> ApiResponse[AttemptResultRead]:
+    check_public_token_rate_limit(
+        request,
+        bucket="attempt-read",
+        identifier=f"candidate:{candidate_id}",
+        include_client_ip=False,
+    )
     _verify_attempt_ownership(db, attempt_id, candidate_id)
     return ApiResponse(data=exam_service.get_attempt_result(db, attempt_id))

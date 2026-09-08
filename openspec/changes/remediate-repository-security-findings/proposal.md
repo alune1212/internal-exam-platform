@@ -2,6 +2,8 @@
 
 The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` identified fifteen reachable configuration, parsing, resource, archival, release, and proxy weaknesses. The implementation review also found separate tracked-workbook metadata, invitation-limiter, learning-media, CI Docker-socket, and macOS scanner-evidence paths. They must be closed before the next formal internal release without expanding the first-phase architecture or weakening the controlled-LAN operating boundary.
 
+The sealed follow-up Standard scan `64dd55a5-63dd-476f-9d45-354b5ff7182a` at clean revision `94261ef3c4a6d753ba429bf92661e1b37b307a73` did not reopen the original fifteen or the previous five implementation-review paths; those twenty source remediations are closed. It reported nine new medium/low identities, tracked separately as tasks 5.16–5.24: public rate-limit rejection keyspace, candidate lock ordering, learning progress intervals, learning catalog reads, wrong-practice offsets, retention target selection, background invitation delivery, legacy backup freezing, and bundled macOS trust markers.
+
 ## What Changes
 
 - Fail closed on unsafe formal credentials, token lifetimes, malformed signed-token fields, destructive account migrations, destructive PostgreSQL test targets, and unsupported scanner severities.
@@ -15,6 +17,7 @@ The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` 
 - Replace public learning-media aliases with short-lived candidate/video-bound playback URLs that recheck current lifecycle state.
 - Remove the host Docker socket and Docker CLI from PR-controlled browser tests, and bind macOS release reports to retained raw scanner evidence that trusted code recomputes.
 - Bound candidate exam answer-save payloads and XLSX logical worksheet dimensions, paginate and rate-limit the practice catalog, isolate checkout credentials in every pull-request job, and release the backup freeze after ordinary post-acquisition failures.
+- Restore a fail-closed generation-1 formal-writer commissioning path and generate an explicit owner-only staging configuration that cannot inherit Compose's development or in-memory delivery defaults silently.
 - Add regression tests, deployment contracts, operations guidance, and a clean-HEAD security re-scan gate for the fifteen original findings plus separately tracked implementation-review findings.
 
 ## Non-goals
@@ -35,12 +38,12 @@ The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` 
 - `candidate-access`: Bounds practice writes and wrong-question reads while retaining all-time mastery/count semantics and guarded access to archived detail.
 - `admin-imports`: Rejects oversized or malformed XLSX archives before workbook expansion.
 - `exam-invitations`: Keeps public invitation limiter state bounded and atomic after validating the target exam.
-- `internal-deployment-readiness`: Makes scanner severity fail closed, authenticates macOS release bundles, and restricts proxy-header trust to the two configured gateways.
+- `internal-deployment-readiness`: Makes scanner severity fail closed, authenticates macOS release bundles, restricts proxy-header trust to the two configured gateways, restores first-writer commissioning, and requires explicit staging configuration.
 - `video-learning`: Requires authorized, revocable candidate playback instead of a public static media alias.
 
 ## Impact
 
 - Backend settings, token helpers, practice models/services/schemas/routes, Alembic revisions, retention/import services, operations APIs, backup fingerprints, and focused tests.
 - Frontend session helpers, practice API types, wrong-question pagination, error handling, and tests.
-- Docker Compose networking and media mounts, Nginx headers, CI/test database environment contracts, macOS release scripts/evidence, environment examples, and operations documentation.
+- Docker Compose networking and media mounts, Nginx headers, CI/test database environment contracts, macOS release/commissioning/staging scripts and evidence, environment examples, and operations documentation.
 - One additive practice aggregate migration plus a guarded maintenance workflow; no new runtime dependency or external service.

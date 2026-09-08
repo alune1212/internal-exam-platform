@@ -53,14 +53,15 @@ def submit_practice_answer(
 ) -> PracticeAnswerResult:
     if len(payload.selected_answer) > 32:
         raise PracticeAnswerValidationError("所选答案长度不能超过 32 个字符")
-    assert_backup_write_allowed(db)
-    candidate = _lock_active_practice_candidate(db, candidate_id)
     if request is not None:
         check_public_token_rate_limit(
             request,
             bucket="practice-answer",
-            identifier=f"candidate:{candidate.id}",
+            identifier=f"candidate:{candidate_id}",
+            include_client_ip=False,
         )
+    assert_backup_write_allowed(db)
+    candidate = _lock_active_practice_candidate(db, candidate_id)
 
     hot_detail_count = (
         db.query(func.count(PracticeAnswer.id))
@@ -147,10 +148,12 @@ def list_wrong_questions(
     offset: int = 0,
     history_limit: int = 20,
 ) -> list[PracticeWrongQuestionRead]:
-    get_active_practice_candidate(db, candidate_id)
     limit = min(max(limit, 1), 100)
     offset = max(offset, 0)
+    if offset > 2**31 - 1:
+        raise PracticeAnswerValidationError("offset 不能超过 2^31-1")
     history_limit = min(max(history_limit, 1), 100)
+    get_active_practice_candidate(db, candidate_id)
 
     filters = [
         PracticeAnswerAggregate.candidate_id == candidate_id,

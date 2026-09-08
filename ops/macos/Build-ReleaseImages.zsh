@@ -57,7 +57,8 @@ for image_reference in \
     macos_die "release image tag already exists; refusing a mutable rebuild"
   fi
 done
-macos_run_checked docker "${MACOS_COMPOSE_ARGS[@]}" build --pull=false db backend frontend nginx
+# Re-run apk upgrade so a cached layer cannot retain patched OS vulnerabilities.
+macos_run_checked docker "${MACOS_COMPOSE_ARGS[@]}" build --pull=false --no-cache db backend frontend nginx
 
 db_reference="$APP_IMAGE_REPOSITORY-database:${git_commit:l}"
 backend_reference="$APP_IMAGE_REPOSITORY-backend:${git_commit:l}"

@@ -3,6 +3,13 @@
 ### Requirement: Bounded Import Validation
 The system MUST enforce compressed upload size, ZIP member count, per-member and total uncompressed size, compression ratio, worksheet count, logical worksheet dimensions, and row count limits before persisting valid import rows. ZIP structure and expansion limits MUST be evaluated before the workbook parser expands XML content. A worksheet MUST declare a usable logical dimension, and its logical column dimension MUST NOT exceed 32 columns; either violation MUST be rejected before row iteration.
 
+After ZIP limits pass, the shared preflight MUST reject XML DOCTYPE declarations before openpyxl parses a workbook. This check MUST cover raw-byte encodings and extensionless package parts while allowing ordinary binary members; it MUST NOT rely on filename suffixes or expand XML entities.
+
+#### Scenario: XLSX embeds a DTD in an XML part
+- **GIVEN** an otherwise bounded workbook contains a DOCTYPE in any package member, including UTF-16 or an extensionless part
+- **WHEN** either supported administrator import receives it
+- **THEN** it returns a format error before openpyxl or import persistence
+
 #### Scenario: Import file exceeds configured limits
 - **GIVEN** an import file exceeds the configured upload, ZIP expansion, row, or worksheet limits
 - **WHEN** the administrator submits the import

@@ -10,8 +10,15 @@ import type {
   LearningVideoUploadPayload,
 } from "@/types/learning";
 
-export function getLearningVideos() {
-  return apiRequest<CandidateLearningVideo[]>("/api/learning/videos");
+export function getLearningVideos(pagination?: { limit?: number; offset?: number }) {
+  const limit = Number.isFinite(pagination?.limit)
+    ? Math.min(100, Math.max(1, Math.trunc(pagination?.limit ?? 100)))
+    : 100;
+  const offset = Number.isFinite(pagination?.offset)
+    ? Math.min(2 ** 31 - 1, Math.max(0, Math.trunc(pagination?.offset ?? 0)))
+    : 0;
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return apiRequest<CandidateLearningVideo[]>(`/api/learning/videos?${params.toString()}`);
 }
 
 export function getLearningVideo(videoId: string) {

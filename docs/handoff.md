@@ -8,7 +8,7 @@ Implemented foundations:
 
 - FastAPI app with shallow `/api/health` liveness and dependency-aware `/api/ready` checks for PostgreSQL and learning media access.
 - SQLAlchemy compatibility account rows, email-bound login challenges, frozen exam scopes, questions, options, exams, attempts, attempt question snapshots, answers, practice answers, and import batches.
-- Alembic migrations through `202608110001_email_accounts_and_invited_exam_scopes.py`, including the compatibility backfill/writer-fence lineage and the email-account, frozen-roster, and invitation-state migration. The destructive legacy-field step remains gated by the account-migration preflight and restore-only rollback contract below.
+- Alembic migrations through `202608300001_practice_answer_aggregate.py`, including the compatibility backfill/writer-fence lineage, email-account and frozen-roster migration, and additive practice aggregate. The destructive legacy-field step remains gated by the account-migration preflight and restore-only rollback contract below.
 - Candidate-facing and admin-facing API routes.
 - Scoring service with tested multiple-choice set comparison.
 - Question Excel import persistence for valid questions, options, and import batches.
@@ -111,12 +111,12 @@ Observed results:
 - On 2026-07-20, `./scripts/test-backend-full.sh -q -rs` ran the complete backend suite against the disposable `internal_exam_test` PostgreSQL service: 280 passed, 0 skipped. The test container and temporary data were removed automatically after the run.
 - A live paired backup was created at `backups/backup-20260710T032923Z`; the final implementation restored it into `internal-exam-restore-verify-20260710b`, verified database/media consistency including a real media-byte read, and cleaned up. The original stack was restarted and returned to healthy.
 
-Operational commands and failure recovery are documented in `docs/internal-deployment-operations.md`. The essential maintenance-window flow is:
+Operational commands and failure recovery are documented in `docs/internal-deployment-operations.md`. Paired backup creation must use the guarded `container-backup` entry point through the formal host adapter; the unguarded legacy creation entry point is no longer available. The essential maintenance-window flow is:
 
 ```bash
-cd backend
-uv run python -m app.ops.internal_backup backup --output-root ../backups --env-file ../.env
-cd ..
+zsh ops/macos/Invoke-PairedBackup.zsh \
+  --kind pre-upgrade \
+  --root "$HOME/Library/Application Support/InternalExam"
 docker compose --env-file .env stop
 cd backend
 uv run python -m app.ops.internal_backup verify ../backups/<backup-directory> \
@@ -480,6 +480,118 @@ tamper/rollback tests, approved live gateway routing, credential/token/OTP
 rotation, and real practice archive/paired-backup/delete drill; then a fresh
 complete repository Codex Security scan with no deferred coverage.
 
+## Release Candidate Verification (2026-09-04 / 2026-09-05)
+
+The follow-up security implementation tasks `5.16`–`5.24` and release-path
+tasks `5.25`–`5.27` are implemented. The first formal writer now has a
+trusted-checkout `Prepare` → staging acceptance → `Activate` path and a
+fresh-root regression. Staging configuration is generated explicitly from
+protected formal configuration, requires real SMTP, and rejects incomplete
+or overridden inputs before Docker starts. These are repository engineering
+results; designated-host activation remains unperformed.
+
+- Backend format, Ruff, and `ty` passed. The September 5 ordinary suite passed `786`
+  tests with `13` PostgreSQL-only skips. The disposable PostgreSQL 16 gate
+  applied migrations through `202608300001`, passed `799` tests with no
+  skips, and cleaned its containers, network, and volume.
+- Frontend format, lint, build, and offline checks passed; Vitest passed
+  `86` files and `551` tests, with `0` external runtime references.
+- The browser gate passed `7` Playwright flows (`6` desktop, `1` mobile).
+  The September 5 rerun used the exact patched release images without
+  rebuilding, passed in `16.0 s`, and cleaned its disposable containers,
+  networks, and volumes. This does not replace real Safari, Android, or
+  iOS acceptance.
+- A disposable clean snapshot `d1bad8f07bb2b51058b33a1d114256da14f0172a`
+  passed the unmodified 100-client capacity gate: `100/100` submissions,
+  `0` errors, start/save/submit P95 `1106/987/801 ms`, maximum database
+  connections `17/40`, and worker heartbeat age `7.584 s`. The preceding
+  failure exposed a shared-IP quota collision; authenticated candidate
+  operations now use per-account quotas, while public login/OTP retain
+  IP plus identifier quotas. Thresholds were not raised.
+- The September 5 capacity rerun used the exact patched `5afaed31` release
+  images without rebuilding and passed `100/100` submissions with `0`
+  errors. Start/save/submit P95 was `825/828/667 ms`, database connections
+  peaked at `17/40`, and worker heartbeat age was `6.453 s`. The checksummed
+  report retains all seven running service image identities; its temporary
+  containers, networks, and volumes were cleaned.
+- Compose rendering, legacy-contract checks, macOS shell syntax, both
+  LaunchAgent plists, strict OpenSpec (`14/14`), and `git diff --check`
+  passed. The temporary capacity checkout is no longer present after the
+  interrupted session; these measured results are retained here.
+- Security scan `1fddc506-f106-4142-a78a-72bed5c50cdd` was interrupted
+  before threat-model completion. Its working directory and workers were
+  lost; it produced no report and is not passing security evidence.
+
+- The native release build exposed stale cached OS upgrade layers and
+  `10` HIGH scanner blockers. `Build-ReleaseImages.zsh` now uses
+  `--no-cache`; the verified candidate contains OpenSSL `3.5.8-r0`, SQLite
+  `3.53.4-r0`, and Expat `2.8.4-r0`. The real identity-bound Trivy,
+  pip-audit, and npm audit gate passed for clean temporary snapshot
+  `5afaed31bfdffe8466b1e317e6191712b4fb7755`, with `0` blocking findings,
+  `0` binding errors, and `7` retained non-blocking findings (`5` MEDIUM,
+  `2` LOW; pip tooling and postcss-selector-parser). No severity threshold
+  or vulnerability disposition was relaxed. Candidate `0.1.0-rc.2` was
+  sealed with its exact raw scanner evidence; production signing is still
+  required. Failed scanner reports remain separate from the passing run.
+- An isolated copy passed `Sign-ReleaseBundle` and strict `Test-ReleaseBundle`
+  using a disposable RSA-3072 test key; both detached signatures also passed
+  direct OpenSSL verification. A second copy with a changed `README.md`
+  failed strict verification with `release checksum failed: README.md`.
+  The original candidate remained unchanged and unsigned. This verifies
+  local signing/tamper mechanics, not production key custody or host rollout.
+
+The source-security review then identified formal/staging signing-key reuse,
+a concurrent limiter race, unassigned-exam lifecycle disclosure, and bounded
+XML entity expansion. Tasks `5.29`–`5.32` now implement and test the shared
+guards without new dependencies. The staging check also rejects quoted
+signing keys, duplicate assignments, alternate dotenv syntax, and multiline
+values before Docker. The latest ordinary backend suite passed `806` tests
+with `13` PostgreSQL-only skips; disabling the XML guard makes all ten new
+DOCTYPE regressions fail, while the enabled guard and normal imports pass.
+The subsequent disposable PostgreSQL 16 rerun passed `819` tests with no
+skips and cleaned its containers, network, and volume.
+Candidate `0.1.0-rc.2` remains an intermediate artifact and must not be promoted.
+
+The subsequent clean temporary snapshot
+`6cff8f8c9a122dd8f2e93970328a0f55419c67f0` contains all four source fixes and
+produced `0.1.0-rc.3`. Its native `linux/arm64` images passed the real release
+security gate with `0` blockers, `0` binding errors and `7` retained
+non-blocking findings (`5` MEDIUM, `2` LOW). The package was sealed and passed
+`Test-ReleaseBundle --allow-signature-missing`; it is not production-signed.
+The exact images passed all `7` browser flows in `16.6 s` and the 100-client
+capacity gate: `100/100` submitted, `0` errors, start/save/submit P95
+`940/794/620 ms`, maximum database connections `17/40`, worker heartbeat age
+`6.250 s`. The first capacity invocation was rejected before measurement
+because the temporary harness used a project name other than the required
+`internal-exam-capacity`; changing only that harness input passed. Both the
+rejection and passing checksummed reports are retained separately. All
+disposable containers, networks and volumes were removed. Local artifacts
+and a recoverable source Git bundle are under
+`.runtime/release-candidates/2026-09-05/rc3/`; none of these results replaces
+the pending complete source scan, designated-host acceptance or remote CI.
+
+The original source scan `fd7a5bd3-92ce-43fc-8b03-a59a9a983856` completed
+all `630/630` files at snapshot
+`5505e19c588ed75d603774154240d9484edc7704`, with `4` LOW findings and no
+deferred source coverage. The parent finished the files that unavailable
+workers had not returned. Its sealed canonical report and JSON artifacts
+are retained under
+`.runtime/release-candidates/2026-09-05/source-scan-5505e19c/`.
+That report describes the pre-fix snapshot; its findings must not be relabeled
+as a clean rc.3 result.
+
+Fresh rc.3 source scan `61aa4cff-e444-45ff-b9e2-4b12115063eb` has passed
+preflight and saved its threat model and partial review coverage. Independent
+review workers are unavailable because of the account usage limit. The parent
+saved `38/630` fully reviewed current files; the other `592` files are not
+counted. This is partial coverage, not a clean final scan, so task `6.6`
+remains open. The user declined a usage reset; neither a reset nor a credit
+purchase has been performed. A copy of the partial canonical JSON artifacts
+is retained in `rc3/source-scan-incomplete/`. Tasks `6.4`
+(remote CI/release evidence), `6.5` (designated-host
+operational drills), and `6.6` (complete fresh security scan) remain open.
+The workspace changes have not been committed or pushed.
+
 ## Known Gaps
 
 - The local real-SMTP UAT is complete, but real Mac formal-host staging, promotion, host/Docker restart recovery, desktop/phone UAT, the formal-host SMTP rerun, and second-copy restore have not yet been executed on the designated host. These are blocking operator acceptance steps, not completed evidence.
@@ -492,7 +604,52 @@ complete repository Codex Security scan with no deferred coverage.
 
 ## Recommended Next Work
 
+The historical full signed-release recommendations below are superseded for the
+2026-09-08 deployment by the scoped local-Compose path recorded at the end of this
+document. They remain applicable only if that full operations path is resumed.
+
 1. On the designated Mac host, execute native ARM64 staging, Mac status/preflight checks, split-route checks, real SMTP fail-closed tests, service/Docker recovery, paired backup, independent encrypted second-copy restore, browser UAT, and the 100-client gate from `official-exam-uat-checklist.md`.
 2. Create the formal pre-upgrade paired backup, promote only the tested commit-tagged ARM64 images, run desktop and phone UAT, then close sessions and retain the checksummed Mac evidence bundle. Do not call this Windows acceptance.
 3. Keep HTTP `internal` exposure within the accepted office-LAN boundary. If a reassessment trigger occurs, stop expanding use and establish trusted HTTPS/network isolation before proceeding.
 4. For a later Windows move, stop the Mac writer, create a final paired backup and writer-generation evidence, restore on native Windows AMD64 staging, and complete every Windows-specific gate before cutover.
+
+## 2026-09-08 Minimal local deployment
+
+The operator selected this Mac and `192.168.2.225`, with real SMTP reused from
+the existing local `.env`. Scope is a fixed source/image version, `internal`
+configuration, and runtime acceptance. Release signing, backups, second copies,
+and restore drills are explicitly excluded from this deployment. This selection
+does not constitute successful completion of those historical gates.
+
+The procedure is in `docs/minimal-macos-deployment.md`. It uses a separate
+`internal-exam-minimal` Compose project and fresh volumes, with configuration
+under `~/Library/Application Support/InternalExamMinimal`. Existing development
+volumes are retained. Ordinary upgrades of existing databases retain the
+maintenance gate; explicit empty-database initialization must reject an existing
+schema before running any migration.
+
+Current local verification:
+
+- Backend format, Ruff, and ty passed. After the empty-database change, the final
+  full suite passed all 822 tests with PostgreSQL enabled. The default test port
+  55432 belongs to another project, so this run used a disposable database on
+  5432. An initial run encountered missing tables; applying the full migration
+  chain resolved that test setup error before the final successful run.
+- A separate PostgreSQL database completed explicit empty initialization through
+  `202608300001`; repeating initialization with existing tables was rejected.
+- Frontend format, lint, build, and offline-reference checks passed; 551 tests
+  passed and `external_runtime_references=0`.
+- The isolated browser suite passed all 7 desktop/mobile scenarios. It used fake
+  SMTP, and its disposable backup invocation was omitted for this run. It is not
+  evidence of real mailbox delivery or a physical phone check.
+- The host currently reports `192.168.2.225`; the generated `internal` settings
+  and Compose configuration validate. Candidate ingress is configured for 8080,
+  and operator ingress stays on loopback 8081.
+- Real SMTP TLS connection and authentication passed without sending a message.
+  Docker Desktop has login auto-start enabled and Resource Saver disabled; the
+  current AC-power sleep setting is zero.
+
+Real SMTP receipt, physical-device acceptance, and whole-Mac restart recovery
+remain pending until observed. Container restart checks do not close the last
+item. Host deployment results are retained separately in the protected deployment
+directory's `evidence/` so the tested source snapshot can remain fixed.

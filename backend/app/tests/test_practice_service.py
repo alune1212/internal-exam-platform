@@ -1,8 +1,10 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fastapi import Request
 from sqlalchemy.orm import Query
 
+from app.core.rate_limit import PublicTokenRateLimitError
 from app.models import PracticeAnswer, PracticeAnswerAggregate
 from app.schemas.practice import PracticeAnswerSubmitRequest
 from app.services import practice_service
@@ -133,6 +135,20 @@ def test_wrong_questions_use_all_time_aggregate_after_detail_retention(db) -> No
     assert len(wrong[0].history) == 1
 
 
+def test_wrong_questions_rejects_oversized_offset_before_candidate_lookup(
+    db, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_if_looked_up(*_args, **_kwargs):
+        raise AssertionError("oversized offsets must fail before candidate lookup")
+
+    monkeypatch.setattr(
+        practice_service, "get_active_practice_candidate", fail_if_looked_up
+    )
+
+    with pytest.raises(practice_service.PracticeAnswerValidationError, match=r"2\^31"):
+        practice_service.list_wrong_questions(db, 1, offset=2**31)
+
+
 def test_submit_rebuilds_missing_aggregate_without_loading_full_history(
     db, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -192,6 +208,27 @@ def test_submit_rejects_answer_longer_than_32_without_writing(db) -> None:
 
     assert db.query(PracticeAnswer).count() == 0
     assert db.query(PracticeAnswerAggregate).count() == 0
+
+
+def test_submit_checks_rate_limit_before_write_locks(db, monkeypatch) -> None:
+    def fail_if_locked(_db) -> None:
+        raise AssertionError("rate limiting must precede the write locks")
+
+    def reject_request(*_args, **_kwargs) -> None:
+        raise PublicTokenRateLimitError()
+
+    monkeypatch.setattr(practice_service, "assert_backup_write_allowed", fail_if_locked)
+    monkeypatch.setattr(
+        practice_service, "check_public_token_rate_limit", reject_request
+    )
+
+    with pytest.raises(PublicTokenRateLimitError):
+        practice_service.submit_practice_answer(
+            db,
+            1,
+            PracticeAnswerSubmitRequest(question_id=1, selected_answer="A"),
+            request=Request({"type": "http", "headers": []}),
+        )
 
 
 def test_submit_rejects_a_hot_history_at_5000_rows(db) -> None:

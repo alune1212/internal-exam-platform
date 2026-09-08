@@ -2,6 +2,8 @@
 
 当前正式主机是 Apple Silicon macOS + Docker Desktop + Docker Compose；本页规定 internal 部署的共通边界，Mac 命令和完整操作顺序见 [macos-deployment-operations.md](macos-deployment-operations.md)。Windows Docker Desktop + WSL2 仅是未来迁移目标，不能在 Mac 证据上宣称 Windows ready。
 
+当前发布候选只完成本地工程门禁；正式主机、正式 SMTP、真实桌面/手机设备、离线签名和 remote clean-HEAD/CI 证据尚未执行，本文不据此宣称 ready 或已上线。
+
 ## 运行合同
 
 - designated host account 可以复用现有受管 Mac 账号，不强制新建账号；只有登记账号运行 Docker Desktop、LaunchAgent 和 formal 配置。
@@ -26,11 +28,13 @@
 | 目的 | 实际脚本 |
 | --- | --- |
 | 初始化根目录 | ops/macos/Initialize-InternalExamHost.zsh |
+| 同步并校验 staging.env | `ops/macos/Initialize-InternalExamHost.zsh --sync-staging-env` |
 | 创建发布包 | ops/macos/New-ReleaseBundle.zsh |
 | 校验发布包 | ops/macos/Test-ReleaseBundle.zsh |
 | 安装发布包 | ops/macos/Install-Release.zsh |
 | 构建 ARM64 镜像 | ops/macos/Build-ReleaseImages.zsh |
 | staging Up/Down/Status | ops/macos/Invoke-Staging.zsh |
+| 首次 writer commissioning | `ops/macos/Initialize-FormalWriter.zsh Prepare --empty-dataset` → staging acceptance → `ops/macos/Initialize-FormalWriter.zsh Activate` |
 | 正式启动/状态/停止 | ops/macos/Start-Platform.zsh、Get-PlatformStatus.zsh、Stop-Platform.zsh |
 | 正式预检 | ops/macos/Test-FormalPreflight.zsh |
 | 配对备份/第二副本 | ops/macos/Invoke-PairedBackup.zsh |
@@ -41,6 +45,8 @@
 | 脱敏诊断 | ops/macos/Export-Diagnostics.zsh |
 | 回滚 | ops/macos/Rollback-Release.zsh |
 | LaunchAgent 安装/卸载 | ops/macos/Install-LaunchAgents.zsh、Uninstall-LaunchAgents.zsh |
+
+`--sync-staging-env` 要求已填充 owner-only `formal.env`，复制后写入固定的 disposable loopback 配置并立即校验 `staging.env`，不会输出 secrets。首次 writer 必须从生成已安装 sealed ARM64 release 的 clean trusted checkout 执行：`Prepare` 预留空数据集，完成 schema-2 staging acceptance 后再执行 `Activate`；当前候选尚未在 designated formal host 执行这条路径。
 
 所有 Mac 命令必须先通过 --help、zsh -n、临时 root/项目边界检查和 UAT；不要在 Mac 上调用同名 Windows .ps1，也不要把手工 token、直接数据库写入或未脱敏日志当作替代。
 

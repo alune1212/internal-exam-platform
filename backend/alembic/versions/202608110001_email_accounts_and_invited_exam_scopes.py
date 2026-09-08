@@ -179,6 +179,14 @@ def _assert_development_database_target(bind: sa.Connection) -> None:
         )
 
 
+def _initialize_empty_database_verified() -> bool:
+    try:
+        return op.get_context().opts.get("initialize_empty_database") is True
+    except NameError:
+        # Direct unit tests do not establish an Alembic Operations proxy.
+        return False
+
+
 def _preflight(environment: str | None = None) -> None:
     environment = _migration_environment() if environment is None else environment
     if environment not in MIGRATION_ENVIRONMENTS:
@@ -207,6 +215,11 @@ def _preflight(environment: str | None = None) -> None:
                     "account migration development bypass requires both explicit disposable flags"
                 )
             return
+    # ``env.py`` sets this only after an explicit same-transaction empty-database
+    # check. Existing databases therefore keep the historical maintenance gate.
+    initialize_empty_database = _initialize_empty_database_verified()
+    if initialize_empty_database:
+        return
     require_gate = environment in FORMAL_MIGRATION_ENVIRONMENTS or _env_true(
         "ACCOUNT_MIGRATION_REQUIRE_GATE"
     )

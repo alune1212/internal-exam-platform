@@ -114,14 +114,36 @@ zsh ops/macos/Install-Release.zsh \
 
 历史 release 迁移时，先在离线环境对原始 bundle 做内容复核，再用当前受信 RSA-3072 私钥签名并让 trusted checkout 的严格 Test 成功；随后才可把它作为 current/previous 写入 formal state。未签名或无法证明来源的 current/previous 必须阻断，不得在正式 Mac 上生成生产私钥或用 `--allow-signature-missing` 绕过正式操作；密钥轮换须先把新公钥和 fingerprint 通过外部正式流程安装并验证，再签发新 bundle，并保留旧公钥/验签材料直到所有旧 release 迁移或退役。
 
+正式镜像构建固定使用 `--no-cache`，确保 Dockerfile 中的 `apk upgrade --no-cache` 会实际刷新系统安全补丁。基础镜像仍按 digest 固定；若扫描失败，保留失败证据并创建新的候选包和镜像标签，不能覆盖已绑定 identity 的镜像，也不能放宽扫描门槛。
+
 ## 3. Staging 和正式 promotion
 
 Staging 使用与 formal 完全不同的 project、端口和 volume。它固定使用 candidate 18080、operator 18081、PostgreSQL 15432、frontend 15173；不得指向 formal volume：
+
+首次 fresh formal writer 必须先从生成该 release 的 clean trusted checkout 运行 `Prepare`；已有正式 current writer 的版本升级不重复此步骤。`Prepare` 只预留 generation 1 的空 dataset、host identity 和独立 volumes，不启动 public candidate，也不改变正式 ownership：
 
 ~~~zsh
 MAC_ROOT="$HOME/Library/Application Support/InternalExam"
 RELEASE="$MAC_ROOT/releases/1.2.3"
 
+zsh ops/macos/Initialize-FormalWriter.zsh \
+  --action Prepare \
+  --release-path "$RELEASE" \
+  --empty-dataset \
+  --root "$MAC_ROOT"
+
+# Prepare 成功后、staging Up 之前同步 staging 配置；不要把 formal.env
+# 直接改成 development，也不要让 staging 使用 formal project/volume。
+zsh ops/macos/Initialize-InternalExamHost.zsh \
+  --root "$MAC_ROOT" \
+  --sync-staging-env
+~~~
+
+`--sync-staging-env` 要求已填充且受保护的 `formal.env`，以 owner-only 副本生成 `staging.env`，再强制写入 `ENVIRONMENT=development`、`ACCOUNT_MIGRATION_ALLOW_UNGATED_DEVELOPMENT=true`、`ACCOUNT_MIGRATION_DISPOSABLE_DATABASE=true`、空的 `CANDIDATE_LOGIN_TEST_OTP`、`CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp` 以及 loopback 地址/端口。每次同步必须生成独立随机的 staging `TOKEN_SECRET`；启动校验拒绝复用 formal 签名密钥，避免测试账号 Token 被正式环境接受。两个配置文件每个字段只允许一条 `NAME=value`，不能使用 `export`、冒号赋值或重复字段；`TOKEN_SECRET` 必须是无引号的 canonical 值，避免脚本与 Compose 解释不同。同步会使旧 staging Token 失效，不改变 formal 密钥或会话。数据库、操作员与 SMTP 配置仍来自受保护的 formal 配置，只能保存在同一受管主机的 owner-only 配置目录，并限制 SMTP 探针收件人。development 仅用于 disposable migration 和 staging，不能启动或写入 formal；SMTP 必须真实投递，停止 SMTP 时 OTP 必须 fail closed，不得使用固定 OTP、共享码或人工 token。命令不会输出 secret，`staging.env` 仍须保持 `0600`。
+
+配置值只支持单行、不带转义的字面量引号；需要保留 `$` 等字符的 SMTP 口令可使用单引号。不要使用跨行值或依赖重复字段覆盖。
+
+~~~zsh
 zsh ops/macos/Invoke-Staging.zsh \
   --action Up \
   --release-path "$RELEASE" \
@@ -244,6 +266,41 @@ STAGING_CANONICAL="$MAC_ROOT/evidence/staging-<commit12>-<run-id>/staging-accept
 
 Down 只删除该 commit-scoped staging project/volume，不得对 formal 执行 down -v。staging evidence 必须带 SHA-256、commit 和 host/architecture 标识；未通过不得 promotion。
 
+### 首次 formal writer Activate（generation 1）
+
+fresh root 在 staging `Accept` 成功并 `Down` 后，先保留 durable `STAGING_CANONICAL`，再对 pending writer 启动仅 loopback 的 target-maintenance，采集 browser smoke 和 designated-host evidence，最后运行 `Activate`。`Activate` 会在内部完成 generation-1 writer fence、paired backup/second-copy、restore drill、target-maintenance preflight、pending barrier、terminal evidence 和 public `Start`；任何证据缺失、过期或身份不匹配都会 fail closed：
+
+~~~zsh
+BROWSER_SOURCE="/private/tmp/internal-exam-browser-source-<exact-commit>"
+BROWSER_SMOKE="$MAC_ROOT/evidence/formal-browser-smoke-<timestamp>.json"
+
+zsh ops/macos/Start-Platform.zsh --maintenance --root "$MAC_ROOT"
+zsh ops/macos/Capture-FormalBrowserSmokeEvidence.zsh \
+  --browser-source "$BROWSER_SOURCE" \
+  --release-path "$RELEASE" \
+  --output-path "$BROWSER_SMOKE" \
+  --candidate-url http://127.0.0.1:28080 \
+  --operator-url http://127.0.0.1:28081 \
+  --root "$MAC_ROOT"
+
+/usr/bin/sudo -v
+zsh ops/macos/Capture-PrivilegedHostEvidence.zsh --root "$MAC_ROOT"
+PF_EVIDENCE="$MAC_ROOT/evidence/pf-privileged-host-evidence.json"
+NETWORK_TIME_EVIDENCE="$MAC_ROOT/evidence/network-time-privileged-host-evidence.json"
+
+zsh ops/macos/Initialize-FormalWriter.zsh \
+  --action Activate \
+  --release-path "$RELEASE" \
+  --staging-evidence "$STAGING_CANONICAL" \
+  --browser-smoke-evidence "$BROWSER_SMOKE" \
+  --pf-evidence "$PF_EVIDENCE" \
+  --network-time-evidence "$NETWORK_TIME_EVIDENCE" \
+  --confirmation "ACTIVATE FORMAL WRITER 1.2.3" \
+  --root "$MAC_ROOT"
+~~~
+
+`BROWSER_SOURCE` 必须是与 release commit 完全一致、无 tracked/untracked 修改且已安装本地 Playwright/Chromium 的 Git 工作树；私有 smoke 不能代替 staging E2E、真实设备 UAT、真实 SMTP、离线签名或独立加密第二副本。上述人工证据未完成时保持 **BLOCKED**，不得用静态或 synthetic evidence 替代。
+
 正式 promotion 前必须完成：
 
 - 100-client 容量门禁（100/100、0 errors、P95/连接/worker 条件全部通过）；
@@ -251,7 +308,7 @@ Down 只删除该 commit-scoped staging project/volume，不得对 formal 执行
 - pre-upgrade paired backup 与独立第二存储校验；
 - source writer 状态、当前 migration head 和人工“允许发布”决定。
 
-下列 `Promote-Release` 仅适用于已有正式 current writer 的版本升级。
+下列 `Promote-Release` 仅适用于已有正式 current writer 的版本升级；fresh root 首次 commissioning 不运行它，必须按上面的 `Prepare` → staging 验收 → `Activate` generation-1 流程执行。
 
 ~~~zsh
 zsh ops/macos/Promote-Release.zsh \

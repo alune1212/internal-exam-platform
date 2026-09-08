@@ -193,6 +193,29 @@ describe("Learning pages", () => {
     );
   });
 
+  it("loads more videos without dropping the first page", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      ...video,
+      id: video.id + index,
+      title: index === 0 ? video.title : `分页视频 ${index}`,
+    }));
+    const nextPageVideo = { ...video, id: 109, title: "下一页视频" };
+    vi.mocked(getLearningVideos).mockImplementation((pagination) =>
+      Promise.resolve(pagination?.offset === 100 ? [nextPageVideo] : firstPage),
+    );
+
+    renderLearningPage("learning", <LearningListPage />, "/learning");
+
+    expect(await screen.findByRole("heading", { name: video.title })).toBeInTheDocument();
+    const loadMore = await screen.findByRole("button", { name: "加载更多视频" });
+    fireEvent.click(loadMore);
+
+    expect(await screen.findByRole("heading", { name: nextPageVideo.title })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: video.title })).toBeInTheDocument();
+    expect(getLearningVideos).toHaveBeenNthCalledWith(1, { limit: 100, offset: 0 });
+    expect(getLearningVideos).toHaveBeenNthCalledWith(2, { limit: 100, offset: 100 });
+  });
+
   it("wraps long unbroken video titles without leaving the data card", async () => {
     const longTitle = "安全培训".repeat(24);
     vi.mocked(getLearningVideos).mockResolvedValueOnce([{ ...video, title: longTitle }]);

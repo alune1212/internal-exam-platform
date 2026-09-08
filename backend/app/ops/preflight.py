@@ -167,9 +167,15 @@ def validate_proxy_network(
     }
 
 
-def send_smtp_probe(recipient: str) -> dict[str, str]:
-    if settings.environment not in {"internal", "production"}:
-        raise PreflightError("SMTP probe requires a formal runtime profile.")
+def send_smtp_probe(
+    recipient: str, *, allow_development_staging: bool = False
+) -> dict[str, str]:
+    if settings.environment not in {"internal", "production"} and not (
+        allow_development_staging and settings.environment == "development"
+    ):
+        raise PreflightError(
+            "SMTP probe requires a formal runtime profile or explicit staging mode."
+        )
     if settings.candidate_login_email_delivery_mode.strip().lower() != "smtp":
         raise PreflightError("SMTP delivery mode is not enabled.")
     if not recipient.strip() or "@" not in recipient:
@@ -196,6 +202,11 @@ def _build_parser() -> argparse.ArgumentParser:
     smtp_parser = subparsers.add_parser("smtp", help="Send one real SMTP probe")
     smtp_parser.add_argument(
         "--recipient", default=os.getenv("PREFLIGHT_SMTP_RECIPIENT", "")
+    )
+    smtp_parser.add_argument(
+        "--staging",
+        action="store_true",
+        help="allow an explicitly configured development-profile staging probe",
     )
     network_parser = subparsers.add_parser(
         "network", help="Validate the static gateway network contract"
@@ -226,7 +237,9 @@ def main() -> int:
     args = _build_parser().parse_args()
     try:
         if args.action == "smtp":
-            result = send_smtp_probe(args.recipient)
+            result = send_smtp_probe(
+                args.recipient, allow_development_staging=args.staging
+            )
         else:
             rendered_config = (
                 args.rendered_config.read_text(encoding="utf-8")

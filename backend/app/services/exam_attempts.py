@@ -234,8 +234,10 @@ def verify_attempt_session(
     attempt_id: int,
     candidate_id: int,
     credential: str | None,
+    *,
+    for_update: bool = True,
 ) -> ExamAttempt:
-    attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=True)
+    attempt = _load_attempt_with_snapshots(db, attempt_id, for_update=for_update)
     actual_hash = sha256((credential or "").encode("utf-8")).hexdigest()
     if (
         attempt.candidate_id != candidate_id
@@ -277,12 +279,6 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
     # available while a backup freeze or writer fence blocks writes.  New
     # attempt creation acquires the shared transaction mutex below and then
     # reloads/locks the exam before making the final active-status decision.
-    exam = db.execute(select(Exam).where(Exam.id == exam_id)).scalar_one_or_none()
-    if exam is None:
-        raise ExamNotFoundError(exam_id)
-    if exam.status != "active":
-        raise ExamNotActiveError(exam_id)
-
     candidate = db.get(Candidate, candidate_id)
     if candidate is None:
         raise CandidateNotFoundError(candidate_id)
@@ -297,7 +293,13 @@ def start_exam(db: Session, exam_id: int, candidate_id: int) -> ExamStartRespons
         .with_for_update()
     ).scalar_one_or_none()
     if scope is None:
-        raise CandidateNotEligibleError(candidate_id)
+        raise ExamNotFoundError(exam_id)
+
+    exam = db.execute(select(Exam).where(Exam.id == exam_id)).scalar_one_or_none()
+    if exam is None:
+        raise ExamNotFoundError(exam_id)
+    if exam.status != "active":
+        raise ExamNotActiveError(exam_id)
 
     in_progress = (
         db.query(ExamAttempt)

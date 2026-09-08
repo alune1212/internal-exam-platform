@@ -32,7 +32,10 @@ from app.services.email_service import (
     TransientEmailDeliveryError,
 )
 from app.services.exam_errors import ExamNotFoundError
-from app.services.operational_lock_service import assert_admin_mutation_allowed
+from app.services.operational_lock_service import (
+    assert_admin_mutation_allowed,
+    assert_backup_write_allowed,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -404,6 +407,10 @@ def deliver_claimed_invitations(
                 continue
             exam_id = exam.id
             try:
+                # Delivery runs in a fresh session after the guarded claim
+                # commits. Hold the shared transaction mutex across SMTP and
+                # the status commit so backup/cutover cannot split the pair.
+                assert_backup_write_allowed(db)
                 sent, error_class = deliver_invitation_email_outcome(
                     scope_id=scope.id,
                     to_email=scope.roster_email,

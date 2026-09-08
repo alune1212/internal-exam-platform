@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Clock, Film } from "lucide-react";
 import { Link, useOutletContext } from "react-router-dom";
 
@@ -19,6 +19,8 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { candidateKeys } from "@/lib/queryKeys";
 import { candidatePageCopy, candidatePageText } from "@/lib/pageCopy";
 import type { CandidateLearningVideo } from "@/types/learning";
+
+const PAGE_SIZE = 100;
 
 function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
@@ -96,15 +98,28 @@ function LearningVideoCard({ video }: { video: CandidateLearningVideo }) {
 
 export function LearningListPage() {
   const { candidate } = useOutletContext<CandidateSessionContext>();
-  const { data, dataUpdatedAt, isError, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data,
+    dataUpdatedAt,
+    isError,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: candidateKeys.learningVideos(),
-    queryFn: getLearningVideos,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => getLearningVideos({ limit: PAGE_SIZE, offset: pageParam }),
+    getNextPageParam: (lastPage, pages) =>
+      lastPage.length === PAGE_SIZE ? pages.length * PAGE_SIZE : undefined,
     enabled: Boolean(candidate),
     retry: false,
   });
   const hasLoadError = isError && !data;
   const hasStaleError = isError && Boolean(data);
-  const videos = data ?? [];
+  const videos = data?.pages.flat() ?? [];
 
   return (
     <PageShell density="calm" width="wide" stagger data-testid="candidate-learning-list-shell">
@@ -143,6 +158,18 @@ export function LearningListPage() {
               <LearningVideoCard key={video.id} video={video} />
             ))}
           </div>
+          {hasNextPage ? (
+            <div className="flex justify-center border-t border-hairline pt-6">
+              <Button
+                type="button"
+                variant="outline"
+                pending={isFetchingNextPage}
+                onClick={() => void fetchNextPage()}
+              >
+                {isFetchingNextPage ? "正在加载更多" : "加载更多视频"}
+              </Button>
+            </div>
+          ) : null}
         </PageSection>
       ) : (
         <PageSection variant="plain">

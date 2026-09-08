@@ -14,7 +14,7 @@
 ## 3. Practice History Resource Governance
 
 - [x] 3.1 Add `practice_answer_aggregate` with unique candidate/question rows, all-time counters, latest-answer metadata, constraints, and composite indexes; backfill and validate it in an additive Alembic migration without deleting details, then verify migration/model tests.
-- [x] 3.2 In one transaction lock the candidate, enforce a 32-character answer bound and the existing 60-per-60-second account/IP limiter, reject hot histories at 5000 with 409, and update immutable detail plus aggregate; verify concurrency, limit, rollback, and aggregate tests.
+- [x] 3.2 In one transaction lock the candidate, enforce a 32-character answer bound and the existing 60-per-60-second authenticated-account limiter, reject hot histories at 5000 with 409, and update immutable detail plus aggregate; verify concurrency, limit, rollback, and aggregate tests.
 - [x] 3.3 Replace in-memory wrong-question aggregation with SQL aggregate pagination and bounded recent-history queries using `limit`, `offset`, and `history_limit`, while preserving the list envelope and adding `history_total`/`history_truncated`; verify response and query-bound tests.
 - [x] 3.4 Implement synchronous admin practice-retention preview and deterministic selection for records older than 365 days plus capped accounts reduced to 4000; verify preview fingerprints and selected IDs are stable.
 - [x] 3.5 Implement checksummed practice ZIP archives containing raw JSON, formula-safe XLSX, and an internal manifest; verify exact members, digests, raw-value preservation, and spreadsheet escaping.
@@ -45,6 +45,24 @@
 - [x] 5.13 Paginate active practice-catalog reads with a maximum page size and apply the existing candidate token rate limit; verify stable offsets, bounded SQL loading, and rate-limit responses.
 - [x] 5.14 Make every pull-request workflow checkout read-only by disabling credential persistence and constraining the workflow token to `contents: read`; verify all checkout steps satisfy the contract.
 - [x] 5.15 Release the acquired backup freeze after any ordinary post-acquisition failure, preserve the original exception, and keep successful backup/evidence semantics unchanged; verify a generic failure cannot strand the lock.
+- [x] 5.16 `[64dd55a5/public-rate-limit-rejection-keyspace-growth]` Enforce the public-token limiter key cap before rejected requests allocate state; verify unique rejected identifiers never grow retained buckets beyond the configured maximum.
+- [x] 5.17 `[64dd55a5/candidate-write-lock-wait-before-rate-limit]` Apply the existing candidate limiter before advisory or row locks on every candidate mutation and avoid row locks for read-only attempt retrieval; verify exhausted quotas return before lock acquisition.
+- [x] 5.18 `[64dd55a5/learning-progress-unbounded-watched-intervals]` Cap normalized watched intervals, reject over-cap progress before mutation, and rate-limit candidate progress updates; verify unchanged rows on overflow and 429 responses on repeated requests.
+- [x] 5.19 `[64dd55a5/candidate-learning-catalog-unbounded-read]` Add stable candidate learning-catalog pagination with `limit <= 100`, bounded offset, and the existing candidate limiter; verify only one bounded page is loaded and the frontend can load more.
+- [x] 5.20 `[64dd55a5/practice-wrong-offset-unbounded]` Bound wrong-practice offsets at the route and service boundaries and apply the candidate limiter before SQL pagination; verify oversized offsets and repeated requests fail before the query.
+- [x] 5.21 `[64dd55a5/retention-operation-unbounded-id-selection]` Cap exam and practice-retention target-ID lists at one shared maximum and repeat the guard in direct service normalization; verify over-limit selections fail before sorting, queries, or archive construction.
+- [x] 5.22 `[64dd55a5/background-invitation-write-freeze-bypass]` Reacquire the shared backup/writer guard in each background invitation delivery session; verify freeze conflicts roll back delivery state while retaining the claim for retry.
+- [x] 5.23 `[64dd55a5/legacy-backup-command-without-freeze]` Remove or block the unfrozen legacy paired-backup command and require all paired backups to use the guarded `run_paired_backup`/`container-backup` path; verify no dump or media archive starts without the write freeze.
+- [x] 5.24 `[64dd55a5/macos-bundled-lifecycle-spoofable-trust-marker]` Eliminate environment-only trust markers from bundled macOS lifecycle entrypoints and verify the external owner-controlled runtime and exact release before sourcing bundle code; verify forged markers fail before any bundled script executes.
+- [x] 5.25 Restore one trusted-checkout generation-1 formal-writer `Prepare`/`Activate` path that remains pending until exact staging, backup, restore, preflight, browser, privileged-host, release, and writer-fence evidence is bound; verify incomplete or interrupted activation stays fail closed and resumable.
+- [x] 5.26 Generate `staging.env` explicitly from protected formal configuration, force disposable loopback/network values plus real SMTP and no fixed OTP, and reject empty, incomplete, linked, or shell-overridden staging inputs before Docker.
+- [x] 5.27 Add a runnable fresh-root regression that proves preparation remains private, missing activation evidence fails, and a complete generation-1 activation produces the terminal/lineage state required by the public-start guard.
+
+- [x] 5.28 Refresh OS security packages on every native release build by disabling stale Docker build-layer reuse; verify real scanner evidence and retain immutable per-candidate image identities.
+- [x] 5.29 Generate a distinct random staging `TOKEN_SECRET` and reject missing formal keys or shared signing keys before Docker; verify generated-key secrecy, unambiguous dotenv syntax, and cross-environment rejection for candidate, admin, and playback tokens without changing the token protocol.
+- [x] 5.30 Serialize the in-process public limiter's prune, quota check, append, and eviction with one standard-library lock; verify concurrent admission and key churn without raising quotas or changing persisted OTP enforcement.
+- [x] 5.31 Check candidate exam scope before disclosing exam state on start; verify missing and unassigned IDs share a 404 while assigned lifecycle errors, inactive-account rejection, and read-only recovery remain intact.
+- [x] 5.32 Reject XLSX DOCTYPE declarations with the standard-library parser after ZIP bounds and before openpyxl; cover UTF-16 and extensionless XML without rejecting legitimate binary media or adding a dependency.
 
 ## 6. Automated Verification and Operational Acceptance
 

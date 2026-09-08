@@ -1,6 +1,7 @@
 import hashlib
 from collections import OrderedDict, deque
 from datetime import UTC, datetime, timedelta
+from threading import Lock
 from time import monotonic
 
 from fastapi import Request
@@ -21,6 +22,8 @@ class PublicTokenRateLimitError(DomainError):
 # OrderedDict preserves insertion order so we can evict the oldest key in O(1)
 # without scanning all keys to find the smallest timestamp.
 _attempts: OrderedDict[tuple[str, str], deque[float]] = OrderedDict()
+# ponytail: first-phase global lock; use per-bucket locks if throughput requires it.
+_attempts_lock = Lock()
 _IDENTIFIER_KEY_PREFIX = "sha256:"
 # A single transaction-scoped PostgreSQL advisory lock keeps the quota
 # count-and-insert boundary serialized across workers.  A conservative global
@@ -30,26 +33,39 @@ _OTP_QUOTA_ADVISORY_LOCK_KEY = 0x4558504F545F5154
 
 
 def check_public_token_rate_limit(
-    request: Request, *, bucket: str, identifier: str | None
+    request: Request,
+    *,
+    bucket: str,
+    identifier: str | None,
+    include_client_ip: bool = True,
 ) -> None:
-    now = monotonic()
+    """Limit by identity, plus source IP for unauthenticated public routes."""
     window_seconds = settings.public_token_rate_limit_window_seconds
     max_attempts = settings.public_token_rate_limit_count
-    keys = [
-        (bucket, f"ip:{_client_ip(request)}"),
-        (bucket, f"id:{_normalize_identifier(identifier)}"),
-    ]
-    for key in keys:
-        if key in _attempts:
+    with _attempts_lock:
+        now = monotonic()
+        # Enforce the cap before touching request-specific keys.  A rejected
+        # request must not be able to allocate one fresh bucket per forged
+        # identifier while an existing IP/account bucket is already exhausted.
+        _enforce_max_keys(now, window_seconds)
+        keys = [(bucket, f"id:{_normalize_identifier(identifier)}")]
+        if include_client_ip:
+            keys.insert(0, (bucket, f"ip:{_client_ip(request)}"))
+        existing_queues: list[deque[float]] = []
+        for key in keys:
+            queue = _attempts.get(key)
+            if queue is None:
+                continue
             _attempts.move_to_end(key)
-    queues = [_attempts.setdefault(key, deque()) for key in keys]
-    for queue in queues:
-        _prune(queue, now, window_seconds)
-    if any(len(queue) >= max_attempts for queue in queues):
-        raise PublicTokenRateLimitError()
-    for queue in queues:
-        queue.append(now)
-    _enforce_max_keys(now, window_seconds)
+            _prune(queue, now, window_seconds)
+            existing_queues.append(queue)
+        if any(len(queue) >= max_attempts for queue in existing_queues):
+            raise PublicTokenRateLimitError()
+
+        queues = [_attempts.setdefault(key, deque()) for key in keys]
+        for queue in queues:
+            queue.append(now)
+        _enforce_max_keys(now, window_seconds)
 
 
 def check_candidate_otp_send_rate_limit(
