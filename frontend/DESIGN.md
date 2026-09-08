@@ -407,7 +407,7 @@ English is allowed only when it adds product or operational meaning:
 
 | Allowlist                | Allowed placement                                                         | Boundary                                                    |
 | ------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `Internal Exam Platform` | the governed product wordmark/subtitle                                    | exact product name only; never a routine page eyebrow       |
+| `ZHISHI`                 | the governed product wordmark/subtitle                                    | exact product name only; never a routine page eyebrow       |
 | `Excel`                  | file-format guidance and import controls                                  | do not translate API state or add a decorative English pair |
 | `ID`                     | a compact machine identifier when the identifier itself is the task       | prefer Chinese `编号` for ordinary table labels             |
 | `OTP`                    | a verification-code implementation term where users need that distinction | never expose an API field or raw error code                 |
