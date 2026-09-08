@@ -653,3 +653,21 @@ Real SMTP receipt, physical-device acceptance, and whole-Mac restart recovery
 remain pending until observed. Container restart checks do not close the last
 item. Host deployment results are retained separately in the protected deployment
 directory's `evidence/` so the tested source snapshot can remain fixed.
+
+Deployment completed on this Mac from commit
+`47b4c17cd7fce30447786a33a63b357b1f4f875d`, using image tag
+`minimal-47b4c17cd7fc` and the protected exported source directory. All six
+services are running; PostgreSQL, backend, and auto-submit worker health checks
+pass. The fresh formal database is at migration `202608300001`.
+
+Live HTTP acceptance passed: candidate health and homepage, loopback readiness
+and operator login, authenticated report export with four worksheets, anonymous
+report denial, and seven candidate-ingress administration/operations/docs
+denials. Restarting all six containers and repeating those checks passed;
+persisted admin audit rows remained present. The exported report currently has
+no exam data because this is a fresh formal database.
+
+The protected `evidence/internal-exam-minimal-live.json` records the runtime
+results and outstanding physical-device/mailbox/whole-host checks. No connected
+computer-use browser was available for a live GUI inspection; the 7 successful
+isolated browser scenarios remain separate evidence. No remote push was made.
