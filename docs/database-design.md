@@ -1,5 +1,8 @@
 # Database Design
 
+本页记录数据库和快照合同。当前运行范围、入口、版本和验收记录见
+[`docs/handoff.md`](handoff.md) 与 [`docs/minimal-macos-deployment.md`](minimal-macos-deployment.md)；当前部署没有启用发布签名、配对备份、独立第二副本或恢复演练。
+
 ## 设计原则
 
 - PostgreSQL 作为第一阶段唯一关系数据库。
@@ -170,7 +173,7 @@
 
 - 只有 `published` 视频会展示给 active 用户。
 - `archived` 视频不再出现在用户学习列表，但管理员报表仍可统计其历史学习记录。
-- 本地媒体目录应与 PostgreSQL 数据库一起备份，否则恢复后元数据和视频文件会不一致。
+- 需要恢复时，本地媒体目录必须与 PostgreSQL 数据库作为配对数据处理，否则恢复后元数据和视频文件会不一致。当前最小部署未执行备份或恢复演练，因此不宣称具备已验证的恢复能力。
 
 ### learning_video_progress
 

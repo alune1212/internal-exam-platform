@@ -1,3 +1,5 @@
+> **Current scope (2026-09-08):** The security hardening implementation is part of the live scoped minimal Mac runtime at `192.168.2.225`. This change also records full signed-release and operational security gates. Detached release signing, paired backups, second-copy storage, restore drills, remote CI evidence, and the complete final scan were not enabled or claimed for the minimal deployment; tasks 6.4–6.6 remain open and must stay open.
+
 ## Why
 
 The repository-wide security scan at `665a5bf6a2d42e67c0f10f687108957fab2ffa37` identified fifteen reachable configuration, parsing, resource, archival, release, and proxy weaknesses. The implementation review also found separate tracked-workbook metadata, invitation-limiter, learning-media, CI Docker-socket, and macOS scanner-evidence paths. They must be closed before the next formal internal release without expanding the first-phase architecture or weakening the controlled-LAN operating boundary.

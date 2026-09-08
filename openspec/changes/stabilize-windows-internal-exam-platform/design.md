@@ -1,6 +1,8 @@
+> **Current scope (2026-09-08):** This design remains the application-hardening and future Windows migration record. The current minimal Mac runtime is live at `192.168.2.225`; that acceptance does not satisfy native AMD64 Windows staging, cutover, or UAT, and those future gates remain separate.
+
 ## Context
 
-> **Target update (2026-08-07):** the completed Windows adapter remains supported, but Windows is now a future migration target. Current macOS formal-host requirements and evidence are defined by `support-macos-formal-host-portability`; native AMD64 Windows staging, cutover, and UAT remain mandatory before any future Windows cutover.
+> **Historical target update (2026-08-07):** the completed Windows adapter remains supported, but Windows is now a future migration target. The archived `2026-08-27-abandon-formal-host-cutover` record contains the prior macOS full-host contract; native AMD64 Windows staging, cutover, and UAT remain mandatory before any future Windows cutover.
 
 The platform already has a complete single-host exam, practice, reporting, OTP, video-learning, worker-health, and paired-backup loop. The selected current formal source/target is macOS, but real Mac host acceptance remains a separate pending gate; this change MUST NOT claim that Mac is ready from planning evidence alone. This change preserves a future Windows computer running Docker Desktop with the WSL2 backend; development and the selected Mac formal writer remain separate until a native AMD64 cutover is deliberately accepted.
 

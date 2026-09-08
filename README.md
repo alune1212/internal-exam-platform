@@ -22,7 +22,7 @@
 </p>
 
 > [!IMPORTANT]
-> **当前部署范围（2026-09-08）：**当前 Mac 使用固定内网地址 `192.168.2.225`，按[本机最小部署](docs/minimal-macos-deployment.md)直接运行固定版本的 Compose 镜像。此次不使用发布包签名，不执行备份、第二副本和恢复演练。真实邮件、设备及整机重启的验收结果以 [`docs/handoff.md`](docs/handoff.md) 最新条目为准；历史 rc.3 门禁不等于当前版本已验收。
+> **已正式上线（2026-09-08）：**公司内网单机 Mac 部署已完成真实邮件、手机答题和整机重启验收。使用入口见[正式运维手册](docs/minimal-macos-deployment.md)，部署版本与验收结果见[上线交接](docs/handoff.md)。
 
 <p align="center">
   <img src="./assets/readme/zhishi-frozen-record.webp" width="360" alt="知试概念海报：一份带答题格、计时条与红色封存章的考试记录，象征冻结题池和作答快照">
@@ -55,7 +55,7 @@
         ↓
 邮箱 OTP → 开始 / 恢复 attempt → 暂存 → 提交或到时自动提交
         ↓
-快照判分 → 成绩与通过状态 → 解析发布 → 报表 / 备份 / 审计
+快照判分 → 成绩与通过状态 → 解析发布 → 报表 / 审计
 ```
 
 ## 关键契约
@@ -68,6 +68,8 @@
 - **结果发布：**分数和通过状态交卷后立即可见；答案解析只能在全部 attempt 结束后由操作员一次性发布。
 
 ## 快速启动
+
+以下仅启动开发环境。正式环境已运行，日常启停按[正式运维手册](docs/minimal-macos-deployment.md)执行。同机并行开发须先调整开发 PostgreSQL 和前端直连端口，避免与正式栈冲突。
 
 需要 Docker Desktop（或兼容 Docker Engine）与支持 `docker compose up --wait` 的 Docker Compose v2。仓库根目录的 [`.env.example`](.env.example) 仅包含本机开发默认值。
 
@@ -106,22 +108,10 @@ docker compose --env-file .env down
 | Profile | 场景 | 入口与约束 |
 | --- | --- | --- |
 | `development` | 本机开发、自动化测试 | 默认全部 loopback；允许示例凭据和 `memory` OTP |
-| `internal` | 受控私有局域网内的正式内部考试 | 候选端使用显式私网 IP 的 HTTP；强凭据、精确 CORS、SMTP 与正式运维证据必填 |
+| `internal` | 受控私有局域网内的正式内部考试 | 候选端使用显式私网 IP 的 HTTP；强凭据、精确 CORS、真实 SMTP；当前已上线配置 |
 | `production` | 外部 HTTPS 部署 | 只接受 HTTPS origin；仓库内 Nginx 不负责 TLS 终止，需要外部可信 HTTPS 层 |
 
-正式 `internal` 网络字段的关系如下；这不是完整配置，也不能在地址获批前直接复制使用：
-
-```dotenv
-ENVIRONMENT=internal
-INTERNAL_LAN_BIND_IP=<FORMAL_LAN_IP>
-CANDIDATE_GATEWAY_PORT=8080
-OPERATOR_GATEWAY_PORT=8081
-CORS_ORIGINS=http://<FORMAL_LAN_IP>:8080
-CANDIDATE_PUBLIC_BASE_URL=http://<FORMAL_LAN_IP>:8080
-CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp
-```
-
-全部字段、速率限制、SMTP、媒体和持久化路径以 [`.env.example`](.env.example) 为准。正式配置应保存在受保护的宿主根目录中，而不是开发 checkout。
+正式网络、目录和启停命令统一维护在[正式运维手册](docs/minimal-macos-deployment.md)。字段定义以 [`.env.example`](.env.example) 和后端配置校验为准；正式 `formal.env` 保存在受保护的宿主目录，凭据不进入 Git。
 
 ## 功能边界
 
@@ -130,7 +120,7 @@ CANDIDATE_LOGIN_EMAIL_DELIVERY_MODE=smtp
 - 仓库模板与已验证的导入格式为 `.xlsx`（legacy `.xls` 未验证），后端基于 openpyxl 读取工作簿；不解析 Word。默认单文件上限 5 MiB、5000 行、1 个工作表。
 - 题库导入和单场 roster 导入都会记录 `import_batch`；有效行入库，错误行可导出 Excel。
 - 学习视频支持 `mp4` / `webm`，默认单文件上限 500 MiB；完成阈值为 90%。
-- 正式备份必须把 PostgreSQL 与 `learning_media` 作为配对数据处理，并验证独立第二副本恢复。
+- 数据库和视频使用持久卷。当前未启用备份、第二副本和恢复演练，因此没有经过验证的数据恢复保障。
 
 ### 有意保持轻量
 
@@ -176,44 +166,20 @@ sh ops/e2e/run-browser-gate.sh
 sh ops/e2e/run-capacity-gate.sh
 ```
 
-浏览器门禁使用隔离栈和 fake SMTP；容量门禁要求干净、可识别的 Git revision。两者都不会替代 designated host 上的真实 SMTP、桌面/手机、网络、防火墙、重启与恢复证据。
+浏览器门禁使用隔离栈和 fake SMTP，默认脚本包含测试库备份步骤；本次上线验收省略了该步骤。容量门禁要求干净、可识别的 Git revision，属于工程复验工具；当前上线已完成的检查以[上线交接](docs/handoff.md)为准。
 
 ## 正式运行
 
-当前选择的是[本机最小部署](docs/minimal-macos-deployment.md)，正式入口为 `http://192.168.2.225:8080`，管理入口为本机 `http://127.0.0.1:8081/admin/login`。以下签名发布包流程保留给原有完整运维路径，不作为此次最小部署步骤。
+当前已在公司受控局域网正式上线。用户入口为 `http://192.168.2.225:8080`，管理入口仅在 Mac 本机开放：`http://127.0.0.1:8081/admin/login`。
 
-当前正式目标是 **Apple Silicon macOS + Docker Desktop + Docker Compose**。正式根目录默认位于工作树外的 `${HOME}/Library/Application Support/InternalExam`；考试窗口内停止 development / staging，任何时刻只允许一个 formal writer。容器健康或 LaunchAgent 恢复都不等于批准开考，最终决定必须由操作员完成预检后人工给出。
+- [正式运维手册](docs/minimal-macos-deployment.md)：主机、配置、首次部署及日常启停的唯一操作入口。
+- [上线交接](docs/handoff.md)：当前部署身份、已完成验收及未启用范围的唯一状态记录。
+- [考试日操作指南](docs/exam-day-guide.md)：准备题目和名单、发布考试、处理答题及成绩。
+- [实机验收清单](docs/official-exam-uat-checklist.md)：本次结果与后续变更的复验动作。
+- [局域网 HTTP 安全例外](docs/security-http-exception.md)：内网 HTTP 的适用边界。
+- [OpenSpec 导航](openspec/README.md)：当前规格、未采用的完整运维方案及历史归档。
 
-正式主机仍需完成 LAN 地址预留与批准、签名发布包安装、首次正式初始化（`Initialize-FormalWriter.zsh Prepare` → staging 验收 → `Activate`）、正式邮件与真实桌面/手机设备验收、同一提交的远程 CI 验证、LaunchAgent 恢复，以及独立加密第二副本恢复。这些验收项尚未通过。
-
-正式 LAN 地址目前必须写作 `<FORMAL_LAN_IP>`，直到网络管理员完成未占用地址的 DHCP reservation。不要复用历史文档或本地 UAT 中出现过的临时地址。地址获批后，入口合同为：
-
-```text
-应考人员  http://<FORMAL_LAN_IP>:8080
-操作员    http://127.0.0.1:8081/admin/login
-```
-
-`internal` 模式通过共享办公 LAN 使用 HTTP，候选 token、题目、答案与结果不具备传输加密；其使用范围和补偿控制必须持续满足已接受的安全例外。未来 Windows Docker Desktop + WSL2 只是迁移目标，必须重新完成 native AMD64 staging、配对备份恢复、网络、SMTP、浏览器、容量与人工 promotion，不能复用 Mac 证据。
-
-正式操作从以下文档进入：
-
-首次正式 writer 前，使用受保护的 `formal.env` 同步并校验 disposable `staging.env`（不会输出 secrets）：
-
-```bash
-zsh ops/macos/Initialize-InternalExamHost.zsh \
-  --root "$HOME/Library/Application Support/InternalExam" \
-  --sync-staging-env
-```
-
-首次 writer 只按 `Initialize-FormalWriter.zsh Prepare`（显式空数据集）→ 完整 staging acceptance → `Initialize-FormalWriter.zsh Activate` 执行；具体证据参数和顺序见下列运维文档，不在 README 重复 runbook。
-
-- [macOS 宿主准备](docs/macos-host-guide.md)
-- [macOS release、staging、promotion、备份与恢复](docs/macos-deployment-operations.md)
-- [正式考试 UAT 清单](docs/official-exam-uat-checklist.md)
-- [考试日操作指南](docs/exam-day-guide.md)
-- [局域网 HTTP 安全例外](docs/security-http-exception.md)（范围原则；具体地址以当前 Mac host guide / handoff 为准）
-- [主机迁移与 single-writer 语义](docs/host-migration.md)
-- [当前验证状态与 Known Gaps](docs/handoff.md)
+发布包签名、备份、第二副本和恢复演练未纳入本次上线；旧 Windows、签名发布和跨主机迁移手册已退出当前文档，历史背景保留在 OpenSpec 与 Git 中。现有相关工具仍保留，但不用于当前生产启停。
 
 ## 代码地图
 
@@ -229,7 +195,7 @@ ops/                   E2E、容量、安全、macOS 与未来 Windows 运维工
 docs/                  需求、数据库、API、模板、UAT 与交接文档
 ```
 
-进一步阅读：[`docs/requirements.md`](docs/requirements.md) · [`docs/database-design.md`](docs/database-design.md) · [`docs/api-design.md`](docs/api-design.md) · [`docs/import-templates.md`](docs/import-templates.md)。API 路由的运行时真值以 [`backend/app/api/router.py`](backend/app/api/router.py) 及对应 route 文件为准；部署地址与验收状态以本页“正式运行”所列 Mac 文档和 handoff 为准。
+进一步阅读：[`docs/requirements.md`](docs/requirements.md) · [`docs/database-design.md`](docs/database-design.md) · [`docs/api-design.md`](docs/api-design.md) · [`docs/import-templates.md`](docs/import-templates.md)。API 路由的运行时真值以 [`backend/app/api/router.py`](backend/app/api/router.py) 及对应 route 文件为准；文档分工与当前状态以本页“正式运行”的导航为准。
 
 ## License
 

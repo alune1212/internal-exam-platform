@@ -1,3 +1,5 @@
+> **Scope note (2026-09-08):** This delta defines the internal-runtime and full backup/restore path. The current minimal Mac deployment at `192.168.2.225` uses the scoped runtime decision; its real SMTP, device, and restart evidence does not claim the full backup/restore gate.
+
 ## ADDED Requirements
 
 ### Requirement: Controlled LAN Runtime Profile

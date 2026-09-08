@@ -1,3 +1,5 @@
+> **Task scope (2026-09-08):** The implementation tasks remain recorded as completed where checked. Tasks 6.4, 6.5, and 6.6 are still open for remote CI/release evidence, Mac full-path operational drills, and a complete fresh security scan. The current minimal Mac deployment does not mark those gates passed.
+
 ## 1. Formal Configuration, Tokens, and Browser Sessions
 
 - [x] 1.1 Enforce formal backend/worker database credentials, effective operator credentials, exact 14400-second admin/candidate TTLs, and a canonical unpadded 43-character Base64url 32-byte `TOKEN_SECRET`; verify focused configuration tests reject blank, sample, malformed, padded, and wrong-length values.

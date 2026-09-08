@@ -8,9 +8,9 @@
 
 - 用户：通过规范化邮箱申请六位邮件验证码；首次验证后在独立步骤填写显示名称即可创建账号。active 用户可学习、练习和复习错题，四小时 session 不提供“记住我”。
 - 应考人员：只有被加入并冻结到某场考试的 per-exam roster 才能发现、开始、恢复或读取该场正式考试；平台显示名称编辑不会改写冻结名单或历史报表。
-- 主操作员：在当前 macOS 正式宿主本地导入题库/名单、配置与发布考试、处理事件、查看报表、备份和关闭会话。
+- 主操作员：在当前 macOS 正式宿主本地导入题库/名单、配置与发布考试、处理事件、查看报表和关闭考试会话；当前最小部署不执行备份或恢复。
 - 管理端可通过 `GET /api/admin/exams/{exam_id}/workspace` 查看单场考试的聚合运营工作区（发布就绪、名单/邀请/出席/attempt/incident 摘要和一个 advisory next action）；工作区不返回名单 PII，next action 不是授权依据。
-- 备份操作员：与主操作员权限相同，账号默认禁用，仅在主操作员不可用时接管；两人不得同时操作。
+- 备份操作员能力保留在产品合同中：与主操作员权限相同，账号默认禁用，仅在主操作员不可用时接管；当前最小部署不启用该接管流程，两人不得同时操作。
 - 操作员可以作废异常 attempt，并通过“预览 + 精确确认”批量发放补考；不得删除快照或审计证据。
 
 第一版不实现复杂 RBAC。
@@ -25,15 +25,15 @@
 
 ## 部署与服务等级
 
-- 当前正式主机使用 Apple Silicon macOS + Docker Desktop + Docker Compose，单机 24×7 best-effort 运行，不建设高可用；严重主机故障允许暂停或改期。未来 Windows Docker Desktop + WSL2 只作为迁移目标，必须完成真实 Windows staging/UAT 后才能接管。
-- Docker Desktop 由登记的 designated host account 运行；可以复用现有受管账号，不强制新建账号。正式根目录必须在工作树外、owner-only（目录 0700、环境文件 0600）。
-- Docker Desktop 必须启用登录后启动、关闭 Resource Saver，资源固定为 8 CPU/8 GiB。Docker Desktop 当前没有按 Compose project 排除 Resource Saver 的正式合同；不得以不存在的 “formal exclusion” 代替关闭设置。正式 MacBook 考试期间必须接入 AC，电池不作为正式电源方案。
-- 正式应考人员入口使用网络管理员批准并完成 DHCP reservation 的 `<FORMAL_LAN_IP>/24`；pf/受管防火墙只允许已批准的局域网 CIDR 到 `<FORMAL_LAN_IP>:8080`，操作员入口严格只绑定 `127.0.0.1:8081`。`<FORMAL_LAN_IP>` 是唯一规范占位符；历史或 synthetic UAT 中出现的具体地址不得复制到正式配置。
-- 应考人员入口在现有办公局域网使用 HTTP 8080，并记录为明确接受的第一阶段安全例外；不得把该入口描述成传输安全。
+- 当前正式运行范围是 2026-09-08 的本机最小部署：Apple Silicon macOS + Docker Desktop + Docker Compose，固定部署版本 `47b4c17`，独立 Compose 项目 `internal-exam-minimal`。应考人员入口为 `http://192.168.2.225:8080`，操作员入口仅在本机使用 `http://127.0.0.1:8081/admin/login`。真实 SMTP 复用当前 `.env` 配置。
+- 当前部署已完成真实邮箱收件、iPhone 16 Pro Max / Safari 登录与答题、刷新恢复、断网恢复、手动交卷、自动交卷和 Mac 重启自动恢复验收；详细证据见 [`docs/handoff.md`](handoff.md)。
+- 当前部署是单机 24×7 best-effort 运行，不建设高可用；严重主机故障允许暂停或改期。Docker Desktop 登录后自动启动和容器自动恢复已验收，但这不提供数据恢复保障。
+- 当前部署根目录为 `~/Library/Application Support/InternalExamMinimal`，与开发工作树分离；配置文件保持 owner-only。日常启动、暂停和首次空库初始化遵循 [`docs/minimal-macos-deployment.md`](minimal-macos-deployment.md)。
+- 应考人员入口在现有办公局域网使用 HTTP 8080，并记录为明确接受的第一阶段安全例外；不得把该入口描述成传输安全。当前地址和控制边界见 [`docs/security-http-exception.md`](security-http-exception.md)。
 - 普通办公设备、应考人员电脑和手机共用现有局域网，不假设独立路由器、专用 Wi-Fi 或受管终端。不得把 HTTP 描述为传输安全。
 - 正式 admin/candidate token 有效期固定 4 小时；单场考试最长 2 小时；考后全局关闭会话。
 - 前端运行时完全离线，自托管全部静态资源，不访问公共字体、CDN 或遥测服务。
-- 正式宿主、开发项目和 staging 项目必须使用不同 Compose project/volume；考试窗口内停止开发和 staging，任何时刻只允许一个 formal writer。
+- 当前最小部署使用独立 Compose project 和持久卷；考试窗口内只允许这一实例写入。当前范围不启用另一套 staging、签名发布、跨主机迁移或 LaunchAgent 运维路径。
 - 不做完整防作弊/监考，不隔离练习题与正式题库，也不以阻止题库泄露为第一阶段目标。
 
 ## 题型
@@ -92,13 +92,12 @@
 ## 生命周期与运维
 
 - 数据默认保留 12 个月，采用自动提醒、人工确认删除的两阶段流程；无固定到期复审。
-- 每日按数据变化机会式备份，考试前后人工强制备份；备份短暂冻结写操作。本机只保留最近三份验证副本，post-exam 同步到独立加密第二存储并保留 12 个月。
-- 首次发布及每季度从第二副本执行一次性隔离恢复演练。
-- 上传/升级前动态磁盘水位为操作后至少 20 GiB 且不少于三倍占用；不能因此阻断正式答题保存和交卷。
-- 服务可自动恢复，但必须人工确认预检后开考。正式发布后冻结七天；没有固定维护窗口，季度维护按需安排。
+- 当前最小部署不启用发布包签名、配对备份、独立第二副本或恢复演练；因此不宣称具备已验证的回滚和数据恢复能力。不得把保留的 Docker 镜像当作数据库回滚方案。
+- 容器配置了自动重启；Mac 重启后 Docker Desktop 自动启动，平台在本次验收中恢复。恢复后仍需检查服务、worker 和业务入口，不能把容器恢复当作数据恢复。
+- 当前没有单独的 release staging、promotion 或跨主机切换流程；需要升级时先停止考试并按 [`docs/minimal-macos-deployment.md`](minimal-macos-deployment.md) 的固定版本路径处理。考试发布后的名单和题池冻结仍按产品合同执行。
 - 开考后进入只读运维窗口，全部交卷后恢复管理写操作。
 - 日志本地轮转；一键诊断包只包含有界、脱敏、带 checksum 的状态和日志。
-- 唯一标准回滚路径是上一版本发布包 + 升级前配对备份。
+- 当前部署没有经过验证的标准回滚路径；任何数据库变更前必须先停用考试并另行完成可恢复方案评审。
 
 ## 判分规则
 

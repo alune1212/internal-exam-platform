@@ -1,3 +1,5 @@
+> **Scope note (2026-09-08):** This delta defines security requirements for the full signed-release and backup-enabled operations path. The current minimal Mac deployment at `192.168.2.225` does not claim detached signatures, paired backup/restore, second-copy, or complete final-scan evidence; the unchecked verification tasks remain open.
+
 ## ADDED Requirements
 
 ### Requirement: Fail-Closed Security Scan Severity

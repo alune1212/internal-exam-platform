@@ -1,3 +1,5 @@
+> **Task scope (2026-09-08):** Implemented tasks describe the shared application and Windows adapter baseline. Tasks 12.4 and 12.5 remain intentionally open for future native AMD64 Windows staging/cutover/UAT. The current minimal Mac deployment at `192.168.2.225` does not complete or block those tasks.
+
 ## 1. Persistence And Core Module Boundaries
 
 - [x] 1.1 Add regression tests that lock current snapshot, frozen-pool, fixed-paper, integer-score, set-based multiple-choice, save-before-submit, and auto-submit semantics before decomposition.

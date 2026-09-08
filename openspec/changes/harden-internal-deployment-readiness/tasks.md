@@ -1,3 +1,5 @@
+> **Task scope (2026-09-08):** These tasks record the implementation baseline and its full-path verification contract. The current minimal Mac deployment does not close, reopen, or reinterpret any task. In particular, the historical paired-backup/restore gate remains a full-path requirement and is not current minimal-deployment evidence.
+
 ## 1. Runtime Profiles And Configuration
 
 - [x] 1.1 Add `internal` environment and backend/worker `APP_ROLE` settings with development-compatible defaults and role-specific fail-closed validation for secrets, SMTP, database credentials, CORS, and private LAN binding.

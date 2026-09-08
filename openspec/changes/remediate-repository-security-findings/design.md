@@ -1,3 +1,5 @@
+> **Current scope (2026-09-08):** This design records implemented repository security hardening and the separate full signed-release/operational verification path. The live minimal Mac runtime at `192.168.2.225` does not claim detached signatures, paired backup/restore, second-copy, remote CI, or complete final-scan evidence. The corresponding verification tasks remain open.
+
 ## Context
 
 See `proposal.md` and the seven delta specs. The current single-backend controlled-LAN platform already has formal runtime profiles, immutable practice details, guarded exam retention, paired backups, macOS release sealing, and two Nginx gateways. The security findings arise where those existing controls are incomplete or applied after unsafe parsing/expansion. The implementation must reuse those boundaries and keep routes thin.

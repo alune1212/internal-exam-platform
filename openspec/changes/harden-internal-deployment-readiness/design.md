@@ -1,3 +1,5 @@
+> **Current scope (2026-09-08):** This design describes the completed internal hardening baseline and its full backup/restore release path. Current minimal Mac operation is already live at `192.168.2.225` under the scoped deployment decision; it does not claim detached signing, paired backup, second-copy, restore-drill, or full staging evidence. Those controls remain applicable only when the full operations path is enabled.
+
 ## Context
 
 The platform already runs as a single-host Docker Compose stack with PostgreSQL, a FastAPI backend, an independent auto-submit worker, a React frontend, Nginx, and a shared `learning_media` volume. The formal exam loop, candidate email OTP login, video learning, reports, and full quality gates are implemented.

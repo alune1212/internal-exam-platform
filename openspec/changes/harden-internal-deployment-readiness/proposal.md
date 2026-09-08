@@ -1,3 +1,5 @@
+> **Current scope (2026-09-08):** This change records the implemented internal-runtime hardening baseline. The live deployment uses the scoped minimal Mac path at `192.168.2.225` with real SMTP, device acceptance, and whole-Mac restart acceptance. Detached release signing, paired backups, independent second-copy storage, restore drills, and full staging/promotion are deliberately outside that deployment; the full-path requirements below remain historical/conditional and are not current minimal上线 blockers.
+
 ## Why
 
 The first-phase exam loop is complete, but the current Docker Compose deployment cannot safely represent a real internal rollout: documented OTP/SMTP and import settings are not fully passed into containers, LAN HTTP has no explicit hardened runtime profile, and readiness, worker health, and paired database/media recovery are not proven. These gaps should be closed before the platform is used for formal internal exams.
@@ -22,7 +24,7 @@ The first-phase exam loop is complete, but the current Docker Compose deployment
 
 ## OpenSpec ownership and archive order
 
-This completed baseline remains an active change for this round and MUST NOT be auto-archived here. It owns the generic controlled-LAN runtime, readiness, worker health, and paired-restore baseline only. `support-macos-formal-host-portability` owns the selected macOS formal-host acceptance and portability details, while `stabilize-windows-internal-exam-platform` owns the future Windows Docker Desktop + WSL2 acceptance track. Archive these changes separately and in evidence order: leave harden active this round, archive support only after real Mac acceptance, and archive stabilize only after real Windows staging, cutover, UAT, and evidence complete. A later archive MUST preserve the other active change's capability ownership rather than overwriting or absorbing its host-specific specs.
+This completed baseline remains an active change record for this round and MUST NOT be auto-archived here. It owns the generic controlled-LAN runtime, readiness, worker health, and paired-restore baseline only. The archived `2026-08-27-abandon-formal-host-cutover` record preserves the prior full macOS host-acceptance and portability contract, while `stabilize-windows-internal-exam-platform` owns the future Windows Docker Desktop + WSL2 acceptance track. The current minimal Mac deployment is a separate scoped decision. A later archive MUST preserve the other change's capability ownership rather than overwriting or absorbing its host-specific specs.
 
 ## Capabilities
 

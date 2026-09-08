@@ -1,3 +1,5 @@
+> **Scope note (2026-09-08):** This delta retains the full host, firewall, backup, and restore requirements for the selected-host operations path. The current minimal Mac deployment at `192.168.2.225` is live under a separate scoped decision; it does not satisfy future Windows or full-path gates.
+
 ## MODIFIED Requirements
 
 ### Requirement: Controlled LAN Runtime Profile

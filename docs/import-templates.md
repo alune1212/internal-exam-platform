@@ -1,5 +1,7 @@
 # Import Templates
 
+当前最小部署通过本机操作员入口提供这些模板和导入接口；本页只描述现行的题库与单场应考名单合同。当前部署版本和验收范围见 [`docs/handoff.md`](handoff.md)。
+
 ## 题库 Excel
 
 第一阶段只支持标准 Excel 导入，不支持 Word 直接解析。

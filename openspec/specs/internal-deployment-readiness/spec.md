@@ -1,8 +1,29 @@
 # Internal Deployment Readiness Specification
 
+## Current Deployment Scope (2026-09-08)
+
+The current deployment status and observed acceptance are recorded in
+[`docs/handoff.md`](../../../docs/handoff.md). The scoped runtime procedure is
+[`docs/minimal-macos-deployment.md`](../../../docs/minimal-macos-deployment.md).
+This specification defines the applicable scope and conditions without
+duplicating the live evidence ledger.
+
+Detached release signatures, paired backups, independent second-copy storage,
+restore drills, full staging/promotion, and Windows migration are not enabled
+for this deployment and have no passing evidence. Requirements below that
+mention those controls define the full signed/backup-enabled operations path;
+they remain required when that path is enabled and must not be presented as
+current minimal-deployment evidence. Runtime security validation, snapshot
+semantics, authentication, worker health, and the accepted shared-LAN HTTP
+boundary still apply to the current deployment.
+
 ## Purpose
 
-Internal deployment readiness defines the controlled-LAN runtime profile, role-scoped configuration, dependency health, paired backup and restore verification, and release evidence required before formal internal exams.
+Internal deployment readiness defines the controlled-LAN runtime profile,
+role-scoped configuration, dependency health, and the separate full-release
+evidence path for formal internal exams. The current minimal Mac runtime is a
+scoped deployment decision; it does not satisfy the full signed/backup-enabled
+release gate below.
 
 ## Requirements
 
@@ -69,7 +90,10 @@ The auto-submit worker MUST expose health based on recent successful database sc
 - **THEN** the worker is unhealthy
 
 ### Requirement: Paired Backup And Isolated Restore Verification
-The system SHALL create PostgreSQL and `learning_media` backup artifacts as one checksummed unit and MUST verify restoration only against disposable resources by default.
+For deployments that enable the full signed/backup-enabled operations path, the
+system SHALL create PostgreSQL and `learning_media` backup artifacts as one
+checksummed unit and MUST verify restoration only against disposable resources
+by default.
 
 #### Scenario: Complete paired backup succeeds
 - **GIVEN** no formal exam or video upload is in progress during the maintenance window
@@ -89,7 +113,10 @@ The system SHALL create PostgreSQL and `learning_media` backup artifacts as one 
 - **AND** it refuses to target the current formal deployment by default
 
 ### Requirement: Internal Release Gate
-The system SHALL define a formal internal-release gate that requires automated quality checks, healthy services, real SMTP delivery, business UAT, worker recovery, and verified backup restoration.
+For a deployment that enables the full signed/backup-enabled operations path,
+the system SHALL define a formal internal-release gate that requires automated
+quality checks, healthy services, real SMTP delivery, business UAT, worker
+recovery, and verified backup restoration.
 
 #### Scenario: Internal release evidence is complete
 - **GIVEN** backend, frontend, OpenSpec, and Compose checks pass
@@ -102,3 +129,24 @@ The system SHALL define a formal internal-release gate that requires automated q
 - **GIVEN** any required healthcheck, SMTP, UAT, worker recovery, or restore verification evidence is missing or failed
 - **WHEN** release readiness is assessed
 - **THEN** the deployment MUST NOT be marked ready for formal internal use
+
+### Requirement: Scoped Minimal Mac Runtime
+The current minimal Mac runtime MAY be marked ready for its documented
+controlled-LAN internal use when its fixed Compose version, internal profile,
+real SMTP delivery, healthy backend and worker, candidate/operator ingress
+boundary, real-device exam flow, and whole-Mac restart recovery have passed.
+The readiness record MUST state that detached release signing, paired backup,
+independent second-copy storage, restore drills, full staging/promotion, and
+Windows migration are outside this scope and remain unverified.
+
+#### Scenario: Minimal Mac scope is accepted
+- **GIVEN** the fixed Mac deployment passes the scoped runtime, SMTP, device, and restart checks
+- **WHEN** the scoped deployment status is recorded
+- **THEN** it may be described as live for controlled internal use at the configured controlled-LAN origin
+- **AND** the full signed/backup-enabled release gate remains distinct
+
+#### Scenario: Full-path evidence is absent
+- **GIVEN** the current deployment omits release signatures, paired backups, second-copy storage, restore drills, or full staging/promotion
+- **WHEN** release status is reported
+- **THEN** those full-path controls MUST be recorded as unverified
+- **AND** they MUST NOT be implied by the scoped minimal acceptance

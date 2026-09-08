@@ -1,13 +1,13 @@
 # AGENTS.md
 
-This project is a lightweight internal exam and practice platform. Keep changes simple, local, and aligned with the first-phase scaffold.
+This project is a lightweight internal exam and practice platform. Keep changes simple, local, and aligned with the deployed lightweight internal-tool scope.
 
 ## Project Shape
 
 - Backend: `backend/`, FastAPI, Pydantic, SQLAlchemy 2.0, Alembic, PostgreSQL, openpyxl.
 - Frontend: `frontend/`, React, TypeScript, Vite, Tailwind CSS, shadcn-compatible local components, React Router, TanStack Query/Table, React Hook Form, Zod.
 - Deployment: `docker-compose.yml` launches PostgreSQL, backend, frontend, and Nginx. Public API paths stay under `/api`.
-- Runtime entrypoints: backend dev port `8000`, browser entry (Compose/Nginx) `8080`.
+- Runtime: the current internal Mac deployment is live. Read `docs/minimal-macos-deployment.md` before production operations; read `docs/handoff.md` for version and acceptance evidence.
 - Docs: `README.md` as startup guide; `docs/requirements.md`, `docs/database-design.md`, `docs/api-design.md`, `docs/import-templates.md`, `docs/official-exam-uat-checklist.md`, and `docs/handoff.md` are the reference docs.
 
 ## Hard Boundaries
@@ -54,34 +54,23 @@ npm run build
 npm run dev
 ```
 
-Docker:
-
-```bash
-docker-compose --env-file .env config
-docker-compose up -d --build
-```
-
-Health checks:
-
-```bash
-curl http://localhost:8000/api/health
-curl http://localhost:8080/api/health
-curl http://localhost:8080/docs
-```
+Docker development commands and port mappings are in `README.md`. Current
+production commands are only in `docs/minimal-macos-deployment.md`; keep that
+runbook as the single operational source instead of duplicating commands here.
 
 ## Current Stage
 
-The project has an end-to-end first-phase business loop and completed Academic Editorial frontend redesign, with DB migration and deployment wiring in place.
+Formally live on the office LAN since 2026-09-08. Deployment and acceptance
+status belong in `docs/handoff.md`, not in repeated chronological appendices.
 
-- Question Excel import and candidate Excel import validate rows, enforce bounded uploads (default 5 MiB, 5000 rows, 1 sheet), persist valid records, and persist `import_batch` metadata.
-- Failure report export is available as Excel for question, candidate, and exam-candidate imports.
-- Exam configuration create/update/list, candidate-scoped active exam listing, publish-time frozen `exam_question_pool`, and fixed-paper generation are implemented.
-- Exam start creates in-progress attempts with persisted question snapshots and supports answer autosave + resume.
-- Submit flow persists answers, scores from snapshot data, calculates pass status, and handles retake grants.
-- Time-based auto-submit background checks run periodically (every 30s).
-- Ranking and report SQL queries support exam filter and multi-sheet Excel report export (score, accuracy, wrong questions, absent candidates).
-- Candidate login uses name + phone last 4 digits (optional employee number), and candidate-practice APIs are token-gated via `X-Candidate-Token`.
-- Admin login/session uses signed tokens, with `X-Admin-Token` protection and production-safe defaults checks for secret/password/CORS.
-- Route/service boundaries, token handling, schema usage, and import/report persistence are all persisted against real DB state.
+- Email OTP authenticates accounts. New accounts complete a display name; formal exam access additionally requires a frozen per-exam roster scope.
+- Admin and candidate APIs retain `X-Admin-Token` and `X-Candidate-Token` authentication. Release-package signing is separate from mandatory login-token signing.
+- Imports accept standardized question and per-exam roster Excel files; account identity is email-based, and roster display fields are frozen per exam.
+- Snapshot scoring, autosave/resume, device takeover, timed submission, retake grants, and result-detail release are implemented. Use the current main OpenSpec specs for their contracts.
+- Signed release packages, paired backups, second copies, restore drills, and cross-host migration are not enabled in the selected deployment. Their existing tools and historical specifications do not make them current startup requirements.
 
-Current known quality baseline is recorded in `docs/handoff.md` and should be refreshed after each verification pass.
+## Documentation maintenance
+
+- `README.md` is the entry point; the runbook owns operations, `docs/handoff.md` owns current status, and requirements/API/database/import documents own their respective contracts.
+- Update the owning document and its links when behavior changes. Preserve archived OpenSpec facts; consult `openspec/README.md` for historical scope.
+- Remove superseded duplicate prose after migrating useful content. Never turn a historical or unexecuted check into a passed acceptance item.
