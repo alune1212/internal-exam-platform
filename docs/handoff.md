@@ -15,11 +15,19 @@
 | Compose 项目 | `internal-exam-minimal` |
 | 保护目录 | `~/Library/Application Support/InternalExamMinimal` |
 
-仓库后续文档提交不代表生产镜像升级。运行中的 `release/` 是固定源码导出，保留其原始文档；当前维护文档以本仓库为准。正式配置与日常操作统一见[正式运维手册](minimal-macos-deployment.md)。本仓库的 v1.0.0 源码发布与上述现网版本分离；本次发布不升级主机，源码候选的检查、CI 和 GitHub Release 结果须绑定候选提交单独记录。
+运行中的 `release/` 是固定源码导出，不随仓库提交自动升级；当前维护文档以本仓库为准。正式配置与日常操作统一见[正式运维手册](minimal-macos-deployment.md)。v1.0.0 源码发布及其验证结果单独记录如下。
+
+## 源码发布 v1.0.0
+
+2026-09-09 已发布 [v1.0.0](https://github.com/alune1212/internal-exam-platform/releases/tag/v1.0.0)，标签绑定提交 `b00e8a49e7d78c10f1502de7fdde494b1c669bfd`。本次只交付源码和 Compose 构建路径，未升级上表中的正式主机。
+
+- 候选验证：启用 PostgreSQL 的后端全量测试 753 项、前端测试 555 项通过；格式、lint、类型、构建与离线资源检查通过。
+- [候选 CI](https://github.com/alune1212/internal-exam-platform/actions/runs/34298203263) 五个任务全部通过，包含 7 个隔离浏览器场景和 100 客户端容量检查；容量报告校验和已核对，提交状态为 clean，100/100 完成交卷。这些结果不替代新版本的正式主机验收。
+- Python 运行依赖审计无已知漏洞；npm 运行依赖无高危或严重漏洞，有 4 项低风险报告。未将 CI 合成策略夹具当作完整源码或镜像安全复扫。
 
 ## 现网版本的验收结果
 
-以下结果属于上表所列的 `47b4c17` 现网部署，不代表 v1.0.0 源码候选已经通过检查、CI 或发布流程。
+以下结果来自上表所列的 `47b4c17` 现网部署。
 
 | 检查 | 结果与证据边界 |
 | --- | --- |
