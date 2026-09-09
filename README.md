@@ -125,6 +125,8 @@ docker compose --env-file .env down
 
 ## 验证
 
+以下命令是 v1.0.0 源码候选的可复用检查入口；本页不把命令列出等同于检查、CI 或发布已经通过。实际结果必须绑定到具体候选提交后再记录。
+
 后端静态检查与快速测试：
 
 ```bash
@@ -163,11 +165,11 @@ sh ops/e2e/run-browser-gate.sh
 sh ops/e2e/run-capacity-gate.sh
 ```
 
-浏览器测试使用隔离环境和模拟 SMTP，默认脚本包含测试库备份步骤。容量检查要求工作区干净且 Git 提交可追溯。部署版本、验收结果及实际执行范围见[上线交接](docs/handoff.md)。
+浏览器测试使用隔离环境和模拟 SMTP，默认脚本包含测试库备份步骤。容量检查要求工作区干净且 Git 提交可追溯。部署版本、验收结果及实际执行范围见[上线交接](docs/handoff.md)；现网主机版本与 v1.0.0 源码候选分别记录。
 
 ## 正式运行
 
-正式环境运行于公司受控局域网内的单台 Mac。考生入口为 `http://192.168.2.225:8080`，管理入口仅在 Mac 本机开放：`http://127.0.0.1:8081/admin/login`。
+正式环境运行于公司受控局域网内的单台 Mac。考生入口为 `http://192.168.2.225:8080`，管理入口仅在 Mac 本机开放：`http://127.0.0.1:8081/admin/login`。本仓库的 v1.0.0 源码发布与现网版本分离；本次源码发布不升级正式主机，现网提交仍以[上线交接](docs/handoff.md)记录为准。
 
 - [正式运维手册](docs/minimal-macos-deployment.md)：统一维护主机配置、首次部署和日常启停步骤。
 - [上线交接](docs/handoff.md)：统一记录部署版本、验收结果和未启用的功能。
@@ -176,7 +178,7 @@ sh ops/e2e/run-capacity-gate.sh
 - [局域网 HTTP 安全例外](docs/security-http-exception.md)：内网 HTTP 的适用边界。
 - [OpenSpec 导航](openspec/README.md)：当前规格、未采用的完整运维方案及历史归档。
 
-正式环境未启用发布包签名、备份、第二副本和恢复演练。Windows 部署、签名发布和跨主机迁移的历史说明保留在 OpenSpec 与 Git 中；相关工具不适用于当前正式环境的启停。
+正式环境未启用发布包签名、备份、第二副本和恢复演练。完整签名/备份运维链、Windows 部署和跨主机迁移不属于 v1.0.0 支持路径；历史要求和未完成验收保留在 OpenSpec 与 Git 中。
 
 ## 代码地图
 
@@ -188,7 +190,7 @@ frontend/src/api/      前端 API client
 frontend/src/pages/    用户端与操作员页面
 frontend/src/features/  考试作答工作区与状态 hooks
 nginx/                 候选端 / 操作员双入口边界
-ops/                   E2E、容量、安全、macOS 与未来 Windows 运维工具
+ops/                   E2E、容量、安全及共享数据保护工具
 docs/                  需求、数据库、API、模板、UAT 与交接文档
 ```
 

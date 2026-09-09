@@ -25,7 +25,7 @@
 
 ## 部署与服务等级
 
-- 当前正式运行范围是 2026-09-08 的本机最小部署：Apple Silicon macOS + Docker Desktop + Docker Compose，固定部署版本 `47b4c17`，独立 Compose 项目 `internal-exam-minimal`。应考人员入口为 `http://192.168.2.225:8080`，操作员入口仅在本机使用 `http://127.0.0.1:8081/admin/login`。真实 SMTP 复用当前 `.env` 配置。
+- 当前正式运行范围是 2026-09-08 的本机最小部署：Apple Silicon macOS + Docker Desktop + Docker Compose，固定部署版本 `47b4c17`，独立 Compose 项目 `internal-exam-minimal`。应考人员入口为 `http://192.168.2.225:8080`，操作员入口仅在本机使用 `http://127.0.0.1:8081/admin/login`。真实 SMTP 复用当前 `.env` 配置；这是现网状态，不是 v1.0.0 源码候选的发布证据。
 - 当前部署已完成真实邮箱收件、iPhone 16 Pro Max / Safari 登录与答题、刷新恢复、断网恢复、手动交卷、自动交卷和 Mac 重启自动恢复验收；详细证据见 [`docs/handoff.md`](handoff.md)。
 - 当前部署是单机 24×7 best-effort 运行，不建设高可用；严重主机故障允许暂停或改期。Docker Desktop 登录后自动启动和容器自动恢复已验收，但这不提供数据恢复保障。
 - 当前部署根目录为 `~/Library/Application Support/InternalExamMinimal`，与开发工作树分离；配置文件保持 owner-only。日常启动、暂停和首次空库初始化遵循 [`docs/minimal-macos-deployment.md`](minimal-macos-deployment.md)。
@@ -33,7 +33,7 @@
 - 普通办公设备、应考人员电脑和手机共用现有局域网，不假设独立路由器、专用 Wi-Fi 或受管终端。不得把 HTTP 描述为传输安全。
 - 正式 admin/candidate token 有效期固定 4 小时；单场考试最长 2 小时；考后全局关闭会话。
 - 前端运行时完全离线，自托管全部静态资源，不访问公共字体、CDN 或遥测服务。
-- 当前最小部署使用独立 Compose project 和持久卷；考试窗口内只允许这一实例写入。当前范围不启用另一套 staging、签名发布、跨主机迁移或 LaunchAgent 运维路径。
+- 当前最小部署使用独立 Compose project 和持久卷；考试窗口内只允许这一实例写入。当前范围不启用另一套 staging、签名发布或跨主机迁移；未采用的 Mac/Windows 外层运维入口退出 v1.0.0 支持范围，历史要求仍由 OpenSpec 记录。
 - 不做完整防作弊/监考，不隔离练习题与正式题库，也不以阻止题库泄露为第一阶段目标。
 
 ## 题型

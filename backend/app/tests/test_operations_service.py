@@ -112,3 +112,35 @@ def test_operations_snapshot_does_not_collapse_when_one_signal_fails(
     assert snapshot.service_health.status == "failed"
     assert snapshot.disk_reserve.status == "degraded"
     assert snapshot.operational_lock.status == "current"
+
+
+@pytest.mark.parametrize(
+    ("backup_state", "expected_status"),
+    [
+        ("missing", "skipped"),
+        ("empty", "skipped"),
+        ("invalid", "failed"),
+        ("not-directory", "failed"),
+    ],
+)
+def test_backup_status_distinguishes_absent_setup_from_invalid_artifacts(
+    db: Session,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    backup_state: str,
+    expected_status: str,
+) -> None:
+    root = tmp_path / "backups"
+    if backup_state == "not-directory":
+        root.write_text("invalid storage path")
+    elif backup_state != "missing":
+        root.mkdir()
+    if backup_state == "invalid":
+        (root / "backup-incomplete").mkdir()
+    monkeypatch.setattr(settings, "backup_storage_dir", str(root))
+
+    signal = operations_service.get_operations_snapshot(db).backup
+
+    assert signal.status == expected_status
+    if expected_status == "skipped":
+        assert "未验证" in signal.summary

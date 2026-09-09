@@ -753,33 +753,6 @@ def test_raw_digest_mutation_breaks_canonical_bundle(tmp_path: Path) -> None:
     assert error.value.code == "canonical_restart_digest_mismatch"
 
 
-def test_macos_staging_captures_live_checksum_and_preserves_accepted_bundle() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    invoke = (repo_root / "ops" / "macos" / "Invoke-Staging.zsh").read_text(
-        encoding="utf-8"
-    )
-    promote = (repo_root / "ops" / "macos" / "Promote-Release.zsh").read_text(
-        encoding="utf-8"
-    )
-    runtime = (
-        repo_root / "ops" / "macos" / "Invoke-StagingRuntimeChecks.zsh"
-    ).read_text(encoding="utf-8")
-
-    assert 'macos_write_checksum "$destination"' in invoke
-    assert "staging_evidence_preserved" in invoke
-    assert 'rm -R -- "$staging_host_root"' not in invoke
-    assert "staging-acceptance (schemaVersion 2)" in promote
-    assert "durable checksummed" in promote
-    assert "--live-image-ids" in promote
-    assert "never emits browser, SMTP, or capacity passed evidence" in runtime
-    assert "assert_protected_output" in runtime
-    assert "runtime evidence output must remain under the protected root" in runtime
-    assert "runtime evidence output must not be a symlink" in runtime
-    assert "up -d --no-build --wait" in runtime
-    assert "auto-submit-worker" in runtime
-    assert "staging_up_failed cleanup=project" in invoke
-
-
 def test_canonical_bundle_survives_staging_down_relocation(tmp_path: Path) -> None:
     root, release, evidence, run_path, live_path = _fixture(tmp_path)
     output = run_path.parent / "staging-acceptance.json"
@@ -873,53 +846,3 @@ def test_acceptance_binds_to_expected_commissioning_host(tmp_path: Path) -> None
             expected_host_id="host-another-mac",
         )
     assert error.value.code == "run_identity_host_mismatch"
-
-
-def test_backup_restore_producer_contract_is_disposable_and_real() -> None:
-    repo_root = Path(__file__).resolve().parents[3]
-    producer = (
-        repo_root / "ops" / "macos" / "Invoke-StagingBackupRestoreCheck.zsh"
-    ).read_text(encoding="utf-8")
-    for marker in (
-        "container-backup",
-        "sync-second-copy",
-        "verify-restored",
-        "database.dump",
-        "learning_media.tar.gz",
-        "SHA256SUMS",
-        "SUCCESS",
-        "sourceBackupSha256",
-        "restoreMigrationHead",
-        "cleanupStatus",
-        "down -v --remove-orphans",
-        "restore_compose_override",
-        "restore_compose_base",
-        "ports: !reset []",
-        "backup_run_root_created",
-        "second_copy_created",
-    ):
-        assert marker in producer
-    assert producer.count("ports: !reset []") == 4
-    assert "restore_compose up -d --no-build --wait db" in producer
-    assert "restore_compose_capture ps --status running --services" in producer
-    assert '"$second_copy_destination/database.dump"' in producer
-    assert 'restore_compose cp \\\n  "$backup_path/database.dump"' not in producer
-    assert '"$second_copy_destination:/backup:ro"' in producer
-    assert 'rm -R -- "$backup_run_root"' in producer
-    assert 'rm -R -- "$second_copy_destination"' in producer
-    override_start = producer.index("restore_override_body=")
-    override_end = producer.index(
-        'macos_write_atomic "$restore_compose_override"', override_start
-    )
-    override = producer[override_start:override_end]
-    for staging_port in ("15432", "18080", "18081", "15173"):
-        assert staging_port not in override
-    assert '"$MACOS_FORMAL_ENV"' not in producer
-    assert '"$MACOS_FORMAL_PROJECT"' not in producer
-
-    promote = (repo_root / "ops" / "macos" / "Promote-Release.zsh").read_text(
-        encoding="utf-8"
-    )
-    assert '[[ "$paired_backup_path:h" == "$MACOS_LAYOUT_BACKUPS" ]]' in promote
-    assert '[[ "$second_copy_backup_path:h" == "$second_copy_root" ]]' in promote
-    assert '[[ "$paired_backup_path:t" == backup-* ]]' in promote

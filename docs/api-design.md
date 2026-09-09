@@ -141,7 +141,7 @@ GET  /api/admin/learning/reports/export?video_id={id}&status=completed
 - 发布前先读取 authoritative publication readiness；发布请求必须精确确认考试标题，服务在同一事务内重跑阻断项后才冻结题池。
 - 解析发布要求全部 attempt 已 terminal 和精确确认，只能执行一次且不可撤销。作废保留快照、答案、时间与审计证据，并从普通成绩、排名和参考统计中排除。
 - 批量补考必须先 preview，再携带 scope participant ID、preview fingerprint、影响选项、理由和精确标题 apply；每位应考人员至多保留一个未使用授权。
-- operations snapshot 只供 loopback 管理入口读取，汇总版本、迁移、服务/worker、锁、磁盘、备份、第二副本、恢复、保留和安全扫描状态；当前最小部署中签名、备份、第二副本和恢复字段不能被解读为已启用或已验证。
+- operations snapshot 只供 loopback 管理入口读取，汇总版本、迁移、服务/worker、锁、磁盘、备份、第二副本、恢复、保留和安全扫描状态；当前最小部署中签名、备份、第二副本和恢复字段不能被解读为已启用或已验证。备份目录不存在或没有备份产物时返回 `skipped`，并明确恢复能力未验证；存在备份样式产物但验证失败或状态读取失败时返回 `failed`；已验证的备份继续显示 `current` 或 `stale` 及其新鲜度信息。
 - 保留删除采用 preview -> archive -> verified paired backup -> explicit IDs/confirmation 的两阶段门禁，不允许直接数据库删除；当前最小部署未启用配对备份，因此不执行需要该门禁的删除流程。
 - `/api/admin/exams` 的创建、列表和更新已持久化到 `exam` 表；管理端考试编辑页保存 `question_rule` JSON 和开放时间窗口。列表返回 `question_pool_count` 和 `availability_status`。
 - `/api/admin/exams/{exam_id}/workspace` 是 admin-only 的单场聚合读模型，只返回一个 UTC `observed_at`、考试/发布就绪摘要、名单/邀请/出席/attempt/incident 汇总和服务端 advisory `next_action`/`next_action_reason`，不返回 roster rows 或 identity 字段。`next_action` 只供导航提示，所有 mutation 仍在服务端重新校验。

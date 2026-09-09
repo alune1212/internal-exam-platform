@@ -21,6 +21,15 @@ passed full-release gate.
 - `openspec/changes/archive/` preserves the original facts and wording of completed or superseded changes. Archive files are historical evidence and are not rewritten to match the current minimal deployment.
 - Remaining unchecked tasks in active changes stay unchecked. Current minimal Mac evidence does not complete future Windows cutover, full signed-release operations, remote CI, or complete security-scan tasks.
 
+The v1.0.0 source-release scope and historical records are separated:
+
+- `simplify-v1-source-release` is the current scope decision. It replaces the older changes' claims that signed-package, Windows, or cross-host entrypoints remain current maintenance paths. It removes those outer operational entrypoints while keeping shared data-protection, security, migration, and isolated E2E checks in scope. Its source-release, CI, and candidate-validation tasks remain incomplete until their evidence is recorded.
+- [`harden-internal-deployment-readiness`](changes/archive/2026-09-09-harden-internal-deployment-readiness/) is archived as a completed historical implementation. Its original records remain intact; this adds no full-path production acceptance.
+- `remediate-repository-security-findings` retains security hardening requirements for the full signed-release and backup-enabled path. Detached signatures, paired backup/restore, second-copy evidence, remote CI, and the complete final scan remain unverified; this scope decision does not mark those tasks complete.
+- [`stabilize-windows-internal-exam-platform`](changes/archive/2026-09-09-stabilize-windows-internal-exam-platform/) is archived as a superseded operations path. Its two pending native Windows acceptance tasks remain unchecked. Windows is not a supported v1.0.0 release path.
+
+The two historical changes were archived without reapplying their old deltas over later main specifications. Shared Python safety tools and their tests remain maintained; returning to a retired deployment path requires a new scope decision and validation.
+
 Older operational wording can be located through Git history when needed. The
 current deployment status belongs in the live handoff and minimal-deployment
 documents; OpenSpec records the scope decision and the requirements that remain

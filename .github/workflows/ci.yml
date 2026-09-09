@@ -108,58 +108,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Validate macOS zsh and LaunchAgent contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v zsh >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install --no-install-recommends -y zsh
-          fi
-          shell_count=0
-          while IFS= read -r script; do
-            shell_count=$((shell_count + 1))
-            zsh -n "$script"
-          done < <(find ops/macos -type f \( -name '*.zsh' -o -name '*.sh' -o -name '*.command' \) -print)
-          if [[ "$shell_count" -eq 0 ]]; then
-            echo 'No macOS zsh operation files found.' >&2
-            exit 1
-          fi
-
-          if command -v plutil >/dev/null 2>&1; then
-            plist_count=0
-            while IFS= read -r plist; do
-              plist_count=$((plist_count + 1))
-              plutil -lint "$plist"
-            done < <(find ops/macos -type f \( -name '*.plist' -o -name '*.plist.in' -o -name '*.plist.template' \) -print)
-            if [[ "$plist_count" -eq 0 ]]; then
-              echo 'No macOS LaunchAgent plist templates found.' >&2
-              exit 1
-            fi
-          else
-            echo 'plutil is unavailable on Ubuntu; validating LaunchAgents with Python plistlib.'
-            python - <<'PY'
-          from pathlib import Path
-          import plistlib
-
-          files = [
-              path
-              for path in Path("ops/macos").rglob("*")
-              if path.is_file()
-              and (
-                  path.suffix in {".plist", ".xml"}
-                  or path.name.endswith(".plist.in")
-                  or path.name.endswith(".plist.template")
-              )
-          ]
-          if not files:
-              raise SystemExit("No macOS LaunchAgent plist templates found.")
-          for path in files:
-              with path.open("rb") as handle:
-                  plistlib.load(handle)
-              print(f"valid plist: {path}")
-          PY
-          fi
       - name: Install gate dependencies
         run: |
           cd backend
@@ -167,14 +115,11 @@ jobs:
           cd ../frontend
           npm ci
           npm run build
-      - name: Verify deployment, macOS, and Windows workflow contracts
+      - name: Verify deployment and security workflow contracts
         working-directory: backend
-        run: uv run pytest app/tests/test_deployment_config.py app/tests/test_macos_operations_contract.py app/tests/test_capacity_gate.py app/tests/test_security_scan_gate.py
+        run: uv run pytest app/tests/test_deployment_config.py app/tests/test_capacity_gate.py app/tests/test_security_scan_gate.py
       - name: Reject retired candidate identity contracts
         run: python3 scripts/check-legacy-contracts.py
-      - name: Parse every PowerShell operation
-        shell: pwsh
-        run: ./ops/windows/Test-PowerShellSyntax.ps1
       - name: Verify no public runtime dependency
         working-directory: frontend
         run: npm run check:offline
@@ -193,17 +138,6 @@ jobs:
             --trivy ops/security/fixtures/empty-trivy.json \
             --image-record ops/security/fixtures/example-final-images.json \
             --output-dir "$SECURITY_EVIDENCE_DIR"
-      - name: Generate and verify release manifest and checksums
-        shell: pwsh
-        env:
-          SECURITY_EVIDENCE_DIR: ${{ runner.temp }}/security-evidence
-        run: |
-          $security = Get-ChildItem -LiteralPath $env:SECURITY_EVIDENCE_DIR -Filter 'security-scan-*.json' | Select-Object -First 1
-          if (-not $security) { throw 'Security fixture evidence was not generated.' }
-          $commit = (git rev-parse HEAD).Trim()
-          $destination = Join-Path $env:RUNNER_TEMP 'verified-release'
-          ./ops/windows/New-ReleaseBundle.ps1 -SourcePath . -DestinationPath $destination -ApplicationVersion '0.1.0-ci' -GitCommit $commit -SecurityEvidencePath $security.FullName
-
   browser-e2e:
     runs-on: ubuntu-latest
     permissions:

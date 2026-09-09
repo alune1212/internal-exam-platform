@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "internal-exam-platform"
-    app_version: str = "0.1.0"
+    app_version: str = "1.0.0"
     git_commit: str = "development"
     environment: str = "development"
     app_role: str = "backend"

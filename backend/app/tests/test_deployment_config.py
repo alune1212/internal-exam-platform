@@ -4,7 +4,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TEST_COMPOSE_FILE = REPO_ROOT / "docker-compose.test.yml"
-WINDOWS_OPS = REPO_ROOT / "ops" / "windows"
 
 
 def _compose_service_ports(service_name: str) -> list[str]:
@@ -194,27 +193,7 @@ def test_development_bind_mount_defaults_remain_separate_from_formal_paths() -> 
     assert "${INTERNAL_EXAM_EVIDENCE_HOST_DIR:-./.runtime/evidence}" in compose
 
 
-def test_release_evidence_contract_is_architecture_aware_and_redacted() -> None:
-    bundle_generator_path = WINDOWS_OPS / "New-ReleaseBundle.ps1"
-    bundle_verifier_path = WINDOWS_OPS / "Test-ReleaseBundle.ps1"
-    assert bundle_verifier_path.is_file()
-
-    bundle_generator = bundle_generator_path.read_text(encoding="utf-8")
-    assert bundle_verifier_path.name in bundle_generator
-    lowered = bundle_generator.lower()
-    for field in (
-        "applicationversion",
-        "gitcommit",
-        "migrationhead",
-        "hostos",
-        "architecture",
-        "imagedigests",
-    ):
-        assert field in lowered
-    assert "securityevidence" in lowered
-    assert "token_secret" not in lowered
-    assert "admin_password" not in lowered
-
+def test_release_image_manifest_matches_platform_support() -> None:
     release_root = REPO_ROOT / "ops" / "release"
     image_digests = json.loads(
         (release_root / "image-digests.json").read_text(encoding="utf-8")

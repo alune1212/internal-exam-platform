@@ -169,9 +169,20 @@ def get_operations_snapshot(
         )
 
     def backup() -> OperationalSignalRead:
-        rows = list_verified_backups(Path(settings.backup_storage_dir))
+        root = Path(settings.backup_storage_dir)
+        rows = list_verified_backups(root)
         if not rows:
-            return _signal("failed", "尚无已验证配对备份", checked_at)
+            try:
+                has_artifacts = any(
+                    path.name.startswith("backup-") for path in root.iterdir()
+                )
+            except FileNotFoundError:
+                has_artifacts = False
+            if has_artifacts:
+                return _signal("failed", "现有配对备份未通过验证", checked_at)
+            return _signal(
+                "skipped", "尚未建立配对备份，数据恢复能力未验证", checked_at
+            )
         path, manifest = rows[0]
         created_at = to_utc(datetime.fromisoformat(str(manifest["created_at"])))
         stale = (checked_at - created_at).total_seconds() > 48 * 60 * 60
