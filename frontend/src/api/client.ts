@@ -43,11 +43,7 @@ function resolveAuthHeaders(path: string): Record<string, string> {
   // OTP request/verification and registration completion are intentionally
   // unauthenticated.  In particular, an expired tab session must not leak a
   // stale candidate token into the public auth flow.
-  if (
-    path === "/api/candidates/login" ||
-    path === "/api/candidates/login/verify" ||
-    path === "/api/candidates/register/complete"
-  ) {
+  if (isPublicCandidateAuthPath(path)) {
     return {};
   }
   const candidate = getCurrentCandidate();
@@ -122,19 +118,7 @@ export async function uploadRequest<T>(path: string, file: File): Promise<T> {
 }
 
 export async function formRequest<T>(path: string, formData: FormData): Promise<T> {
-  const response = await fetch(resolveApiUrl(path), {
-    method: "POST",
-    body: formData,
-    headers: new Headers(resolveAuthHeaders(path)),
-  });
-  if (!response.ok) {
-    if (response.status === 401 && !isPublicCandidateAuthPath(path)) {
-      handle401(path);
-    }
-    throw await parseError(response);
-  }
-  const body = (await response.json()) as ApiResponse<T>;
-  return body.data;
+  return apiRequest<T>(path, { method: "POST", body: formData });
 }
 
 function isPublicCandidateAuthPath(path: string): boolean {

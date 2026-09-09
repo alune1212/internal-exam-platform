@@ -110,9 +110,6 @@ from app.services.exam_errors import (
     InsufficientQuestionsError as InsufficientQuestionsError,
 )
 from app.services.exam_paper import (
-    _rescale_scores as _rescale_scores,
-)
-from app.services.exam_paper import (
     _select_questions_by_type as _select_questions_by_type,
 )
 from app.services.exam_results import (

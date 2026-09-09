@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { apiRequest, ApiError } from "./client";
+import { apiRequest, formRequest, uploadRequest, ApiError } from "./client";
 import { setAdminToken, clearAdminToken } from "@/lib/adminSession";
 import { setCurrentCandidate, clearCurrentCandidate } from "@/lib/candidateSession";
 import { setAttemptSession } from "@/lib/attemptSession";
@@ -103,19 +103,25 @@ describe("apiRequest auth headers", () => {
     expect(headers.get("X-Trace-Id")).toBe("trace-1");
   });
 
-  it("FormData 请求不强制 JSON Content-Type", async () => {
+  it.each([
+    ["apiRequest", (path: string, body: FormData) => apiRequest(path, { method: "POST", body })],
+    ["formRequest", formRequest],
+    [
+      "uploadRequest",
+      (path: string, body: FormData) => uploadRequest(path, body.get("file") as File),
+    ],
+  ])("%s 保留上传内容、认证和响应，不强制 JSON Content-Type", async (_name, request) => {
     setAdminToken("admin-pass");
     mockFetchJson([]);
     const formData = new FormData();
     formData.append("file", new File(["x"], "x.xlsx"));
 
-    await apiRequest("/api/admin/questions/import", {
-      method: "POST",
-      body: formData,
-    });
+    await expect(request("/api/admin/questions/import", formData)).resolves.toEqual([]);
 
     const [, init] = vi.mocked(fetch).mock.calls[0];
     const headers = init?.headers as Headers;
+    expect(init?.method).toBe("POST");
+    expect((init?.body as FormData).get("file")).toEqual(formData.get("file"));
     expect(headers.get("Content-Type")).toBeNull();
     expect(headers.get("X-Admin-Token")).toBe("admin-pass");
   });
@@ -129,10 +135,14 @@ describe("apiRequest auth headers", () => {
     expect(headers.get("X-Candidate-Token")).toBeNull();
   });
 
-  it("401 admin 请求清 token", async () => {
+  it.each([
+    ["apiRequest", (path: string) => apiRequest(path)],
+    ["formRequest", (path: string) => formRequest(path, new FormData())],
+    ["uploadRequest", (path: string) => uploadRequest(path, new File(["x"], "x.xlsx"))],
+  ])("401 %s admin 请求清 token", async (_name, request) => {
     setAdminToken("old-pass");
     mockFetchJson(null, 401);
-    await expect(apiRequest("/api/admin/exams")).rejects.toBeInstanceOf(ApiError);
+    await expect(request("/api/admin/exams")).rejects.toBeInstanceOf(ApiError);
     expect(sessionStorage.getItem("internal-exam-admin-token")).toBeNull();
     expect(window.location.pathname).toBe("/admin/login");
   });
